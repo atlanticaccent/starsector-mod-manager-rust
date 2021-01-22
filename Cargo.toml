@@ -5,3 +5,9 @@ authors = ["ikl"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+zip = "0.5.9"
+unrar = "0.4.4"
+compress-tools = "0.9.0"
+infer = "0.3.4"
