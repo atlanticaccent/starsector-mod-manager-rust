@@ -34,7 +34,7 @@ fn main() {
         .process()
         .unwrap();
       println!("Done.");
-    }
+    },
     "application/zip" => {
       let mut archive = zip::ZipArchive::new(fs::File::open(file).unwrap()).unwrap();
       
@@ -64,7 +64,7 @@ fn main() {
           std::io::copy(&mut file, &mut outfile).unwrap();
         }
       }
-    }
+    },
     "application/x-7z-compressed" => {
       let mut source = fs::File::open(&file).expect("Could not open file");
       let dest = Path::new("./tmp/dest");
