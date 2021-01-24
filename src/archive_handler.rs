@@ -94,7 +94,7 @@ pub fn handle_archive(file: &String) -> Result<bool, Box<dyn Error>>{
       }
     },
     "application/x-7z-compressed" => {
-      let mut source = fs::File::open(&file).expect("Could not open file");
+      let mut source = fs::File::open(&file).expect("Could not open file"); //fix
       let dest = Path::new("./tmp/dest");
       
       match compress_tools::uncompress_archive(&mut source, &dest, compress_tools::Ownership::Ignore) {
