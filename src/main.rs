@@ -12,6 +12,6 @@ fn main() {
 
   match archive_handler::handle_archive(&file) {
       Ok(res) => println!("Ran without exception. Completed? {}", res),
-      Err(err) => println!("Encountered exception {}", err),
+      Err(err) => println!("Encountered exception: {}", err),
   }
 }
