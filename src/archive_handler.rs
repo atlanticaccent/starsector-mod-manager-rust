@@ -36,7 +36,7 @@ pub fn handle_archive(file: &String) -> Result<bool, Box<dyn Error>>{
         .to_string();
 
       match unrar::Archive::new(file.clone()).extract_to(output_dir) {
-        Ok(mut res) => match res.process() {
+        Ok(mut arch) => match arch.process() {
           Ok(_) => return Ok(true),
           Err(err) => return Err(Box::new(UnrarErr { err })),
         },
