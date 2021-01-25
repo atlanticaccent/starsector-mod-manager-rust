@@ -295,6 +295,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "cocoa"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f63902e9223530efb4e26ccd0cf55ec30d592d3b42e21a28defc42a9586e832"
+dependencies = [
+ "bitflags",
+ "block",
+ "cocoa-foundation",
+ "core-foundation 0.9.1",
+ "core-graphics 0.22.2",
+ "foreign-types",
+ "libc",
+ "objc",
+]
+
+[[package]]
 name = "cocoa-foundation"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -566,6 +582,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "dirs"
+version = "3.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "142995ed02755914747cc6ca76fc7e4583cd18578746716d0508ea6ed558b9ff"
+dependencies = [
+ "dirs-sys",
+]
+
+[[package]]
 name = "dirs-sys"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -704,7 +729,7 @@ dependencies = [
  "core-foundation 0.7.0",
  "core-graphics 0.19.2",
  "core-text",
- "dirs",
+ "dirs 2.0.2",
  "dwrote",
  "float-ord",
  "freetype",
@@ -1089,7 +1114,7 @@ checksum = "d8bae26a39a728b003e9fad473ea89527de0de050143b4df866f18bb154bc86e"
 dependencies = [
  "android_glue",
  "cgl",
- "cocoa",
+ "cocoa 0.23.0",
  "core-foundation 0.9.1",
  "glutin_egl_sys",
  "glutin_emscripten_sys",
@@ -1628,6 +1653,24 @@ dependencies = [
  "num-traits 0.2.14",
  "spirv_headers",
  "thiserror",
+]
+
+[[package]]
+name = "native-dialog"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f491dab19c26687b897fcb4ecaa984fc87a7dd5a21d69f48eab41e254116981"
+dependencies = [
+ "cocoa 0.24.0",
+ "dirs 3.0.1",
+ "objc",
+ "objc-foundation",
+ "objc_id",
+ "once_cell",
+ "thiserror",
+ "wfd",
+ "which",
+ "winapi 0.3.9",
 ]
 
 [[package]]
@@ -2375,6 +2418,7 @@ dependencies = [
  "compress-tools",
  "iced",
  "infer",
+ "native-dialog",
  "unrar",
  "zip",
 ]
@@ -2816,6 +2860,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "wfd"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e713040b67aae5bf1a0ae3e1ebba8cc29ab2b90da9aa1bff6e09031a8a41d7a8"
+dependencies = [
+ "libc",
+ "winapi 0.3.9",
+]
+
+[[package]]
 name = "wgpu"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2887,6 +2941,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "which"
+version = "4.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87c14ef7e1b8b8ecfc75d5eca37949410046e66f15d185c01d70824f1f8111ef"
+dependencies = [
+ "libc",
+ "thiserror",
+]
+
+[[package]]
 name = "winapi"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2949,7 +3013,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5bc559da567d8aa671bbcd08304d49e982c7bf2cb91e10288b9188931c1b772"
 dependencies = [
  "bitflags",
- "cocoa",
+ "cocoa 0.23.0",
  "core-foundation 0.9.1",
  "core-graphics 0.22.2",
  "core-video-sys",
