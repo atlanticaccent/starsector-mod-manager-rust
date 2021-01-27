@@ -1,8 +1,10 @@
 use iced::{Align, Application, button, Button, Column, Command, Element, Length, Row, Rule, Space, Text, executor, text_input, TextInput};
+use native_dialog::{FileDialog};
 use std::path::PathBuf;
 
 pub struct App {
   root_dir: Option<PathBuf>,
+  new_dir: Option<String>,
   path_input_state: text_input::State,
   settings_button: button::State,
   settings_open: bool,
@@ -26,6 +28,7 @@ impl Application for App {
     (
       App {
         root_dir: None,
+        new_dir: None,
         path_input_state: text_input::State::new(),
         settings_button: button::State::new(),
         settings_open: false,
@@ -47,19 +50,31 @@ impl Application for App {
       },
       Message::SettingsClose => {
         self.settings_open = false;
-        return Command::none();
-      }
-      Message::PathChanged(some_path) => {
-        let path = PathBuf::from(some_path);
 
-        if (*path).exists() {
-          self.root_dir = Some(path);
+        let some_path = PathBuf::from(&self.new_dir.as_deref().unwrap_or_else(|| ""));
+
+        if (*some_path).exists() {
+          self.root_dir.replace(some_path);
+        } else {
+          self.new_dir = None;
         }
 
         return Command::none();
+      }
+      Message::PathChanged(path) => {
+        self.new_dir.replace(path);
+        return Command::none();
       },
       Message::OpenNativeDiag => {
-        
+        let diag = FileDialog::new().set_location("~/Desktop");
+
+        if let Ok(some_path) = diag.show_open_single_dir() {
+          if let Some(ref path_buf) = some_path {
+            self.new_dir = Some(path_buf.to_string_lossy().into_owned())
+          }
+          
+          self.root_dir = some_path;
+        }
 
         return Command::none();
       }
@@ -94,14 +109,23 @@ impl Application for App {
     let controls: Column<Message> = Column::new()
       .width(Length::FillPortion(1));
 
+    let tmp;
     let content: Row<Message> = if self.settings_open {
       let input = TextInput::new(
         &mut self.path_input_state,
         "/",
-        if let Some(path) = &self.root_dir {
-          path.to_str().unwrap_or("")
-        } else {
-          ""
+        match self.new_dir {
+          Some(ref value) => value.as_str(),
+          None => {
+            match self.root_dir {
+              Some(ref root) => {
+                tmp = root.display().to_string();
+
+                tmp.as_str()
+              },
+              None => "",
+            }
+          }
         },
         |path| -> Message { 
           Message::PathChanged(path)
