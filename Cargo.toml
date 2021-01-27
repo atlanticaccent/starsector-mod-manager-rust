@@ -12,4 +12,5 @@ unrar = "0.4.4"
 compress-tools = "0.9.0"
 infer = "0.3.4"
 iced = { version = "0.2.0", features = ["glow"] }
+iced_native ="0.3"
 native-dialog = "0.5.2"
