@@ -147,7 +147,7 @@ impl Application for App {
           .width(Length::Fill)
           .height(Length::Fill)
           .align_items(Align::Center)
-      )
+      ).padding(5)
     } else {
       Row::new()
         .push(list)
@@ -156,7 +156,6 @@ impl Application for App {
         .padding(5)
         .width(Length::Fill)
     };
-    
 
     Column::new()
       .push(menus)
