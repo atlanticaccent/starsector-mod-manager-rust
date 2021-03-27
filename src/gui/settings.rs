@@ -1,5 +1,4 @@
-use iced::{Align, Button, Length, Text, TextInput};
-use::iced::{Command, Row, Element, text_input, button};
+use iced::{Align, Button, Length, Text, TextInput, Command, Row, Element, text_input, button};
 use native_dialog::{FileDialog};
 use std::path::PathBuf;
 
