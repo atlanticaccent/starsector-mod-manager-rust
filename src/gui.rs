@@ -1,12 +1,12 @@
 use iced::{Application, button, Button, Column, Command, Element, Length, Row, Rule, Text, executor};
-use std::path::PathBuf;
+// use std::path::PathBuf;
 
 use self::settings::SettingsMessage;
 
 mod settings;
 
 pub struct App {
-  root_dir: Option<PathBuf>,
+  // root_dir: Option<PathBuf>,
   settings_button: button::State,
   settings_open: bool,
   settings: settings::Settings
@@ -27,7 +27,7 @@ impl Application for App {
   fn new(_flags: ()) -> (App, Command<Message>) {
     (
       App {
-        root_dir: None,
+        // root_dir: None,
         settings_button: button::State::new(),
         settings_open: false,
         settings: settings::Settings::new()
@@ -44,19 +44,13 @@ impl Application for App {
     match _message {
       Message::SettingsOpen => {
         self.settings_open = true;
-        self.settings.update(SettingsMessage::InitRoot(self.root_dir.clone()));
+        // self.settings.update(SettingsMessage::InitRoot(self.root_dir.clone()));
         return Command::none();
       },
       Message::SettingsClose => {
         self.settings_open = false;
 
-        let some_path = PathBuf::from(self.settings.new_dir.as_deref().unwrap_or_else(|| ""));
-        
-        if (*some_path).exists() {
-          self.root_dir.replace(some_path);
-        } else {
-          self.settings.new_dir = None;
-        }
+        self.settings.update(SettingsMessage::Close);
 
         return Command::none();
       }

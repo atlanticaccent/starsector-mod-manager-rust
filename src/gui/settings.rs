@@ -13,6 +13,7 @@ pub struct Settings {
 #[derive(Debug, Clone)]
 pub enum SettingsMessage {
   InitRoot(Option<PathBuf>),
+  Close,
   PathChanged(String),
   OpenNativeDiag
 }
@@ -31,6 +32,17 @@ impl Settings {
     match message {
       SettingsMessage::InitRoot(mut _root_dir) => {
         self.root_dir = _root_dir.take();
+        return Command::none();
+      },
+      SettingsMessage::Close => {
+        let some_path = PathBuf::from(self.new_dir.as_deref().unwrap_or_else(|| ""));
+
+        if (*some_path).exists() {
+          self.root_dir.replace(some_path);
+        } else {
+          self.new_dir = None;
+        }
+
         return Command::none();
       },
       SettingsMessage::PathChanged(path) => {
