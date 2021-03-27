@@ -1,22 +1,26 @@
-use iced::{Application, button, Button, Column, Command, Element, Length, Row, Rule, Text, executor};
+use iced::{Application, button, Button, Column, Command, Element, Length, Row, Text, executor};
 // use std::path::PathBuf;
 
-use self::settings::SettingsMessage;
-
 mod settings;
+mod mod_list;
+
+use settings::SettingsMessage;
+use mod_list::ModListMessage;
 
 pub struct App {
   // root_dir: Option<PathBuf>,
   settings_button: button::State,
   settings_open: bool,
-  settings: settings::Settings
+  settings: settings::Settings,
+  mod_list: mod_list::ModList
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
   SettingsOpen,
   SettingsClose,
-  SettingsMessage(SettingsMessage)
+  SettingsMessage(SettingsMessage),
+  ModListMessage(ModListMessage)
 }
 
 impl Application for App {
@@ -30,7 +34,8 @@ impl Application for App {
         // root_dir: None,
         settings_button: button::State::new(),
         settings_open: false,
-        settings: settings::Settings::new()
+        settings: settings::Settings::new(),
+        mod_list: mod_list::ModList::new()
       },
       Command::none()
     )
@@ -56,6 +61,11 @@ impl Application for App {
       }
       Message::SettingsMessage(settings_message) => {
         self.settings.update(settings_message);
+        return Command::none();
+      },
+      Message::ModListMessage(mod_list_message) => {
+        self.mod_list.update(mod_list_message);
+        
         return Command::none();
       }
     }
@@ -88,19 +98,9 @@ impl Application for App {
         Message::SettingsMessage(_message)
       })
     } else {
-      let list: Column<Message> = Column::new()
-        .width(Length::FillPortion(4));
-  
-      let controls: Column<Message> = Column::new()
-        .width(Length::FillPortion(1));
-
-      Row::new()
-        .push(list)
-        .push(Rule::vertical(1))
-        .push(controls)
-        .padding(5)
-        .width(Length::Fill)
-        .into()
+      self.mod_list.view().map(move |_message| {
+        Message::ModListMessage(_message)
+      })
     };
 
     Column::new()
