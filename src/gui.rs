@@ -57,6 +57,8 @@ impl Application for App {
 
         self.settings.update(SettingsMessage::Close);
 
+        self.mod_list.update(ModListMessage::SetRoot(self.settings.root_dir.clone()));
+
         return Command::none();
       }
       Message::SettingsMessage(settings_message) => {
