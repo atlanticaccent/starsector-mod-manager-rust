@@ -14,3 +14,7 @@ infer = "0.3.4"
 iced = { version = "0.2.0", features = ["glow"] }
 iced_native ="0.3"
 native-dialog = "0.5.2"
+serde_json = "1.0"
+json5 = "0.3.0"
+json_comments = "0.1.0"
+if_chain = "1.0.1"
