@@ -1,5 +1,5 @@
 use std::{io::Read, path::PathBuf, collections::HashMap};
-use iced::{Text, Column, Command, Element, Length, Row, Rule, Scrollable, scrollable};
+use iced::{Text, Column, Command, Element, Length, Row, Rule, Scrollable, scrollable, Button, button, Checkbox};
 use json_comments::strip_comments;
 use json5;
 use if_chain::if_chain;
@@ -47,25 +47,25 @@ impl ModList {
   pub fn view(&mut self) -> Element<ModListMessage> {
     let list: Scrollable<ModListMessage> = Scrollable::new(&mut self.scroll)
       .width(Length::FillPortion(4))
-      .push::<Element<ModListMessage>>(if self.mods.len() > 0 {
-        self.mods
-          .iter_mut()
+        .push::<Element<ModListMessage>>(if self.mods.len() > 0 {
+          self.mods
+            .iter_mut()
           .fold(Column::new().padding(20), |col, (_, entry)| {
             col.push(entry.view().map(|message| {
               ModListMessage::ModEntryMessage(message.id, message.message)
             }))
-          })
-          .into()
-      } else {
-        Column::new()
-          .width(Length::Fill)
-          .height(Length::Units(200))
-          .push(Text::new("No mods found") //change this to be more helpful
+                })
+            .into()
+        } else {
+          Column::new()
             .width(Length::Fill)
-            .size(25)
-            .color([0.7, 0.7, 0.7])
-          )
-          .into()
+            .height(Length::Units(200))
+            .push(Text::new("No mods found") //change this to be more helpful
+              .width(Length::Fill)
+              .size(25)
+              .color([0.7, 0.7, 0.7])
+            )
+            .into()
       });
   
     let controls: Column<ModListMessage> = Column::new()
@@ -136,18 +136,14 @@ pub struct ModEntry {
   version: String,
   description: String,
   game_version: String,
-  enabled: bool
-}
-
-#[derive(Debug, Clone)]
-pub struct ModEntryMessageStruct {
-  pub id: String,
-  pub message: ModEntryMessage
+  enabled: bool,
+  button_state: button::State
 }
 
 #[derive(Debug, Clone)]
 pub enum ModEntryMessage {
-
+  ToggleEnabled(bool),
+  EntryHighlighted
 }
 
 impl ModEntry {
@@ -159,17 +155,83 @@ impl ModEntry {
       version,
       description,
       game_version,
-      enabled: false
+      enabled: false,
+      button_state: button::State::new()
     }
   }
 
   pub fn update(&mut self, message: ModEntryMessage) -> Command<ModEntryMessage> {
-    Command::none()
+    match message {
+      ModEntryMessage::ToggleEnabled(enabled) => {
+        self.enabled = enabled;
+
+        Command::none()
+      },
+      ModEntryMessage::EntryHighlighted => {
+        Command::none()
+      }
+    }
   }
 
-  pub fn view(&mut self) -> Element<ModEntryMessageStruct> {
+  pub fn view(&mut self) -> Element<ModEntryMessage> {
     Row::new()
-      .push(Text::new(self.id.clone()))
+      .push(Checkbox::new(self.enabled, "", move |toggled| {
+        ModEntryMessage::ToggleEnabled(toggled)
+      }).width(Length::Shrink))
+      .push(
+        Button::new(
+          &mut self.button_state,
+          Row::new()
+            .push(Text::new(self.name.clone()).width(Length::Fill))
+            .push(Text::new(self.id.clone()).width(Length::Fill))
+            .push(Text::new(self.author.clone()).width(Length::Fill))
+            .push(Text::new(self.version.clone()).width(Length::Fill))
+            .push(Text::new(self.game_version.clone()).width(Length::Fill))
+        )
+        .style(style::Theme::None)
+        .on_press(ModEntryMessage::EntryHighlighted)
+      )
+      .padding(5)
       .into()
+  }
+}
+
+pub mod style {
+  use iced::{button};
+
+  pub enum Theme {
+    None
+  }
+
+  impl From<Theme> for Box<dyn button::StyleSheet> {
+    fn from(theme: Theme) -> Self {
+      match theme {
+        Theme::None => none::Button.into(),
+      }
+    }
+  }
+
+  mod none {
+    use iced::{button, Color, Vector};
+
+    pub struct Button;
+
+    impl button::StyleSheet for Button {
+      fn active(&self) -> button::Style {
+        button::Style {
+          background: Color::from_rgb(255.0, 255.0, 255.0).into(),
+          border_radius: 12.0,
+          shadow_offset: Vector::new(0.0, 0.0),
+          text_color: Color::from_rgb(0.0, 0.0, 0.0),
+          ..button::Style::default()
+        }
+      }
+    
+      fn hovered(&self) -> button::Style {
+        button::Style {
+          ..self.active()
+        }
+      }
+    }
   }
 }
