@@ -45,16 +45,21 @@ impl ModList {
   }
 
   pub fn view(&mut self) -> Element<ModListMessage> {
-    let list: Scrollable<ModListMessage> = Scrollable::new(&mut self.scroll)
+    let content = Column::new()
       .width(Length::FillPortion(4))
+      .push(Scrollable::new(&mut self.scroll)
+        .height(Length::FillPortion(2))
         .push::<Element<ModListMessage>>(if self.mods.len() > 0 {
           self.mods
             .iter_mut()
-          .fold(Column::new().padding(20), |col, (_, entry)| {
-            col.push(entry.view().map(|message| {
-              ModListMessage::ModEntryMessage(message.id, message.message)
-            }))
+            .fold(Column::new().padding(20), |col, (id, entry)| {
+              let id_clone = id.clone();
+              col.push(
+                entry.view().map(move |message| {
+                  ModListMessage::ModEntryMessage(id_clone.clone(), message)
                 })
+              )
+            })
             .into()
         } else {
           Column::new()
@@ -66,13 +71,17 @@ impl ModList {
               .color([0.7, 0.7, 0.7])
             )
             .into()
-      });
+        })
+      )
+      .push(Row::new()
+        .height(Length::FillPortion(1))
+      );
   
     let controls: Column<ModListMessage> = Column::new()
       .width(Length::FillPortion(1));
 
     Row::new()
-      .push(list)
+      .push(content)
       .push(Rule::vertical(1))
       .push(controls)
       .padding(5)
