@@ -7,13 +7,15 @@ use if_chain::if_chain;
 pub struct ModList {
   root_dir: Option<PathBuf>,
   mods: HashMap<String, ModEntry>,
-  scroll: scrollable::State
+  scroll: scrollable::State,
+  mod_description: ModDescription
 }
 
 #[derive(Debug, Clone)]
 pub enum ModListMessage {
   SetRoot(Option<PathBuf>),
-  ModEntryMessage(String, ModEntryMessage)
+  ModEntryMessage(String, ModEntryMessage),
+  ModDescriptionMessage(ModDescriptionMessage)
 }
 
 impl ModList {
@@ -21,7 +23,8 @@ impl ModList {
     ModList {
       root_dir: None,
       mods: HashMap::new(),
-      scroll: scrollable::State::new()
+      scroll: scrollable::State::new(),
+      mod_description: ModDescription::new(1)
     }
   }
 
@@ -36,10 +39,22 @@ impl ModList {
       },
       ModListMessage::ModEntryMessage(id, message) => {
         if let Some(entry) = self.mods.get_mut(&id) {
-          entry.update(message);
+          match message {
+            ModEntryMessage::EntryHighlighted => {
+              self.mod_description.update(ModDescriptionMessage::ModChanged(entry.clone()));
+            },
+            _ => {
+              entry.update(message);
+            }
+          }
         }
 
-        return Command::none();
+        Command::none()
+      },
+      ModListMessage::ModDescriptionMessage(message) => {
+        self.mod_description.update(message);
+
+        Command::none()
       }
     }
   }
@@ -73,9 +88,9 @@ impl ModList {
             .into()
         })
       )
-      .push(Row::new()
-        .height(Length::FillPortion(1))
-      );
+      .push(self.mod_description.view().map(|message| {
+        ModListMessage::ModDescriptionMessage(message)
+      }));
   
     let controls: Column<ModListMessage> = Column::new()
       .width(Length::FillPortion(1));
@@ -201,6 +216,47 @@ impl ModEntry {
         .on_press(ModEntryMessage::EntryHighlighted)
       )
       .padding(5)
+      .into()
+  }
+}
+
+#[derive(Debug, Clone)]
+pub struct ModDescription {
+  mod_entry: Option<ModEntry>,
+  fill_portion: u16
+}
+
+#[derive(Debug, Clone)]
+pub enum ModDescriptionMessage {
+  ModChanged(ModEntry)
+}
+
+impl ModDescription {
+  pub fn new(fill_portion: u16) -> Self {
+    ModDescription {
+      mod_entry: None,
+      fill_portion
+    }
+  }
+
+  pub fn update(&mut self, message: ModDescriptionMessage) -> Command<ModDescriptionMessage> {
+    match message {
+      ModDescriptionMessage::ModChanged(entry) => {
+        self.mod_entry = Some(entry)
+      }
+    }
+
+    Command::none()
+  }
+
+  pub fn view(&mut self) -> Element<ModDescriptionMessage> {
+    Row::new()
+      .height(Length::FillPortion(self.fill_portion))
+      .push(Text::new(if let Some(entry) = &self.mod_entry {
+        entry.description.clone()
+      } else {
+        "".to_owned()
+      }))
       .into()
   }
 }
