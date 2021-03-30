@@ -1,21 +1,26 @@
 use std::{io::Read, path::PathBuf, collections::HashMap};
-use iced::{Text, Column, Command, Element, Length, Row, Rule, Scrollable, scrollable, Button, button, Checkbox};
+use iced::{Text, Column, Command, Element, Length, Row, Rule, Scrollable, scrollable, Button, button, Checkbox, Align, PickList, pick_list};
 use json_comments::strip_comments;
 use json5;
 use if_chain::if_chain;
+use native_dialog::{FileDialog, MessageDialog};
+
+use crate::archive_handler;
 
 pub struct ModList {
   root_dir: Option<PathBuf>,
   mods: HashMap<String, ModEntry>,
   scroll: scrollable::State,
-  mod_description: ModDescription
+  mod_description: ModDescription,
+  install_state: pick_list::State<InstallOptions>
 }
 
 #[derive(Debug, Clone)]
 pub enum ModListMessage {
   SetRoot(Option<PathBuf>),
   ModEntryMessage(String, ModEntryMessage),
-  ModDescriptionMessage(ModDescriptionMessage)
+  ModDescriptionMessage(ModDescriptionMessage),
+  InstallPressed(InstallOptions)
 }
 
 impl ModList {
@@ -24,7 +29,8 @@ impl ModList {
       root_dir: None,
       mods: HashMap::new(),
       scroll: scrollable::State::new(),
-      mod_description: ModDescription::new(1)
+      mod_description: ModDescription::new(1),
+      install_state: pick_list::State::default()
     }
   }
 
@@ -53,6 +59,32 @@ impl ModList {
       },
       ModListMessage::ModDescriptionMessage(message) => {
         self.mod_description.update(message);
+
+        Command::none()
+      },
+      ModListMessage::InstallPressed(opt) => {
+        let diag = FileDialog::new().set_location("~/Desktop");
+
+        match opt {
+          InstallOptions::FromArchive => {
+            if let Ok(paths) = diag.add_filter("Archive types", &["zip", "7z", "rar", "tar", "tar.gz"]).show_open_multiple_file() {
+              for maybe_path in paths {
+                if let Some(path) = maybe_path.to_str() {
+                  match archive_handler::handle_archive(&path.to_owned()) {
+                    Err(error) => {
+                      MessageDialog::new().set_text(format!("Could not extract file: {:?}", path).as_str()).show_alert();
+                    }
+                    _ => {},
+                  }
+                }
+              }
+            }
+          },
+          InstallOptions::FromFolder => {
+
+          },
+          _ => {}
+        }
 
         Command::none()
       }
@@ -93,7 +125,17 @@ impl ModList {
       }));
   
     let controls: Column<ModListMessage> = Column::new()
-      .width(Length::FillPortion(1));
+      .width(Length::FillPortion(1))
+      .padding(20)
+      .align_items(Align::Center)
+      .push::<Element<ModListMessage>>(
+        PickList::new(
+          &mut self.install_state,
+          &InstallOptions::SHOW[..],
+          Some(InstallOptions::Default),
+          ModListMessage::InstallPressed
+        ).into()
+      );
 
     Row::new()
       .push(content)
@@ -258,6 +300,34 @@ impl ModDescription {
         "".to_owned()
       }))
       .into()
+  }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum InstallOptions {
+  FromArchive,
+  FromFolder,
+  Default
+}
+
+impl InstallOptions {
+  const SHOW: [InstallOptions; 2] = [
+    InstallOptions::FromArchive,
+    InstallOptions::FromFolder
+  ];
+}
+
+impl std::fmt::Display for InstallOptions {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+      write!(
+          f,
+          "{}",
+          match self {
+            InstallOptions::Default => "Install Mod",
+            InstallOptions::FromArchive => "From Archive",
+            InstallOptions::FromFolder => "From Folder"
+          }
+      )
   }
 }
 
