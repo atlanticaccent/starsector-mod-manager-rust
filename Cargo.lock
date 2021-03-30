@@ -354,11 +354,12 @@ dependencies = [
 
 [[package]]
 name = "compress-tools"
-version = "0.9.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e301616d9ae73fa013c930f253bbd253abb92dae6a5404ba871df30001799626"
+checksum = "0f22f2026ea48da7e070e0821b7cf4ddd37891ceec1b30bf2f59017e91776e42"
 dependencies = [
  "derive_more",
+ "libc",
  "pkg-config",
  "vcpkg",
 ]
@@ -1566,9 +1567,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "libc"
-version = "0.2.82"
+version = "0.2.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89203f3fba0a3795506acaad8ebce3c80c0af93f994d5a1d7a0b1eeb23271929"
+checksum = "56d855069fafbb9b344c0f962150cd2c1187975cb1c22c1522c240d8c4986714"
 
 [[package]]
 name = "libloading"
