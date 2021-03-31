@@ -70,7 +70,7 @@ impl ModList {
             if let Ok(paths) = diag.add_filter("Archive types", &["zip", "7z", "rar", "tar", "tar.gz"]).show_open_multiple_file() {
               for maybe_path in paths {
                 if let Some(path) = maybe_path.to_str() {
-                  match archive_handler::handle_archive(&path.to_owned()) {
+                  match archive_handler::handle_archive(&path.to_owned(), &".".to_owned()) {
                     Err(error) => {
                       MessageDialog::new().set_text(format!("Could not extract file: {:?}", path).as_str()).show_alert();
                     }

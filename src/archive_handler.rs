@@ -18,7 +18,7 @@ impl<T> fmt::Debug for UnrarErr<T> {
 
 impl<T> Error for UnrarErr<T> {}
 
-pub fn handle_archive(file: &String) -> Result<bool, Box<dyn Error>>{
+pub fn handle_archive(file: &String, dest: &String) -> Result<bool, Box<dyn Error>>{
   let kind = match infer::get_from_path(&file) {
     Ok(res) => 
       match res {
@@ -30,7 +30,7 @@ pub fn handle_archive(file: &String) -> Result<bool, Box<dyn Error>>{
   
   match kind.mime_type() {
     "application/vnd.rar" => {
-      let output_dir = Path::new("./temp")
+      let output_dir = Path::new(dest)
         .join(&file)
         .to_string_lossy()
         .to_string();
@@ -51,7 +51,7 @@ pub fn handle_archive(file: &String) -> Result<bool, Box<dyn Error>>{
               match archive.by_index(i) {
                 Ok(mut file) => {
                   let outpath = match file.enclosed_name() {
-                    Some(path) => Path::new("./temp").join(path.to_owned()),
+                    Some(path) => Path::new(dest).join(path.to_owned()),
                     None => continue,
                   };
                   
@@ -75,9 +75,11 @@ pub fn handle_archive(file: &String) -> Result<bool, Box<dyn Error>>{
                       }
                     }
                     match fs::File::create(&outpath) {
-                      Ok(mut outfile) => if let Err(err) = std::io::copy(&mut file, &mut outfile) {
-                        return Err(Box::new(err));
-                      },
+                      Ok(mut outfile) => {
+                        if let Err(err) = std::io::copy(&mut file, &mut outfile) {
+                          return Err(Box::new(err));
+                        }
+                      }
                       Err(err) => return Err(Box::new(err))
                     }
                   }
@@ -94,12 +96,16 @@ pub fn handle_archive(file: &String) -> Result<bool, Box<dyn Error>>{
       }
     },
     "application/x-7z-compressed" => {
-      let mut source = fs::File::open(&file).expect("Could not open file"); //fix
-      let dest = Path::new("./tmp/dest");
-      
-      match compress_tools::uncompress_archive(&mut source, &dest, compress_tools::Ownership::Ignore) {
-        Ok(()) => return Ok(true),
-        Err(err) => return Err(Box::new(err)),
+      match fs::File::open(&file) {
+        Ok(mut source) => {
+          let dest = Path::new(dest);
+          
+          match compress_tools::uncompress_archive(&mut source, &dest, compress_tools::Ownership::Ignore) {
+            Ok(()) => return Ok(true),
+            Err(err) => return Err(Box::new(err)),
+          }
+        },
+        Err(err) => Err(Box::new(err))
       }
     },
     _ => {
