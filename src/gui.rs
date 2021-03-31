@@ -4,6 +4,8 @@ use iced::{Application, button, Button, Column, Command, Element, Length, Row, T
 mod settings;
 mod mod_list;
 
+use crate::style;
+
 use settings::SettingsMessage;
 use mod_list::ModListMessage;
 
@@ -84,6 +86,7 @@ impl Application for App {
           .on_press(
             Message::SettingsClose
           )
+          .style(style::button_only_hover::Button)
         } else {
           Button::new(
             &mut self.settings_button, 
@@ -92,6 +95,7 @@ impl Application for App {
           .on_press(
             Message::SettingsOpen
           )
+          .style(style::button_only_hover::Button)
         }
       );
 
