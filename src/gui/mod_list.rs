@@ -3,7 +3,7 @@ use iced::{Text, Column, Command, Element, Length, Row, Rule, Scrollable, scroll
 use json_comments::strip_comments;
 use json5;
 use if_chain::if_chain;
-use native_dialog::{FileDialog, MessageDialog};
+use native_dialog::{FileDialog, MessageDialog, MessageType};
 
 use crate::archive_handler;
 
@@ -67,6 +67,11 @@ impl ModList {
 
         match opt {
           InstallOptions::FromArchive => {
+            if self.root_dir.is_none() {
+              ModList::make_alert("No install directory set. Please set the Starsector install directory in Settings.".to_string());
+              return Command::none();
+            }
+
             let mut filters = vec!["zip", "rar"];
             if cfg!(unix) {
               filters.push("7z");
@@ -90,21 +95,22 @@ impl ModList {
                 }).collect();
 
               match res.len() {
-                0 => Ok(()),
-                i if i < paths.len() => MessageDialog::new().set_text(format!("Failed to decompress some files.\n\
-                                                                              The following archives could not be decompressed:\n\
-                                                                              {:?}", res).as_str()).show_alert(),
-                _ => MessageDialog::new().set_text("Failed to decompress any of the given files.").show_alert()
+                0 => {},
+                i if i < paths.len() => {
+                  ModList::make_alert("Failed to decompress some files.".to_string());
+                },
+                _ => {
+                  ModList::make_alert("Failed to decompress any of the given files.".to_string());
+                }
               };
             }
+            Command::none()
           },
           InstallOptions::FromFolder => {
-
+            Command::none()
           },
-          _ => {}
+          _ => Command::none()
         }
-
-        Command::none()
       }
     }
   }
@@ -209,6 +215,32 @@ impl ModList {
         self.mods.extend(mods)
       }
     }
+  }
+
+  pub fn make_alert(message: String) -> Result<(), String> {
+    let mbox = move || {
+      MessageDialog::new()
+      .set_title("Alert:")
+      .set_type(MessageType::Info)
+      .set_text(&message)
+      .show_alert()
+      .map_err(|err| { err.to_string() })
+    };
+
+    // On windows we need to spawn a thread as the msg doesn't work otherwise
+    #[cfg(target_os = "windows")]
+    let res = match std::thread::spawn(move || {
+      mbox()
+    }).join() {
+      Ok(Ok(())) => Ok(()),
+      Ok(Err(err)) => Err(err),
+      Err(err) => Err(err).map_err(|err| format!("{:?}", err))
+    };
+
+    #[cfg(not(target_os = "windows"))]
+    let res = mbox();
+
+    res
   }
 }
 
