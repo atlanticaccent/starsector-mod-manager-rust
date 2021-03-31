@@ -76,11 +76,13 @@ impl ModList {
                 .filter_map(|maybe_path| {
                   if_chain! {
                     if let Some(path) = maybe_path.to_str();
-                    if let Err(_) = archive_handler::handle_archive(&path.to_owned(), &".".to_owned());
-                    if let Some(name) = maybe_path.file_name();
-                    if let Some(_name) = name.to_str();
+                    if let Some(_full_name) = maybe_path.file_name();
+                    if let Some(full_name) = _full_name.to_str();
+                    if let Some(_file_name) = maybe_path.file_stem();
+                    if let Some(file_name) = _file_name.to_str();
+                    if let Err(_) = archive_handler::handle_archive(&path.to_owned(), &file_name.to_string());
                     then {
-                      Some(_name.to_string())
+                      Some(full_name.to_string())
                     } else {
                       None
                     }
