@@ -1,4 +1,4 @@
-pub mod none {
+pub mod button_none {
   use iced::{button, Color, Vector};
 
   pub struct Button;
@@ -7,7 +7,6 @@ pub mod none {
     fn active(&self) -> button::Style {
       button::Style {
         background: Color::from_rgb(255.0, 255.0, 255.0).into(),
-        border_radius: 12.0,
         shadow_offset: Vector::new(0.0, 0.0),
         text_color: Color::from_rgb(0.0, 0.0, 0.0),
         ..button::Style::default()

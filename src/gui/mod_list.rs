@@ -310,7 +310,7 @@ impl ModEntry {
             .push(Text::new(self.version.clone()).width(Length::Fill))
             .push(Text::new(self.game_version.clone()).width(Length::Fill))
         )
-        .style(style::none::Button)
+        .style(style::button_none::Button)
         .on_press(ModEntryMessage::EntryHighlighted)
       )
       .padding(5)
