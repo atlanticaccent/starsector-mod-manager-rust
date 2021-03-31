@@ -123,7 +123,7 @@ impl ModList {
         .push::<Element<ModListMessage>>(if self.mods.len() > 0 {
           self.mods
             .iter_mut()
-            .fold(Column::new().padding(20), |col, (id, entry)| {
+            .fold(Column::new().padding(5), |col, (id, entry)| {
               let id_clone = id.clone();
               col.push(
                 entry.view().map(move |message| {
