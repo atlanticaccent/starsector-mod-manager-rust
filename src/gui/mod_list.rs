@@ -67,17 +67,33 @@ impl ModList {
 
         match opt {
           InstallOptions::FromArchive => {
-            if let Ok(paths) = diag.add_filter("Archive types", &["zip", "7z", "rar", "tar", "tar.gz"]).show_open_multiple_file() {
-              for maybe_path in paths {
-                if let Some(path) = maybe_path.to_str() {
-                  match archive_handler::handle_archive(&path.to_owned(), &".".to_owned()) {
-                    Err(error) => {
-                      MessageDialog::new().set_text(format!("Could not extract file: {:?}", path).as_str()).show_alert();
+            let mut filters = vec!["zip", "rar"];
+            if cfg!(unix) {
+              filters.push("7z");
+            }
+            if let Ok(paths) = diag.add_filter("Archive types", &filters).show_open_multiple_file() {
+              let res: Vec<String> = paths.iter()
+                .filter_map(|maybe_path| {
+                  if_chain! {
+                    if let Some(path) = maybe_path.to_str();
+                    if let Err(_) = archive_handler::handle_archive(&path.to_owned(), &".".to_owned());
+                    if let Some(name) = maybe_path.file_name();
+                    if let Some(_name) = name.to_str();
+                    then {
+                      Some(_name.to_string())
+                    } else {
+                      None
                     }
-                    _ => {},
                   }
-                }
-              }
+                }).collect();
+
+              match res.len() {
+                0 => Ok(()),
+                i if i < paths.len() => MessageDialog::new().set_text(format!("Failed to decompress some files.\n\
+                                                                              The following archives could not be decompressed:\n\
+                                                                              {:?}", res).as_str()).show_alert(),
+                _ => MessageDialog::new().set_text("Failed to decompress any of the given files.").show_alert()
+              };
             }
           },
           InstallOptions::FromFolder => {
