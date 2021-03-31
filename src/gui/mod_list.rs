@@ -309,7 +309,7 @@ impl ModEntry {
             .push(Text::new(self.version.clone()).width(Length::Fill))
             .push(Text::new(self.game_version.clone()).width(Length::Fill))
         )
-        .style(style::Theme::None)
+        .style(style::none::Button)
         .on_press(ModEntryMessage::EntryHighlighted)
       )
       .padding(5)
@@ -385,21 +385,7 @@ impl std::fmt::Display for InstallOptions {
 }
 
 pub mod style {
-  use iced::{button};
-
-  pub enum Theme {
-    None
-  }
-
-  impl From<Theme> for Box<dyn button::StyleSheet> {
-    fn from(theme: Theme) -> Self {
-      match theme {
-        Theme::None => none::Button.into(),
-      }
-    }
-  }
-
-  mod none {
+  pub mod none {
     use iced::{button, Color, Vector};
 
     pub struct Button;
