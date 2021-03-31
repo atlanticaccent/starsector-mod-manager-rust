@@ -1,5 +1,5 @@
 use std::{io::Read, path::PathBuf, collections::HashMap};
-use iced::{Text, Column, Command, Element, Length, Row, Rule, Scrollable, scrollable, Button, button, Checkbox, Align, PickList, pick_list};
+use iced::{Text, Column, Command, Element, Length, Row, Rule, Scrollable, scrollable, Button, button, Checkbox, Align, PickList, pick_list, Container};
 use json_comments::strip_comments;
 use json5;
 use if_chain::if_chain;
@@ -29,7 +29,7 @@ impl ModList {
       root_dir: None,
       mods: HashMap::new(),
       scroll: scrollable::State::new(),
-      mod_description: ModDescription::new(1),
+      mod_description: ModDescription::new(),
       install_state: pick_list::State::default()
     }
   }
@@ -144,9 +144,14 @@ impl ModList {
             .into()
         })
       )
-      .push(self.mod_description.view().map(|message| {
-        ModListMessage::ModDescriptionMessage(message)
-      }));
+      .push(
+        Container::new(self.mod_description.view().map(|message| {
+          ModListMessage::ModDescriptionMessage(message)
+        }))
+        .height(Length::FillPortion(1))
+        .width(Length::Fill)
+        .style(style::border::Container)
+      );
   
     let controls: Column<ModListMessage> = Column::new()
       .width(Length::FillPortion(1))
@@ -314,8 +319,7 @@ impl ModEntry {
 
 #[derive(Debug, Clone)]
 pub struct ModDescription {
-  mod_entry: Option<ModEntry>,
-  fill_portion: u16
+  mod_entry: Option<ModEntry>
 }
 
 #[derive(Debug, Clone)]
@@ -324,10 +328,9 @@ pub enum ModDescriptionMessage {
 }
 
 impl ModDescription {
-  pub fn new(fill_portion: u16) -> Self {
+  pub fn new() -> Self {
     ModDescription {
-      mod_entry: None,
-      fill_portion
+      mod_entry: None
     }
   }
 
@@ -343,12 +346,12 @@ impl ModDescription {
 
   pub fn view(&mut self) -> Element<ModDescriptionMessage> {
     Row::new()
-      .height(Length::FillPortion(self.fill_portion))
       .push(Text::new(if let Some(entry) = &self.mod_entry {
         entry.description.clone()
       } else {
         "".to_owned()
       }))
+      .padding(5)
       .into()
   }
 }
@@ -415,6 +418,22 @@ pub mod style {
       fn hovered(&self) -> button::Style {
         button::Style {
           ..self.active()
+        }
+      }
+    }
+  }
+
+  pub mod border {
+    use iced::{container, Color};
+
+    pub struct Container;
+
+    impl container::StyleSheet for Container {
+      fn style(&self) -> container::Style {
+        container::Style {
+          border_width: 0.5,
+          border_color: Color::from_rgb(0.0, 0.0, 0.0),
+          ..container::Style::default()
         }
       }
     }
