@@ -334,7 +334,7 @@ impl ModDescription {
       .push(Text::new(if let Some(entry) = &self.mod_entry {
         entry.description.clone()
       } else {
-        "".to_owned()
+        "No mod selected.".to_owned()
       }))
       .padding(5)
       .into()
