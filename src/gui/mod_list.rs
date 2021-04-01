@@ -1,5 +1,5 @@
 use std::{io::Read, path::PathBuf, collections::HashMap};
-use iced::{Text, Column, Command, Element, Length, Row, Rule, Scrollable, scrollable, Button, button, Checkbox, Align, PickList, pick_list, Container};
+use iced::{Text, Column, Command, Element, Length, Row, Scrollable, scrollable, Button, button, Checkbox, Container};
 use json_comments::strip_comments;
 use json5;
 use if_chain::if_chain;
