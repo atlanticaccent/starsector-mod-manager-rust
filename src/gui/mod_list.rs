@@ -5,6 +5,7 @@ use json5;
 use if_chain::if_chain;
 use native_dialog::{FileDialog, MessageDialog, MessageType};
 
+use super::InstallOptions;
 use crate::archive_handler;
 use crate::style;
 
@@ -12,8 +13,7 @@ pub struct ModList {
   root_dir: Option<PathBuf>,
   mods: HashMap<String, ModEntry>,
   scroll: scrollable::State,
-  mod_description: ModDescription,
-  install_state: pick_list::State<InstallOptions>
+  mod_description: ModDescription
 }
 
 #[derive(Debug, Clone)]
@@ -30,8 +30,7 @@ impl ModList {
       root_dir: None,
       mods: HashMap::new(),
       scroll: scrollable::State::new(),
-      mod_description: ModDescription::new(),
-      install_state: pick_list::State::default()
+      mod_description: ModDescription::new()
     }
   }
 
@@ -153,26 +152,11 @@ impl ModList {
         .width(Length::Fill)
         .style(style::border::Container)
       );
-  
-    let controls: Column<ModListMessage> = Column::new()
-      .width(Length::FillPortion(1))
-      .padding(20)
-      .align_items(Align::Center)
-      .push::<Element<ModListMessage>>(
-        PickList::new(
-          &mut self.install_state,
-          &InstallOptions::SHOW[..],
-          Some(InstallOptions::Default),
-          ModListMessage::InstallPressed
-        ).into()
-      );
 
-    Row::new()
+    Column::new()
       .push(content)
-      .push(Rule::vertical(1))
-      .push(controls)
       .padding(5)
-      .width(Length::Fill)
+      .height(Length::Fill)
       .into()
   }
 
@@ -354,33 +338,5 @@ impl ModDescription {
       }))
       .padding(5)
       .into()
-  }
-}
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum InstallOptions {
-  FromArchive,
-  FromFolder,
-  Default
-}
-
-impl InstallOptions {
-  const SHOW: [InstallOptions; 2] = [
-    InstallOptions::FromArchive,
-    InstallOptions::FromFolder
-  ];
-}
-
-impl std::fmt::Display for InstallOptions {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-      write!(
-          f,
-          "{}",
-          match self {
-            InstallOptions::Default => "Install Mod",
-            InstallOptions::FromArchive => "From Archive",
-            InstallOptions::FromFolder => "From Folder"
-          }
-      )
   }
 }
