@@ -1,4 +1,4 @@
-use std::{io::Read, path::PathBuf, collections::HashMap};
+use std::{io, io::Read, path::PathBuf, collections::HashMap, fs::{read_dir, rename, remove_dir_all}};
 use iced::{Text, Column, Command, Element, Length, Row, Scrollable, scrollable, Button, button, Checkbox, Container};
 use json_comments::strip_comments;
 use json5;
@@ -63,53 +63,74 @@ impl ModList {
         Command::none()
       },
       ModListMessage::InstallPressed(opt) => {
-        let diag = FileDialog::new().set_location("~/Desktop");
+        if let Some(root_dir) = self.root_dir.clone() {
+          let diag = FileDialog::new().set_location(&root_dir);
 
-        match opt {
-          InstallOptions::FromArchive => {
-            if self.root_dir.is_none() {
-              ModList::make_alert("No install directory set. Please set the Starsector install directory in Settings.".to_string());
-              return Command::none();
-            }
-
-            let mut filters = vec!["zip", "rar"];
-            if cfg!(unix) {
-              filters.push("7z");
-            }
-            if let Ok(paths) = diag.add_filter("Archive types", &filters).show_open_multiple_file() {
-              let res: Vec<String> = paths.iter()
-                .filter_map(|maybe_path| {
-                  if_chain! {
-                    if let Some(path) = maybe_path.to_str();
-                    if let Some(_full_name) = maybe_path.file_name();
-                    if let Some(full_name) = _full_name.to_str();
-                    if let Some(_file_name) = maybe_path.file_stem();
-                    if let Some(file_name) = _file_name.to_str();
-                    if let Err(_) = archive_handler::handle_archive(&path.to_owned(), &file_name.to_string());
-                    then {
-                      Some(full_name.to_string())
-                    } else {
-                      None
+          match opt {
+            InstallOptions::FromArchive => {
+              let mut filters = vec!["zip", "rar"];
+              if cfg!(unix) {
+                filters.push("7z");
+              }
+              if let Ok(paths) = diag.add_filter("Archive types", &filters).show_open_multiple_file() {
+                let res: Vec<&str> = paths.iter()
+                  .filter_map(|maybe_path| {
+                    if_chain! {
+                      if let Some(path) = maybe_path.to_str();
+                      if let Some(_full_name) = maybe_path.file_name();
+                      if let Some(full_name) = _full_name.to_str();
+                      if let Some(_file_name) = maybe_path.file_stem();
+                      let mod_dir = root_dir.join("mods");
+                      let raw_dest = mod_dir.join(_file_name);
+                      if let Some(dest) = raw_dest.to_str();
+                      then {
+                        if let Ok(true) = archive_handler::handle_archive(&path.to_owned(), &dest.to_owned()) {
+                          match ModList::find_nested_mod(&raw_dest) {
+                            Ok(Some(mod_path)) => {
+                              if_chain! {
+                                if let Ok(_) = rename(mod_path, mod_dir.join("temp"));
+                                if let Ok(_) = remove_dir_all(&raw_dest);
+                                if let Ok(_) = rename(mod_dir.join("temp"), raw_dest);
+                                then {
+                                  self.parse_mod_folder();
+                                  None
+                                } else {
+                                  Some("Filesystem error.")
+                                }
+                              }
+                            },
+                            _ => Some("Could not find mod in provided archive.")
+                          }
+                        } else {
+                          Some(full_name)
+                        }
+                      } else {
+                        Some("Failed to parse file name.")
+                      }
                     }
-                  }
-                }).collect();
+                  }).collect();
 
-              match res.len() {
-                0 => {},
-                i if i < paths.len() => {
-                  ModList::make_alert("Failed to decompress some files.".to_string());
-                },
-                _ => {
-                  ModList::make_alert("Failed to decompress any of the given files.".to_string());
-                }
-              };
-            }
-            Command::none()
-          },
-          InstallOptions::FromFolder => {
-            Command::none()
-          },
-          _ => Command::none()
+                match res.len() {
+                  0 => {},
+                  i if i < paths.len() => {
+                    ModList::make_alert("Failed to decompress some files.".to_string());
+                  },
+                  _ => {
+                    ModList::make_alert("Failed to decompress any of the given files.".to_string());
+                  }
+                };
+              }
+
+              Command::none()
+            },
+            InstallOptions::FromFolder => {
+              Command::none()
+            },
+            _ => Command::none()
+          }
+        } else {
+          ModList::make_alert("No install directory set. Please set the Starsector install directory in Settings.".to_string());
+          return Command::none();
         }
       }
     }
@@ -231,6 +252,22 @@ impl ModList {
     let res = mbox();
 
     res
+  }
+
+  fn find_nested_mod(dest: &PathBuf) -> Result<Option<PathBuf>, io::Error> {
+    for entry in read_dir(dest)? {
+      let entry = entry?;
+      if entry.file_type()?.is_dir() {
+        let res = ModList::find_nested_mod(&entry.path())?;
+        if res.is_some() { return Ok(res) }
+      } else if entry.file_type()?.is_file() {
+        if entry.file_name() == "mod_info.json" {
+          return Ok(Some(dest.to_path_buf()));
+        }
+      }
+    }
+
+    Ok(None)
   }
 }
 

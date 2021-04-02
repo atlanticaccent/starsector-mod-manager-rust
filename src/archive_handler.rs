@@ -19,7 +19,7 @@ impl<T> fmt::Debug for UnrarErr<T> {
 impl<T> Error for UnrarErr<T> {}
 
 pub fn handle_archive(file: &String, dest: &String) -> Result<bool, Box<dyn Error>> {
-  let kind = match infer::get_from_path(&file) {
+  let kind = match infer::get_from_path(file) {
     Ok(res) => 
       match res {
         Some(kind) => kind,
