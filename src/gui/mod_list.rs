@@ -81,25 +81,38 @@ impl ModList {
                       if let Some(full_name) = _full_name.to_str();
                       if let Some(_file_name) = maybe_path.file_stem();
                       let mod_dir = root_dir.join("mods");
+                      let raw_temp_dest = mod_dir.join("temp");
                       let raw_dest = mod_dir.join(_file_name);
-                      if let Some(dest) = raw_dest.to_str();
+                      if let Some(temp_dest) = raw_temp_dest.to_str();
                       then {
-                        if let Ok(true) = archive_handler::handle_archive(&path.to_owned(), &dest.to_owned()) {
-                          match ModList::find_nested_mod(&raw_dest) {
-                            Ok(Some(mod_path)) => {
-                              if_chain! {
-                                if let Ok(_) = rename(mod_path, mod_dir.join("temp"));
-                                if let Ok(_) = remove_dir_all(&raw_dest);
-                                if let Ok(_) = rename(mod_dir.join("temp"), raw_dest);
-                                then {
-                                  self.parse_mod_folder();
-                                  None
-                                } else {
-                                  Some("Filesystem error.")
+                        if let Ok(true) = archive_handler::handle_archive(&path.to_owned(), &temp_dest.to_owned()) {
+                          if raw_dest.exists() {
+                            match ModList::make_query("A directory with this name already exists. Do you want to replace it?\nChoosing no will abort this operation.".to_string()) {
+                              Ok(true) => {
+                                if remove_dir_all(&raw_dest).is_err() {
+                                  return Some("Failed to delete existing mod directory. Aborting.")
                                 }
+                              },
+                              Ok(false) => return None,
+                              Err(_) => return Some("Native dialog error.")
+                            }
+                          }
+
+                          match ModList::find_nested_mod(&raw_temp_dest) {
+                            Ok(Some(mod_path)) => {
+                              if let Ok(_) = rename(mod_path, raw_dest) {
+                                if raw_temp_dest.exists() {
+                                  if remove_dir_all(&raw_temp_dest).is_err() {
+                                    return Some("Failed to clean up temporary directory. This is not a fatal error.")
+                                  }
+                                }
+                                self.parse_mod_folder();
+                                None
+                              } else {
+                                Some("Failed to move mod out of temporary directory. This may or may not be a fatal error.")
                               }
                             },
-                            _ => Some("Could not find mod in provided archive.")
+                            _ => Some("Could not find mod in given archive.")
                           }
                         } else {
                           Some(full_name)
@@ -113,10 +126,10 @@ impl ModList {
                 match res.len() {
                   0 => {},
                   i if i < paths.len() => {
-                    ModList::make_alert("Failed to decompress some files.".to_string());
+                    ModList::make_alert("There were one or more errors when decompressing the given archives.".to_string());
                   },
                   _ => {
-                    ModList::make_alert("Failed to decompress any of the given files.".to_string());
+                    ModList::make_alert("Encountered errors for all given archives.".to_string());
                   }
                 };
               }
@@ -244,6 +257,31 @@ impl ModList {
       mbox()
     }).join() {
       Ok(Ok(())) => Ok(()),
+      Ok(Err(err)) => Err(err),
+      Err(err) => Err(err).map_err(|err| format!("{:?}", err))
+    };
+
+    #[cfg(not(target_os = "windows"))]
+    let res = mbox();
+
+    res
+  }
+
+  pub fn make_query(message: String) -> Result<bool, String> {
+    let mbox = move || {
+      MessageDialog::new()
+      .set_type(MessageType::Warning)
+      .set_text(&message)
+      .show_confirm()
+      .map_err(|err| { err.to_string() })
+    };
+
+    // On windows we need to spawn a thread as the msg doesn't work otherwise
+    #[cfg(target_os = "windows")]
+    let res = match std::thread::spawn(move || {
+      mbox()
+    }).join() {
+      Ok(Ok(confirm)) => Ok(confirm),
       Ok(Err(err)) => Err(err),
       Err(err) => Err(err).map_err(|err| format!("{:?}", err))
     };
