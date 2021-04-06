@@ -1,4 +1,4 @@
-use std::{io, io::Read, path::PathBuf, collections::HashMap, fs::{read_dir, rename, remove_dir_all}};
+use std::{io, io::Read, path::PathBuf, collections::HashMap, fs::{read_dir, rename, remove_dir_all, create_dir_all, copy}};
 use iced::{Text, Column, Command, Element, Length, Row, Scrollable, scrollable, Button, button, Checkbox, Container};
 use json_comments::strip_comments;
 use json5;
@@ -137,6 +137,44 @@ impl ModList {
               Command::none()
             },
             InstallOptions::FromFolder => {
+              match diag.show_open_single_dir() {
+                Ok(Some(source_path)) => {
+                  if_chain! {
+                    if let Some(_file_name) = source_path.file_stem();
+                    let mod_dir = root_dir.join("mods");
+                    let raw_dest = mod_dir.join(_file_name);
+                    then {
+                      match ModList::find_nested_mod(&source_path) {
+                        Ok(Some(mod_path)) => {
+                          let cont = if raw_dest.exists() {
+                            match ModList::make_query("A directory with this name already exists. Do you want to replace it?\nChoosing no will abort this operation.".to_string()) {
+                              Ok(true) => remove_dir_all(&raw_dest).is_ok(),
+                              _ => false
+                            }
+                          } else {
+                            true
+                          };
+    
+                          if cont {
+                            if let Err(error) = ModList::copy_dir_recursive(&raw_dest, &mod_path) {
+                              ModList::make_alert(format!("Failed to copy the given mod directory into the mods folder.\nError:{:?}", error));
+                            } else {
+                              remove_dir_all(mod_path);
+                              self.parse_mod_folder();
+                            }
+                          }
+                        }
+                        _ => {}
+                      }
+                    } else {
+                      ModList::make_alert("Experienced an error. Did not move given folder into mods directory.".to_owned());
+                    }
+                  }
+                },
+                Ok(None) => { ModList::make_alert("Experienced an error. Did not move given folder into mods directory.".to_owned()); },
+                _ => {}
+              }
+
               Command::none()
             },
             _ => Command::none()
@@ -306,6 +344,23 @@ impl ModList {
     }
 
     Ok(None)
+  }
+
+  fn copy_dir_recursive(to: &PathBuf, from: &PathBuf) -> io::Result<()> {
+    if !to.exists() {
+      create_dir_all(to)?;
+    }
+
+    for entry in from.read_dir()? {
+      let entry = entry?;
+      if entry.file_type()?.is_dir() {
+        ModList::copy_dir_recursive(&to.to_path_buf().join(entry.file_name()), &entry.path())?;
+      } else if entry.file_type()?.is_file() {
+        copy(entry.path(), &to.to_path_buf().join(entry.file_name()))?;
+      }
+    };
+
+    Ok(())
   }
 }
 
