@@ -73,52 +73,59 @@ impl ModList {
                 filters.push("7z");
               }
               if let Ok(paths) = diag.add_filter("Archive types", &filters).show_open_multiple_file() {
-                let res: Vec<&str> = paths.iter()
+                let res: Vec<String> = paths.iter()
                   .filter_map(|maybe_path| {
                     if_chain! {
                       if let Some(path) = maybe_path.to_str();
                       if let Some(_full_name) = maybe_path.file_name();
                       if let Some(full_name) = _full_name.to_str();
                       if let Some(_file_name) = maybe_path.file_stem();
+                      if let Some(file_name) = _file_name.to_str();
                       let mod_dir = root_dir.join("mods");
                       let raw_temp_dest = mod_dir.join("temp");
                       let raw_dest = mod_dir.join(_file_name);
                       if let Some(temp_dest) = raw_temp_dest.to_str();
                       then {
-                        if let Ok(true) = archive_handler::handle_archive(&path.to_owned(), &temp_dest.to_owned()) {
-                          if raw_dest.exists() {
-                            match ModList::make_query("A directory with this name already exists. Do you want to replace it?\nChoosing no will abort this operation.".to_string()) {
-                              Ok(true) => {
-                                if remove_dir_all(&raw_dest).is_err() {
-                                  return Some("Failed to delete existing mod directory. Aborting.")
+                        match archive_handler::handle_archive(&path.to_owned(), &temp_dest.to_owned(), &file_name.to_owned()) {
+                          Ok(true) => {
+                            if raw_dest.exists() {
+                              match ModList::make_query("A directory with this name already exists. Do you want to replace it?\nChoosing no will abort this operation.".to_string()) {
+                                Ok(true) => {
+                                  if remove_dir_all(&raw_dest).is_err() {
+                                    return Some("Failed to delete existing mod directory. Aborting.".to_string())
+                                  }
+                                },
+                                Ok(false) => return None,
+                                Err(_) => return Some("Native dialog error.".to_string())
+                              }
+                            }
+  
+                            match ModList::find_nested_mod(&raw_temp_dest) {
+                              Ok(Some(mod_path)) => {
+                                if let Ok(_) = rename(mod_path, raw_dest) {
+                                  if raw_temp_dest.exists() {
+                                    if remove_dir_all(&raw_temp_dest).is_err() {
+                                      return Some("Failed to clean up temporary directory. This is not a fatal error.".to_string())
+                                    }
+                                  }
+                                  self.parse_mod_folder();
+                                  None
+                                } else {
+                                  Some("Failed to move mod out of temporary directory. This may or may not be a fatal error.".to_string())
                                 }
                               },
-                              Ok(false) => return None,
-                              Err(_) => return Some("Native dialog error.")
+                              _ => Some("Could not find mod in given archive.".to_string())
                             }
+                          },
+                          Ok(false) => {
+                            Some("Encountered unsupported feature.".to_string())
+                          },
+                          Err(err) => {
+                            Some(format!("{:?}", err))
                           }
-
-                          match ModList::find_nested_mod(&raw_temp_dest) {
-                            Ok(Some(mod_path)) => {
-                              if let Ok(_) = rename(mod_path, raw_dest) {
-                                if raw_temp_dest.exists() {
-                                  if remove_dir_all(&raw_temp_dest).is_err() {
-                                    return Some("Failed to clean up temporary directory. This is not a fatal error.")
-                                  }
-                                }
-                                self.parse_mod_folder();
-                                None
-                              } else {
-                                Some("Failed to move mod out of temporary directory. This may or may not be a fatal error.")
-                              }
-                            },
-                            _ => Some("Could not find mod in given archive.")
-                          }
-                        } else {
-                          Some(full_name)
                         }
                       } else {
-                        Some("Failed to parse file name.")
+                        Some("Failed to parse file name.".to_string())
                       }
                     }
                   }).collect();
@@ -126,10 +133,10 @@ impl ModList {
                 match res.len() {
                   0 => {},
                   i if i < paths.len() => {
-                    ModList::make_alert("There were one or more errors when decompressing the given archives.".to_string());
+                    ModList::make_alert(format!("There were one or more errors when decompressing the given archives.\nErrors were as follows:\n{:?}", res));
                   },
                   _ => {
-                    ModList::make_alert("Encountered errors for all given archives.".to_string());
+                    ModList::make_alert(format!("Encountered errors for all given archives.\nErrors were as follows:\n{:?}", res));
                   }
                 };
               }

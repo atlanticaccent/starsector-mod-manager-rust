@@ -18,7 +18,7 @@ impl<T> fmt::Debug for UnrarErr<T> {
 
 impl<T> Error for UnrarErr<T> {}
 
-pub fn handle_archive(file: &String, dest: &String) -> Result<bool, Box<dyn Error>> {
+pub fn handle_archive(file: &String, dest: &String, file_name: &String) -> Result<bool, Box<dyn Error>> {
   let kind = match infer::get_from_path(file) {
     Ok(res) => 
       match res {
@@ -31,7 +31,7 @@ pub fn handle_archive(file: &String, dest: &String) -> Result<bool, Box<dyn Erro
   match kind.mime_type() {
     "application/vnd.rar" => {
       let output_dir = Path::new(dest)
-        .join(&file)
+        .join(file_name)
         .to_string_lossy()
         .to_string();
 
