@@ -8,7 +8,6 @@ edition = "2018"
 
 [dependencies]
 zip = "0.5.9"
-unrar = "0.4.4"
 infer = "0.3.4"
 iced = { version = "0.2.0", features = ["glow"] }
 iced_native ="0.3"
@@ -20,3 +19,6 @@ if_chain = "1.0.1"
 
 [target.'cfg(unix)'.dependencies]
 compress-tools = "0.11.1"
+
+[target.'cfg(not(unix))'.dependencies]
+unrar = "0.4.4"

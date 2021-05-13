@@ -1,23 +1,30 @@
-use std::{fs, fmt, error::Error, path::Path};
+use std::{fs, error::Error, path::Path};
 
-struct UnrarErr<T> {
-  err: unrar::error::UnrarError<T>,
-}
 
-impl<T> fmt::Display for UnrarErr<T> {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    return self.err.fmt(f);
+#[cfg(not(target_family = "unix"))]
+mod rar_patch {
+  use std::{fmt, error::Error};
+
+  pub struct UnrarErr<T> {
+    pub err: unrar::error::UnrarError<T>,
   }
-}
-
-impl<T> fmt::Debug for UnrarErr<T> {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    return self.err.fmt(f);
+  
+  impl<T> fmt::Display for UnrarErr<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      return self.err.fmt(f);
+    }
   }
+  
+  impl<T> fmt::Debug for UnrarErr<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      return self.err.fmt(f);
+    }
+  }
+  
+  impl<T> Error for UnrarErr<T> {}
 }
 
-impl<T> Error for UnrarErr<T> {}
-
+#[cfg(not(target_family = "unix"))]
 pub fn handle_archive(file: &String, dest: &String, file_name: &String) -> Result<bool, Box<dyn Error>> {
   let kind = match infer::get_from_path(file) {
     Ok(res) => 
@@ -38,9 +45,9 @@ pub fn handle_archive(file: &String, dest: &String, file_name: &String) -> Resul
       match unrar::Archive::new(file.clone()).extract_to(output_dir) {
         Ok(mut arch) => match arch.process() {
           Ok(_) => return Ok(true),
-          Err(err) => return Err(Box::new(UnrarErr { err })),
+          Err(err) => return Err(Box::new(rar_patch::UnrarErr { err })),
         },
-        Err(err) => return Err(Box::new(UnrarErr { err })),
+        Err(err) => return Err(Box::new(rar_patch::UnrarErr { err })),
       }
     },
     "application/zip" => {
@@ -95,9 +102,6 @@ pub fn handle_archive(file: &String, dest: &String, file_name: &String) -> Resul
         Err(err) => return Err(Box::new(err))
       }
     },
-    "application/x-7z-compressed" => {
-      _7z_support(file, dest)
-    },
     _ => {
       println!("is something else");
       return Ok(false);
@@ -106,7 +110,7 @@ pub fn handle_archive(file: &String, dest: &String, file_name: &String) -> Resul
 }
 
 #[cfg(target_family = "unix")]
-fn _7z_support(file: &String, dest: &String) -> Result<bool, Box<dyn Error>> {
+pub fn handle_archive(file: &String, dest: &String, _: &String) -> Result<bool, Box<dyn Error>> {
   match fs::File::open(&file) {
     Ok(mut source) => {
       let dest = Path::new(dest);
@@ -118,10 +122,4 @@ fn _7z_support(file: &String, dest: &String) -> Result<bool, Box<dyn Error>> {
     },
     Err(err) => Err(Box::new(err))
   }
-}
-
-// null-op on windows
-#[cfg(not(target_family = "unix"))]
-fn _7z_support(_: &String, _: &String) -> Result<bool, Box<dyn Error>> {
-  Ok(false)
 }
