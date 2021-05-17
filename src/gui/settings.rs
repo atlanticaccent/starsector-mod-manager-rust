@@ -3,6 +3,7 @@ use native_dialog::{FileDialog};
 use std::path::PathBuf;
 
 pub struct Settings {
+  dirty: bool,
   pub root_dir: Option<PathBuf>,
   pub new_dir: Option<String>,
   path_input_state: text_input::State,
@@ -20,6 +21,7 @@ pub enum SettingsMessage {
 impl Settings {
   pub fn new() -> Self {
     Settings {
+      dirty: true,
       root_dir: None,
       new_dir: None,
       path_input_state: text_input::State::new(),
@@ -31,6 +33,7 @@ impl Settings {
     match message {
       SettingsMessage::InitRoot(mut _root_dir) => {
         self.root_dir = _root_dir.take();
+        self.dirty = false;
         return Command::none();
       },
       SettingsMessage::Close => {
@@ -45,7 +48,9 @@ impl Settings {
         return Command::none();
       },
       SettingsMessage::PathChanged(path) => {
-        self.new_dir.replace(path);
+        if !self.dirty {
+          self.new_dir.replace(path);
+        }
         return Command::none();
       },
       SettingsMessage::OpenNativeDiag => {
@@ -82,7 +87,7 @@ impl Settings {
           }
         }
       },
-      |path| -> SettingsMessage { 
+      |path| -> SettingsMessage {
         SettingsMessage::PathChanged(path)
       }
     )
