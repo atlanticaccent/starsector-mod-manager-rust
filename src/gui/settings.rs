@@ -73,7 +73,7 @@ impl Settings {
     let tmp;
     let input = TextInput::new(
       &mut self.path_input_state,
-      "/",
+      if self.dirty { "Loading - Please wait" } else { "/" },
       match self.new_dir {
         Some(ref value) => value.as_str(),
         None => {
