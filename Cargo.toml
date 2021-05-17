@@ -10,7 +10,7 @@ edition = "2018"
 zip = "0.5.9"
 unrar = "0.4.4"
 infer = "0.3.4"
-iced = { version = "0.2.0", features = ["glow"] }
+iced = { version = "0.3.0", features = ["glow"] }
 iced_native ="0.3"
 native-dialog = "0.5.5"
 serde_json = "1.0"

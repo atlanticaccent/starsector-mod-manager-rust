@@ -1,5 +1,4 @@
-use iced::{Application, button, Button, Column, Command, Element, Length, Row, Text, executor, PickList, pick_list, widget::Space};
-// use std::path::PathBuf;
+use iced::{Application, button, Button, Column, Command, Element, Length, Row, Text, executor, PickList, pick_list, widget::Space, Clipboard};
 
 mod settings;
 mod mod_list;
@@ -49,7 +48,11 @@ impl Application for App {
     String::from("Starsector Mod Manager")
   }
   
-  fn update(&mut self, _message: Message) -> Command<Message> {
+  fn update(
+    &mut self,
+    _message: Message,
+    _clipboard: &mut Clipboard,
+  ) -> Command<Message> {
     match _message {
       Message::SettingsOpen => {
         self.settings_open = true;
