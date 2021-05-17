@@ -1,4 +1,7 @@
+use std::path::PathBuf;
 use iced::{Application, button, Button, Column, Command, Element, Length, Row, Text, executor, PickList, pick_list, widget::Space, Clipboard};
+use serde::{Serialize, Deserialize};
+use serde_json;
 
 mod settings;
 mod mod_list;
@@ -9,7 +12,7 @@ use settings::SettingsMessage;
 use mod_list::ModListMessage;
 
 pub struct App {
-  // root_dir: Option<PathBuf>,
+  config: Option<Config>,
   settings_button: button::State,
   settings_open: bool,
   install_state: pick_list::State<InstallOptions>,
@@ -19,6 +22,8 @@ pub struct App {
 
 #[derive(Debug, Clone)]
 pub enum Message {
+  ConfigLoaded(Result<Config, LoadError>),
+  ConfigSaved(Result<(), SaveError>),
   SettingsOpen,
   SettingsClose,
   SettingsMessage(SettingsMessage),
@@ -33,14 +38,14 @@ impl Application for App {
   fn new(_flags: ()) -> (App, Command<Message>) {
     (
       App {
-        // root_dir: None,
+        config: None,
         settings_button: button::State::new(),
         settings_open: false,
         install_state: pick_list::State::default(),
         settings: settings::Settings::new(),
         mod_list: mod_list::ModList::new()
       },
-      Command::none()
+      Command::perform(Config::load(), Message::ConfigLoaded)
     )
   }
   
@@ -54,6 +59,37 @@ impl Application for App {
     _clipboard: &mut Clipboard,
   ) -> Command<Message> {
     match _message {
+      Message::ConfigLoaded(res) => {
+        match res {
+          Ok(config) => {
+            self.settings.update(SettingsMessage::InitRoot(config.install_dir.clone()));
+
+            self.mod_list.update(ModListMessage::SetRoot(config.install_dir.clone()));
+
+            self.config = Some(config);
+          },
+          Err(err) => {
+            println!("{:?}", err);
+
+            self.settings.update(SettingsMessage::InitRoot(None));
+
+            self.config = Some(Config {
+              install_dir: None
+            })
+          }
+        }
+
+
+        Command::none()
+      },
+      Message::ConfigSaved(res) => {
+        match res {
+          Err(err) => println!("{:?}", err),
+          _ => {}
+        }
+
+        Command::none()
+      },
       Message::SettingsOpen => {
         self.settings_open = true;
         // self.settings.update(SettingsMessage::InitRoot(self.root_dir.clone()));
@@ -66,8 +102,14 @@ impl Application for App {
 
         self.mod_list.update(ModListMessage::SetRoot(self.settings.root_dir.clone()));
 
-        return Command::none();
-      }
+        if let Some(config) = self.config.as_mut() {
+          config.install_dir = self.settings.root_dir.clone();
+
+          return Command::perform(config.clone().save(), Message::ConfigSaved);
+        }
+
+        Command::none()
+      } 
       Message::SettingsMessage(settings_message) => {
         self.settings.update(settings_message);
         return Command::none();
@@ -160,5 +202,62 @@ impl std::fmt::Display for InstallOptions {
         InstallOptions::FromFolder => "From Folder"
       }
     )
+  }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum LoadError {
+  NoSuchFile,
+  ReadError,
+  FormatError
+}
+
+#[derive(Debug, Clone)]
+pub enum SaveError {
+  FileError,
+  WriteError,
+  FormatError,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Config {
+  install_dir: Option<PathBuf>
+}
+
+impl Config {
+  fn path() -> PathBuf {
+    PathBuf::from(r"./config.json")
+  }
+
+  async fn load() -> Result<Config, LoadError> {
+    use tokio::fs;
+    use tokio::io::AsyncReadExt;
+
+    let mut config_file = fs::File::open(Config::path())
+      .await
+      .map_err(|_| LoadError::NoSuchFile)?;
+
+    let mut config_string = String::new();
+    config_file.read_to_string(&mut config_string)
+      .await
+      .map_err(|_| LoadError::ReadError)?;
+
+    serde_json::from_str::<Config>(&config_string).map_err(|_| LoadError::FormatError)
+  }
+
+  async fn save(self) -> Result<(), SaveError> {
+    use tokio::fs;
+    use tokio::io::AsyncWriteExt;
+
+    let json = serde_json::to_string_pretty(&self)
+      .map_err(|_| SaveError::FormatError)?;
+
+    let mut file = fs::File::create(Config::path())
+      .await
+      .map_err(|_| SaveError::FileError)?;
+
+    file.write_all(json.as_bytes())
+      .await
+      .map_err(|_| SaveError::WriteError)
   }
 }
