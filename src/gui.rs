@@ -115,9 +115,7 @@ impl Application for App {
         return Command::none();
       },
       Message::ModListMessage(mod_list_message) => {
-        self.mod_list.update(mod_list_message);
-        
-        return Command::none();
+        return self.mod_list.update(mod_list_message.clone()).map(|m| Message::ModListMessage(m));
       }
     }
   }
