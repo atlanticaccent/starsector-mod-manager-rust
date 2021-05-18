@@ -92,23 +92,24 @@ impl Application for App {
       },
       Message::SettingsOpen => {
         self.settings_open = true;
-        // self.settings.update(SettingsMessage::InitRoot(self.root_dir.clone()));
+
         return Command::none();
       },
       Message::SettingsClose => {
         self.settings_open = false;
 
-        self.settings.update(SettingsMessage::Close);
-
-        self.mod_list.update(ModListMessage::SetRoot(self.settings.root_dir.clone()));
+        let mut commands = vec![
+          self.settings.update(SettingsMessage::Close).map(|m| Message::SettingsMessage(m)),
+          self.mod_list.update(ModListMessage::SetRoot(self.settings.root_dir.clone())).map(|m| Message::ModListMessage(m))
+        ];
 
         if let Some(config) = self.config.as_mut() {
           config.install_dir = self.settings.root_dir.clone();
 
-          return Command::perform(config.clone().save(), Message::ConfigSaved);
+          commands.push(Command::perform(config.clone().save(), Message::ConfigSaved));
         }
 
-        Command::none()
+        Command::batch(commands)
       } 
       Message::SettingsMessage(settings_message) => {
         self.settings.update(settings_message);
