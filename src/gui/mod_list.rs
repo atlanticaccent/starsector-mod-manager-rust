@@ -1,5 +1,6 @@
 use std::{io, io::Read, path::PathBuf, collections::HashMap, fs::{read_dir, rename, remove_dir_all, create_dir_all, copy}};
 use iced::{Text, Column, Command, Element, Length, Row, Scrollable, scrollable, Button, button, Checkbox, Container};
+use serde::{Serialize, Deserialize};
 use json_comments::strip_comments;
 use json5;
 use if_chain::if_chain;
@@ -8,10 +9,11 @@ use native_dialog::{FileDialog, MessageDialog, MessageType};
 use super::InstallOptions;
 use crate::archive_handler;
 use crate::style;
+use crate::gui::SaveError;
 
 pub struct ModList {
   root_dir: Option<PathBuf>,
-  mods: HashMap<String, ModEntry>,
+  pub mods: HashMap<String, ModEntry>,
   scroll: scrollable::State,
   mod_description: ModDescription
 }
@@ -21,7 +23,8 @@ pub enum ModListMessage {
   SetRoot(Option<PathBuf>),
   ModEntryMessage(String, ModEntryMessage),
   ModDescriptionMessage(ModDescriptionMessage),
-  InstallPressed(InstallOptions)
+  InstallPressed(InstallOptions),
+  EnabledModsSaved(Result<(), SaveError>)
 }
 
 impl ModList {
@@ -49,8 +52,21 @@ impl ModList {
             ModEntryMessage::EntryHighlighted => {
               self.mod_description.update(ModDescriptionMessage::ModChanged(entry.clone()));
             },
-            _ => {
+            ModEntryMessage::ToggleEnabled(_) => {
               entry.update(message);
+
+              if let Some(path) = &self.root_dir {
+                let enabled_mods = EnabledMods {
+                  enabled_mods: self.mods.iter()
+                    .filter_map(|(id, ModEntry { enabled, .. })| if *enabled {
+                      Some(id.clone())
+                    } else {
+                      None 
+                    })
+                    .collect(),
+                };
+                return Command::perform(enabled_mods.save(path.join("mods").join("enabled_mods.json")), ModListMessage::EnabledModsSaved)
+              }
             }
           }
         }
@@ -190,6 +206,14 @@ impl ModList {
           ModList::make_alert("No install directory set. Please set the Starsector install directory in Settings.".to_string());
           return Command::none();
         }
+      },
+      ModListMessage::EnabledModsSaved(res) => {
+        match res {
+          Err(err) => println!("{:?}", err),
+          _ => {}
+        }
+
+        Command::none()
       }
     }
   }
@@ -245,8 +269,13 @@ impl ModList {
     if_chain! {
       if let Some(root_dir) = &self.root_dir;
       let mod_dir = root_dir.join("mods");
+      let enabled_mods_filename = mod_dir.join("enabled_mods.json");
+      if let Ok(enabled_mods_text) = std::fs::read_to_string(enabled_mods_filename);
+      if let Ok(EnabledMods { enabled_mods, .. }) = serde_json::from_str::<EnabledMods>(&enabled_mods_text);
       if let Ok(dir_iter) = std::fs::read_dir(mod_dir);
       then {
+        let enabled_mods_iter = enabled_mods.iter();
+
         let mods = dir_iter
           .filter_map(|entry| entry.ok())
           .filter(|entry| {
@@ -262,18 +291,12 @@ impl ModList {
               if let Ok(mod_info_file) = std::fs::read_to_string(mod_info_path.clone());
               let mut stripped = String::new();
               if strip_comments(mod_info_file.as_bytes()).read_to_string(&mut stripped).is_ok();
-              if let Ok(mod_info) = json5::from_str::<serde_json::Value>(&stripped);
+              if let Ok(mut mod_info) = json5::from_str::<ModEntry>(&stripped);
               then {
+                mod_info.enabled = enabled_mods_iter.clone().find(|id| mod_info.id.clone().eq(*id)).is_some();
                 Some((
-                  mod_info["id"].to_string(),
-                  ModEntry::new(
-                    mod_info["id"].to_string(),
-                    mod_info["name"].to_string(),
-                    mod_info["author"].to_string(),
-                    mod_info["version"].to_string(),
-                    mod_info["description"].to_string(),
-                    mod_info["gameVersion"].to_string()
-                  )
+                  mod_info.id.clone(),
+                  mod_info.clone()
                 ))
               } else {
                 None
@@ -371,15 +394,20 @@ impl ModList {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct ModEntry {
   pub id: String,
   name: String,
+  #[serde(default)]
   author: String,
   version: String,
   description: String,
+  #[serde(alias = "gameVersion")]
   game_version: String,
+  #[serde(skip)]
   enabled: bool,
+  #[serde(skip)]
+  #[serde(default = "button::State::new")]
   button_state: button::State
 }
 
@@ -390,19 +418,6 @@ pub enum ModEntryMessage {
 }
 
 impl ModEntry {
-  pub fn new(id: String, name: String, author: String, version: String, description: String, game_version: String) -> Self {
-    ModEntry {
-      id,
-      name,
-      author,
-      version,
-      description,
-      game_version,
-      enabled: false,
-      button_state: button::State::new()
-    }
-  }
-
   pub fn update(&mut self, message: ModEntryMessage) -> Command<ModEntryMessage> {
     match message {
       ModEntryMessage::ToggleEnabled(enabled) => {
@@ -475,5 +490,29 @@ impl ModDescription {
       }))
       .padding(5)
       .into()
+  }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct EnabledMods {
+  #[serde(rename = "enabledMods")]
+  enabled_mods: Vec<String>
+}
+
+impl EnabledMods {
+  pub async fn save(self, path: PathBuf) -> Result<(), SaveError> {
+    use tokio::fs;
+    use tokio::io::AsyncWriteExt;
+
+    let json = serde_json::to_string_pretty(&self)
+      .map_err(|_| SaveError::FormatError)?;
+
+    let mut file = fs::File::create(path)
+      .await
+      .map_err(|_| SaveError::FileError)?;
+
+    file.write_all(json.as_bytes())
+      .await
+      .map_err(|_| SaveError::WriteError)
   }
 }
