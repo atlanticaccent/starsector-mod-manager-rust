@@ -1,5 +1,5 @@
 use std::{io, io::Read, path::PathBuf, collections::HashMap, fs::{read_dir, rename, remove_dir_all, create_dir_all, copy}};
-use iced::{Text, Column, Command, Element, Length, Row, Scrollable, scrollable, Button, button, Checkbox, Container};
+use iced::{Text, Column, Command, Element, Length, Row, Scrollable, scrollable, Button, button, Checkbox, Container, Rule};
 use serde::{Serialize, Deserialize};
 use json_comments::strip_comments;
 use json5;
@@ -247,13 +247,13 @@ impl ModList {
             .into()
         })
       )
+      .push(Rule::horizontal(30))
       .push(
         Container::new(self.mod_description.view().map(|message| {
           ModListMessage::ModDescriptionMessage(message)
         }))
         .height(Length::FillPortion(1))
         .width(Length::Fill)
-        .style(style::border::Container)
       );
 
     Column::new()
