@@ -220,7 +220,19 @@ impl ModList {
 
   pub fn view(&mut self) -> Element<ModListMessage> {
     let content = Column::new()
-      .width(Length::FillPortion(4))
+      .push(Column::new()
+        .push(Row::new()
+          .push(Text::new("Enabled").width(Length::FillPortion(1)))
+          .push(Text::new("Name").width(Length::FillPortion(2)))
+          .push(Text::new("ID").width(Length::FillPortion(2)))
+          .push(Text::new("Author").width(Length::FillPortion(2)))
+          .push(Text::new("Mod Version").width(Length::FillPortion(2)))
+          .push(Text::new("Starsector Version").width(Length::FillPortion(2)))
+          .height(Length::Shrink)
+          .padding(5)
+        )
+        .padding(5)
+      )
       .push(Scrollable::new(&mut self.scroll)
         .height(Length::FillPortion(2))
         .push::<Element<ModListMessage>>(if self.mods.len() > 0 {
@@ -433,9 +445,12 @@ impl ModEntry {
 
   pub fn view(&mut self) -> Element<ModEntryMessage> {
     Row::new()
-      .push(Checkbox::new(self.enabled, "", move |toggled| {
-        ModEntryMessage::ToggleEnabled(toggled)
-      }).width(Length::Shrink))
+      .push(
+        Checkbox::new(self.enabled, "", move |toggled| {
+          ModEntryMessage::ToggleEnabled(toggled)
+        })
+        .width(Length::FillPortion(1))
+      )
       .push(
         Button::new(
           &mut self.button_state,
@@ -448,6 +463,7 @@ impl ModEntry {
         )
         .style(style::button_none::Button)
         .on_press(ModEntryMessage::EntryHighlighted)
+        .width(Length::FillPortion(10))
       )
       .padding(5)
       .into()
