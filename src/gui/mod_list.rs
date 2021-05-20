@@ -1,5 +1,5 @@
 use std::{io, io::Read, path::PathBuf, collections::HashMap, fs::{read_dir, rename, remove_dir_all, create_dir_all, copy}};
-use iced::{Text, Column, Command, Element, Length, Row, Scrollable, scrollable, Button, button, Checkbox, Container, Rule, PickList, pick_list};
+use iced::{Text, Column, Command, Element, Length, Row, Scrollable, scrollable, Button, button, Checkbox, Container, Rule, PickList, pick_list, Space};
 use serde::{Serialize, Deserialize};
 use json_comments::strip_comments;
 use json5;
@@ -489,17 +489,31 @@ impl ModEntry {
         Button::new(
           &mut self.button_state,
           Row::new()
+            .push(Rule::vertical(0).style(style::max_rule::Rule))
+            .push(Space::with_width(Length::Units(5)))
             .push(Text::new(self.name.clone()).width(Length::Fill))
+            .push(Rule::vertical(0).style(style::max_rule::Rule))
+            .push(Space::with_width(Length::Units(5)))
             .push(Text::new(self.id.clone()).width(Length::Fill))
+            .push(Rule::vertical(0).style(style::max_rule::Rule))
+            .push(Space::with_width(Length::Units(5)))
             .push(Text::new(self.author.clone()).width(Length::Fill))
+            .push(Rule::vertical(0).style(style::max_rule::Rule))
+            .push(Space::with_width(Length::Units(5)))
             .push(Text::new(self.version.clone()).width(Length::Fill))
+            .push(Rule::vertical(0).style(style::max_rule::Rule))
+            .push(Space::with_width(Length::Units(5)))
             .push(Text::new(self.game_version.clone()).width(Length::Fill))
+            .height(Length::Fill)
         )
+        .padding(0)
+        .height(Length::Fill)
         .style(style::button_none::Button)
         .on_press(ModEntryMessage::EntryHighlighted)
         .width(Length::FillPortion(10))
       )
-      .padding(5)
+      .push(Space::with_width(Length::Units(5)))
+      .height(Length::Units(40))
       .into()
   }
 }
