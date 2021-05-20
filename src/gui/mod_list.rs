@@ -94,7 +94,6 @@ impl ModList {
                     if_chain! {
                       if let Some(path) = maybe_path.to_str();
                       if let Some(_full_name) = maybe_path.file_name();
-                      if let Some(full_name) = _full_name.to_str();
                       if let Some(_file_name) = maybe_path.file_stem();
                       if let Some(file_name) = _file_name.to_str();
                       let mod_dir = root_dir.join("mods");
