@@ -6,7 +6,7 @@ pub mod button_none {
   impl button::StyleSheet for Button {
     fn active(&self) -> button::Style {
       button::Style {
-        background: Color::from_rgb(255.0, 255.0, 255.0).into(),
+        background: None,
         shadow_offset: Vector::new(0.0, 0.0),
         text_color: Color::from_rgb(0.0, 0.0, 0.0),
         ..button::Style::default()
@@ -73,6 +73,21 @@ pub mod max_rule {
         width: 1,
         radius: 0.0,
         fill_mode: rule::FillMode::Full
+      }
+    }
+  }
+}
+
+pub mod alternate_background {
+  use iced::{container, Color};
+
+  pub struct Container;
+
+  impl container::StyleSheet for Container {
+    fn style(&self) -> container::Style {
+      container::Style {
+        background: Color::from_rgb8(0xF2, 0xF2, 0xF2).into(),
+        ..container::Style::default()
       }
     }
   }
