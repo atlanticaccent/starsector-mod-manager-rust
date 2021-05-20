@@ -228,6 +228,7 @@ impl ModList {
           ModListMessage::InstallPressed
         ).into()
       )
+      .push(Space::with_height(Length::Units(10)))
       .push(Column::new()
         .push(Row::new()
           .push(Space::with_width(Length::Units(5)))
