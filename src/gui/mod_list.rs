@@ -1,12 +1,11 @@
 use std::{io, io::Read, path::PathBuf, collections::HashMap, fs::{read_dir, rename, remove_dir_all, create_dir_all, copy}};
-use iced::{Text, Column, Command, Element, Length, Row, Scrollable, scrollable, Button, button, Checkbox, Container, Rule};
+use iced::{Text, Column, Command, Element, Length, Row, Scrollable, scrollable, Button, button, Checkbox, Container, Rule, PickList, pick_list};
 use serde::{Serialize, Deserialize};
 use json_comments::strip_comments;
 use json5;
 use if_chain::if_chain;
 use native_dialog::{FileDialog, MessageDialog, MessageType};
 
-use super::InstallOptions;
 use crate::archive_handler;
 use crate::style;
 use crate::gui::SaveError;
@@ -15,7 +14,8 @@ pub struct ModList {
   root_dir: Option<PathBuf>,
   pub mods: HashMap<String, ModEntry>,
   scroll: scrollable::State,
-  mod_description: ModDescription
+  mod_description: ModDescription,
+  install_state: pick_list::State<InstallOptions>,
 }
 
 #[derive(Debug, Clone)]
@@ -33,7 +33,8 @@ impl ModList {
       root_dir: None,
       mods: HashMap::new(),
       scroll: scrollable::State::new(),
-      mod_description: ModDescription::new()
+      mod_description: ModDescription::new(),
+      install_state: pick_list::State::default()
     }
   }
 
@@ -220,6 +221,13 @@ impl ModList {
 
   pub fn view(&mut self) -> Element<ModListMessage> {
     let content = Column::new()
+      .push::<Element<ModListMessage>>(PickList::new(
+          &mut self.install_state,
+          &InstallOptions::SHOW[..],
+          Some(InstallOptions::Default),
+          ModListMessage::InstallPressed
+        ).into()
+      )
       .push(Column::new()
         .push(Row::new()
           .push(Text::new("Enabled").width(Length::FillPortion(1)))
@@ -228,10 +236,8 @@ impl ModList {
           .push(Text::new("Author").width(Length::FillPortion(2)))
           .push(Text::new("Mod Version").width(Length::FillPortion(2)))
           .push(Text::new("Starsector Version").width(Length::FillPortion(2)))
-          .height(Length::Shrink)
-          .padding(5)
         )
-        .padding(5)
+        .padding(10)
       )
       .push(Scrollable::new(&mut self.scroll)
         .height(Length::FillPortion(2))
@@ -403,6 +409,34 @@ impl ModList {
     };
 
     Ok(())
+  }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum InstallOptions {
+  FromArchive,
+  FromFolder,
+  Default
+}
+
+impl InstallOptions {
+  const SHOW: [InstallOptions; 2] = [
+    InstallOptions::FromArchive,
+    InstallOptions::FromFolder
+  ];
+}
+
+impl std::fmt::Display for InstallOptions {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(
+      f,
+      "{}",
+      match self {
+        InstallOptions::Default => "Install Mod",
+        InstallOptions::FromArchive => "From Archive",
+        InstallOptions::FromFolder => "From Folder"
+      }
+    )
   }
 }
 
