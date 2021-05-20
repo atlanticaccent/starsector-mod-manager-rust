@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use iced::{Application, button, Button, Column, Command, Element, Length, Row, Text, executor, PickList, pick_list, widget::Space, Clipboard};
+use iced::{Application, button, Button, Column, Command, Element, Length, Row, Text, executor, Clipboard, Container, Space};
 use serde::{Serialize, Deserialize};
 use serde_json;
 
@@ -15,7 +15,6 @@ pub struct App {
   config: Option<Config>,
   settings_button: button::State,
   settings_open: bool,
-  install_state: pick_list::State<InstallOptions>,
   settings: settings::Settings,
   mod_list: mod_list::ModList
 }
@@ -41,7 +40,6 @@ impl Application for App {
         config: None,
         settings_button: button::State::new(),
         settings_open: false,
-        install_state: pick_list::State::default(),
         settings: settings::Settings::new(),
         mod_list: mod_list::ModList::new()
       },
@@ -122,21 +120,25 @@ impl Application for App {
   }
   
   fn view(&mut self) -> Element<Message> {
-    let mut menus: Row<Message> = Row::new();
+    let mut buttons: Row<Message> = Row::new()
+      .push(Space::with_width(Length::Units(5)));
 
-    menus = if self.settings_open {
-      menus.push(
-        Button::new(
-          &mut self.settings_button, 
-          Text::new("Go back"),
+    buttons = if self.settings_open {
+      buttons
+        .push(Space::with_width(Length::Fill))
+        .push(
+          Button::new(
+            &mut self.settings_button, 
+            Text::new("Go back"),
+          )
+          .on_press(
+            Message::SettingsClose
+          )
+          .style(style::button_only_hover::Button)
+          .padding(5)
         )
-        .on_press(
-          Message::SettingsClose
-        )
-        .style(style::button_only_hover::Button)
-      )
     } else {
-      menus.push(
+      buttons.push(
         Button::new(
           &mut self.settings_button, 
           Text::new("Settings"),
@@ -145,18 +147,13 @@ impl Application for App {
           Message::SettingsOpen
         )
         .style(style::button_only_hover::Button)
-      ).push(
-        Space::with_width(Length::Fill)
-      ).push({
-        let pick: Element<ModListMessage> = PickList::new(
-          &mut self.install_state,
-          &InstallOptions::SHOW[..],
-          Some(InstallOptions::Default),
-          ModListMessage::InstallPressed
-        ).into();
-        pick.map(|m| Message::ModListMessage(m))
-      })
+        .padding(5)
+      )
     };
+
+    let menu = Container::new(buttons)
+      .style(style::nav_bar::Container)
+      .width(Length::Fill);
 
     let content: Element<Message> = if self.settings_open {
       self.settings.view().map(move |_message| {
@@ -169,38 +166,10 @@ impl Application for App {
     };
 
     Column::new()
-      .push(menus)
+      .push(menu)
       .push(content)
       .width(Length::Fill)
       .into()
-  }
-}
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum InstallOptions {
-  FromArchive,
-  FromFolder,
-  Default
-}
-
-impl InstallOptions {
-  const SHOW: [InstallOptions; 2] = [
-    InstallOptions::FromArchive,
-    InstallOptions::FromFolder
-  ];
-}
-
-impl std::fmt::Display for InstallOptions {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(
-      f,
-      "{}",
-      match self {
-        InstallOptions::Default => "Install Mod",
-        InstallOptions::FromArchive => "From Archive",
-        InstallOptions::FromFolder => "From Folder"
-      }
-    )
   }
 }
 
