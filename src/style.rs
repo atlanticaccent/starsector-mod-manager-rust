@@ -60,3 +60,20 @@ pub mod nav_bar {
     }
   }
 }
+
+pub mod max_rule {
+  use iced::rule;
+
+  pub struct Rule;
+
+  impl rule::StyleSheet for Rule {
+    fn style(&self) -> rule::Style {
+      rule::Style {
+        color: [0.6, 0.6, 0.6, 0.51].into(),
+        width: 1,
+        radius: 0.0,
+        fill_mode: rule::FillMode::Full
+      }
+    }
+  }
+}

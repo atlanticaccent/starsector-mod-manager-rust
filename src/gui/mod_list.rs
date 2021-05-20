@@ -238,6 +238,7 @@ impl ModList {
         )
         .padding(10)
       )
+      .push(Rule::horizontal(2).style(style::max_rule::Rule))
       .push(Scrollable::new(&mut self.scroll)
         .height(Length::FillPortion(2))
         .push::<Element<ModListMessage>>(if self.mods.len() > 0 {
