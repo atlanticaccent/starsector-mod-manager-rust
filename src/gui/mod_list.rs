@@ -219,6 +219,7 @@ impl ModList {
   }
 
   pub fn view(&mut self) -> Element<ModListMessage> {
+    let mut every_other = true;
     let content = Column::new()
       .push::<Element<ModListMessage>>(PickList::new(
           &mut self.install_state,
@@ -245,9 +246,10 @@ impl ModList {
           self.mods
             .iter_mut()
             .fold(Column::new().padding(5), |col, (id, entry)| {
+              every_other = !every_other;
               let id_clone = id.clone();
               col.push(
-                entry.view().map(move |message| {
+                entry.view(every_other).map(move |message| {
                   ModListMessage::ModEntryMessage(id_clone.clone(), message)
                 })
               )
@@ -477,8 +479,8 @@ impl ModEntry {
     }
   }
 
-  pub fn view(&mut self) -> Element<ModEntryMessage> {
-    Row::new()
+  pub fn view(&mut self, other: bool) -> Element<ModEntryMessage> {
+    let mut row = Container::new(Row::new()
       .push(
         Checkbox::new(self.enabled, "", move |toggled| {
           ModEntryMessage::ToggleEnabled(toggled)
@@ -512,9 +514,14 @@ impl ModEntry {
         .on_press(ModEntryMessage::EntryHighlighted)
         .width(Length::FillPortion(10))
       )
-      .push(Space::with_width(Length::Units(5)))
       .height(Length::Units(40))
-      .into()
+    );
+
+    if other {
+      row = row.style(style::alternate_background::Container);
+    }
+
+    row.into()
   }
 }
 
