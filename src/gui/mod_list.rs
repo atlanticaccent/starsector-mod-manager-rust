@@ -521,7 +521,7 @@ impl ModEntry {
         .on_press(ModEntryMessage::EntryHighlighted)
         .width(Length::FillPortion(10))
       )
-      .height(Length::Units(40))
+      .height(Length::Units(50))
     );
 
     if other {
