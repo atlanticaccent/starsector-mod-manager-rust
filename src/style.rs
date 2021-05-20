@@ -29,23 +29,23 @@ pub mod button_only_hover {
   impl button::StyleSheet for Button {
     fn active(&self) -> button::Style {
       button::Style {
-        background: Color::from_rgb(255.0, 255.0, 255.0).into(),
         shadow_offset: Vector::new(0.0, 0.0),
-        text_color: Color::from_rgb(0.0, 0.0, 0.0),
+        text_color: Color::WHITE.into(),
         ..button::Style::default()
       }
     }
   
     fn hovered(&self) -> button::Style {
       button::Style {
-        background: Color::from_rgb8(214, 234, 248).into(),
+        background: Color::from_rgb8(0x41, 0x41, 0x41).into(),
+        text_color: Color::WHITE.into(),
         ..button::Style::default()
       }
     }
   }
 }
 
-pub mod border {
+pub mod nav_bar {
   use iced::{container, Color};
 
   pub struct Container;
@@ -53,8 +53,8 @@ pub mod border {
   impl container::StyleSheet for Container {
     fn style(&self) -> container::Style {
       container::Style {
-        border_width: 0.5,
-        border_color: Color::from_rgb(0.0, 0.0, 0.0),
+        background: Color::from_rgb8(0x12, 0x12, 0x12).into(),
+        text_color: Color::WHITE.into(),
         ..container::Style::default()
       }
     }
