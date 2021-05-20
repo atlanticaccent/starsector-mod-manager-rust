@@ -237,7 +237,6 @@ impl ModList {
           .push(Text::new("Mod Version").width(Length::FillPortion(2)))
           .push(Text::new("Starsector Version").width(Length::FillPortion(2)))
         )
-        .padding(10)
       )
       .push(Rule::horizontal(2).style(style::max_rule::Rule))
       .push(Scrollable::new(&mut self.scroll)
@@ -245,7 +244,7 @@ impl ModList {
         .push::<Element<ModListMessage>>(if self.mods.len() > 0 {
           self.mods
             .iter_mut()
-            .fold(Column::new().padding(5), |col, (id, entry)| {
+            .fold(Column::new(), |col, (id, entry)| {
               every_other = !every_other;
               let id_clone = id.clone();
               col.push(
