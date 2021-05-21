@@ -15,6 +15,8 @@ pub mod button_none {
   
     fn hovered(&self) -> button::Style {
       button::Style {
+        border_color: Color::BLACK,
+        border_width: 1.0,
         ..self.active()
       }
     }
