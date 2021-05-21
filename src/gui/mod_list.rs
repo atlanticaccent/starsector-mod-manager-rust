@@ -258,11 +258,13 @@ impl ModList {
           .push(Space::with_width(Length::Units(5)))
           .push(Text::new("Starsector Version").width(Length::FillPortion(2)))
           .height(Length::Shrink)
+          .push(Space::with_width(Length::Units(10)))
         )
       )
       .push(Rule::horizontal(2).style(style::max_rule::Rule))
       .push(Scrollable::new(&mut self.scroll)
         .height(Length::FillPortion(2))
+        .push(Row::new()
           .push::<Element<ModListMessage>>(if self.mods.len() > 0 {
             self.mods
               .iter_mut()
@@ -275,6 +277,7 @@ impl ModList {
                   })
                 )
               })
+              .width(Length::Fill)
               .into()
           } else {
             Column::new()
@@ -287,6 +290,8 @@ impl ModList {
               )
               .into()
           })
+          .push(Space::with_width(Length::Units(10)))
+        )
       )
       .push(Rule::horizontal(30))
       .push(
