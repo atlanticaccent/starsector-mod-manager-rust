@@ -295,7 +295,8 @@ impl ModList {
           .push(Space::with_width(Length::Units(10)))
         )
       )
-      .push(Rule::horizontal(30))
+      .push(Rule::horizontal(1).style(style::max_rule::Rule))
+      .push(Space::with_height(Length::Units(10)))
       .push(
         Container::new(self.mod_description.view().map(|message| {
           ModListMessage::ModDescriptionMessage(message)
