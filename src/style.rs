@@ -94,3 +94,18 @@ pub mod alternate_background {
     }
   }
 }
+
+pub mod highlight_background {
+  use iced::{container, Color};
+
+  pub struct Container;
+
+  impl container::StyleSheet for Container {
+    fn style(&self) -> container::Style {
+      container::Style {
+        background: Color::from_rgb8(0xDF, 0xFB, 0xF8).into(),
+        ..container::Style::default()
+      }
+    }
+  }
+}

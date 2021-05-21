@@ -16,6 +16,7 @@ pub struct ModList {
   scroll: scrollable::State,
   mod_description: ModDescription,
   install_state: pick_list::State<InstallOptions>,
+  currently_highlighted: Option<String>
 }
 
 #[derive(Debug, Clone)]
@@ -34,7 +35,8 @@ impl ModList {
       mods: HashMap::new(),
       scroll: scrollable::State::new(),
       mod_description: ModDescription::new(),
-      install_state: pick_list::State::default()
+      install_state: pick_list::State::default(),
+      currently_highlighted: None
     }
   }
 
@@ -52,7 +54,19 @@ impl ModList {
           match message {
             ModEntryMessage::EntryHighlighted => {
               self.mod_description.update(ModDescriptionMessage::ModChanged(entry.clone()));
+
+              entry.update(ModEntryMessage::EntryHighlighted);
+
+              if let Some(key) = &self.currently_highlighted {
+                let key = key.clone();
+                if let Some(old_entry) = self.mods.get_mut(&key) {
+                  old_entry.update(ModEntryMessage::EntryCleared);
+                }
+              }
+
+              self.currently_highlighted = Some(id);
             },
+            ModEntryMessage::EntryCleared => {},
             ModEntryMessage::ToggleEnabled(_) => {
               entry.update(message);
 
@@ -249,30 +263,30 @@ impl ModList {
       .push(Rule::horizontal(2).style(style::max_rule::Rule))
       .push(Scrollable::new(&mut self.scroll)
         .height(Length::FillPortion(2))
-        .push::<Element<ModListMessage>>(if self.mods.len() > 0 {
-          self.mods
-            .iter_mut()
-            .fold(Column::new(), |col, (id, entry)| {
-              every_other = !every_other;
-              let id_clone = id.clone();
-              col.push(
-                entry.view(every_other).map(move |message| {
-                  ModListMessage::ModEntryMessage(id_clone.clone(), message)
-                })
-              )
-            })
-            .into()
-        } else {
-          Column::new()
-            .width(Length::Fill)
-            .height(Length::Units(200))
-            .push(Text::new("No mods found") //change this to be more helpful
+          .push::<Element<ModListMessage>>(if self.mods.len() > 0 {
+            self.mods
+              .iter_mut()
+              .fold(Column::new(), |col, (id, entry)| {
+                every_other = !every_other;
+                let id_clone = id.clone();
+                col.push(
+                  entry.view(every_other).map(move |message| {
+                    ModListMessage::ModEntryMessage(id_clone.clone(), message)
+                  })
+                )
+              })
+              .into()
+          } else {
+            Column::new()
               .width(Length::Fill)
-              .size(25)
-              .color([0.7, 0.7, 0.7])
-            )
-            .into()
-        })
+              .height(Length::Units(200))
+              .push(Text::new("No mods found") //change this to be more helpful
+                .width(Length::Fill)
+                .size(25)
+                .color([0.7, 0.7, 0.7])
+              )
+              .into()
+          })
       )
       .push(Rule::horizontal(30))
       .push(
@@ -462,6 +476,8 @@ pub struct ModEntry {
   #[serde(skip)]
   enabled: bool,
   #[serde(skip)]
+  highlighted: bool,
+  #[serde(skip)]
   #[serde(default = "button::State::new")]
   button_state: button::State
 }
@@ -469,7 +485,8 @@ pub struct ModEntry {
 #[derive(Debug, Clone)]
 pub enum ModEntryMessage {
   ToggleEnabled(bool),
-  EntryHighlighted
+  EntryHighlighted,
+  EntryCleared
 }
 
 impl ModEntry {
@@ -481,13 +498,20 @@ impl ModEntry {
         Command::none()
       },
       ModEntryMessage::EntryHighlighted => {
+        self.highlighted = true;
+
+        Command::none()
+      },
+      ModEntryMessage::EntryCleared => {
+        self.highlighted = false;
+
         Command::none()
       }
     }
   }
 
   pub fn view(&mut self, other: bool) -> Element<ModEntryMessage> {
-    let mut row = Container::new(Row::new()
+    let row = Container::new(Row::new()
       .push(
         Checkbox::new(self.enabled, "", move |toggled| {
           ModEntryMessage::ToggleEnabled(toggled)
@@ -524,11 +548,13 @@ impl ModEntry {
       .height(Length::Units(50))
     );
 
-    if other {
-      row = row.style(style::alternate_background::Container);
-    }
-
-    row.into()
+    if self.highlighted {
+      row.style(style::highlight_background::Container)
+    } else if other {
+      row.style(style::alternate_background::Container)
+    } else {
+      row
+    }.into()
   }
 }
 
