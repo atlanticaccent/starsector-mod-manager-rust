@@ -1,4 +1,4 @@
-use std::{io, io::Read, path::PathBuf, collections::HashMap, fs::{read_dir, rename, remove_dir_all, create_dir_all, copy}};
+use std::{io, io::Read, path::PathBuf, collections::BTreeMap, fs::{read_dir, rename, remove_dir_all, create_dir_all, copy}};
 use iced::{Text, Column, Command, Element, Length, Row, Scrollable, scrollable, Button, button, Checkbox, Container, Rule, PickList, pick_list, Space};
 use serde::{Serialize, Deserialize};
 use json_comments::strip_comments;
@@ -12,7 +12,7 @@ use crate::gui::SaveError;
 
 pub struct ModList {
   root_dir: Option<PathBuf>,
-  pub mods: HashMap<String, ModEntry>,
+  pub mods: BTreeMap<String, ModEntry>,
   scroll: scrollable::State,
   mod_description: ModDescription,
   install_state: pick_list::State<InstallOptions>,
@@ -32,7 +32,7 @@ impl ModList {
   pub fn new() -> Self {
     ModList {
       root_dir: None,
-      mods: HashMap::new(),
+      mods: BTreeMap::new(),
       scroll: scrollable::State::new(),
       mod_description: ModDescription::new(),
       install_state: pick_list::State::default(),
