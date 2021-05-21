@@ -248,17 +248,17 @@ impl ModList {
       .push(Column::new()
         .push(Row::new()
           .push(Space::with_width(Length::Units(5)))
-          .push(Text::new("Enabled").width(Length::FillPortion(1)))
+          .push(Text::new("Enabled").width(Length::FillPortion(3)))
           .push(Space::with_width(Length::Units(5)))
-          .push(Text::new("Name").width(Length::FillPortion(2)))
+          .push(Text::new("Name").width(Length::FillPortion(8)))
           .push(Space::with_width(Length::Units(5)))
-          .push(Text::new("ID").width(Length::FillPortion(2)))
+          .push(Text::new("ID").width(Length::FillPortion(8)))
           .push(Space::with_width(Length::Units(5)))
-          .push(Text::new("Author").width(Length::FillPortion(2)))
+          .push(Text::new("Author").width(Length::FillPortion(8)))
           .push(Space::with_width(Length::Units(5)))
-          .push(Text::new("Mod Version").width(Length::FillPortion(2)))
+          .push(Text::new("Mod Version").width(Length::FillPortion(8)))
           .push(Space::with_width(Length::Units(5)))
-          .push(Text::new("Starsector Version").width(Length::FillPortion(2)))
+          .push(Text::new("Starsector Version").width(Length::FillPortion(8)))
           .height(Length::Shrink)
           .push(Space::with_width(Length::Units(10)))
         )
@@ -520,10 +520,15 @@ impl ModEntry {
   pub fn view(&mut self, other: bool) -> Element<ModEntryMessage> {
     let row = Container::new(Row::new()
       .push(
-        Checkbox::new(self.enabled, "", move |toggled| {
-          ModEntryMessage::ToggleEnabled(toggled)
-        })
-        .width(Length::FillPortion(1))
+        Container::new(
+          Checkbox::new(self.enabled, "", move |toggled| {
+            ModEntryMessage::ToggleEnabled(toggled)
+          })
+        )
+        .center_x()
+        .center_y()
+        .width(Length::FillPortion(3))
+        .height(Length::Fill)
       )
       .push(
         Button::new(
@@ -550,7 +555,7 @@ impl ModEntry {
         .height(Length::Fill)
         .style(style::button_none::Button)
         .on_press(ModEntryMessage::EntryHighlighted)
-        .width(Length::FillPortion(10))
+        .width(Length::FillPortion(40))
       )
       .height(Length::Units(50))
     );
