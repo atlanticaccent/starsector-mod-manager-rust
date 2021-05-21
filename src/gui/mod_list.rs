@@ -58,9 +58,11 @@ impl ModList {
               entry.update(ModEntryMessage::EntryHighlighted);
 
               if let Some(key) = &self.currently_highlighted {
-                let key = key.clone();
-                if let Some(old_entry) = self.mods.get_mut(&key) {
-                  old_entry.update(ModEntryMessage::EntryCleared);
+                if !id.eq(key) {
+                  let key = key.clone();
+                  if let Some(old_entry) = self.mods.get_mut(&key) {
+                    old_entry.update(ModEntryMessage::EntryCleared);
+                  }
                 }
               }
 
