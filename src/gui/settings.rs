@@ -1,6 +1,8 @@
-use iced::{Align, Button, Length, Text, TextInput, Command, Row, Element, text_input, button};
+use iced::{Align, Button, Length, Text, TextInput, Command, Row, Column, Element, text_input, button, Container, Space};
 use native_dialog::{FileDialog};
 use std::path::PathBuf;
+
+use super::mod_list;
 
 pub struct Settings {
   dirty: bool,
@@ -8,6 +10,7 @@ pub struct Settings {
   pub new_dir: Option<String>,
   path_input_state: text_input::State,
   browse_button: button::State,
+  copyright_button: button::State
 }
 
 #[derive(Debug, Clone)]
@@ -15,7 +18,8 @@ pub enum SettingsMessage {
   InitRoot(Option<PathBuf>),
   Close,
   PathChanged(String),
-  OpenNativeDiag
+  OpenNativeFilePick,
+  OpenNativeMessage
 }
 
 impl Settings {
@@ -25,7 +29,8 @@ impl Settings {
       root_dir: None,
       new_dir: None,
       path_input_state: text_input::State::new(),
-      browse_button: button::State::new()
+      browse_button: button::State::new(),
+      copyright_button: button::State::new()
     }
   }
 
@@ -53,7 +58,7 @@ impl Settings {
         }
         return Command::none();
       },
-      SettingsMessage::OpenNativeDiag => {
+      SettingsMessage::OpenNativeFilePick => {
         let diag = FileDialog::new().set_location("~/Desktop");
 
         if let Ok(some_path) = diag.show_open_single_dir() {
@@ -65,6 +70,11 @@ impl Settings {
         }
 
         return Command::none();
+      },
+      SettingsMessage::OpenNativeMessage => {
+        mod_list::ModList::make_alert(COPYRIGHT.to_string());
+
+        Command::none()
       }
     }
   }
@@ -97,18 +107,50 @@ impl Settings {
       &mut self.browse_button,
       Text::new("Browse ...")
     )
-    .on_press(SettingsMessage::OpenNativeDiag);
+    .on_press(SettingsMessage::OpenNativeMessage);
   
-    Row::new().push(
-      Row::new()
-        .push(Text::new("Starsector Install Dir: "))
-        .push(input)
-        .push(browse)
-        .width(Length::Fill)
+    Column::new()
+      .push(
+        Container::new(
+          Row::new()
+            .push(Text::new("Starsector Install Dir: "))
+            .push(input)
+            .push(browse)
+            .width(Length::Fill)
+            .align_items(Align::Center)
+        )
+        .center_y()
         .height(Length::Fill)
-        .align_items(Align::Center)
-    )
-    .padding(5)
-    .into()
+      )
+      .push::<Element<SettingsMessage>>(
+        Row::new()
+          .push(Space::with_width(Length::Fill))
+          .push(
+            Button::new(
+              &mut self.copyright_button,
+              Text::new("Licensing")
+            )
+            .on_press(SettingsMessage::OpenNativeMessage)
+          )
+          .into()
+      )
+      .padding(5)
+      .into()
   }
 }
+
+const COPYRIGHT: &str = r#"
+This program is provided under the following terms:
+
+Copyright (c) 2021 Iain Laird
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+This program makes use of multiple open source components and framewords. They include, and are not limited to:
+
+iced, serde, tokio, infer, native-dialog, serde_json, json5, json_comments, and if_chain.
+"#;
