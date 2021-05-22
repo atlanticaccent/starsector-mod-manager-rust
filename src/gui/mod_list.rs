@@ -599,12 +599,45 @@ impl ModDescription {
   }
 
   pub fn view(&mut self) -> Element<ModDescriptionMessage> {
-    Row::new()
-      .push(Text::new(if let Some(entry) = &self.mod_entry {
-        entry.description.clone()
-      } else {
-        "No mod selected.".to_owned()
-      }))
+    let mut text: Vec<Element<ModDescriptionMessage>> = vec![];
+
+    if let Some(entry) = &self.mod_entry {
+      text.push(Row::new()
+        .push(Text::new(format!("Name:")).width(Length::FillPortion(1)))
+        .push(Text::new(format!("{}", entry.name)).width(Length::FillPortion(10)))
+        .into()
+      );
+      text.push(Row::new()
+        .push(Text::new(format!("ID:")).width(Length::FillPortion(1)))
+        .push(Text::new(format!("{}", entry.id)).width(Length::FillPortion(10)))
+        .into()
+      );
+      text.push(Row::new()
+        .push(Text::new(format!("Author(s):")).width(Length::FillPortion(1)))
+        .push(Text::new(format!("{}", entry.author)).width(Length::FillPortion(10)))
+        .into()
+      );
+      text.push(Row::new()
+        .push(Text::new(format!("Enabled:")).width(Length::FillPortion(1)))
+        .push(Text::new(format!("{}", if entry.enabled {
+          "TRUE"
+        } else {
+          "FALSE"
+        })).width(Length::FillPortion(10)))
+        .into()
+      );
+      text.push(Row::new()
+        .push(Text::new(format!("Version:")).width(Length::FillPortion(1)))
+        .push(Text::new(format!("{}", entry.version)).width(Length::FillPortion(10)))
+        .into()
+      );
+      text.push(Text::new(format!("Description:")).into());
+      text.push(Text::new(entry.description.clone()).into());
+    } else {
+      text.push(Text::new(format!("No mod selected.")).into());
+    }
+
+    Column::with_children(text)
       .padding(5)
       .into()
   }
