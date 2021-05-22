@@ -7,7 +7,6 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-zip = "0.5.9"
 infer = "0.3.4"
 tokio = { version = "1.6.0", features = ["fs", "io-util"] }
 iced = { version = "0.3.0", features = ["glow", "tokio"] }
@@ -23,4 +22,5 @@ if_chain = "1.0.1"
 compress-tools = "0.11.1"
 
 [target.'cfg(not(unix))'.dependencies]
+zip = "0.5.9"
 unrar = "0.4.4"
