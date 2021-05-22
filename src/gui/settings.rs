@@ -107,7 +107,7 @@ impl Settings {
       &mut self.browse_button,
       Text::new("Browse ...")
     )
-    .on_press(SettingsMessage::OpenNativeMessage);
+    .on_press(SettingsMessage::OpenNativeFilePick);
   
     Column::new()
       .push(
