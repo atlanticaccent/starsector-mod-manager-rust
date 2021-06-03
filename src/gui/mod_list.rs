@@ -108,7 +108,7 @@ impl ModList {
               }
               if let Ok(paths) = diag.add_filter("Archive types", &filters).show_open_multiple_file() {
                 return Command::batch(paths.iter().map(|path| {
-                  Command::perform(install::handle_archive(path.to_path_buf(), root_dir.clone(), false), ModListMessage::ModInstalled)
+                  Command::perform(install::handle_archive(path.to_path_buf(), root_dir.clone(), false, false), ModListMessage::ModInstalled)
                 }))
               }
 
@@ -117,37 +117,7 @@ impl ModList {
             InstallOptions::FromFolder => {
               match diag.show_open_single_dir() {
                 Ok(Some(source_path)) => {
-                  if_chain! {
-                    if let Some(_file_name) = source_path.file_stem();
-                    let mod_dir = root_dir.join("mods");
-                    let raw_dest = mod_dir.join(_file_name);
-                    then {
-                      match ModList::find_nested_mod(&source_path) {
-                        Ok(Some(mod_path)) => {
-                          let cont = if raw_dest.exists() {
-                            match ModList::make_query("A directory with this name already exists. Do you want to replace it?\nChoosing no will abort this operation.".to_string()) {
-                              Ok(true) => remove_dir_all(&raw_dest).is_ok(),
-                              _ => false
-                            }
-                          } else {
-                            true
-                          };
-    
-                          if cont {
-                            if let Err(error) = ModList::copy_dir_recursive(&raw_dest, &mod_path) {
-                              ModList::make_alert(format!("Failed to copy the given mod directory into the mods folder.\nError:{:?}", error));
-                            } else {
-                              remove_dir_all(mod_path);
-                              self.parse_mod_folder();
-                            }
-                          }
-                        }
-                        _ => {}
-                      }
-                    } else {
-                      ModList::make_alert("Experienced an error. Did not move given folder into mods directory.".to_owned());
-                    }
-                  }
+                  return Command::perform(install::handle_archive(source_path.to_path_buf(), root_dir.clone(), true, false), ModListMessage::ModInstalled)
                 },
                 Ok(None) => {},
                 _ => { ModList::make_alert("Experienced an error. Did not move given folder into mods directory.".to_owned()); }
@@ -171,15 +141,16 @@ impl ModList {
         Command::none()
       },
       ModListMessage::ModInstalled(res) => {
+        let is_err = res.is_err();
         match res {
-          Ok(mod_name) => {
-            ModList::make_alert(format!("Successfully installed {}", mod_name));
+          Ok(mod_name) | Err(install::InstallError::DeleteError(mod_name)) => {
+            ModList::make_alert(format!("Successfully installed {}{}", mod_name, if is_err {".\nFailed to clean up temporary directory"} else {""}));
             self.parse_mod_folder();
             Command::none()
           },
           Err(err) => {
             match err {
-              install::InstallError::DirectoryExists(path) => {
+              install::InstallError::DirectoryExists(path, is_folder) => {
                 if_chain! {
                   if let Some(_file_name) = path.file_stem();
                   if let Some(root_dir) = self.root_dir.clone();
@@ -189,7 +160,7 @@ impl ModList {
                     match ModList::make_query(format!("A directory named {:?} already exists. Do you want to replace it?\nChoosing no will abort this operation.", _file_name)) {
                       Ok(true) => {
                         if remove_dir_all(&raw_dest).is_ok() {
-                          Command::perform(install::handle_archive(path.to_path_buf(), root_dir.clone(), false), ModListMessage::ModInstalled)
+                          Command::perform(install::handle_archive(path.to_path_buf(), root_dir.clone(), is_folder, false), ModListMessage::ModInstalled)
                         } else {
                           ModList::make_alert(format!("Failed to delete existing directory. Please check permissions on mod folder/{:?}", raw_dest));
                           Command::none()

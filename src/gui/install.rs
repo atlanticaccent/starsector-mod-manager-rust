@@ -10,19 +10,21 @@ use crate::archive_handler;
 
 #[derive(Debug, Clone)]
 pub enum InstallError {
-  DirectoryExists(PathBuf),
+  DirectoryExists(PathBuf, bool),
   DirectoryExistsFatal,
-  DeleteError,
+  DeleteError(String),
   NameError,
   NoModError,
   MoveError,
   UnsupportedArchive,
   ArchiveError,
+  CopyError
 }
 
 pub async fn handle_archive(
   source_path: PathBuf,
   root_dir: PathBuf,
+  is_folder: bool,
   retry: bool,
 ) -> Result<String, InstallError> {
   if_chain! {
@@ -45,27 +47,43 @@ pub async fn handle_archive(
         }
       }
 
-      match archive_handler::handle_archive(&path.to_owned(), &temp_dest.to_owned(), &file_name.to_owned()) {
-        Ok(true) => {
-          match find_nested_mod(&raw_temp_dest) {
-            Ok(Some(mod_path)) => {
-              if let Ok(_) = rename(mod_path, raw_dest).await {
-                if raw_temp_dest.exists() {
-                  if remove_dir_all(&raw_temp_dest).await.is_err() {
-                    return Err(InstallError::DeleteError)
-                  }
-                }
-
-                return Ok(format!("{:?}", _file_name))
-              } else {
-                return Err(InstallError::MoveError)
-              }
-            },
-            _ => return Err(InstallError::NoModError)
+      if is_folder {
+        if let Ok(Some(mod_path)) = find_nested_mod(&source_path) {
+          if let Err(_) = copy_dir_recursive(&raw_dest, &mod_path) {
+            return Err(InstallError::CopyError)
+          } else {
+            if remove_dir_all(mod_path).await.is_err() {
+              return Err(InstallError::DeleteError(format!("{:?}", _file_name)))
+            } else {
+              return Ok(format!("{:?}", _file_name))
+            }
           }
-        },
-        Ok(false) => return Err(InstallError::UnsupportedArchive),
-        Err(_err) => return Err(InstallError::ArchiveError)
+        } else {
+          return Err(InstallError::NoModError)
+        }
+      } else {
+        match archive_handler::handle_archive(&path.to_owned(), &temp_dest.to_owned(), &file_name.to_owned()) {
+          Ok(true) => {
+            match find_nested_mod(&raw_temp_dest) {
+              Ok(Some(mod_path)) => {
+                if let Ok(_) = rename(mod_path, raw_dest).await {
+                  if raw_temp_dest.exists() {
+                    if remove_dir_all(&raw_temp_dest).await.is_err() {
+                      return Err(InstallError::DeleteError(format!("{:?}", _file_name)))
+                    }
+                  }
+  
+                  return Ok(format!("{:?}", _file_name))
+                } else {
+                  return Err(InstallError::MoveError)
+                }
+              },
+              _ => return Err(InstallError::NoModError)
+            }
+          },
+          Ok(false) => return Err(InstallError::UnsupportedArchive),
+          Err(_err) => return Err(InstallError::ArchiveError)
+        }
       }
 
     } else {
