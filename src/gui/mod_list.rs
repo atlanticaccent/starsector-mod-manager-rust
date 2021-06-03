@@ -319,8 +319,10 @@ impl ModList {
       if let Some(root_dir) = &self.root_dir;
       let mod_dir = root_dir.join("mods");
       let enabled_mods_filename = mod_dir.join("enabled_mods.json");
+      // Note: If the enabled_mods.json file does not exist or is malformed, this entire function call fails.
       if let Ok(enabled_mods_text) = std::fs::read_to_string(enabled_mods_filename);
       if let Ok(EnabledMods { enabled_mods, .. }) = serde_json::from_str::<EnabledMods>(&enabled_mods_text);
+      // Whilst that shouldn't happen (Starsector should make the file) manual deletion, manual instantiation of the mods folder, or some other error, can cause this to go poorly - consider generating ourselves.
       if let Ok(dir_iter) = std::fs::read_dir(mod_dir);
       then {
         let enabled_mods_iter = enabled_mods.iter();
@@ -354,6 +356,8 @@ impl ModList {
           });
 
         self.mods.extend(mods)
+      } else {
+        println!("Fatal. Could not parse mods folder. Alert developer")
       }
     }
   }
