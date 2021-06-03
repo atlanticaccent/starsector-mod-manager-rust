@@ -149,8 +149,8 @@ impl ModList {
                     }
                   }
                 },
-                Ok(None) => { ModList::make_alert("Experienced an error. Did not move given folder into mods directory.".to_owned()); },
-                _ => {}
+                Ok(None) => {},
+                _ => { ModList::make_alert("Experienced an error. Did not move given folder into mods directory.".to_owned()); }
               }
 
               Command::none()
