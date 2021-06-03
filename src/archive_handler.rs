@@ -5,27 +5,35 @@ use std::{fs, error::Error, path::Path};
 mod rar_patch {
   use std::{fmt, error::Error};
 
-  pub struct UnrarErr<T> {
-    pub err: unrar::error::UnrarError<T>,
+  pub struct UnrarErr {
+    pub err: String,
+  }
+
+  impl UnrarErr {
+    pub fn new() -> Self {
+      UnrarErr {
+        err: format!("Opaque Unrarr Error. Cannot extrapolate due to library limitation.")
+      }
+    }
   }
   
-  impl<T> fmt::Display for UnrarErr<T> {
+  impl fmt::Display for UnrarErr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
       return self.err.fmt(f);
     }
   }
   
-  impl<T> fmt::Debug for UnrarErr<T> {
+  impl fmt::Debug for UnrarErr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
       return self.err.fmt(f);
     }
   }
   
-  impl<T> Error for UnrarErr<T> {}
+  impl Error for UnrarErr {}
 }
 
 #[cfg(not(target_family = "unix"))]
-pub fn handle_archive(file: &String, dest: &String, file_name: &String) -> Result<bool, Box<dyn Error>> {
+pub fn handle_archive(file: &String, dest: &String, file_name: &String) -> Result<bool, Box<dyn Error + Send>> {
   let kind = match infer::get_from_path(file) {
     Ok(res) => 
       match res {
@@ -45,9 +53,9 @@ pub fn handle_archive(file: &String, dest: &String, file_name: &String) -> Resul
       match unrar::Archive::new(file.clone()).extract_to(output_dir) {
         Ok(mut arch) => match arch.process() {
           Ok(_) => return Ok(true),
-          Err(err) => return Err(Box::new(rar_patch::UnrarErr { err })),
+          Err(_) => return Err(Box::new(rar_patch::UnrarErr::new())),
         },
-        Err(err) => return Err(Box::new(rar_patch::UnrarErr { err })),
+        Err(_) => return Err(Box::new(rar_patch::UnrarErr::new())),
       }
     },
     "application/zip" => {
