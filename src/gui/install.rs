@@ -21,14 +21,14 @@ pub enum InstallError {
 }
 
 pub async fn handle_archive(
-  maybe_path: PathBuf,
+  source_path: PathBuf,
   root_dir: PathBuf,
   retry: bool,
 ) -> Result<String, InstallError> {
   if_chain! {
-    if let Some(path) = maybe_path.to_str();
-    if let Some(_full_name) = maybe_path.file_name();
-    if let Some(_file_name) = maybe_path.file_stem();
+    if let Some(path) = source_path.to_str();
+    if let Some(_full_name) = source_path.file_name();
+    if let Some(_file_name) = source_path.file_stem();
     if let Some(file_name) = _file_name.to_str();
     let mod_dir = root_dir.join("mods");
     let raw_temp_dest = mod_dir.join(format!("temp_{}", file_name));
@@ -41,7 +41,7 @@ pub async fn handle_archive(
             return Err(InstallError::DirectoryExistsFatal)
           }
         } else {
-          return Err(InstallError::DirectoryExists(maybe_path.clone()))
+          return Err(InstallError::DirectoryExists(source_path.clone(), is_folder))
         }
       }
 
