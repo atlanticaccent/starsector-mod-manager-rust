@@ -11,6 +11,10 @@ use json5;
 use handwritten_json;
 use if_chain::if_chain;
 use native_dialog::{FileDialog, MessageDialog, MessageType};
+use debug_print::{
+  debug_print as dprint,
+  debug_println as dprintln
+};
 
 use serde_aux::prelude::*;
 
@@ -141,7 +145,7 @@ impl ModList {
       },
       ModListMessage::EnabledModsSaved(res) => {
         match res {
-          Err(err) => println!("{:?}", err),
+          Err(err) => dprintln!("{:?}", err),
           _ => {}
         }
 
@@ -195,24 +199,24 @@ impl ModList {
             if let Some(entry) = self.mods.get(&id) {
               match maybe_version {
                 Some(version) => {
-                  print!("{}. ", entry.id);
+                  dprint!("{}. ", entry.id);
                   if version.major > 0 {
-                    println!("New major version available.");
+                    dprintln!("New major version available.");
                   } else if version.minor > 0 {
-                    println!("New minor version available.");
+                    dprintln!("New minor version available.");
                   } else {
-                    println!("New patch available.");
+                    dprintln!("New patch available.");
                   };
-                  println!("{:?}", entry.version_checker.as_ref().unwrap().version);
+                  dprintln!("{:?}", entry.version_checker.as_ref().unwrap().version);
                 },
                 None => {
-                  println!("No update available for {}.", entry.id)
+                  dprintln!("No update available for {}.", entry.id)
                 }
               }
             }
           },
           Err((id, err)) => {
-            println!("Could not get remote update data for {}.\nError: {}", id, err)
+            dprintln!("Could not get remote update data for {}.\nError: {}", id, err)
           }
         };
 
@@ -372,7 +376,7 @@ impl ModList {
           .map(|v| Command::perform(install::get_master_version(v.clone()), ModListMessage::MasterVersionReceived))
           .collect()
       } else {
-        println!("Fatal. Could not parse mods folder. Alert developer");
+        dprintln!("Fatal. Could not parse mods folder. Alert developer");
         vec![]
       }
     }

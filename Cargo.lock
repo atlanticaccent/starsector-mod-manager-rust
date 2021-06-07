@@ -610,6 +610,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "debug_print"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f215f9b7224f49fb73256115331f677d868b34d18b65dbe4db392e6021eea90"
+
+[[package]]
 name = "derivative"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3164,6 +3170,7 @@ name = "starsector_mod_manager"
 version = "0.1.0"
 dependencies = [
  "compress-tools",
+ "debug_print",
  "handwritten-json",
  "iced",
  "iced_native",
