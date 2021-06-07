@@ -59,18 +59,19 @@ impl Application for App {
   ) -> Command<Message> {
     match _message {
       Message::ConfigLoaded(res) => {
+        let mut commands = vec![];
         match res {
           Ok(config) => {
-            self.settings.update(SettingsMessage::InitRoot(config.install_dir.clone()));
+            commands.push(self.settings.update(SettingsMessage::InitRoot(config.install_dir.clone())).map(|m| Message::SettingsMessage(m)));
 
-            self.mod_list.update(ModListMessage::SetRoot(config.install_dir.clone()));
+            commands.push(self.mod_list.update(ModListMessage::SetRoot(config.install_dir.clone())).map(|m| Message::ModListMessage(m)));
 
             self.config = Some(config);
           },
           Err(err) => {
             println!("{:?}", err);
 
-            self.settings.update(SettingsMessage::InitRoot(None));
+            commands.push(self.settings.update(SettingsMessage::InitRoot(None)).map(|m| Message::SettingsMessage(m)));
 
             self.config = Some(Config {
               install_dir: None
@@ -78,8 +79,7 @@ impl Application for App {
           }
         }
 
-
-        Command::none()
+        Command::batch(commands)
       },
       Message::ConfigSaved(res) => {
         match res {

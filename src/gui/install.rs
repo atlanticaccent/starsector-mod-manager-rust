@@ -1,12 +1,15 @@
+use json_comments::strip_comments;
 use if_chain::if_chain;
 use std::path::PathBuf;
 use std::{
   fs::{copy, create_dir_all, read_dir},
   io,
+  io::Read
 };
 use tokio::fs::{remove_dir_all, rename};
 
 use crate::archive_handler;
+use crate::gui::mod_list::{ModVersionMeta, ModVersion};
 
 #[derive(Debug, Clone)]
 pub enum InstallError {
@@ -125,4 +128,45 @@ fn copy_dir_recursive(to: &PathBuf, from: &PathBuf) -> io::Result<()> {
   }
 
   Ok(())
+}
+
+pub async fn get_master_version(local: ModVersionMeta) -> Result<(String, Option<ModVersion>), (String, String)> {
+  let remote = reqwest::get(local.remote_url.clone())
+    .await
+    .map_err(|e| (format!("{}", local.id), format!("{:?}", e)))?
+    .error_for_status()
+    .map_err(|e| (format!("{}", local.id), format!("{:?}", e)))?
+    .text()
+    .await
+    .map_err(|e| (format!("{}", local.id), format!("{:?}", e)))?;
+
+  if_chain! {
+    let mut stripped = String::new();
+    if strip_comments(remote.as_bytes()).read_to_string(&mut stripped).is_ok();
+    if let Ok(normalized) = handwritten_json::normalize(&stripped);
+    if let Ok(remote) = json5::from_str::<ModVersionMeta>(&normalized);
+    then {
+      if remote.version > local.version {
+        Ok((
+          local.id,
+          Some(ModVersion {
+            major: remote.version.major - local.version.major,
+            minor: remote.version.minor - remote.version.minor,
+            patch: remote.version.patch
+          })
+        ))
+      } else {
+        Ok((
+          local.id,
+          None
+        ))
+      }
+    } else {
+      Err((
+        local.id,
+        format!("Parse error. Payload:\n{}", remote)
+      ))
+    }
+  }
+
 }

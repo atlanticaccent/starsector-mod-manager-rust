@@ -1,3 +1,5 @@
+#![recursion_limit="1000"]
+
 use iced::{Application, Settings};
 
 mod gui;
