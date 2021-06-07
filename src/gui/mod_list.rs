@@ -1,10 +1,18 @@
-use std::{io, io::Read, path::PathBuf, collections::BTreeMap, fs::{read_dir, remove_dir_all, create_dir_all, copy}};
+use std::{
+  io,
+  io::{Read, BufReader, BufRead},
+  path::PathBuf, collections::BTreeMap,
+  fs::{read_dir, remove_dir_all, create_dir_all, copy, File}
+};
 use iced::{Text, Column, Command, Element, Length, Row, Scrollable, scrollable, Button, button, Checkbox, Container, Rule, PickList, pick_list, Space};
 use serde::{Serialize, Deserialize};
 use json_comments::strip_comments;
 use json5;
+use handwritten_json;
 use if_chain::if_chain;
 use native_dialog::{FileDialog, MessageDialog, MessageType};
+
+use serde_aux::prelude::*;
 
 use crate::gui::install;
 use crate::style;
@@ -26,7 +34,8 @@ pub enum ModListMessage {
   ModDescriptionMessage(ModDescriptionMessage),
   InstallPressed(InstallOptions),
   EnabledModsSaved(Result<(), SaveError>),
-  ModInstalled(Result<String, install::InstallError>)
+  ModInstalled(Result<String, install::InstallError>),
+  MasterVersionReceived(Result<(String, Option<ModVersion>), (String, String)>)
 }
 
 impl ModList {
@@ -46,9 +55,7 @@ impl ModList {
       ModListMessage::SetRoot(root_dir) => {
         self.root_dir = root_dir;
 
-        self.parse_mod_folder();
-
-        return Command::none();
+        Command::batch(self.parse_mod_folder())
       },
       ModListMessage::ModEntryMessage(id, message) => {
         if let Some(entry) = self.mods.get_mut(&id) {
@@ -145,8 +152,8 @@ impl ModList {
         match res {
           Ok(mod_name) | Err(install::InstallError::DeleteError(mod_name)) => {
             ModList::make_alert(format!("Successfully installed {}{}", mod_name, if is_err {".\nFailed to clean up temporary directory"} else {""}));
-            self.parse_mod_folder();
-            Command::none()
+
+            Command::batch(self.parse_mod_folder())
           },
           Err(err) => {
             match err {
@@ -181,6 +188,35 @@ impl ModList {
             }
           }
         }
+      },
+      ModListMessage::MasterVersionReceived(res) => {
+        match res {
+          Ok((id, maybe_version)) => {
+            if let Some(entry) = self.mods.get(&id) {
+              match maybe_version {
+                Some(version) => {
+                  print!("{}. ", entry.id);
+                  if version.major > 0 {
+                    println!("New major version available.");
+                  } else if version.minor > 0 {
+                    println!("New minor version available.");
+                  } else {
+                    println!("New patch available.");
+                  };
+                  println!("{:?}", entry.version_checker.as_ref().unwrap().version);
+                },
+                None => {
+                  println!("No update available for {}.", entry.id)
+                }
+              }
+            }
+          },
+          Err((id, err)) => {
+            println!("Could not get remote update data for {}.\nError: {}", id, err)
+          }
+        };
+
+        Command::none()
       }
     }
   }
@@ -263,7 +299,8 @@ impl ModList {
       .into()
   }
 
-  fn parse_mod_folder(&mut self) {
+  #[must_use]
+  fn parse_mod_folder(&mut self) -> Vec<Command<ModListMessage>>{
     self.mods.clear();
 
     if_chain! {
@@ -278,7 +315,7 @@ impl ModList {
       then {
         let enabled_mods_iter = enabled_mods.iter();
 
-        let mods = dir_iter
+        let (mods, versions): (Vec<(String, ModEntry)>, Vec<Option<ModVersionMeta>>) = dir_iter
           .filter_map(|entry| entry.ok())
           .filter(|entry| {
             if let Ok(file_type) = entry.file_type() {
@@ -288,6 +325,7 @@ impl ModList {
             }
           })
           .filter_map(|entry| {
+
             let mod_info_path = entry.path().join("mod_info.json");
             if_chain! {
               if let Ok(mod_info_file) = std::fs::read_to_string(mod_info_path.clone());
@@ -295,20 +333,47 @@ impl ModList {
               if strip_comments(mod_info_file.as_bytes()).read_to_string(&mut stripped).is_ok();
               if let Ok(mut mod_info) = json5::from_str::<ModEntry>(&stripped);
               then {
+                let version = if_chain! {
+                  if let Ok(version_loc_file) = File::open(entry.path().join("data").join("config").join("version").join("version_files.csv"));
+                  let lines = BufReader::new(version_loc_file).lines();
+                  if let Some(Ok(version_filename)) = lines.skip(1).next();
+                  if let Ok(version_data) = std::fs::read_to_string(entry.path().join(version_filename));
+                  let mut no_comments = String::new();
+                  if strip_comments(version_data.as_bytes()).read_to_string(&mut no_comments).is_ok();
+                  if let Ok(normalized) = handwritten_json::normalize(&no_comments);
+                  if let Ok(mut version) = json5::from_str::<ModVersionMeta>(&normalized);
+                  then {
+                    version.id = mod_info.id.clone();
+                    Some(version)
+                  } else {
+                    None
+                  }
+                };
                 mod_info.enabled = enabled_mods_iter.clone().find(|id| mod_info.id.clone().eq(*id)).is_some();
+                mod_info.version_checker = version.clone();
                 Some((
-                  mod_info.id.clone(),
-                  mod_info.clone()
+                  (
+                    mod_info.id.clone(),
+                    mod_info.clone()
+                  ),
+                  version
                 ))
               } else {
                 None
               }
             }
-          });
+          })
+          .unzip();
 
-        self.mods.extend(mods)
+        self.mods.extend(mods);
+
+        versions.iter()
+          .filter_map(|v| v.as_ref())
+          .map(|v| Command::perform(install::get_master_version(v.clone()), ModListMessage::MasterVersionReceived))
+          .collect()
       } else {
-        println!("Fatal. Could not parse mods folder. Alert developer")
+        println!("Fatal. Could not parse mods folder. Alert developer");
+        vec![]
       }
     }
   }
@@ -441,6 +506,8 @@ pub struct ModEntry {
   #[serde(skip)]
   highlighted: bool,
   #[serde(skip)]
+  version_checker: Option<ModVersionMeta>,
+  #[serde(skip)]
   #[serde(default = "button::State::new")]
   button_state: button::State
 }
@@ -524,6 +591,35 @@ impl ModEntry {
       row
     }.into()
   }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ModVersionMeta {
+  #[serde(alias="masterVersionFile")]
+  pub remote_url: String,
+  #[serde(alias="modName")]
+  pub id: String,
+  #[serde(alias="modThreadId")]
+  #[serde(deserialize_with="deserialize_string_from_number")]
+  #[serde(default)]
+  fractal_id: String,
+  #[serde(alias="modNexusId")]
+  #[serde(deserialize_with="deserialize_string_from_number")]
+  #[serde(default)]
+  nexus_id: String,
+  #[serde(alias="modVersion")]
+  pub version: ModVersion
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, PartialOrd)]
+pub struct ModVersion {
+  #[serde(deserialize_with="deserialize_number_from_string")]
+  pub major: i32,
+  #[serde(deserialize_with="deserialize_number_from_string")]
+  pub minor: i32,
+  #[serde(default)]
+  #[serde(deserialize_with="deserialize_string_from_number")]
+  pub patch: String
 }
 
 #[derive(Debug, Clone)]
