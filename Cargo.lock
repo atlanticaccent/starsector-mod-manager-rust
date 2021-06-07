@@ -275,6 +275,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "chrono"
+version = "0.4.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "670ad68c9088c2a963aaa298cb369688cf3f9465ce5e2d4ca10e6e0098a1ce73"
+dependencies = [
+ "libc",
+ "num-integer",
+ "num-traits 0.2.14",
+ "time",
+ "winapi 0.3.9",
+]
+
+[[package]]
 name = "clipboard-win"
 version = "4.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1428,6 +1441,14 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
+]
+
+[[package]]
+name = "handwritten-json"
+version = "0.1.0"
+source = "git+https://github.com/atlanticaccent/rust-handwritten-json.git#5b341cc4c9a0b67676d142c7d398769dae451e4d"
+dependencies = [
+ "thiserror",
 ]
 
 [[package]]
@@ -2973,6 +2994,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde-aux"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77eb8c83f6ebaedf5e8f970a8a44506b180b8e6268de03885c8547031ccaee00"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "serde_derive"
 version = "1.0.126"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3132,6 +3164,7 @@ name = "starsector_mod_manager"
 version = "0.1.0"
 dependencies = [
  "compress-tools",
+ "handwritten-json",
  "iced",
  "iced_native",
  "if_chain",
@@ -3141,6 +3174,7 @@ dependencies = [
  "native-dialog",
  "reqwest",
  "serde",
+ "serde-aux",
  "serde_json",
  "tokio",
  "unrar",
