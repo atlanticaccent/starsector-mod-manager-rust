@@ -130,43 +130,53 @@ fn copy_dir_recursive(to: &PathBuf, from: &PathBuf) -> io::Result<()> {
   Ok(())
 }
 
-pub async fn get_master_version(local: ModVersionMeta) -> Result<(String, Option<ModVersion>), (String, String)> {
-  let remote = reqwest::get(local.remote_url.clone())
-    .await
-    .map_err(|e| (format!("{}", local.id), format!("{:?}", e)))?
-    .error_for_status()
-    .map_err(|e| (format!("{}", local.id), format!("{:?}", e)))?
-    .text()
-    .await
-    .map_err(|e| (format!("{}", local.id), format!("{:?}", e)))?;
+pub async fn get_master_version(local: ModVersionMeta) -> (String, Result<Option<ModVersion>, String>) {
+  let res = send_request(local.remote_url.clone()).await;
 
-  if_chain! {
-    let mut stripped = String::new();
-    if strip_comments(remote.as_bytes()).read_to_string(&mut stripped).is_ok();
-    if let Ok(normalized) = handwritten_json::normalize(&stripped);
-    if let Ok(remote) = json5::from_str::<ModVersionMeta>(&normalized);
-    then {
-      if remote.version > local.version {
-        Ok((
-          local.id,
-          Some(ModVersion {
-            major: remote.version.major - local.version.major,
-            minor: remote.version.minor - remote.version.minor,
-            patch: remote.version.patch
-          })
-        ))
-      } else {
-        Ok((
-          local.id,
-          None
-        ))
+  match res {
+    Err(err) => (local.id, Err(err)),
+    Ok(remote) => {
+      if_chain! {
+        let mut stripped = String::new();
+        if strip_comments(remote.as_bytes()).read_to_string(&mut stripped).is_ok();
+        if let Ok(normalized) = handwritten_json::normalize(&stripped);
+        if let Ok(remote) = json5::from_str::<ModVersionMeta>(&normalized);
+        then {
+          if remote.version > local.version {
+            (
+              local.id,
+              Ok(Some(ModVersion {
+                major: remote.version.major - local.version.major,
+                minor: remote.version.minor - remote.version.minor,
+                patch: remote.version.patch
+              }))
+            )
+          } else {
+            (
+              local.id,
+              Ok(None)
+            )
+          }
+        } else {
+          (
+            local.id,
+            Err(format!("Parse error. Payload:\n{}", remote))
+          )
+        }
       }
-    } else {
-      Err((
-        local.id,
-        format!("Parse error. Payload:\n{}", remote)
-      ))
     }
   }
 
+
+}
+
+async fn send_request(url: String) -> Result<String, String>{
+  reqwest::get(url)
+    .await
+    .map_err(|e| format!("{:?}", e))?
+    .error_for_status()
+    .map_err(|e| format!("{:?}", e))?
+    .text()
+    .await
+    .map_err(|e| format!("{:?}", e))
 }

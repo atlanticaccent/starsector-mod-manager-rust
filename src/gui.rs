@@ -4,7 +4,7 @@ use serde::{Serialize, Deserialize};
 use serde_json;
 
 mod settings;
-mod mod_list;
+pub mod mod_list;
 mod install;
 
 use crate::style;

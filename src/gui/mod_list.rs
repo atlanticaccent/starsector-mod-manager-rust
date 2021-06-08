@@ -2,19 +2,21 @@ use std::{
   io,
   io::{Read, BufReader, BufRead},
   path::PathBuf, collections::BTreeMap,
-  fs::{read_dir, remove_dir_all, create_dir_all, copy, File}
+  fs::{read_dir, remove_dir_all, create_dir_all, copy, File},
+  fmt::Display
 };
-use iced::{Text, Column, Command, Element, Length, Row, Scrollable, scrollable, Button, button, Checkbox, Container, Rule, PickList, pick_list, Space};
+use iced::{
+  Text, Column, Command, Element, Length, Row, Scrollable, scrollable, Button,
+  button, Checkbox, Container, Rule, PickList, pick_list, Space, Tooltip,
+  tooltip
+};
 use serde::{Serialize, Deserialize};
 use json_comments::strip_comments;
 use json5;
 use handwritten_json;
 use if_chain::if_chain;
 use native_dialog::{FileDialog, MessageDialog, MessageType};
-use debug_print::{
-  debug_print as dprint,
-  debug_println as dprintln
-};
+// use debug_print::{debug_print, debug_println};
 
 use serde_aux::prelude::*;
 
@@ -39,7 +41,7 @@ pub enum ModListMessage {
   InstallPressed(InstallOptions),
   EnabledModsSaved(Result<(), SaveError>),
   ModInstalled(Result<String, install::InstallError>),
-  MasterVersionReceived(Result<(String, Option<ModVersion>), (String, String)>)
+  MasterVersionReceived((String, Result<Option<ModVersion>, String>))
 }
 
 impl ModList {
@@ -145,7 +147,7 @@ impl ModList {
       },
       ModListMessage::EnabledModsSaved(res) => {
         match res {
-          Err(err) => dprintln!("{:?}", err),
+          // Err(err) => debug_println!("{:?}", err),
           _ => {}
         }
 
@@ -193,30 +195,35 @@ impl ModList {
           }
         }
       },
-      ModListMessage::MasterVersionReceived(res) => {
-        match res {
-          Ok((id, maybe_version)) => {
-            if let Some(entry) = self.mods.get(&id) {
-              match maybe_version {
-                Some(version) => {
-                  dprint!("{}. ", entry.id);
-                  if version.major > 0 {
-                    dprintln!("New major version available.");
-                  } else if version.minor > 0 {
-                    dprintln!("New minor version available.");
-                  } else {
-                    dprintln!("New patch available.");
-                  };
-                  dprintln!("{:?}", entry.version_checker.as_ref().unwrap().version);
-                },
-                None => {
-                  dprintln!("No update available for {}.", entry.id)
+      ModListMessage::MasterVersionReceived((id, res)) => {
+        if let Some(entry) = self.mods.get_mut(&id) {
+          match res {
+            Ok(maybe_version) => {
+                match maybe_version {
+                  Some(version) => {
+                    // debug_print!("{}. ", entry.id);
+                    if version.major > 0 {
+                      // debug_println!("New major version available.");
+                      entry.update_status = Some(UpdateStatus::Major(version))
+                    } else if version.minor > 0 {
+                      // debug_println!("New minor version available.");
+                      entry.update_status = Some(UpdateStatus::Minor(version))
+                    } else {
+                      // debug_println!("New patch available.");
+                      entry.update_status = Some(UpdateStatus::Patch(version.patch))
+                    };
+                    // debug_println!("{:?}", entry.version_checker.as_ref().unwrap().version);
+                  },
+                  None => {
+                    // debug_println!("No update available for {}.", entry.id);
+                    entry.update_status = Some(UpdateStatus::UpToDate)
+                  }
                 }
-              }
+            },
+            Err(err) => {
+              // debug_println!("Could not get remote update data for {}.\nError: {}", id, err);
+              entry.update_status = Some(UpdateStatus::Error)
             }
-          },
-          Err((id, err)) => {
-            dprintln!("Could not get remote update data for {}.\nError: {}", id, err)
           }
         };
 
@@ -376,7 +383,7 @@ impl ModList {
           .map(|v| Command::perform(install::get_master_version(v.clone()), ModListMessage::MasterVersionReceived))
           .collect()
       } else {
-        dprintln!("Fatal. Could not parse mods folder. Alert developer");
+        // debug_println!("Fatal. Could not parse mods folder. Alert developer");
         vec![]
       }
     }
@@ -495,6 +502,29 @@ impl std::fmt::Display for InstallOptions {
   }
 }
 
+#[derive(Debug, Clone)]
+pub enum UpdateStatus {
+  Major(ModVersion),
+  Minor(ModVersion),
+  Patch(String),
+  UpToDate,
+  Error
+}
+
+impl Display for UpdateStatus {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+    match self {
+      UpdateStatus::Major(_) => write!(f, "Major"),
+      UpdateStatus::Minor(_) => write!(f, "Minor"),
+      UpdateStatus::Patch(_) => write!(f, "Patch"),
+      UpdateStatus::UpToDate => write!(f, "Up to date"),
+      UpdateStatus::Error => write!(f, "Error"),
+    }
+  }
+}
+
+pub struct UpdateStatusTTPatch(pub UpdateStatus);
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct ModEntry {
   pub id: String,
@@ -511,6 +541,8 @@ pub struct ModEntry {
   highlighted: bool,
   #[serde(skip)]
   version_checker: Option<ModVersionMeta>,
+  #[serde(skip)]
+  update_status: Option<UpdateStatus>,
   #[serde(skip)]
   #[serde(default = "button::State::new")]
   button_state: button::State
@@ -571,8 +603,44 @@ impl ModEntry {
             .push(Space::with_width(Length::Units(5)))
             .push(Text::new(self.author.clone()).width(Length::Fill))
             .push(Rule::vertical(0).style(style::max_rule::Rule))
-            .push(Space::with_width(Length::Units(5)))
-            .push(Text::new(self.version.clone()).width(Length::Fill))
+            .push::<Element<ModEntryMessage>>(
+              if let Some(status) = &self.update_status {
+                Container::new(
+                  Tooltip::new(
+                    Container::new(Row::with_children(vec![
+                      Space::with_width(Length::Units(5)).into(),
+                      Text::new(self.version.clone()).into()
+                    ]))
+                    .style(status.clone())
+                    .width(Length::Fill)
+                    .height(Length::Fill),
+                    match status {
+                      UpdateStatus::Major(delta) | UpdateStatus::Minor(delta) => {
+                        let local = &self.version_checker.as_ref().unwrap().version;
+                        let remote = ModVersion {
+                          major: local.major + delta.major,
+                          minor: local.minor + delta.minor,
+                          patch: delta.patch.clone()
+                        };
+                        format!("{:?} update available.\nLocal: {} - Update: {}", status, local, remote)
+                      },
+                      UpdateStatus::Patch(delta) => format!("Patch available.\nLocal: {} - Update: {}", &self.version_checker.as_ref().unwrap().version.patch, delta),
+                      UpdateStatus::UpToDate => format!("Up to date!"),
+                      UpdateStatus::Error => format!("Could not retrieve remote update data.")
+                    },
+                    tooltip::Position::FollowCursor
+                  ).style(UpdateStatusTTPatch(status.clone()))
+                )
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .padding(1)
+                .into()
+              } else {
+                Text::new(self.version.clone())
+                  .width(Length::Fill)
+                  .into()
+              }
+            )
             .push(Rule::vertical(0).style(style::max_rule::Rule))
             .push(Space::with_width(Length::Units(5)))
             .push(Text::new(self.game_version.clone()).width(Length::Fill))
@@ -624,6 +692,16 @@ pub struct ModVersion {
   #[serde(default)]
   #[serde(deserialize_with="deserialize_string_from_number")]
   pub patch: String
+}
+
+impl Display for ModVersion {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+    if self.patch.len() > 0 {
+      write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+    } else {
+      write!(f, "{}.{}", self.major, self.minor)
+    }
+  }
 }
 
 #[derive(Debug, Clone)]

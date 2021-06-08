@@ -109,3 +109,119 @@ pub mod highlight_background {
     }
   }
 }
+
+use iced::container;
+use crate::gui::mod_list::{UpdateStatus, UpdateStatusTTPatch};
+
+impl From<UpdateStatus> for Box<dyn container::StyleSheet> {
+  fn from(theme: UpdateStatus) -> Self {
+    match theme {
+      UpdateStatus::Major(_) | UpdateStatus::Minor(_) | UpdateStatus::Patch(_) => update::major::Container.into(),
+      UpdateStatus::UpToDate => update::up_to_date::Container.into(),
+      UpdateStatus::Error => update::error::Container.into()
+    }
+  }
+}
+
+impl From<UpdateStatusTTPatch> for Box<dyn container::StyleSheet> {
+  fn from(wrapper: UpdateStatusTTPatch) -> Self {
+    let UpdateStatusTTPatch(theme) = wrapper;
+    match theme {
+      UpdateStatus::Major(_) | UpdateStatus::Minor(_) | UpdateStatus::Patch(_) => update::major::Tooltip.into(),
+      UpdateStatus::UpToDate => update::up_to_date::Tooltip.into(),
+      UpdateStatus::Error => update::error::Tooltip.into()
+    }
+  }
+}
+
+pub mod update {
+  use iced::{container, Color};
+
+  pub mod major {
+    pub struct Container;
+    pub struct Tooltip;
+
+    fn style() -> super::container::Style {
+      super::container::Style {
+        background: super::Color::from_rgb8(0xFF, 0xA0, 0x00).into(),
+        ..super::container::Style::default()
+      }
+    }
+
+    impl super::container::StyleSheet for Container {
+      fn style(&self) -> super::container::Style {
+        style()
+      }
+    }
+
+    impl super::container::StyleSheet for Tooltip {
+      fn style(&self) -> super::container::Style {
+        super::container::Style {
+          border_color: super::Color::BLACK,
+          border_width: 1.0,
+          border_radius: 5.0,
+          ..style()
+        }
+      }
+    }
+  }
+
+  pub mod up_to_date {
+    pub struct Container;
+    pub struct Tooltip;
+
+    fn style() -> super::container::Style {
+      super::container::Style {
+        background: super::Color::from_rgb8(0x03, 0x9B, 0xE5).into(),
+        ..super::container::Style::default()
+      }
+    }
+
+    impl super::container::StyleSheet for Container {
+      fn style(&self) -> super::container::Style {
+        style()
+      }
+    }
+
+    impl super::container::StyleSheet for Tooltip {
+      fn style(&self) -> super::container::Style {
+        super::container::Style {
+          border_color: super::Color::BLACK,
+          border_width: 1.0,
+          border_radius: 5.0,
+          ..style()
+        }
+      }
+    }
+  }
+
+  pub mod error {
+    pub struct Container;
+    pub struct Tooltip;
+
+    fn style() -> super::container::Style {
+      super::container::Style {
+        background: super::Color::from_rgb8(0xB0, 0x00, 0x20).into(),
+        text_color: Some(super::Color::WHITE),
+        ..super::container::Style::default()
+      }
+    }
+
+    impl super::container::StyleSheet for Container {
+      fn style(&self) -> super::container::Style {
+        style()
+      }
+    }
+
+    impl super::container::StyleSheet for Tooltip {
+      fn style(&self) -> super::container::Style {
+        super::container::Style {
+          border_color: super::Color::BLACK,
+          border_width: 1.0,
+          border_radius: 5.0,
+          ..style()
+        }
+      }
+    }
+  }
+}
