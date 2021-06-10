@@ -1,8 +1,14 @@
-use iced::{Align, Button, Length, Text, TextInput, Command, Row, Column, Element, text_input, button, Container, Space};
+use iced::{
+  Align, Button, Length, Text, TextInput, Command, Row, Column, Element,
+  text_input, button, Container, Space, Checkbox, PickList, pick_list
+};
 use native_dialog::{FileDialog};
 use std::path::PathBuf;
+use if_chain::if_chain;
 
 use super::mod_list;
+
+pub mod vmparams;
 
 pub struct Settings {
   dirty: bool,
@@ -10,7 +16,13 @@ pub struct Settings {
   pub new_dir: Option<String>,
   path_input_state: text_input::State,
   browse_button: button::State,
-  copyright_button: button::State
+  copyright_button: button::State,
+  pub vmparams: Option<vmparams::VMParams>,
+  vmparams_editing_enabled: bool,
+  min_ram_input_state: text_input::State,
+  max_ram_input_state: text_input::State,
+  min_ram_pick_state: pick_list::State<vmparams::Unit>,
+  max_ram_pick_state: pick_list::State<vmparams::Unit>
 }
 
 #[derive(Debug, Clone)]
@@ -19,7 +31,18 @@ pub enum SettingsMessage {
   Close,
   PathChanged(String),
   OpenNativeFilePick,
-  OpenNativeMessage
+  OpenNativeMessage,
+  InitVMParams(Option<vmparams::VMParams>),
+  VMParamsEditingToggled(bool),
+  VMParamChanged(String, VMParamChanged),
+  UnitChanged(vmparams::Unit, VMParamChanged)
+}
+
+#[derive(Debug, Clone)]
+pub enum VMParamChanged {
+  MinRam,
+  MaxRam,
+  StackThread
 }
 
 impl Settings {
@@ -30,7 +53,13 @@ impl Settings {
       new_dir: None,
       path_input_state: text_input::State::new(),
       browse_button: button::State::new(),
-      copyright_button: button::State::new()
+      copyright_button: button::State::new(),
+      vmparams: None,
+      vmparams_editing_enabled: false,
+      min_ram_input_state: text_input::State::new(),
+      max_ram_input_state: text_input::State::new(),
+      min_ram_pick_state: pick_list::State::default(),
+      max_ram_pick_state: pick_list::State::default()
     }
   }
 
@@ -75,6 +104,45 @@ impl Settings {
         mod_list::ModList::make_alert(COPYRIGHT.to_string());
 
         Command::none()
+      },
+      SettingsMessage::VMParamsEditingToggled(toggled) => {
+        self.vmparams_editing_enabled = toggled;
+
+        Command::none()
+      },
+      SettingsMessage::VMParamChanged(input, kind) => {
+        let input_as_int = input.parse::<i32>();
+        if let Some(mut params) = self.vmparams.as_mut() {
+          match kind {
+            VMParamChanged::MinRam => {
+              params.heap_init.amount = input_as_int.unwrap_or_default();
+            },
+            VMParamChanged::MaxRam => {
+              params.heap_max.amount = input_as_int.unwrap_or_default();
+            },
+            VMParamChanged::StackThread => {
+              params.thread_stack_size.amount = input_as_int.unwrap_or_default();
+            }
+          }
+        }
+
+        Command::none()
+      },
+      SettingsMessage::InitVMParams(mut maybe_params) => {
+        self.vmparams = maybe_params.take();
+
+        Command::none()
+      },
+      SettingsMessage::UnitChanged(unit, kind) => {
+        if let Some(vmparams) = self.vmparams.as_mut() {
+          match kind {
+            VMParamChanged::MinRam => vmparams.heap_init.unit = unit,
+            VMParamChanged::MaxRam => vmparams.heap_max.unit = unit,
+            VMParamChanged::StackThread => vmparams.thread_stack_size.unit = unit
+          }
+        }
+
+        Command::none()
       }
     }
   }
@@ -97,9 +165,7 @@ impl Settings {
           }
         }
       },
-      |path| -> SettingsMessage {
-        SettingsMessage::PathChanged(path)
-      }
+      SettingsMessage::PathChanged
     )
     .padding(5);
   
@@ -109,18 +175,91 @@ impl Settings {
     )
     .on_press(SettingsMessage::OpenNativeFilePick);
   
+    let mut controls = vec![
+      Row::new()
+        .push(Text::new("Starsector Install Dir: "))
+        .push(input)
+        .push(browse)
+        .width(Length::Fill)
+        .align_items(Align::Center)
+        .padding(2)
+        .into(),
+      Row::new()
+        .push(Checkbox::new(
+          self.vmparams_editing_enabled,
+          "Enable VM params editing",
+          SettingsMessage::VMParamsEditingToggled
+        ))
+        .padding(2)
+        .into()
+    ];
+
+    if_chain! {
+      if self.vmparams_editing_enabled;
+      if let Some(vmparams) = &self.vmparams;
+      then {
+        controls.push(
+          Row::new()
+            .push(Text::new("Minimum RAM: "))
+            .push(
+              TextInput::new(
+                &mut self.min_ram_input_state,
+                "",
+                &vmparams.heap_init.amount.to_string(),
+                |input| -> SettingsMessage {
+                  SettingsMessage::VMParamChanged(input, VMParamChanged::MinRam)
+                }
+              )
+              .padding(5)
+              .width(Length::FillPortion(2))
+            )
+            .push(PickList::new(
+              &mut self.min_ram_pick_state,
+              &vmparams::Unit::ALL[..],
+              Some(vmparams.heap_init.unit),
+              |unit| -> SettingsMessage {
+                SettingsMessage::UnitChanged(unit, VMParamChanged::MinRam)
+              }
+            ))
+            .push(Space::with_width(Length::Units(10)))
+            .push(Text::new("Maximum RAM: "))
+            .push(
+              TextInput::new(
+                &mut self.max_ram_input_state,
+                "",
+                &vmparams.heap_max.amount.to_string(),
+                |input| -> SettingsMessage {
+                  SettingsMessage::VMParamChanged(input, VMParamChanged::MaxRam)
+                }
+              )
+              .padding(5)
+              .width(Length::FillPortion(2))
+            )
+            .push(PickList::new(
+              &mut self.max_ram_pick_state,
+              &vmparams::Unit::ALL[..],
+              Some(vmparams.heap_max.unit),
+              |unit| -> SettingsMessage {
+                SettingsMessage::UnitChanged(unit, VMParamChanged::MaxRam)
+              }
+            ))
+            .push(Space::with_width(Length::FillPortion(20)))
+            .align_items(Align::Center)
+            .padding(2)
+            .into()
+        );
+      } else {
+        controls.push(Container::new(Text::new(" ")).padding(7).into())
+      }
+    }
+
     Column::new()
       .push(
         Container::new(
-          Row::new()
-            .push(Text::new("Starsector Install Dir: "))
-            .push(input)
-            .push(browse)
-            .width(Length::Fill)
-            .align_items(Align::Center)
+          Column::with_children(controls)
         )
         .center_y()
-        .height(Length::Fill)
+        .height(Length::FillPortion(1))
       )
       .push::<Element<SettingsMessage>>(
         Row::new()
