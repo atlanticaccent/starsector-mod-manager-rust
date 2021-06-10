@@ -111,17 +111,25 @@ impl Settings {
         Command::none()
       },
       SettingsMessage::VMParamChanged(input, kind) => {
+        let current_or_zero = |current: i32| -> i32 {
+          if input.len() == 0 {
+            return 0
+          } else {
+            current
+          }
+        };
+
         let input_as_int = input.parse::<i32>();
         if let Some(mut params) = self.vmparams.as_mut() {
           match kind {
             VMParamChanged::MinRam => {
-              params.heap_init.amount = input_as_int.unwrap_or_default();
+              params.heap_init.amount = input_as_int.unwrap_or(current_or_zero(params.heap_init.amount));
             },
             VMParamChanged::MaxRam => {
-              params.heap_max.amount = input_as_int.unwrap_or_default();
+              params.heap_max.amount = input_as_int.unwrap_or(current_or_zero(params.heap_max.amount));
             },
             VMParamChanged::StackThread => {
-              params.thread_stack_size.amount = input_as_int.unwrap_or_default();
+              params.thread_stack_size.amount = input_as_int.unwrap_or(current_or_zero(params.thread_stack_size.amount));
             }
           }
         }
