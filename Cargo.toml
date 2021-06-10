@@ -20,7 +20,6 @@ if_chain = "1.0.1"
 reqwest = "0.11.3"
 serde-aux = "2.1.1"
 handwritten-json = { git = "https://github.com/atlanticaccent/rust-handwritten-json.git" }
-debug_print = "1.0.0"
 
 [target.'cfg(unix)'.dependencies]
 compress-tools = "0.11.1"
