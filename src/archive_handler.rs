@@ -1,5 +1,4 @@
 use std::{fs, error::Error, path::Path};
-use debug_print::{debug_println as dprintln};
 
 #[cfg(not(target_family = "unix"))]
 mod rar_patch {
@@ -71,12 +70,12 @@ pub fn handle_archive(file: &String, dest: &String, file_name: &String) -> Resul
                   };
                   
                   if (&*file.name()).ends_with('/') {
-                    dprintln!("File {} extracted to \"{}\"", i, outpath.display());
+                    println!("File {} extracted to \"{}\"", i, outpath.display());
                     if let Err(err) = fs::create_dir_all(&outpath) {
                       return Err(Box::new(err));
                     }
                   } else {
-                    dprintln!(
+                    println!(
                       "File {} extracted to \"{}\" ({} bytes)",
                       i,
                       outpath.display(),
@@ -111,7 +110,7 @@ pub fn handle_archive(file: &String, dest: &String, file_name: &String) -> Resul
       }
     },
     _ => {
-      dprintln!("is something else");
+      println!("is something else");
       return Ok(false);
     },
   }
