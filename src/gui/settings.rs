@@ -202,10 +202,8 @@ impl Settings {
         .into()
     ];
 
-    if_chain! {
-      if self.vmparams_editing_enabled;
-      if let Some(vmparams) = &self.vmparams;
-      then {
+    if self.vmparams_editing_enabled {
+      if let Some(vmparams) = &self.vmparams {
         controls.push(
           Row::new()
             .push(Text::new("Minimum RAM: "))
@@ -257,8 +255,10 @@ impl Settings {
             .into()
         );
       } else {
-        controls.push(Container::new(Text::new(" ")).padding(7).into())
+        controls.push(Container::new(Text::new("VMParams editing is currently unavailable.")).padding(7).into())
       }
+    } else {
+      controls.push(Container::new(Text::new(" ")).padding(7).into())
     }
 
     Column::new()
