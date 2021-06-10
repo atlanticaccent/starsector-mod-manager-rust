@@ -9,7 +9,7 @@ mod install;
 
 use crate::style;
 
-use settings::SettingsMessage;
+use settings::{SettingsMessage, vmparams::{VMParams, Value, Unit}};
 use mod_list::ModListMessage;
 
 pub struct App {
@@ -24,6 +24,8 @@ pub struct App {
 pub enum Message {
   ConfigLoaded(Result<Config, LoadError>),
   ConfigSaved(Result<(), SaveError>),
+  VMParamsLoaded(Result<VMParams, LoadError>),
+  VMParamsSaved(Result<(), SaveError>),
   SettingsOpen,
   SettingsClose,
   SettingsMessage(SettingsMessage),
@@ -66,6 +68,10 @@ impl Application for App {
 
             commands.push(self.mod_list.update(ModListMessage::SetRoot(config.install_dir.clone())).map(|m| Message::ModListMessage(m)));
 
+            if let Some(install_dir) = &config.install_dir {
+              commands.push(Command::perform(VMParams::load(install_dir.clone()), Message::VMParamsLoaded));
+            }
+
             self.config = Some(config);
           },
           Err(err) => {
@@ -82,6 +88,25 @@ impl Application for App {
         Command::batch(commands)
       },
       Message::ConfigSaved(res) => {
+        match res {
+          Err(err) => println!("{:?}", err),
+          _ => {}
+        }
+
+        Command::none()
+      },
+      Message::VMParamsLoaded(res) => {
+        match res {
+          Ok(vmparams) => {
+            self.settings.update(SettingsMessage::InitVMParams(Some(vmparams)));
+          },
+          Err(err) => {
+            println!("Failed to parse vmparams.\n{:?}", err);
+          }
+        }
+        Command::none()
+      },
+      Message::VMParamsSaved(res) => {
         match res {
           Err(err) => println!("{:?}", err),
           _ => {}
@@ -106,6 +131,31 @@ impl Application for App {
           config.install_dir = self.settings.root_dir.clone();
 
           commands.push(Command::perform(config.clone().save(), Message::ConfigSaved));
+
+          if let Some(install_dir) = &config.install_dir {
+            if let Some(vmparams) = self.settings.vmparams.as_mut() {
+              if vmparams.heap_init.amount == 0 {
+                vmparams.heap_init = Value {
+                  amount: 1536,
+                  unit: Unit::Mega
+                };
+              };
+              if vmparams.heap_max.amount == 0 {
+                vmparams.heap_max = Value {
+                  amount: 1536,
+                  unit: Unit::Mega
+                };
+              };
+              if vmparams.thread_stack_size.amount == 0 {
+                vmparams.thread_stack_size = Value {
+                  amount: 1536,
+                  unit: Unit::Kilo
+                };
+              }
+
+              commands.push(Command::perform(vmparams.clone().save(install_dir.clone()), Message::VMParamsSaved))
+            }
+          }
         }
 
         Command::batch(commands)
