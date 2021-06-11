@@ -1,8 +1,7 @@
 use std::{
-  io,
   io::{Read, BufReader, BufRead},
   path::PathBuf, collections::BTreeMap,
-  fs::{read_dir, remove_dir_all, create_dir_all, copy, File},
+  fs::{remove_dir_all, File},
   fmt::Display
 };
 use iced::{
@@ -455,39 +454,6 @@ impl ModList {
     let res = mbox();
 
     res
-  }
-
-  fn find_nested_mod(dest: &PathBuf) -> Result<Option<PathBuf>, io::Error> {
-    for entry in read_dir(dest)? {
-      let entry = entry?;
-      if entry.file_type()?.is_dir() {
-        let res = ModList::find_nested_mod(&entry.path())?;
-        if res.is_some() { return Ok(res) }
-      } else if entry.file_type()?.is_file() {
-        if entry.file_name() == "mod_info.json" {
-          return Ok(Some(dest.to_path_buf()));
-        }
-      }
-    }
-
-    Ok(None)
-  }
-
-  fn copy_dir_recursive(to: &PathBuf, from: &PathBuf) -> io::Result<()> {
-    if !to.exists() {
-      create_dir_all(to)?;
-    }
-
-    for entry in from.read_dir()? {
-      let entry = entry?;
-      if entry.file_type()?.is_dir() {
-        ModList::copy_dir_recursive(&to.to_path_buf().join(entry.file_name()), &entry.path())?;
-      } else if entry.file_type()?.is_file() {
-        copy(entry.path(), &to.to_path_buf().join(entry.file_name()))?;
-      }
-    };
-
-    Ok(())
   }
 }
 

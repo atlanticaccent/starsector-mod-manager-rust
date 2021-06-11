@@ -4,7 +4,6 @@ use iced::{
 };
 use native_dialog::{FileDialog};
 use std::path::PathBuf;
-use if_chain::if_chain;
 
 use super::mod_list;
 
