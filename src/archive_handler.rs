@@ -15,7 +15,6 @@ macro_rules! dbg {
   }
 }
 
-#[cfg(not(target_family = "unix"))]
 mod rar_patch {
   use std::{fmt, error::Error};
 
@@ -46,7 +45,6 @@ mod rar_patch {
   impl Error for UnrarErr {}
 }
 
-#[cfg(not(target_family = "unix"))]
 pub fn handle_archive(file: &String, dest: &String, file_name: &String) -> Result<bool, Box<dyn Error + Send>> {
   let kind = match infer::get_from_path(file) {
     Ok(res) => 
@@ -124,6 +122,9 @@ pub fn handle_archive(file: &String, dest: &String, file_name: &String) -> Resul
         Err(err) => return Err(Box::new(err))
       }
     },
+    "application/x-7z-compressed" => {
+      _7z_support(file, dest)
+    },
     _ => {
       dbg!("is something else");
       return Ok(false);
@@ -132,7 +133,7 @@ pub fn handle_archive(file: &String, dest: &String, file_name: &String) -> Resul
 }
 
 #[cfg(target_family = "unix")]
-pub fn handle_archive(file: &String, dest: &String, _: &String) -> Result<bool, Box<dyn Error + Send>> {
+fn _7z_support(file: &String, dest: &String) -> Result<bool, Box<dyn Error + Send>> {
   match fs::File::open(&file) {
     Ok(mut source) => {
       let dest = Path::new(dest);
@@ -144,4 +145,10 @@ pub fn handle_archive(file: &String, dest: &String, _: &String) -> Result<bool, 
     },
     Err(err) => Err(Box::new(err))
   }
+}
+
+// null-op on windows
+#[cfg(not(target_family = "unix"))]
+fn _7z_support(_: &String, _: &String) -> Result<bool, Box<dyn Error>> {
+  Ok(false)
 }

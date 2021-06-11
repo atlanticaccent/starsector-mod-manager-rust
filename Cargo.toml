@@ -20,10 +20,9 @@ if_chain = "1.0.1"
 reqwest = "0.11.3"
 serde-aux = "2.1.1"
 handwritten-json = { git = "https://github.com/atlanticaccent/rust-handwritten-json.git" }
+zip = "0.5.9"
+unrar = "0.4.4"
 
 [target.'cfg(unix)'.dependencies]
 compress-tools = "0.11.1"
 
-[target.'cfg(not(unix))'.dependencies]
-zip = "0.5.9"
-unrar = "0.4.4"
