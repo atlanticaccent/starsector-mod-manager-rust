@@ -130,6 +130,7 @@ pub fn handle_archive(file: &String, dest: &String, file_name: &String) -> Resul
   }
 }
 
+#[cfg(target_family = "unix")]
 fn compress_tools(file: &String, dest: &String) -> Result<bool, Box<dyn Error + Send>> {
   match fs::File::open(&file) {
     Ok(mut source) => {
