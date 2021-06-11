@@ -9,19 +9,20 @@ use std::{
 use tokio::fs::{remove_dir_all, rename};
 
 use crate::archive_handler;
-use crate::gui::mod_list::{ModVersionMeta, ModVersion};
+use crate::gui::mod_list::{ModEntry, ModVersionMeta, ModVersion};
 
 #[derive(Debug, Clone)]
 pub enum InstallError {
   DirectoryExists(PathBuf, bool),
-  DirectoryExistsFatal,
   DeleteError(String),
   NameError,
   NoModError,
   MoveError,
   UnsupportedArchive,
   ArchiveError,
-  CopyError
+  CopyError,
+  IDExists(PathBuf, PathBuf, String),
+  NewModParseError
 }
 
 pub async fn handle_archive(
@@ -29,6 +30,7 @@ pub async fn handle_archive(
   root_dir: PathBuf,
   is_folder: bool,
   retry: bool,
+  current_mods: Vec<String>
 ) -> Result<String, InstallError> {
   if_chain! {
     if let Some(path) = source_path.to_str();
@@ -41,44 +43,54 @@ pub async fn handle_archive(
     if let Some(temp_dest) = raw_temp_dest.to_str();
     then {
       if raw_dest.exists() {
-        if retry {
-          if remove_dir_all(&raw_dest).await.is_err() {
-            return Err(InstallError::DirectoryExistsFatal)
-          }
-        } else {
-          return Err(InstallError::DirectoryExists(source_path.clone(), is_folder))
-        }
+        return Err(InstallError::DirectoryExists(source_path.clone(), is_folder))
       }
 
       if is_folder {
         if let Ok(Some(mod_path)) = find_nested_mod(&source_path) {
-          if let Err(_) = copy_dir_recursive(&raw_dest, &mod_path) {
-            return Err(InstallError::CopyError)
-          } else {
-            if remove_dir_all(mod_path).await.is_err() {
-              return Err(InstallError::DeleteError(format!("{:?}", _file_name)))
-            } else {
-              return Ok(format!("{:?}", _file_name))
+          if let Ok(new_mod_info) = ModEntry::from_file(mod_path.join("mod_info.json").clone()) {
+            if let (Some(id), false) = (current_mods.iter().find(|id| **id == new_mod_info.id), retry) {
+              return Err(InstallError::IDExists(mod_path, raw_dest, id.clone()))
             }
+
+            if let Err(_) = copy_dir_recursive(&raw_dest, &mod_path) {
+              return Err(InstallError::CopyError)
+            } else {
+              if remove_dir_all(mod_path).await.is_err() {
+                return Err(InstallError::DeleteError(format!("{:?}", _file_name)))
+              } else {
+                return Ok(format!("{:?}", _file_name))
+              }
+            }
+          } else {
+            return Err(InstallError::NoModError)
           }
         } else {
-          return Err(InstallError::NoModError)
+          Err(InstallError::NewModParseError)
         }
       } else {
         match archive_handler::handle_archive(&path.to_owned(), &temp_dest.to_owned(), &file_name.to_owned()) {
           Ok(true) => {
             match find_nested_mod(&raw_temp_dest) {
               Ok(Some(mod_path)) => {
-                if let Ok(_) = rename(mod_path, raw_dest).await {
-                  if raw_temp_dest.exists() {
-                    if remove_dir_all(&raw_temp_dest).await.is_err() {
-                      return Err(InstallError::DeleteError(format!("{:?}", _file_name)))
-                    }
+                if let Ok(new_mod_info) = ModEntry::from_file(mod_path.join("mod_info.json").clone()) {
+                  if let Some(id) = current_mods.iter().find(|id| **id == new_mod_info.id) {
+                    return Err(InstallError::IDExists(raw_temp_dest, raw_dest, id.clone()))
                   }
-  
-                  return Ok(format!("{:?}", _file_name))
+
+                  if let Ok(_) = rename(mod_path, raw_dest).await {
+                    if raw_temp_dest.exists() {
+                      if remove_dir_all(&raw_temp_dest).await.is_err() {
+                        return Err(InstallError::DeleteError(format!("{:?}", _file_name)))
+                      }
+                    }
+    
+                    return Ok(format!("{:?}", _file_name))
+                  } else {
+                    return Err(InstallError::MoveError)
+                  }
                 } else {
-                  return Err(InstallError::MoveError)
+                  Err(InstallError::NewModParseError)
                 }
               },
               _ => return Err(InstallError::NoModError)

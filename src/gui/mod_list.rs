@@ -119,8 +119,9 @@ impl ModList {
                 filters.push("7z");
               }
               if let Ok(paths) = diag.add_filter("Archive types", &filters).show_open_multiple_file() {
+                let mod_ids: Vec<String> = self.mods.iter().map(|(id, _)| id.clone()).collect();
                 return Command::batch(paths.iter().map(|path| {
-                  Command::perform(install::handle_archive(path.to_path_buf(), root_dir.clone(), false, false), ModListMessage::ModInstalled)
+                  Command::perform(install::handle_archive(path.to_path_buf(), root_dir.clone(), false, false, mod_ids.clone()), ModListMessage::ModInstalled)
                 }))
               }
 
@@ -129,7 +130,8 @@ impl ModList {
             InstallOptions::FromFolder => {
               match diag.show_open_single_dir() {
                 Ok(Some(source_path)) => {
-                  return Command::perform(install::handle_archive(source_path.to_path_buf(), root_dir.clone(), true, false), ModListMessage::ModInstalled)
+                  let mod_ids: Vec<String> = self.mods.iter().map(|(id, _)| id.clone()).collect();
+                  return Command::perform(install::handle_archive(source_path.to_path_buf(), root_dir.clone(), true, false, mod_ids), ModListMessage::ModInstalled)
                 },
                 Ok(None) => {},
                 _ => { ModList::make_alert("Experienced an error. Did not move given folder into mods directory.".to_owned()); }
@@ -172,7 +174,8 @@ impl ModList {
                     match ModList::make_query(format!("A directory named {:?} already exists. Do you want to replace it?\nChoosing no will abort this operation.", _file_name)) {
                       Ok(true) => {
                         if remove_dir_all(&raw_dest).is_ok() {
-                          Command::perform(install::handle_archive(path.to_path_buf(), root_dir.clone(), is_folder, false), ModListMessage::ModInstalled)
+                          let mod_ids: Vec<String> = self.mods.iter().map(|(id, _)| id.clone()).collect();
+                          Command::perform(install::handle_archive(path.to_path_buf(), root_dir.clone(), is_folder, false, mod_ids), ModListMessage::ModInstalled)
                         } else {
                           ModList::make_alert(format!("Failed to delete existing directory. Please check permissions on mod folder/{:?}", raw_dest));
                           Command::none()
@@ -184,6 +187,29 @@ impl ModList {
                     ModList::make_alert(format!("Encountered an error. Could not install to {:?}", path));
                     Command::none()
                   }
+                }
+              },
+              install::InstallError::IDExists(current_path, intended_path, id) => {
+                match ModList::make_query(format!("A mod with ID {} already exists. Do you want to replace it?\nChoosing no will abort this operation.", id)) {
+                  Ok(true) => {
+                    if let Some(entry) = self.mods.get(&id).as_ref() {
+                      if_chain! {
+                        if let Some(root_dir) = self.root_dir.as_ref();
+                        if remove_dir_all(entry.path.clone()).is_ok();
+                        then {
+                          let mod_ids: Vec<String> = self.mods.iter().map(|(id, _)| id.clone()).collect();
+                          Command::perform(install::handle_archive(current_path, root_dir.clone(), true, true, mod_ids), ModListMessage::ModInstalled)
+                        } else {
+                          ModList::make_alert(format!("Encountered an error.\n Both the old version and new version of this mod are now installed, you should delete one of them to avoid issues.\nThe old version is installed at {:?} and the new version is installed at {:?}.", entry.path.clone(), current_path));
+                          Command::none()
+                        }
+                      }
+                    } else {
+                      ModList::make_alert(format!("Encountered an error.\n Both the old version and new version of this mod may now be installed, you should delete one of them to avoid issues.\nThe new version is installed at {:?}.", current_path));
+                      Command::none()
+                    }
+                  },
+                  _ => Command::none()
                 }
               },
               other => {
@@ -335,42 +361,34 @@ impl ModList {
             }
           })
           .filter_map(|entry| {
-
-            let mod_info_path = entry.path().join("mod_info.json");
-            if_chain! {
-              if let Ok(mod_info_file) = std::fs::read_to_string(mod_info_path.clone());
-              let mut stripped = String::new();
-              if strip_comments(mod_info_file.as_bytes()).read_to_string(&mut stripped).is_ok();
-              if let Ok(mut mod_info) = json5::from_str::<ModEntry>(&stripped);
-              then {
-                let version = if_chain! {
-                  if let Ok(version_loc_file) = File::open(entry.path().join("data").join("config").join("version").join("version_files.csv"));
-                  let lines = BufReader::new(version_loc_file).lines();
-                  if let Some(Ok(version_filename)) = lines.skip(1).next();
-                  if let Ok(version_data) = std::fs::read_to_string(entry.path().join(version_filename));
-                  let mut no_comments = String::new();
-                  if strip_comments(version_data.as_bytes()).read_to_string(&mut no_comments).is_ok();
-                  if let Ok(normalized) = handwritten_json::normalize(&no_comments);
-                  if let Ok(mut version) = json5::from_str::<ModVersionMeta>(&normalized);
-                  then {
-                    version.id = mod_info.id.clone();
-                    Some(version)
-                  } else {
-                    None
-                  }
-                };
-                mod_info.enabled = enabled_mods_iter.clone().find(|id| mod_info.id.clone().eq(*id)).is_some();
-                mod_info.version_checker = version.clone();
-                Some((
-                  (
-                    mod_info.id.clone(),
-                    mod_info.clone()
-                  ),
-                  version
-                ))
-              } else {
-                None
-              }
+            if let Ok(mut mod_info) = ModEntry::from_file(entry.path().join("mod_info.json")) {
+              let version = if_chain! {
+                if let Ok(version_loc_file) = File::open(entry.path().join("data").join("config").join("version").join("version_files.csv"));
+                let lines = BufReader::new(version_loc_file).lines();
+                if let Some(Ok(version_filename)) = lines.skip(1).next();
+                if let Ok(version_data) = std::fs::read_to_string(entry.path().join(version_filename));
+                let mut no_comments = String::new();
+                if strip_comments(version_data.as_bytes()).read_to_string(&mut no_comments).is_ok();
+                if let Ok(normalized) = handwritten_json::normalize(&no_comments);
+                if let Ok(mut version) = json5::from_str::<ModVersionMeta>(&normalized);
+                then {
+                  version.id = mod_info.id.clone();
+                  Some(version)
+                } else {
+                  None
+                }
+              };
+              mod_info.enabled = enabled_mods_iter.clone().find(|id| mod_info.id.clone().eq(*id)).is_some();
+              mod_info.version_checker = version.clone();
+              Some((
+                (
+                  mod_info.id.clone(),
+                  mod_info.clone()
+                ),
+                version
+              ))
+            } else {
+              None
             }
           })
           .unzip();
@@ -543,6 +561,8 @@ pub struct ModEntry {
   #[serde(skip)]
   update_status: Option<UpdateStatus>,
   #[serde(skip)]
+  path: PathBuf,
+  #[serde(skip)]
   #[serde(default = "button::State::new")]
   button_state: button::State
 }
@@ -554,7 +574,31 @@ pub enum ModEntryMessage {
   EntryCleared
 }
 
+pub enum ModEntryError {
+  ParseError,
+  FileError
+}
+
 impl ModEntry {
+  pub fn from_file(mut path: PathBuf) -> Result<ModEntry, ModEntryError> {
+    if let Ok(mod_info_file) = std::fs::read_to_string(path.clone()) {
+      if_chain! {
+        let mut stripped = String::new();
+        if strip_comments(mod_info_file.as_bytes()).read_to_string(&mut stripped).is_ok();
+        if let Ok(mut mod_info) = json5::from_str::<ModEntry>(&stripped);
+        then {
+          path.pop();
+          mod_info.path = path;
+          Ok(mod_info)
+        } else {
+          Err(ModEntryError::ParseError)
+        }
+      }
+    } else {
+      Err(ModEntryError::FileError)
+    }
+  }
+
   pub fn update(&mut self, message: ModEntryMessage) -> Command<ModEntryMessage> {
     match message {
       ModEntryMessage::ToggleEnabled(enabled) => {
