@@ -1,5 +1,20 @@
 use std::{fs, error::Error, path::Path};
 
+macro_rules! dbg {
+  ($($x:tt)*) => {
+      {
+          #[cfg(debug_assertions)]
+          {
+              std::dbg!($($x)*)
+          }
+          #[cfg(not(debug_assertions))]
+          {
+              ($($x)*)
+          }
+      }
+  }
+}
+
 #[cfg(not(target_family = "unix"))]
 mod rar_patch {
   use std::{fmt, error::Error};
@@ -70,12 +85,12 @@ pub fn handle_archive(file: &String, dest: &String, file_name: &String) -> Resul
                   };
                   
                   if (&*file.name()).ends_with('/') {
-                    println!("File {} extracted to \"{}\"", i, outpath.display());
+                    dbg!("File {} extracted to \"{}\"", i, outpath.display());
                     if let Err(err) = fs::create_dir_all(&outpath) {
                       return Err(Box::new(err));
                     }
                   } else {
-                    println!(
+                    dbg!(
                       "File {} extracted to \"{}\" ({} bytes)",
                       i,
                       outpath.display(),
@@ -110,7 +125,7 @@ pub fn handle_archive(file: &String, dest: &String, file_name: &String) -> Resul
       }
     },
     _ => {
-      println!("is something else");
+      dbg!("is something else");
       return Ok(false);
     },
   }

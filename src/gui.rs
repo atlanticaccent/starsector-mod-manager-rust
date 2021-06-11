@@ -3,6 +3,22 @@ use iced::{Application, button, Button, Column, Command, Element, Length, Row, T
 use serde::{Serialize, Deserialize};
 use serde_json;
 
+// https://users.rust-lang.org/t/show-value-only-in-debug-mode/43686/5
+macro_rules! dbg {
+  ($($x:tt)*) => {
+    {
+      #[cfg(debug_assertions)]
+      {
+        std::dbg!($($x)*)
+      }
+      #[cfg(not(debug_assertions))]
+      {
+        ($($x)*)
+      }
+    }
+  }
+}
+
 mod settings;
 pub mod mod_list;
 mod install;
@@ -75,7 +91,7 @@ impl Application for App {
             self.config = Some(config);
           },
           Err(err) => {
-            println!("{:?}", err);
+            dbg!("{:?}", err);
 
             commands.push(self.settings.update(SettingsMessage::InitRoot(None)).map(|m| Message::SettingsMessage(m)));
 
@@ -89,9 +105,9 @@ impl Application for App {
       },
       Message::ConfigSaved(res) => {
         match res {
-          Err(err) => println!("{:?}", err),
+          Err(err) => { dbg!("{:?}", err); },
           _ => {}
-        }
+        };
 
         Command::none()
       },
@@ -101,16 +117,16 @@ impl Application for App {
             self.settings.update(SettingsMessage::InitVMParams(Some(vmparams)));
           },
           Err(err) => {
-            println!("Failed to parse vmparams.\n{:?}", err);
+            dbg!("Failed to parse vmparams.\n{:?}", err);
           }
         }
         Command::none()
       },
       Message::VMParamsSaved(res) => {
         match res {
-          Err(err) => println!("{:?}", err),
+          Err(err) => { dbg!("{:?}", err); },
           _ => {}
-        }
+        };
 
         Command::none()
       },
