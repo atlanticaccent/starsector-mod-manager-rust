@@ -132,7 +132,7 @@ pub fn handle_archive(file: &String, dest: &String, file_name: &String) -> Resul
 }
 
 #[cfg(target_family = "unix")]
-pub fn handle_archive(file: &String, dest: &String, _: &String) -> Result<bool, Box<dyn Error>> {
+pub fn handle_archive(file: &String, dest: &String, _: &String) -> Result<bool, Box<dyn Error + Send>> {
   match fs::File::open(&file) {
     Ok(mut source) => {
       let dest = Path::new(dest);
