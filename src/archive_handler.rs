@@ -57,18 +57,11 @@ pub fn handle_archive(file: &String, dest: &String, file_name: &String) -> Resul
   
   match kind.mime_type() {
     "application/vnd.rar" => {
-      let output_dir = Path::new(dest)
-        .join(file_name)
-        .to_string_lossy()
-        .to_string();
-
-      match unrar::Archive::new(file.clone()).extract_to(output_dir) {
-        Ok(mut arch) => match arch.process() {
-          Ok(_) => return Ok(true),
-          Err(_) => return Err(Box::new(rar_patch::UnrarErr::new())),
-        },
-        Err(_) => return Err(Box::new(rar_patch::UnrarErr::new())),
-      }
+      #[cfg(not(target_env="musl"))]
+      return _rar_support(dest, file_name, file);
+      
+      #[cfg(target_env="musl")]
+      compress_tools(file, dest)
     },
     "application/zip" => {
       match fs::File::open(file) {
@@ -123,7 +116,12 @@ pub fn handle_archive(file: &String, dest: &String, file_name: &String) -> Resul
       }
     },
     "application/x-7z-compressed" => {
-      _7z_support(file, dest)
+      #[cfg(target_family = "unix")]
+      return compress_tools(file, dest);
+
+      // null-op on windows
+      #[cfg(not(target_family = "unix"))]
+      Ok(false)
     },
     _ => {
       dbg!("is something else");
@@ -132,8 +130,7 @@ pub fn handle_archive(file: &String, dest: &String, file_name: &String) -> Resul
   }
 }
 
-#[cfg(target_family = "unix")]
-fn _7z_support(file: &String, dest: &String) -> Result<bool, Box<dyn Error + Send>> {
+fn compress_tools(file: &String, dest: &String) -> Result<bool, Box<dyn Error + Send>> {
   match fs::File::open(&file) {
     Ok(mut source) => {
       let dest = Path::new(dest);
@@ -149,6 +146,21 @@ fn _7z_support(file: &String, dest: &String) -> Result<bool, Box<dyn Error + Sen
 
 // null-op on windows
 #[cfg(not(target_family = "unix"))]
-fn _7z_support(_: &String, _: &String) -> Result<bool, Box<dyn Error>> {
+fn _7z_support(_: &String, _: &String) -> Result<bool, Box<dyn Error + Send>> {
   Ok(false)
+}
+
+fn _rar_support(dest: &String, file_name: &String, file: &String) -> Result<bool, Box<dyn Error + Send>> {
+  let output_dir = Path::new(dest)
+    .join(file_name)
+    .to_string_lossy()
+    .to_string();
+
+  match unrar::Archive::new(file.clone()).extract_to(output_dir) {
+    Ok(mut arch) => match arch.process() {
+      Ok(_) => return Ok(true),
+      Err(_) => return Err(Box::new(rar_patch::UnrarErr::new())),
+    },
+    Err(_) => return Err(Box::new(rar_patch::UnrarErr::new())),
+  }
 }
