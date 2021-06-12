@@ -22,6 +22,7 @@ serde-aux = "2.1.1"
 handwritten-json = { git = "https://github.com/atlanticaccent/rust-handwritten-json.git" }
 zip = "0.5.9"
 unrar = "0.4.4"
+opener = "0.5"
 
 [target.'cfg(unix)'.dependencies]
 compress-tools = "0.11.1"
