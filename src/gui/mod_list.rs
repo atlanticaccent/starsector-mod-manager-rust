@@ -1,7 +1,7 @@
 use std::{
   io::{Read, BufReader, BufRead},
   path::PathBuf, collections::BTreeMap,
-  fs::{remove_dir_all, File},
+  fs::{remove_dir_all, rename, File},
   fmt::Display
 };
 use iced::{
@@ -135,7 +135,7 @@ impl ModList {
               if let Ok(paths) = diag.add_filter("Archive types", &filters).show_open_multiple_file() {
                 let mod_ids: Vec<String> = self.mods.iter().map(|(id, _)| id.clone()).collect();
                 return Command::batch(paths.iter().map(|path| {
-                  Command::perform(install::handle_archive(path.to_path_buf(), root_dir.clone(), false, false, mod_ids.clone()), ModListMessage::ModInstalled)
+                  Command::perform(install::handle_archive(path.to_path_buf(), root_dir.clone(), false, mod_ids.clone()), ModListMessage::ModInstalled)
                 }))
               }
 
@@ -145,7 +145,7 @@ impl ModList {
               match diag.show_open_single_dir() {
                 Ok(Some(source_path)) => {
                   let mod_ids: Vec<String> = self.mods.iter().map(|(id, _)| id.clone()).collect();
-                  return Command::perform(install::handle_archive(source_path.to_path_buf(), root_dir.clone(), true, false, mod_ids), ModListMessage::ModInstalled)
+                  return Command::perform(install::handle_archive(source_path.to_path_buf(), root_dir.clone(), true, mod_ids), ModListMessage::ModInstalled)
                 },
                 Ok(None) => {},
                 _ => { ModList::make_alert("Experienced an error. Did not move given folder into mods directory.".to_owned()); }
@@ -189,7 +189,7 @@ impl ModList {
                       Ok(true) => {
                         if remove_dir_all(&raw_dest).is_ok() {
                           let mod_ids: Vec<String> = self.mods.iter().map(|(id, _)| id.clone()).collect();
-                          Command::perform(install::handle_archive(path.to_path_buf(), root_dir.clone(), is_folder, false, mod_ids), ModListMessage::ModInstalled)
+                          Command::perform(install::handle_archive(path.to_path_buf(), root_dir.clone(), is_folder, mod_ids), ModListMessage::ModInstalled)
                         } else {
                           ModList::make_alert(format!("Failed to delete existing directory. Please check permissions on mod folder/{:?}", raw_dest));
                           Command::none()
@@ -203,20 +203,27 @@ impl ModList {
                   }
                 }
               },
-              install::InstallError::IDExists(current_path, intended_path, id) => {
+              install::InstallError::IDExists(current_path, intended_path, maybe_parent_path, id) => {
                 match ModList::make_query(format!("A mod with ID {} already exists. Do you want to replace it?\nChoosing no will abort this operation.", id)) {
                   Ok(true) => {
                     if let Some(entry) = self.mods.get(&id).as_ref() {
-                      if_chain! {
-                        if let Some(root_dir) = self.root_dir.as_ref();
-                        if remove_dir_all(entry.path.clone()).is_ok();
-                        then {
-                          let mod_ids: Vec<String> = self.mods.iter().map(|(id, _)| id.clone()).collect();
-                          Command::perform(install::handle_archive(current_path, root_dir.clone(), true, true, mod_ids), ModListMessage::ModInstalled)
+                      if remove_dir_all(entry.path.clone()).is_ok() {
+                        if let Ok(_) = rename(&current_path, intended_path) {
+                          if let Some(parent_temp_path) = maybe_parent_path {
+                            if parent_temp_path != current_path {
+                              if remove_dir_all(parent_temp_path).is_err() {
+                                ModList::make_alert(format!("Successfully installed new version and deleted old version, however failed to delete empty temporary folder {}", current_path.to_string_lossy()));
+                              }
+                            }
+                          }
                         } else {
-                          ModList::make_alert(format!("Encountered an error.\n Both the old version and new version of this mod are now installed, you should delete one of them to avoid issues.\nThe old version is installed at {:?} and the new version is installed at {:?}.", entry.path.clone(), current_path));
-                          Command::none()
+                          ModList::make_alert(format!("Successfully installed new version and deleted old version however, failed to rename new version path - new version is installed to {}", current_path.to_string_lossy()));
                         }
+
+                        Command::none()
+                      } else {
+                        ModList::make_alert(format!("Encountered an error.\n Both the old version and new version of this mod are now installed, you should delete one of them to avoid issues.\nThe old version is installed at {} and the new version is installed at {}.", entry.path.to_string_lossy(), current_path.to_string_lossy()));
+                        Command::none()
                       }
                     } else {
                       ModList::make_alert(format!("Encountered an error.\n Both the old version and new version of this mod may now be installed, you should delete one of them to avoid issues.\nThe new version is installed at {:?}.", current_path));
