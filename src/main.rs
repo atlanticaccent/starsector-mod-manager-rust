@@ -5,6 +5,7 @@ use iced::{Application, Settings};
 mod gui;
 mod archive_handler;
 mod style;
+mod bit7z;
 
 fn main() {
   gui::App::run(Settings::default());
