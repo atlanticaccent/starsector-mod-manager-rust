@@ -520,7 +520,7 @@ impl ModList {
     }
   }
 
-  pub fn make_alert(message: String) -> Result<(), String> {
+  pub fn make_alert(message: String) {
     let mbox = move || {
       MessageDialog::new()
       .set_title("Alert:")
@@ -532,18 +532,17 @@ impl ModList {
 
     // On windows we need to spawn a thread as the msg doesn't work otherwise
     #[cfg(target_os = "windows")]
-    let res = match std::thread::spawn(move || {
+    match std::thread::spawn(move || {
       mbox()
     }).join() {
       Ok(Ok(())) => Ok(()),
       Ok(Err(err)) => Err(err),
       Err(err) => Err(err).map_err(|err| format!("{:?}", err))
-    };
+    }.unwrap();
+    // unwrap() because if this goes to hell there's not really much we can do about it...
 
     #[cfg(not(target_os = "windows"))]
-    let res = mbox();
-
-    res
+    mbox();
   }
 
   pub fn make_query(message: String) -> Result<bool, String> {
