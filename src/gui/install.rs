@@ -21,7 +21,7 @@ pub enum InstallError {
   UnsupportedArchive,
   ArchiveError,
   CopyError,
-  IDExists(PathBuf, PathBuf, String),
+  IDExists(PathBuf, PathBuf, Option<PathBuf>, String),
   NewModParseError
 }
 
@@ -29,7 +29,6 @@ pub async fn handle_archive(
   source_path: PathBuf,
   root_dir: PathBuf,
   is_folder: bool,
-  retry: bool,
   current_mods: Vec<String>
 ) -> Result<String, InstallError> {
   if_chain! {
@@ -49,8 +48,8 @@ pub async fn handle_archive(
       if is_folder {
         if let Ok(Some(mod_path)) = find_nested_mod(&source_path) {
           if let Ok(new_mod_info) = ModEntry::from_file(mod_path.join("mod_info.json").clone()) {
-            if let (Some(id), false) = (current_mods.iter().find(|id| **id == new_mod_info.id), retry) {
-              return Err(InstallError::IDExists(mod_path, raw_dest, id.clone()))
+            if let Some(id) = current_mods.iter().find(|id| **id == new_mod_info.id) {
+              return Err(InstallError::IDExists(mod_path, raw_dest, None, id.clone()))
             }
 
             if let Err(_) = copy_dir_recursive(&raw_dest, &mod_path) {
@@ -75,7 +74,7 @@ pub async fn handle_archive(
               Ok(Some(mod_path)) => {
                 if let Ok(new_mod_info) = ModEntry::from_file(mod_path.join("mod_info.json").clone()) {
                   if let Some(id) = current_mods.iter().find(|id| **id == new_mod_info.id) {
-                    return Err(InstallError::IDExists(raw_temp_dest, raw_dest, id.clone()))
+                    return Err(InstallError::IDExists(mod_path, raw_dest, Some(raw_temp_dest), id.clone()))
                   }
 
                   if let Ok(_) = rename(mod_path, raw_dest).await {
