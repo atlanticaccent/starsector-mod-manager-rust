@@ -284,7 +284,7 @@ impl ModList {
                     }
                   }
               },
-              Err(err) => {
+              Err(_err) => {
                 // debug_println!("Could not get remote update data for {}.\nError: {}", id, err);
                 entry.update_status = Some(UpdateStatus::Error)
               }
