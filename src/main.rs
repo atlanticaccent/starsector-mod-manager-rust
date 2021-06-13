@@ -1,4 +1,4 @@
-#![windows_subsystem = "windows"]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![recursion_limit="1000"]
 
 use iced::{Application, Settings};
