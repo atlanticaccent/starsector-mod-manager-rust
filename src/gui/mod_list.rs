@@ -15,6 +15,7 @@ use json5;
 use handwritten_json;
 use if_chain::if_chain;
 use native_dialog::{FileDialog, MessageDialog, MessageType};
+use opener;
 
 use serde_aux::prelude::*;
 
@@ -46,7 +47,7 @@ pub enum ModListMessage {
   InstallPressed(InstallOptions),
   EnabledModsSaved(Result<(), SaveError>),
   ModInstalled(Result<String, install::InstallError>),
-  MasterVersionReceived((String, Result<Option<ModVersion>, String>)),
+  MasterVersionReceived((String, Result<Option<ModVersionMeta>, String>)),
   SetSorting(ModEntryComp)
 }
 
@@ -242,34 +243,42 @@ impl ModList {
         }
       },
       ModListMessage::MasterVersionReceived((id, res)) => {
-        if let Some(entry) = self.mods.get_mut(&id) {
-          match res {
-            Ok(maybe_version) => {
-                match maybe_version {
-                  Some(version) => {
-                    // debug_print!("{}. ", entry.id);
-                    if version.major > 0 {
-                      // debug_println!("New major version available.");
-                      entry.update_status = Some(UpdateStatus::Major(version))
-                    } else if version.minor > 0 {
-                      // debug_println!("New minor version available.");
-                      entry.update_status = Some(UpdateStatus::Minor(version))
-                    } else {
-                      // debug_println!("New patch available.");
-                      entry.update_status = Some(UpdateStatus::Patch(version.patch))
-                    };
-                    // debug_println!("{:?}", entry.version_checker.as_ref().unwrap().version);
-                  },
-                  None => {
-                    // debug_println!("No update available for {}.", entry.id);
-                    entry.update_status = Some(UpdateStatus::UpToDate)
+        if_chain! {
+          if let Some(entry) = self.mods.get_mut(&id);
+          if let Some(ModVersionMeta { version: local_version, .. }) = &entry.version_checker;
+          then {
+            match res {
+              Ok(maybe_version) => {
+                  match maybe_version {
+                    Some(remote_version_meta) => {
+                      let version = remote_version_meta.version.clone();
+                      // debug_print!("{}. ", entry.id);
+                      if version.major - local_version.major > 0 {
+                        // debug_println!("New major version available.");
+                        entry.update_status = Some(UpdateStatus::Major(version))
+                      } else if version.minor - local_version.minor > 0 {
+                        // debug_println!("New minor version available.");
+                        entry.update_status = Some(UpdateStatus::Minor(version))
+                      } else {
+                        // debug_println!("New patch available.");
+                        entry.update_status = Some(UpdateStatus::Patch(version.patch))
+                      };
+                      // debug_println!("{:?}", entry.version_checker.as_ref().unwrap().version);
+                      entry.remote_version = Some(remote_version_meta);
+                    },
+                    None => {
+                      // debug_println!("No update available for {}.", entry.id);
+                      entry.update_status = Some(UpdateStatus::UpToDate)
+                    }
                   }
-                }
-            },
-            Err(err) => {
-              // debug_println!("Could not get remote update data for {}.\nError: {}", id, err);
-              entry.update_status = Some(UpdateStatus::Error)
+              },
+              Err(err) => {
+                // debug_println!("Could not get remote update data for {}.\nError: {}", id, err);
+                entry.update_status = Some(UpdateStatus::Error)
+              }
             }
+          } else {
+            dbg!("Have a remote version file, but either local entry or local version file are missing, which is odd to say the least.");
           }
         };
 
@@ -639,6 +648,8 @@ pub struct ModEntry {
   #[serde(skip)]
   version_checker: Option<ModVersionMeta>,
   #[serde(skip)]
+  remote_version: Option<ModVersionMeta>,
+  #[serde(skip)]
   update_status: Option<UpdateStatus>,
   #[serde(skip)]
   path: PathBuf,
@@ -856,18 +867,23 @@ impl Display for ModVersion {
 
 #[derive(Debug, Clone)]
 pub struct ModDescription {
-  mod_entry: Option<ModEntry>
+  mod_entry: Option<ModEntry>,
+  fractal_link: button::State,
+  nexus_link: button::State
 }
 
 #[derive(Debug, Clone)]
 pub enum ModDescriptionMessage {
-  ModChanged(ModEntry)
+  ModChanged(ModEntry),
+  LinkClicked(String)
 }
 
 impl ModDescription {
   pub fn new() -> Self {
     ModDescription {
-      mod_entry: None
+      mod_entry: None,
+      fractal_link: button::State::new(),
+      nexus_link: button::State::new()
     }
   }
 
@@ -875,6 +891,11 @@ impl ModDescription {
     match message {
       ModDescriptionMessage::ModChanged(entry) => {
         self.mod_entry = Some(entry)
+      },
+      ModDescriptionMessage::LinkClicked(url) => {
+        if let Err(_) = opener::open(url) {
+          ModList::make_alert(format!("Failed to open update link. This could be due to a number of issues unfortunately.\nMake sure you have a default browser set for your operating system, otherwise there's not much that can be done."))
+        }
       }
     }
 
@@ -914,6 +935,53 @@ impl ModDescription {
         .push(Text::new(format!("{}", entry.version)).width(Length::FillPortion(10)))
         .into()
       );
+
+      if let (Some(version), _) | (None, Some(version)) = (&entry.remote_version, &entry.version_checker) {
+        dbg!(version);
+        if version.fractal_id.len() > 0 {
+          text.push(Row::new()
+            .push(Text::new(format!("Forum post:")).width(Length::FillPortion(1)))
+            .push(
+              Row::new()
+                .push(
+                  Button::new(
+                    &mut self.fractal_link,
+                    Text::new(format!("{}{}", ModDescription::FRACTAL_URL, version.fractal_id))
+                  )
+                  .padding(0)
+                  .style(style::hyperlink_block::Button)
+                  .width(Length::Shrink)
+                  .on_press(ModDescriptionMessage::LinkClicked(format!("{}{}", ModDescription::FRACTAL_URL, version.fractal_id)))
+                )
+                .push(Space::with_width(Length::Fill))
+                .width(Length::FillPortion(10))
+            )
+            .into()
+          );
+        }
+        if version.nexus_id.len() > 0 {
+          text.push(Row::new()
+            .push(Text::new(format!("Nexus post:")).width(Length::FillPortion(1)))
+            .push(
+              Row::new()
+                .push(
+                  Button::new(
+                    &mut self.nexus_link,
+                    Text::new(format!("{}{}", ModDescription::NEXUS_URL, version.nexus_id))
+                  )
+                  .padding(0)
+                  .style(style::hyperlink_block::Button)
+                  .width(Length::Shrink)
+                  .on_press(ModDescriptionMessage::LinkClicked(format!("{}{}", ModDescription::NEXUS_URL, version.nexus_id)))
+                )
+                .push(Space::with_width(Length::Fill))
+                .width(Length::FillPortion(10))
+            )
+            .into()
+          );
+        }
+      }
+
       text.push(Text::new(format!("Description:")).into());
       text.push(Text::new(entry.description.clone()).into());
     } else {
@@ -924,6 +992,9 @@ impl ModDescription {
       .padding(5)
       .into()
   }
+
+  const FRACTAL_URL: &'static str = "https://fractalsoftworks.com/forum/index.php?topic=";
+  const NEXUS_URL: &'static str = "https://www.nexusmods.com/starsector/mods/";
 }
 
 #[derive(Serialize, Deserialize)]
