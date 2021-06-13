@@ -9,7 +9,7 @@ use std::{
 use tokio::fs::{remove_dir_all, rename};
 
 use crate::archive_handler;
-use crate::gui::mod_list::{ModEntry, ModVersionMeta, ModVersion};
+use crate::gui::mod_list::{ModEntry, ModVersionMeta};
 
 #[derive(Debug, Clone)]
 pub enum InstallError {
@@ -141,7 +141,7 @@ fn copy_dir_recursive(to: &PathBuf, from: &PathBuf) -> io::Result<()> {
   Ok(())
 }
 
-pub async fn get_master_version(local: ModVersionMeta) -> (String, Result<Option<ModVersion>, String>) {
+pub async fn get_master_version(local: ModVersionMeta) -> (String, Result<Option<ModVersionMeta>, String>) {
   let res = send_request(local.remote_url.clone()).await;
 
   match res {
@@ -156,11 +156,7 @@ pub async fn get_master_version(local: ModVersionMeta) -> (String, Result<Option
           if remote.version > local.version {
             (
               local.id,
-              Ok(Some(ModVersion {
-                major: remote.version.major - local.version.major,
-                minor: remote.version.minor - remote.version.minor,
-                patch: remote.version.patch
-              }))
+              Ok(Some(remote))
             )
           } else {
             (

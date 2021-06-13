@@ -225,3 +225,28 @@ pub mod update {
     }
   }
 }
+
+pub mod hyperlink_block {
+  use iced::{button, Color, Vector};
+
+  pub struct Button;
+
+  impl button::StyleSheet for Button {
+    fn active(&self) -> button::Style {
+      button::Style {
+        background: None,
+        shadow_offset: Vector::new(0.0, 0.0),
+        text_color: Color::from_rgb8(0x06, 0x45, 0xAD),
+        ..button::Style::default()
+      }
+    }
+  
+    fn hovered(&self) -> button::Style {
+      button::Style {
+        background: Color::from_rgb8(0x06, 0x45, 0xAD).into(),
+        text_color: Color::WHITE,
+        ..self.active()
+      }
+    }
+  }
+}
