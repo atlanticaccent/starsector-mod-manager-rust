@@ -31,6 +31,7 @@ use mod_list::ModListMessage;
 pub struct App {
   config: Option<Config>,
   settings_button: button::State,
+  apply_button: button::State,
   settings_open: bool,
   settings: settings::Settings,
   mod_list: mod_list::ModList
@@ -43,7 +44,7 @@ pub enum Message {
   VMParamsLoaded(Result<VMParams, LoadError>),
   VMParamsSaved(Result<(), SaveError>),
   SettingsOpen,
-  SettingsClose,
+  SettingsApply(bool),
   SettingsMessage(SettingsMessage),
   ModListMessage(ModListMessage)
 }
@@ -58,6 +59,7 @@ impl Application for App {
       App {
         config: None,
         settings_button: button::State::new(),
+        apply_button: button::State::new(),
         settings_open: false,
         settings: settings::Settings::new(),
         mod_list: mod_list::ModList::new()
@@ -135,8 +137,8 @@ impl Application for App {
 
         return Command::none();
       },
-      Message::SettingsClose => {
-        self.settings_open = false;
+      Message::SettingsApply(keep_open) => {
+        self.settings_open = keep_open;
 
         let mut commands = vec![
           self.settings.update(SettingsMessage::Close).map(|m| Message::SettingsMessage(m)),
@@ -195,11 +197,22 @@ impl Application for App {
         .push(Space::with_width(Length::Fill))
         .push(
           Button::new(
-            &mut self.settings_button, 
-            Text::new("Go back"),
+            &mut self.apply_button, 
+            Text::new("Apply"),
           )
           .on_press(
-            Message::SettingsClose
+            Message::SettingsApply(true)
+          )
+          .style(style::button_only_hover::Button)
+          .padding(5)
+        )
+        .push(
+          Button::new(
+            &mut self.settings_button, 
+            Text::new("Close"),
+          )
+          .on_press(
+            Message::SettingsApply(false)
           )
           .style(style::button_only_hover::Button)
           .padding(5)
