@@ -41,7 +41,7 @@ pub enum SettingsMessage {
 pub enum VMParamChanged {
   MinRam,
   MaxRam,
-  StackThread
+  _StackThread
 }
 
 impl Settings {
@@ -127,7 +127,7 @@ impl Settings {
             VMParamChanged::MaxRam => {
               params.heap_max.amount = input_as_int.unwrap_or(current_or_zero(params.heap_max.amount));
             },
-            VMParamChanged::StackThread => {
+            VMParamChanged::_StackThread => {
               params.thread_stack_size.amount = input_as_int.unwrap_or(current_or_zero(params.thread_stack_size.amount));
             }
           }
@@ -145,7 +145,7 @@ impl Settings {
           match kind {
             VMParamChanged::MinRam => vmparams.heap_init.unit = unit,
             VMParamChanged::MaxRam => vmparams.heap_max.unit = unit,
-            VMParamChanged::StackThread => vmparams.thread_stack_size.unit = unit
+            VMParamChanged::_StackThread => vmparams.thread_stack_size.unit = unit
           }
         }
 
