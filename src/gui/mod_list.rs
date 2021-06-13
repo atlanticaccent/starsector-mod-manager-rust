@@ -37,6 +37,7 @@ pub struct ModList {
   game_version_sort_state: button::State,
   version_sort_state: button::State,
   enabled_sort_state: button::State,
+  last_browsed: Option<PathBuf>
 }
 
 #[derive(Debug, Clone)]
@@ -67,6 +68,7 @@ impl ModList {
       game_version_sort_state: button::State::new(),
       version_sort_state: button::State::new(),
       enabled_sort_state: button::State::new(),
+      last_browsed: None
     }
   }
 
@@ -125,7 +127,12 @@ impl ModList {
       },
       ModListMessage::InstallPressed(opt) => {
         if let Some(root_dir) = self.root_dir.clone() {
-          let diag = FileDialog::new().set_location(&root_dir);
+          let start_path = if let Some(last_browsed) = &self.last_browsed {
+            &last_browsed
+          } else {
+            &root_dir
+          };
+          let diag = FileDialog::new().set_location(start_path);
 
           match opt {
             InstallOptions::FromArchive => {
@@ -134,6 +141,10 @@ impl ModList {
                 filters.push("7z");
               }
               if let Ok(paths) = diag.add_filter("Archive types", &filters).show_open_multiple_file() {
+                if let Some(last) = paths.last() {
+                  self.last_browsed = last.parent().map(|p| p.to_path_buf());
+                }
+
                 let mod_ids: Vec<String> = self.mods.iter().map(|(id, _)| id.clone()).collect();
                 return Command::batch(paths.iter().map(|path| {
                   Command::perform(install::handle_archive(path.to_path_buf(), root_dir.clone(), false, mod_ids.clone()), ModListMessage::ModInstalled)
@@ -145,6 +156,7 @@ impl ModList {
             InstallOptions::FromFolder => {
               match diag.show_open_single_dir() {
                 Ok(Some(source_path)) => {
+                  self.last_browsed = source_path.parent().map(|p| p.to_path_buf());
                   let mod_ids: Vec<String> = self.mods.iter().map(|(id, _)| id.clone()).collect();
                   return Command::perform(install::handle_archive(source_path.to_path_buf(), root_dir.clone(), true, mod_ids), ModListMessage::ModInstalled)
                 },
