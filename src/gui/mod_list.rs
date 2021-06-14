@@ -49,7 +49,8 @@ pub enum ModListMessage {
   EnabledModsSaved(Result<(), SaveError>),
   ModInstalled(Result<String, install::InstallError>),
   MasterVersionReceived((String, Result<Option<ModVersionMeta>, String>)),
-  SetSorting(ModEntryComp)
+  SetSorting(ModEntryComp),
+  ParseModListError(())
 }
 
 impl ModList {
@@ -305,6 +306,11 @@ impl ModList {
         }
 
         Command::none()
+      },
+      ModListMessage::ParseModListError(_) => {
+        ModList::make_alert(format!("Failed to parse mods folder. Mod list has not been populated."));
+
+        Command::none()
       }
     }
   }
@@ -474,16 +480,25 @@ impl ModList {
   fn parse_mod_folder(&mut self) -> Vec<Command<ModListMessage>>{
     self.mods.clear();
 
-    if_chain! {
-      if let Some(root_dir) = &self.root_dir;
+    if let Some(root_dir) = &self.root_dir {
       let mod_dir = root_dir.join("mods");
       let enabled_mods_filename = mod_dir.join("enabled_mods.json");
-      // Note: If the enabled_mods.json file does not exist or is malformed, this entire function call fails.
-      if let Ok(enabled_mods_text) = std::fs::read_to_string(enabled_mods_filename);
-      if let Ok(EnabledMods { enabled_mods }) = serde_json::from_str::<EnabledMods>(&enabled_mods_text);
-      // Whilst that shouldn't happen (Starsector should make the file) manual deletion, manual instantiation of the mods folder, or some other error, can cause this to go poorly - consider generating ourselves.
-      if let Ok(dir_iter) = std::fs::read_dir(mod_dir);
-      then {
+
+      let enabled_mods = if !enabled_mods_filename.exists() {
+        vec![]
+      } else {
+        if_chain! {
+          if let Ok(enabled_mods_text) = std::fs::read_to_string(enabled_mods_filename);
+          if let Ok(EnabledMods { enabled_mods }) = serde_json::from_str::<EnabledMods>(&enabled_mods_text);
+          then {
+            enabled_mods
+          } else {
+            return vec![Command::perform(async {}, ModListMessage::ParseModListError)]
+          }
+        }
+      };
+
+      if let Ok(dir_iter) = std::fs::read_dir(mod_dir) {
         let enabled_mods_iter = enabled_mods.iter();
 
         let (mods, versions): (Vec<(String, ModEntry)>, Vec<Option<ModVersionMeta>>) = dir_iter
@@ -536,8 +551,10 @@ impl ModList {
           .collect()
       } else {
         // debug_println!("Fatal. Could not parse mods folder. Alert developer");
-        vec![]
+        vec![Command::perform(async {}, ModListMessage::ParseModListError)]
       }
+    } else {
+      vec![Command::perform(async {}, ModListMessage::ParseModListError)]
     }
   }
 
