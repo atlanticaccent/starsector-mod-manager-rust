@@ -1,6 +1,6 @@
 use std::{
   io::{Read, BufReader, BufRead},
-  path::PathBuf, collections::BTreeMap,
+  path::PathBuf, collections::HashMap,
   fs::{remove_dir_all, rename, File},
   fmt::Display
 };
@@ -25,7 +25,7 @@ use crate::gui::SaveError;
 
 pub struct ModList {
   root_dir: Option<PathBuf>,
-  pub mods: BTreeMap<String, ModEntry>,
+  pub mods: HashMap<String, ModEntry>,
   scroll: scrollable::State,
   mod_description: ModDescription,
   install_state: pick_list::State<InstallOptions>,
@@ -57,7 +57,7 @@ impl ModList {
   pub fn new() -> Self {
     ModList {
       root_dir: None,
-      mods: BTreeMap::new(),
+      mods: HashMap::new(),
       scroll: scrollable::State::new(),
       mod_description: ModDescription::new(),
       install_state: pick_list::State::default(),
@@ -73,6 +73,11 @@ impl ModList {
     }
   }
 
+  /**
+   * Note: any branch that deals with mod installation, whether it be by replacement or whatever, _must_ call parse_mod_folder afterwards
+   * Even if the result is an error, it's better to live with an increased computation cost in rare cases than it is to possibly miss a 
+   * change in the state of the mods directory.
+   */
   pub fn update(&mut self, message: ModListMessage) -> Command<ModListMessage> {
     match message {
       ModListMessage::SetRoot(root_dir) => {
@@ -201,7 +206,9 @@ impl ModList {
                   then {
                     match ModList::make_query(format!("A directory named {:?} already exists. Do you want to replace it?\nChoosing no will abort this operation.", _file_name)) {
                       Ok(true) => {
-                        if remove_dir_all(&raw_dest).is_ok() {
+                        if !raw_dest.exists() || remove_dir_all(&raw_dest).is_ok() {
+                          self.mods.retain(|_, entry| entry.path != raw_dest);
+
                           let mod_ids: Vec<String> = self.mods.iter().map(|(id, _)| id.clone()).collect();
                           Command::perform(install::handle_archive(path.to_path_buf(), root_dir.clone(), is_folder, mod_ids), ModListMessage::ModInstalled)
                         } else {
@@ -221,28 +228,30 @@ impl ModList {
                 match ModList::make_query(format!("A mod with ID {} already exists. Do you want to replace it?\nChoosing no will abort this operation.", id)) {
                   Ok(true) => {
                     if let Some(entry) = self.mods.get(&id).as_ref() {
-                      if remove_dir_all(entry.path.clone()).is_ok() {
+                      if !entry.path.exists() || remove_dir_all(&entry.path).is_ok() {
                         if let Ok(_) = rename(&current_path, intended_path) {
+                          let mut success_message = format!("Successfully installed {}", id);
+
                           if let Some(parent_temp_path) = maybe_parent_path {
                             if parent_temp_path != current_path {
                               if remove_dir_all(parent_temp_path).is_err() {
-                                ModList::make_alert(format!("Successfully installed new version and deleted old version, however failed to delete empty temporary folder {}", current_path.to_string_lossy()));
+                                success_message = format!("Successfully deleted old version and installed new version, however failed to clean up empty temporary folder at {}", current_path.to_string_lossy())
                               }
                             }
                           }
-                        } else {
-                          ModList::make_alert(format!("Successfully installed new version and deleted old version however, failed to rename new version path - new version is installed to {}", current_path.to_string_lossy()));
-                        }
 
-                        Command::none()
+                          ModList::make_alert(success_message);
+                        } else {
+                          ModList::make_alert(format!("Successfully deleted old version, however, failed to move new version's files - new version was unpacked to {}", current_path.to_string_lossy()));
+                        }
                       } else {
-                        ModList::make_alert(format!("Encountered an error.\n Both the old version and new version of this mod are now installed, you should delete one of them to avoid issues.\nThe old version is installed at {} and the new version is installed at {}.", entry.path.to_string_lossy(), current_path.to_string_lossy()));
-                        Command::none()
+                        ModList::make_alert(format!("Encountered an error: failed to delete old mod directory.\n Both the old version and new version of this mod are now present, you should delete one of them to avoid issues.\nThe old version is installed at {} and the new version was unpacked to {}.", entry.path.to_string_lossy(), current_path.to_string_lossy()));
                       }
                     } else {
-                      ModList::make_alert(format!("Encountered an error.\n Both the old version and new version of this mod may now be installed, you should delete one of them to avoid issues.\nThe new version is installed at {:?}.", current_path));
-                      Command::none()
+                      ModList::make_alert(format!("Encountered an error: could not get old mod's entry.\n Both the old version and new version of this mod may now be installed, you should delete one of them to avoid issues.\nThe new version is installed at {:?}.", current_path));
                     }
+
+                    Command::batch(self.parse_mod_folder())
                   },
                   _ => Command::none()
                 }
