@@ -172,6 +172,8 @@ impl Application for App {
               }
 
               commands.push(Command::perform(vmparams.clone().save(install_dir.clone()), Message::VMParamsSaved))
+            } else {
+              commands.push(Command::perform(VMParams::load(install_dir.clone()), Message::VMParamsLoaded))
             }
           }
         }

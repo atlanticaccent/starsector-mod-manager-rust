@@ -254,7 +254,7 @@ impl Settings {
             .into()
         );
       } else {
-        controls.push(Container::new(Text::new("VMParams editing is currently unavailable.")).padding(7).into())
+        controls.push(Container::new(Text::new("VMParams editing is currently unavailable. Have you selected/saved a Starsector installation directory?")).padding(7).into())
       }
     } else {
       controls.push(Container::new(Text::new(" ")).padding(7).into())
