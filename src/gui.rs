@@ -4,7 +4,7 @@ use serde::{Serialize, Deserialize};
 use serde_json;
 
 const DEV_VERSION: &'static str = "IN_DEV";
-const TAG: &'static str = "IN_DEV";
+const TAG: &'static str = DEV_VERSION;
 
 // https://users.rust-lang.org/t/show-value-only-in-debug-mode/43686/5
 macro_rules! dbg {
@@ -38,7 +38,8 @@ pub struct App {
   settings_open: bool,
   settings: settings::Settings,
   mod_list: mod_list::ModList,
-  manager_update_status: Option<Result<String, String>>
+  manager_update_status: Option<Result<String, String>>,
+  manager_update_link_state: button::State,
 }
 
 #[derive(Debug, Clone)]
@@ -51,7 +52,8 @@ pub enum Message {
   SettingsApply(bool),
   SettingsMessage(SettingsMessage),
   ModListMessage(ModListMessage),
-  TagsReceived(Result<String, String>)
+  TagsReceived(Result<String, String>),
+  OpenReleases,
 }
 
 impl Application for App {
@@ -69,6 +71,7 @@ impl Application for App {
         settings: settings::Settings::new(),
         mod_list: mod_list::ModList::new(),
         manager_update_status: None,
+        manager_update_link_state: button::State::new(),
       },
       Command::batch(vec![
         Command::perform(Config::load(), Message::ConfigLoaded),
@@ -200,6 +203,13 @@ impl Application for App {
         self.manager_update_status = Some(res);
 
         Command::none()
+      },
+      Message::OpenReleases => {
+        if let Err(_) = opener::open("https://github.com/atlanticaccent/starsector-mod-manager-rust/releases") {
+          println!("Failed to open GitHub");
+        }
+        
+        Command::none()
       }
     }
   }
@@ -209,13 +219,23 @@ impl Application for App {
       .push(Space::with_width(Length::Units(5)));
 
     let err_string = format!("{} Err", TAG);
-    let update = Container::new(Text::new(match &self.manager_update_status {
-      Some(Ok(_)) if TAG == DEV_VERSION => "If you see this I forgot to set the version",
-      Some(Ok(remote)) if remote > &String::from(TAG) => "Update Available!",
-      Some(Ok(remote)) if remote < &String::from(TAG) => "Are you from the future?",
-      Some(Ok(_)) | None => TAG,
-      Some(Err(_)) => &err_string,
-    })).width(Length::Fill).align_x(iced::Align::Center).padding(5);
+    let update = match &self.manager_update_status {
+      Some(Ok(_)) if TAG == DEV_VERSION => Container::new(Text::new("If you see this I forgot to set the version")).padding(5),
+      Some(Ok(remote)) if remote > &String::from(TAG) => {
+        Container::new(
+          Button::new(
+            &mut self.manager_update_link_state,
+            Text::new("Update Available!")
+          )
+          .on_press(Message::OpenReleases)
+          .style(style::button_only_hover::Button)
+          .padding(5)
+        )
+      },
+      Some(Ok(remote)) if remote < &String::from(TAG) => Container::new(Text::new("Are you from the future?")).padding(5),
+      Some(Ok(_)) | None => Container::new(Text::new(TAG)).padding(5),
+      Some(Err(_)) => Container::new(Text::new(&err_string)).padding(5),
+    }.width(Length::Fill).align_x(iced::Align::Center);
     buttons = if self.settings_open {
       buttons
         .push(Space::with_width(Length::FillPortion(1)))
