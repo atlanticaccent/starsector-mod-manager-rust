@@ -547,6 +547,7 @@ impl ModList {
                 version
               ))
             } else {
+              dbg!(entry.path());
               None
             }
           })
@@ -670,12 +671,35 @@ impl Display for UpdateStatus {
 pub struct UpdateStatusTTPatch(pub UpdateStatus);
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+enum VersionUnion {
+  String(String),
+  Object(ModVersion)
+}
+
+impl Display for VersionUnion {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+    let output: String = match self {
+      VersionUnion::String(s) => s.to_string(),
+      VersionUnion::Object(o) => o.to_string()
+    };
+    write!(f, "{}", output)
+  }
+}
+
+impl From<VersionUnion> for String {
+  fn from(version_union: VersionUnion) -> Self {
+    version_union.to_string()
+  }
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct ModEntry {
   pub id: String,
   name: String,
   #[serde(default)]
   author: String,
-  version: String,
+  version: VersionUnion,
   description: String,
   #[serde(alias = "gameVersion")]
   game_version: String,
