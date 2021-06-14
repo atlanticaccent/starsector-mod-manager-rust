@@ -3,6 +3,9 @@ use iced::{Application, button, Button, Column, Command, Element, Length, Row, T
 use serde::{Serialize, Deserialize};
 use serde_json;
 
+const DEV_VERSION: &'static str = "IN_DEV";
+const TAG: &'static str = "IN_DEV";
+
 // https://users.rust-lang.org/t/show-value-only-in-debug-mode/43686/5
 macro_rules! dbg {
   ($($x:tt)*) => {
@@ -34,7 +37,8 @@ pub struct App {
   apply_button: button::State,
   settings_open: bool,
   settings: settings::Settings,
-  mod_list: mod_list::ModList
+  mod_list: mod_list::ModList,
+  manager_update_status: Option<Result<String, String>>
 }
 
 #[derive(Debug, Clone)]
@@ -46,7 +50,8 @@ pub enum Message {
   SettingsOpen,
   SettingsApply(bool),
   SettingsMessage(SettingsMessage),
-  ModListMessage(ModListMessage)
+  ModListMessage(ModListMessage),
+  TagsReceived(Result<String, String>)
 }
 
 impl Application for App {
@@ -62,9 +67,13 @@ impl Application for App {
         apply_button: button::State::new(),
         settings_open: false,
         settings: settings::Settings::new(),
-        mod_list: mod_list::ModList::new()
+        mod_list: mod_list::ModList::new(),
+        manager_update_status: None,
       },
-      Command::perform(Config::load(), Message::ConfigLoaded)
+      Command::batch(vec![
+        Command::perform(Config::load(), Message::ConfigLoaded),
+        Command::perform(App::get_latest_manager(), Message::TagsReceived)
+      ])
     )
   }
   
@@ -186,6 +195,11 @@ impl Application for App {
       },
       Message::ModListMessage(mod_list_message) => {
         return self.mod_list.update(mod_list_message.clone()).map(|m| Message::ModListMessage(m));
+      },
+      Message::TagsReceived(res) => {
+        self.manager_update_status = Some(res);
+
+        Command::none()
       }
     }
   }
@@ -194,43 +208,58 @@ impl Application for App {
     let mut buttons: Row<Message> = Row::new()
       .push(Space::with_width(Length::Units(5)));
 
+    let err_string = format!("{} Err", TAG);
+    let update = Container::new(Text::new(match &self.manager_update_status {
+      Some(Ok(_)) if TAG == DEV_VERSION => "If you see this I forgot to set the version",
+      Some(Ok(remote)) if remote > &String::from(TAG) => "Update Available!",
+      Some(Ok(remote)) if remote < &String::from(TAG) => "Are you from the future?",
+      Some(Ok(_)) | None => TAG,
+      Some(Err(_)) => &err_string,
+    })).width(Length::Fill).align_x(iced::Align::Center).padding(5);
     buttons = if self.settings_open {
       buttons
-        .push(Space::with_width(Length::Fill))
-        .push(
-          Button::new(
-            &mut self.apply_button, 
-            Text::new("Apply"),
+        .push(Space::with_width(Length::FillPortion(1)))
+        .push(update)
+        .push(Row::new()
+          .push(Space::with_width(Length::Fill))
+          .push(
+            Button::new(
+              &mut self.apply_button, 
+              Text::new("Apply"),
+            )
+            .on_press(
+              Message::SettingsApply(true)
+            )
+            .style(style::button_only_hover::Button)
+            .padding(5)
           )
-          .on_press(
-            Message::SettingsApply(true)
+          .push(
+            Button::new(
+              &mut self.settings_button, 
+              Text::new("Close"),
+            )
+            .on_press(
+              Message::SettingsApply(false)
+            )
+            .style(style::button_only_hover::Button)
+            .padding(5)
           )
-          .style(style::button_only_hover::Button)
-          .padding(5)
-        )
-        .push(
-          Button::new(
-            &mut self.settings_button, 
-            Text::new("Close"),
-          )
-          .on_press(
-            Message::SettingsApply(false)
-          )
-          .style(style::button_only_hover::Button)
-          .padding(5)
+          .width(Length::FillPortion(1))
         )
     } else {
-      buttons.push(
-        Button::new(
-          &mut self.settings_button, 
-          Text::new("Settings"),
+      buttons
+        .push(Row::new()
+          .push(
+            Button::new(&mut self.settings_button, Text::new("Settings"))
+              .on_press(Message::SettingsOpen)
+              .style(style::button_only_hover::Button)
+              .padding(5)
+          )
+          .push(Space::with_width(Length::Fill))
+          .width(Length::FillPortion(1))
         )
-        .on_press(
-          Message::SettingsOpen
-        )
-        .style(style::button_only_hover::Button)
-        .padding(5)
-      )
+        .push(update)
+        .push(Space::with_width(Length::FillPortion(1)))
     };
 
     let menu = Container::new(buttons)
@@ -252,6 +281,34 @@ impl Application for App {
       .push(content)
       .width(Length::Fill)
       .into()
+  }
+}
+
+impl App {
+  async fn get_latest_manager() -> Result<String, String> {
+    #[derive(Deserialize)]
+    struct Release {
+      name: String
+    }
+
+    let client = reqwest::Client::builder()
+      .user_agent("StarsectorModManager")
+      .build()
+      .map_err(|e| e.to_string())?;
+
+    let res = client.get("https://api.github.com/repos/atlanticaccent/starsector-mod-manager-rust/tags")
+      .send()
+      .await
+      .map_err(|e| e.to_string())?
+      .json::<Vec<Release>>()
+      .await
+      .map_err(|e| e.to_string())?;
+
+    if let Some(release) = res.first() {
+      Ok(release.name.clone())
+    } else {
+      Err(format!("Could not find any releases."))
+    }
   }
 }
 
