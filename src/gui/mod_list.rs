@@ -256,7 +256,15 @@ impl ModList {
 
                     Command::batch(self.parse_mod_folder())
                   },
-                  _ => Command::none()
+                  _ => {
+                    if let Some(parent_temp_path) = maybe_parent_path {
+                      if remove_dir_all(parent_temp_path).is_err() {
+                        println!("Failed to remove temporary directory.")
+                      }
+                    }
+
+                    Command::none()
+                  }
                 }
               },
               other => {
