@@ -29,6 +29,7 @@ pub struct ModList {
   scroll: scrollable::State,
   mod_description: ModDescription,
   install_state: pick_list::State<InstallOptions>,
+  tool_state: pick_list::State<ToolOptions>,
   currently_highlighted: Option<String>,
   sorting: (ModEntryComp, bool),
   id_sort_state: button::State,
@@ -46,6 +47,7 @@ pub enum ModListMessage {
   ModEntryMessage(String, ModEntryMessage),
   ModDescriptionMessage(ModDescriptionMessage),
   InstallPressed(InstallOptions),
+  ToolsPressed(ToolOptions),
   EnabledModsSaved(Result<(), SaveError>),
   ModInstalled(Result<String, install::InstallError>),
   MasterVersionReceived((String, Result<Option<ModVersionMeta>, String>)),
@@ -61,6 +63,7 @@ impl ModList {
       scroll: scrollable::State::new(),
       mod_description: ModDescription::new(),
       install_state: pick_list::State::default(),
+      tool_state: pick_list::State::default(),
       currently_highlighted: None,
       sorting: (ModEntryComp::ID, false),
       id_sort_state: button::State::new(),
@@ -320,6 +323,88 @@ impl ModList {
         ModList::make_alert(format!("Failed to parse mods folder. Mod list has not been populated."));
 
         Command::none()
+      },
+      ModListMessage::ToolsPressed(opt) => {
+        match opt {
+          ToolOptions::Default => { Command::none() },
+          ToolOptions::EnableAll => {
+            if let Some(path) = &self.root_dir {
+              let mut enabled_mods: Vec<String> = vec![];
+              self.mods.iter_mut()
+                .for_each(|(id, entry)| {
+                  enabled_mods.push(id.clone());
+                  entry.update(ModEntryMessage::ToggleEnabled(true));
+                });
+
+              Command::perform(EnabledMods { enabled_mods }.save(path.join("mods").join("enabled_mods.json")), ModListMessage::EnabledModsSaved)
+            } else {
+              Command::none()
+            }
+          },
+          ToolOptions::DisableAll => {
+            if let Some(path) = &self.root_dir {
+              self.mods.iter_mut()
+                .for_each(|(_, entry)| {
+                  entry.update(ModEntryMessage::ToggleEnabled(false));
+                });
+
+              Command::perform(EnabledMods { enabled_mods: vec![] }.save(path.join("mods").join("enabled_mods.json")), ModListMessage::EnabledModsSaved)
+            } else {
+              Command::none()
+            }
+          },
+          ToolOptions::FilterDisabled => {
+            self.mods.iter_mut()
+              .for_each(|(_, entry)| {
+                entry.display = !entry.enabled;
+              });
+
+            Command::none()
+          },
+          ToolOptions::FilterEnabled => {
+            self.mods.iter_mut()
+              .for_each(|(_, entry)| {
+                entry.display = entry.enabled;
+              });
+
+            Command::none()
+          },
+          ToolOptions::FilterOutdated => {
+            self.mods.iter_mut()
+              .for_each(|(_, entry)| {
+                entry.display = matches!(entry.update_status, Some(UpdateStatus::Major(_)) | Some(UpdateStatus::Minor(_)) | Some(UpdateStatus::Patch(_)));
+              });
+
+            Command::none()
+          },
+          ToolOptions::FilterError => {
+            self.mods.iter_mut()
+              .for_each(|(_, entry)| {
+                entry.display = matches!(entry.update_status, Some(UpdateStatus::Error));
+              });
+
+            Command::none()
+          },
+          ToolOptions::FilterUnsupported => {
+            self.mods.iter_mut()
+              .for_each(|(_, entry)| {
+                entry.display = matches!(entry.update_status, None);
+              });
+
+            Command::none()
+          },
+          ToolOptions::FilterNone => {
+            self.mods.iter_mut()
+              .for_each(|(_, entry)| {
+                entry.display = true;
+              });
+
+            Command::none()
+          },
+          ToolOptions::Refresh => {
+            Command::batch(self.parse_mod_folder())
+          }
+        }
       }
     }
   }
@@ -327,12 +412,19 @@ impl ModList {
   pub fn view(&mut self) -> Element<ModListMessage> {
     let mut every_other = true;
     let content = Column::new()
-      .push::<Element<ModListMessage>>(PickList::new(
+      .push(Row::new()
+        .push(PickList::new(
           &mut self.install_state,
           &InstallOptions::SHOW[..],
           Some(InstallOptions::Default),
           ModListMessage::InstallPressed
-        ).into()
+        ))
+        .push(PickList::new(
+          &mut self.tool_state,
+          &ToolOptions::SHOW[..],
+          Some(ToolOptions::Default),
+          ModListMessage::ToolsPressed
+        ))
       )
       .push(Space::with_height(Length::Units(10)))
       .push(Column::new()
@@ -445,6 +537,7 @@ impl ModList {
             let mut views: Vec<Element<ModListMessage>> = vec![];
 
             sorted_mods.into_iter()
+              .filter(|entry| entry.display)
               .for_each(|entry| {
                 every_other = !every_other;
                 let id_clone = entry.id.clone();
@@ -647,6 +740,55 @@ impl std::fmt::Display for InstallOptions {
   }
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum ToolOptions {
+  Default,
+  EnableAll,
+  DisableAll,
+  FilterEnabled,
+  FilterDisabled,
+  FilterOutdated,
+  FilterError,
+  FilterUnsupported,
+  FilterNone,
+  Refresh,
+}
+
+impl ToolOptions {
+  const SHOW: [ToolOptions; 9] = [
+    ToolOptions::EnableAll,
+    ToolOptions::DisableAll,
+    ToolOptions::FilterEnabled,
+    ToolOptions::FilterDisabled,
+    ToolOptions::FilterOutdated,
+    ToolOptions::FilterError,
+    ToolOptions::FilterUnsupported,
+    ToolOptions::FilterNone,
+    ToolOptions::Refresh,
+  ];
+}
+
+impl std::fmt::Display for ToolOptions {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(
+      f,
+      "{}",
+      match self {
+        ToolOptions::Default => "Tools",
+        ToolOptions::EnableAll => "Enabled All",
+        ToolOptions::DisableAll => "Disable All",
+        ToolOptions::FilterEnabled => "Show Enabled",
+        ToolOptions::FilterDisabled => "Show Disabled",
+        ToolOptions::FilterOutdated => "Show New Version Available",
+        ToolOptions::FilterError => "Show Version Check Failed",
+        ToolOptions::FilterUnsupported => "Show Version Check Unsupported",
+        ToolOptions::FilterNone => "Show All",
+        ToolOptions::Refresh => "Refresh Mod List",
+      }
+    )
+  }
+}
+
 #[derive(Debug, Clone)]
 pub enum UpdateStatus {
   Major(ModVersion),
@@ -717,7 +859,10 @@ pub struct ModEntry {
   path: PathBuf,
   #[serde(skip)]
   #[serde(default = "button::State::new")]
-  button_state: button::State
+  button_state: button::State,
+  #[serde(skip)]
+  #[serde(default = "ModEntry::def_true")]
+  display: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -874,6 +1019,8 @@ impl ModEntry {
       .push(Space::with_width(Length::Units(10)))
       .into()
   }
+
+  fn def_true() -> bool { true }
 }
 
 #[derive(Debug, Clone, Deserialize, Eq, Ord)]
