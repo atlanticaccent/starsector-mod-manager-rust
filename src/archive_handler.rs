@@ -76,17 +76,17 @@ pub fn handle_archive(file: &String, dest: &String, file_name: &String) -> Resul
                   };
                   
                   if (&*file.name()).ends_with('/') {
-                    dbg!("File {} extracted to \"{}\"", i, outpath.display());
+                    // dbg!("File {} extracted to \"{}\"", i, outpath.display());
                     if let Err(err) = fs::create_dir_all(&outpath) {
                       return Err(Box::new(err));
                     }
                   } else {
-                    dbg!(
-                      "File {} extracted to \"{}\" ({} bytes)",
-                      i,
-                      outpath.display(),
-                      file.size()
-                    );
+                    // dbg!(
+                    //   "File {} extracted to \"{}\" ({} bytes)",
+                    //   i,
+                    //   outpath.display(),
+                    //   file.size()
+                    // );
                     if let Some(p) = outpath.parent() {
                       if !p.exists() {
                         if let Err(err) = fs::create_dir_all(&p) {
@@ -124,7 +124,7 @@ pub fn handle_archive(file: &String, dest: &String, file_name: &String) -> Resul
       Ok(false)
     },
     _ => {
-      dbg!("is something else");
+      // dbg!("is something else");
       return Ok(false);
     },
   }
