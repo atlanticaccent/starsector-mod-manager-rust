@@ -38,7 +38,10 @@ pub struct ModList {
   game_version_sort_state: button::State,
   version_sort_state: button::State,
   enabled_sort_state: button::State,
-  last_browsed: Option<PathBuf>
+  last_browsed: Option<PathBuf>,
+  succ_messages: Vec<String>,
+  err_messages: Vec<String>,
+  debounce: Option<i32>,
 }
 
 #[derive(Debug, Clone)]
@@ -52,7 +55,8 @@ pub enum ModListMessage {
   ModInstalled(Result<String, install::InstallError>),
   MasterVersionReceived((String, Result<Option<ModVersionMeta>, String>)),
   SetSorting(ModEntryComp),
-  ParseModListError(())
+  ParseModListError(()),
+  Timeout(i32),
 }
 
 impl ModList {
@@ -72,7 +76,10 @@ impl ModList {
       game_version_sort_state: button::State::new(),
       version_sort_state: button::State::new(),
       enabled_sort_state: button::State::new(),
-      last_browsed: None
+      last_browsed: None,
+      succ_messages: Vec::default(),
+      err_messages: Vec::default(),
+      debounce: None,
     }
   }
 
@@ -194,9 +201,13 @@ impl ModList {
         let is_err = res.is_err();
         match res {
           Ok(mod_name) | Err(install::InstallError::DeleteError(mod_name)) => {
-            ModList::make_alert(format!("Successfully installed {}{}", mod_name, if is_err {".\nFailed to clean up temporary directory"} else {""}));
+            let mess = self.queue_message(format!("Successfully installed {}{}", mod_name, if is_err {".\nFailed to clean up temporary directory"} else {""}), false);
 
-            Command::batch(self.parse_mod_folder())
+            let mut commands = self.parse_mod_folder();
+
+            commands.push(mess);
+
+            Command::batch(commands)
           },
           Err(err) => {
             match err {
@@ -230,6 +241,8 @@ impl ModList {
               install::InstallError::IDExists(current_path, intended_path, maybe_parent_path, id) => {
                 match ModList::make_query(format!("A mod with ID {} already exists. Do you want to replace it?\nChoosing no will abort this operation.", id)) {
                   Ok(true) => {
+                    let mut commands: Vec<Command<ModListMessage>> = vec![];
+
                     if let Some(entry) = self.mods.get(&id).as_ref() {
                       if !entry.path.exists() || remove_dir_all(&entry.path).is_ok() {
                         if let Ok(_) = rename(&current_path, intended_path) {
@@ -243,7 +256,7 @@ impl ModList {
                             }
                           }
 
-                          ModList::make_alert(success_message);
+                          commands.push(self.queue_message(success_message, false));
                         } else {
                           ModList::make_alert(format!("Successfully deleted old version, however, failed to move new version's files - new version was unpacked to {}", current_path.to_string_lossy()));
                         }
@@ -254,7 +267,8 @@ impl ModList {
                       ModList::make_alert(format!("Encountered an error: could not get old mod's entry.\n Both the old version and new version of this mod may now be installed, you should delete one of them to avoid issues.\nThe new version is installed at {:?}.", current_path));
                     }
 
-                    Command::batch(self.parse_mod_folder())
+                    commands.append(&mut self.parse_mod_folder());
+                    Command::batch(commands)
                   },
                   _ => {
                     if let Some(parent_temp_path) = maybe_parent_path {
@@ -413,6 +427,23 @@ impl ModList {
             Command::batch(self.parse_mod_folder())
           }
         }
+      },
+      ModListMessage::Timeout(id) => {
+        if Some(id) == self.debounce {
+          if self.succ_messages.len() > 0 {
+            ModList::make_alert(format!("{}", self.succ_messages.join("\n")));
+            self.succ_messages.clear();
+          }
+
+          if self.err_messages.len() > 0 {
+            ModList::make_alert(format!("{}", self.err_messages.join("\n")));
+            self.err_messages.clear();
+          }
+
+          self.debounce = None;
+        };
+
+        Command::none()
       }
     }
   }
@@ -666,6 +697,25 @@ impl ModList {
       }
     } else {
       vec![Command::perform(async {}, ModListMessage::ParseModListError)]
+    }
+  }
+
+  #[must_use]
+  fn queue_message(&mut self, message: String, is_err: bool) -> Command<ModListMessage> {
+    if is_err {
+      self.err_messages.push(message);
+    } else {
+      self.succ_messages.push(message);
+    };
+
+    if let Some(id) = self.debounce {
+      self.debounce = Some(id.clone() + 1);
+
+      Command::perform(tokio::time::sleep(tokio::time::Duration::from_millis(50)), move |_| { ModListMessage::Timeout(id.clone() + 1) })
+    } else {
+      self.debounce = Some(0);
+
+      Command::perform(tokio::time::sleep(tokio::time::Duration::from_millis(50)), |_| { ModListMessage::Timeout(0) })
     }
   }
 
