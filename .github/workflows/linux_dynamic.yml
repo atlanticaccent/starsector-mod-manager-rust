@@ -1,4 +1,4 @@
-name: Build-Linux-Static
+name: Build-Linux-Dynamic
 
 on:
   push:
