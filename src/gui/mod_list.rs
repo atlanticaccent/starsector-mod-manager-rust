@@ -23,6 +23,8 @@ use crate::gui::install;
 use crate::style;
 use crate::gui::SaveError;
 
+mod headings;
+
 pub struct ModList {
   root_dir: Option<PathBuf>,
   pub mods: HashMap<String, ModEntry>,
