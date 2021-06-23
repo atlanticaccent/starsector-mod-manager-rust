@@ -44,6 +44,7 @@ pub struct ModList {
   succ_messages: Vec<String>,
   err_messages: Vec<String>,
   debounce: Option<i32>,
+  headings: headings::Headings
 }
 
 #[derive(Debug, Clone)]
@@ -59,6 +60,7 @@ pub enum ModListMessage {
   SetSorting(ModEntryComp),
   ParseModListError(()),
   Timeout(i32),
+  HeadingsMessage(headings::HeadingsMessage),
 }
 
 impl ModList {
@@ -82,6 +84,7 @@ impl ModList {
       succ_messages: Vec::default(),
       err_messages: Vec::default(),
       debounce: None,
+      headings: headings::Headings::new(),
     }
   }
 
@@ -446,6 +449,24 @@ impl ModList {
         };
 
         Command::none()
+      },
+      ModListMessage::HeadingsMessage(message) => {
+        match message {
+          headings::HeadingsMessage::HeadingPressed(sorting) => {
+            let (current, val) = &self.sorting;
+            if *current == sorting {
+              self.sorting = (sorting, !val)
+            } else {
+              self.sorting = (sorting, false)
+            }
+          },
+          headings::HeadingsMessage::Resized(event) => {
+            println!("{:?} {:?}", event.split, event.ratio);
+            self.headings.update(message);
+          }
+        }
+
+        Command::none()
       }
     }
   }
@@ -470,79 +491,9 @@ impl ModList {
       .push(Space::with_height(Length::Units(10)))
       .push(Column::new()
         .push(Row::new()
-          .push(
-            Button::new(
-              &mut self.enabled_sort_state,
-              Text::new("Enabled")
-            )
-            .padding(0)
-            .width(Length::FillPortion(3))
-            .style(style::button_none::Button)
-            .on_press(ModListMessage::SetSorting(ModEntryComp::Enabled))
-          )
-          .push(
-            Row::new()
-              .push(Space::with_width(Length::Units(1)))
-              .push(
-                Button::new(
-                  &mut self.name_sort_state,
-                  Text::new("Name")
-                )
-                .padding(0)
-                .width(Length::Fill)
-                .style(style::button_none::Button)
-                .on_press(ModListMessage::SetSorting(ModEntryComp::Name))
-              )
-              // .push(Rule::vertical(0).style(style::max_rule::Rule))
-              .push(Space::with_width(Length::Units(6)))
-              .push(
-                Button::new(
-                  &mut self.id_sort_state,
-                  Text::new("ID")
-                )
-                .padding(0)
-                .width(Length::Fill)
-                .style(style::button_none::Button)
-                .on_press(ModListMessage::SetSorting(ModEntryComp::ID))
-              )
-              // .push(Rule::vertical(0).style(style::max_rule::Rule))
-              .push(Space::with_width(Length::Units(6)))
-              .push(
-                Button::new(
-                  &mut self.author_sort_state,
-                  Text::new("Author")
-                )
-                .padding(0)
-                .width(Length::Fill)
-                .style(style::button_none::Button)
-                .on_press(ModListMessage::SetSorting(ModEntryComp::Author))
-              )
-              // .push(Rule::vertical(0).style(style::max_rule::Rule))
-              .push(Space::with_width(Length::Units(6)))
-              .push(
-                Button::new(
-                  &mut self.version_sort_state,
-                  Text::new("Mod Version")
-                )
-                .padding(0)
-                .width(Length::Fill)
-                .style(style::button_none::Button)
-                .on_press(ModListMessage::SetSorting(ModEntryComp::Version))
-              )
-              // .push(Rule::vertical(0).style(style::max_rule::Rule))
-              .push(Space::with_width(Length::Units(6)))
-              .push(
-                Button::new(
-                  &mut self.game_version_sort_state,
-                  Text::new("Starsector Version")
-                )
-                .padding(0)
-                .width(Length::Fill)
-                .style(style::button_none::Button)
-                .on_press(ModListMessage::SetSorting(ModEntryComp::GameVersion))
-              )
-              .width(Length::FillPortion(40))
-          )
+          .push(self.headings.view().map(|message| {
+            ModListMessage::HeadingsMessage(message)
+          }))
           .push(Space::with_width(Length::Units(10)))
           .height(Length::Shrink)
         )

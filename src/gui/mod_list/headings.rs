@@ -1,8 +1,13 @@
-use iced::{PaneGrid, pane_grid, Button, button, Text, Element};
+use iced::{PaneGrid, pane_grid, Button, button, Text, Element, Command};
+use if_chain::if_chain;
+
+use crate::style;
+use super::ModEntryComp;
 
 #[derive(Debug, Clone)]
 pub enum HeadingsMessage {
-  HeadingPressed(String)
+  HeadingPressed(ModEntryComp),
+  Resized(pane_grid::ResizeEvent)
 }
 
 pub struct Headings {
@@ -10,25 +15,65 @@ pub struct Headings {
 }
 
 impl Headings {
-  pub fn new() {
-    let (mut state, pane) = pane_grid::State::new(Content::new(format!("Enabled")));
+  pub fn new() -> Self {
+    let (mut state, enabled_pane) = pane_grid::State::new(Content::new(format!("Enabled"), ModEntryComp::Enabled));
 
-    if let Some((pane, split)) = state.split(pane_grid::Axis::Vertical, &pane, Content::new(format!("Name"))) {
-      state.resize(&split, 3.0 / 13.0);
-    };
+    if_chain! {
+      if let Some((name_pane, enabled_name_split)) = state.split(pane_grid::Axis::Vertical, &enabled_pane, Content::new(format!("Name"), ModEntryComp::Name));
+      if let Some((id_pane, name_id_split)) = state.split(pane_grid::Axis::Vertical, &name_pane, Content::new(format!("ID"), ModEntryComp::ID));
+      if let Some((author_pane, id_author_split)) = state.split(pane_grid::Axis::Vertical, &id_pane, Content::new(format!("Author"), ModEntryComp::Author));
+      if let Some((mod_version_pane, author_mod_version_split)) = state.split(pane_grid::Axis::Vertical, &author_pane, Content::new(format!("Mod Version"), ModEntryComp::Version));
+      if let Some((_, mod_version_ss_version_split)) = state.split(pane_grid::Axis::Vertical, &mod_version_pane, Content::new(format!("Starsector Version"), ModEntryComp::GameVersion));
+      then {
+        state.resize(&enabled_name_split, 3.0 / 43.0);
+        state.resize(&name_id_split, 1.0 / 5.0);
+        state.resize(&id_author_split, 1.0 / 4.0);
+        state.resize(&author_mod_version_split, 1.0 / 3.0);
+        state.resize(&mod_version_ss_version_split, 1.0 / 2.0);
+      }
+    }
+
+    Headings {
+      headings: state
+    }
+  }
+
+  pub fn update(&mut self, message: HeadingsMessage) -> Command<HeadingsMessage> {
+    match message {
+      HeadingsMessage::HeadingPressed(_) => Command::none(),
+      HeadingsMessage::Resized(pane_grid::ResizeEvent { split, ratio }) => {
+        self.headings.resize(&split, ratio);
+
+        Command::none()
+      }
+    }
+  }
+
+  pub fn view(&mut self) -> Element<HeadingsMessage> {
+    PaneGrid::new(
+      &mut self.headings,
+      |_, content| {
+        pane_grid::Content::new(content.view())
+      }
+    )
+    .on_resize(10, HeadingsMessage::Resized)
+    .height(iced::Length::Units(30))
+    .into()
   }
 }
 
 pub struct Content {
   text: String,
-  button_state: button::State
+  button_state: button::State,
+  cmp: ModEntryComp
 }
 
 impl Content {
-  fn new(text: String) -> Self {
+  fn new(text: String, cmp: ModEntryComp) -> Self {
     Content {
       text,
-      button_state: button::State::new()
+      button_state: button::State::new(),
+      cmp
     }
   }
 
@@ -37,7 +82,8 @@ impl Content {
       &mut self.button_state,
       Text::new(self.text.clone())
     )
-    .on_press(HeadingsMessage::HeadingPressed(self.text.clone()))
+    .style(style::button_none::Button)
+    .on_press(HeadingsMessage::HeadingPressed(self.cmp.clone()))
     .into()
   }
 }
