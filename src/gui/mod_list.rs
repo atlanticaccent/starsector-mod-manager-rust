@@ -308,7 +308,7 @@ impl ModList {
                         entry.update_status = Some(UpdateStatus::Minor(version))
                       } else {
                         // debug_println!("New patch available.");
-                        entry.update_status = Some(UpdateStatus::Patch(version.patch))
+                        entry.update_status = Some(UpdateStatus::Patch(version))
                       };
                       // debug_println!("{:?}", entry.version_checker.as_ref().unwrap().version);
                       entry.remote_version = Some(remote_version_meta);
@@ -803,7 +803,7 @@ impl std::fmt::Display for ToolOptions {
 pub enum UpdateStatus {
   Major(ModVersion),
   Minor(ModVersion),
-  Patch(String),
+  Patch(ModVersion),
   UpToDate,
   Error
 }
@@ -982,16 +982,15 @@ impl ModEntry {
                     .width(Length::Fill)
                     .height(Length::Fill),
                     match status {
-                      UpdateStatus::Major(delta) | UpdateStatus::Minor(delta) => {
+                      UpdateStatus::Major(delta) | UpdateStatus::Minor(delta) | UpdateStatus::Patch(delta) => {
                         let local = &self.version_checker.as_ref().unwrap().version;
                         let remote = ModVersion {
                           major: local.major + delta.major,
                           minor: local.minor + delta.minor,
                           patch: delta.patch.clone()
                         };
-                        format!("{:?} update available.\nLocal: {} - Update: {}", status, local, remote)
+                        format!("{} update available.\nUpdate: {}", status, remote)
                       },
-                      UpdateStatus::Patch(delta) => format!("Patch available.\nLocal: {} - Update: {}", &self.version_checker.as_ref().unwrap().version.patch, delta),
                       UpdateStatus::UpToDate => format!("Up to date!"),
                       UpdateStatus::Error => format!("Could not retrieve remote update data.")
                     },
