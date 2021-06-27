@@ -1,4 +1,4 @@
-use iced::{PaneGrid, pane_grid, Button, button, Text, Element, Command};
+use iced::{PaneGrid, pane_grid, Button, button, Text, Row, Space, Element, Command, Length};
 use if_chain::if_chain;
 
 use crate::style;
@@ -55,7 +55,7 @@ impl Headings {
       HeadingsMessage::HeadingPressed(_) => Command::none(),
       HeadingsMessage::Resized(pane_grid::ResizeEvent { split, ratio }) => {
         if split != self.enabled_name_split {
-        self.headings.resize(&split, ratio);
+          self.headings.resize(&split, ratio);
         }
 
         Command::none()
@@ -92,12 +92,21 @@ impl Content {
   }
 
   fn view(&mut self) -> Element<HeadingsMessage> {
-    Button::new(
-      &mut self.button_state,
-      Text::new(self.text.clone())
-    )
-    .style(style::button_none::Button)
-    .on_press(HeadingsMessage::HeadingPressed(self.cmp.clone()))
-    .into()
+    Row::new()
+      .push(Space::with_width(Length::Units(5)))
+      .push(
+        Button::new(
+          &mut self.button_state,
+          Text::new(self.text.clone())
+        )
+        .style(style::button_none::Button)
+        .on_press(HeadingsMessage::HeadingPressed(self.cmp.clone()))
+        .width(Length::Fill)
+        .height(Length::Fill)
+      )
+      .push(Space::with_width(Length::Units(5)))
+      .width(Length::Fill)
+      .height(Length::Fill)
+      .into()
   }
 }
