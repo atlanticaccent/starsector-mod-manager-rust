@@ -510,13 +510,40 @@ impl ModList {
                 (ModEntryComp::Author, false) => left.author.cmp(&right.author),
                 (ModEntryComp::Enabled, false) => left.enabled.cmp(&right.enabled),
                 (ModEntryComp::GameVersion, false) => left.game_version.cmp(&right.game_version),
-                (ModEntryComp::Version, false) => left.version_checker.cmp(&right.version_checker),
+                (ModEntryComp::Version, false) => {
+                  if left.update_status.is_none() && right.update_status.is_none() {
+                    std::cmp::Ordering::Equal
+                  } else if left.update_status.is_none() {
+                    std::cmp::Ordering::Greater
+                  } else if right.update_status.is_none() {
+                    std::cmp::Ordering::Less
+                  } else {
+                    if left.update_status.cmp(&right.update_status) == std::cmp::Ordering::Equal {
+                      left.version_checker.cmp(&right.version_checker)
+                    } else {
+                      left.update_status.cmp(&right.update_status)
+                    }
+                  }
+
+                },
                 (ModEntryComp::ID, true) => right.id.cmp(&left.id),
                 (ModEntryComp::Name, true) => right.name.cmp(&left.name),
                 (ModEntryComp::Author, true) => right.author.cmp(&left.author),
                 (ModEntryComp::Enabled, true) => right.enabled.cmp(&left.enabled),
                 (ModEntryComp::GameVersion, true) => right.game_version.cmp(&left.game_version),
-                (ModEntryComp::Version, true) => right.version_checker.cmp(&left.version_checker),
+                (ModEntryComp::Version, true) => {
+                  if right.update_status.is_none() && left.update_status.is_none() {
+                    std::cmp::Ordering::Equal
+                  } else if right.update_status.is_none() {
+                    std::cmp::Ordering::Greater
+                  } else if left.update_status.is_none() {
+                    std::cmp::Ordering::Less
+                  } else if right.update_status.cmp(&left.update_status) == std::cmp::Ordering::Equal {
+                    right.version_checker.cmp(&left.version_checker)
+                  } else {
+                    right.update_status.cmp(&left.update_status)
+                  }
+                },
               }
             });
 
@@ -799,13 +826,13 @@ impl std::fmt::Display for ToolOptions {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum UpdateStatus {
+  Error,
   Major(ModVersion),
   Minor(ModVersion),
   Patch(ModVersion),
   UpToDate,
-  Error
 }
 
 impl Display for UpdateStatus {
