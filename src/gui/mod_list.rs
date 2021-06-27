@@ -23,6 +23,8 @@ use crate::gui::install;
 use crate::style;
 use crate::gui::SaveError;
 
+mod headings;
+
 pub struct ModList {
   root_dir: Option<PathBuf>,
   pub mods: HashMap<String, ModEntry>,
@@ -32,16 +34,15 @@ pub struct ModList {
   tool_state: pick_list::State<ToolOptions>,
   currently_highlighted: Option<String>,
   sorting: (ModEntryComp, bool),
-  id_sort_state: button::State,
-  name_sort_state: button::State,
-  author_sort_state: button::State,
-  game_version_sort_state: button::State,
-  version_sort_state: button::State,
-  enabled_sort_state: button::State,
+  name_id_ratio: f32,
+  id_author_ratio: f32,
+  author_version_ratio: f32,
+  version_game_version_ratio: f32,
   last_browsed: Option<PathBuf>,
   succ_messages: Vec<String>,
   err_messages: Vec<String>,
   debounce: Option<i32>,
+  headings: headings::Headings
 }
 
 #[derive(Debug, Clone)]
@@ -54,9 +55,9 @@ pub enum ModListMessage {
   EnabledModsSaved(Result<(), SaveError>),
   ModInstalled(Result<String, install::InstallError>),
   MasterVersionReceived((String, Result<Option<ModVersionMeta>, String>)),
-  SetSorting(ModEntryComp),
   ParseModListError(()),
   Timeout(i32),
+  HeadingsMessage(headings::HeadingsMessage),
 }
 
 impl ModList {
@@ -70,16 +71,15 @@ impl ModList {
       tool_state: pick_list::State::default(),
       currently_highlighted: None,
       sorting: (ModEntryComp::ID, false),
-      id_sort_state: button::State::new(),
-      name_sort_state: button::State::new(),
-      author_sort_state: button::State::new(),
-      game_version_sort_state: button::State::new(),
-      version_sort_state: button::State::new(),
-      enabled_sort_state: button::State::new(),
+      name_id_ratio: 0.2,
+      id_author_ratio: 0.25,
+      author_version_ratio: 1.0 / 3.0,
+      version_game_version_ratio: 0.5,
       last_browsed: None,
       succ_messages: Vec::default(),
       err_messages: Vec::default(),
       debounce: None,
+      headings: headings::Headings::new().unwrap(),
     }
   }
 
@@ -331,16 +331,6 @@ impl ModList {
 
         Command::none()
       },
-      ModListMessage::SetSorting(sorting) => {
-        let (current, val) = &self.sorting;
-        if *current == sorting {
-          self.sorting = (sorting, !val)
-        } else {
-          self.sorting = (sorting, false)
-        }
-
-        Command::none()
-      },
       ModListMessage::ParseModListError(_) => {
         ModList::make_alert(format!("Failed to parse mods folder. Mod list has not been populated."));
 
@@ -444,6 +434,33 @@ impl ModList {
         };
 
         Command::none()
+      },
+      ModListMessage::HeadingsMessage(message) => {
+        match message {
+          headings::HeadingsMessage::HeadingPressed(sorting) => {
+            let (current, val) = &self.sorting;
+            if *current == sorting {
+              self.sorting = (sorting, !val)
+            } else {
+              self.sorting = (sorting, false)
+            }
+          },
+          headings::HeadingsMessage::Resized(event) => {
+            if event.split == self.headings.name_id_split {
+              self.name_id_ratio = event.ratio;
+            } else if event.split == self.headings.id_author_split {
+              self.id_author_ratio = event.ratio;
+            } else if event.split == self.headings.author_mod_version_split {
+              self.author_version_ratio = event.ratio;
+            } else if event.split == self.headings.mod_version_ss_version_split {
+              self.version_game_version_ratio = event.ratio;
+            }
+
+            self.headings.update(message);
+          }
+        }
+
+        Command::none()
       }
     }
   }
@@ -468,79 +485,9 @@ impl ModList {
       .push(Space::with_height(Length::Units(10)))
       .push(Column::new()
         .push(Row::new()
-          .push(
-            Button::new(
-              &mut self.enabled_sort_state,
-              Text::new("Enabled")
-            )
-            .padding(0)
-            .width(Length::FillPortion(3))
-            .style(style::button_none::Button)
-            .on_press(ModListMessage::SetSorting(ModEntryComp::Enabled))
-          )
-          .push(
-            Row::new()
-              .push(Space::with_width(Length::Units(1)))
-              .push(
-                Button::new(
-                  &mut self.name_sort_state,
-                  Text::new("Name")
-                )
-                .padding(0)
-                .width(Length::Fill)
-                .style(style::button_none::Button)
-                .on_press(ModListMessage::SetSorting(ModEntryComp::Name))
-              )
-              // .push(Rule::vertical(0).style(style::max_rule::Rule))
-              .push(Space::with_width(Length::Units(6)))
-              .push(
-                Button::new(
-                  &mut self.id_sort_state,
-                  Text::new("ID")
-                )
-                .padding(0)
-                .width(Length::Fill)
-                .style(style::button_none::Button)
-                .on_press(ModListMessage::SetSorting(ModEntryComp::ID))
-              )
-              // .push(Rule::vertical(0).style(style::max_rule::Rule))
-              .push(Space::with_width(Length::Units(6)))
-              .push(
-                Button::new(
-                  &mut self.author_sort_state,
-                  Text::new("Author")
-                )
-                .padding(0)
-                .width(Length::Fill)
-                .style(style::button_none::Button)
-                .on_press(ModListMessage::SetSorting(ModEntryComp::Author))
-              )
-              // .push(Rule::vertical(0).style(style::max_rule::Rule))
-              .push(Space::with_width(Length::Units(6)))
-              .push(
-                Button::new(
-                  &mut self.version_sort_state,
-                  Text::new("Mod Version")
-                )
-                .padding(0)
-                .width(Length::Fill)
-                .style(style::button_none::Button)
-                .on_press(ModListMessage::SetSorting(ModEntryComp::Version))
-              )
-              // .push(Rule::vertical(0).style(style::max_rule::Rule))
-              .push(Space::with_width(Length::Units(6)))
-              .push(
-                Button::new(
-                  &mut self.game_version_sort_state,
-                  Text::new("Starsector Version")
-                )
-                .padding(0)
-                .width(Length::Fill)
-                .style(style::button_none::Button)
-                .on_press(ModListMessage::SetSorting(ModEntryComp::GameVersion))
-              )
-              .width(Length::FillPortion(40))
-          )
+          .push(self.headings.view().map(|message| {
+            ModListMessage::HeadingsMessage(message)
+          }))
           .push(Space::with_width(Length::Units(10)))
           .height(Length::Shrink)
         )
@@ -574,13 +521,18 @@ impl ModList {
             });
 
             let mut views: Vec<Element<ModListMessage>> = vec![];
+            let name_portion = 10000.0 * self.name_id_ratio;
+            let id_portion = (10000.0 - name_portion) * self.id_author_ratio;
+            let author_portion = (10000.0 - name_portion - id_portion) * self.author_version_ratio;
+            let version_portion = (10000.0 - name_portion - id_portion - author_portion) * self.version_game_version_ratio;
+            let game_version_portion = 10000.0 - name_portion - id_portion - author_portion - version_portion;
 
             sorted_mods.into_iter()
               .filter(|entry| entry.display)
               .for_each(|entry| {
                 every_other = !every_other;
                 let id_clone = entry.id.clone();
-                views.push(entry.view(every_other).map(move |message| {
+                views.push(entry.view(every_other, name_portion as u16, id_portion as u16, author_portion as u16, version_portion as u16, game_version_portion as u16).map(move |message| {
                   ModListMessage::ModEntryMessage(id_clone.clone(), message)
                 }))
               });
@@ -985,7 +937,7 @@ impl ModEntry {
     }
   }
 
-  pub fn view(&mut self, other: bool) -> Element<ModEntryMessage> {
+  pub fn view(&mut self, other: bool, name_portion: u16, id_portion: u16, author_portion: u16, version_portion: u16, game_version_portion: u16) -> Element<ModEntryMessage> {
     let row = Container::new(Row::new()
       .push(
         Container::new(
@@ -1002,21 +954,27 @@ impl ModEntry {
         Button::new(
           &mut self.button_state,
           Row::new()
-            .push(Rule::vertical(0).style(style::max_rule::Rule))
-            .push(Space::with_width(Length::Units(5)))
-            .push(Text::new(self.name.clone()).width(Length::Fill))
-            .push(Rule::vertical(0).style(style::max_rule::Rule))
-            .push(Space::with_width(Length::Units(5)))
-            .push(Text::new(self.id.clone()).width(Length::Fill))
-            .push(Rule::vertical(0).style(style::max_rule::Rule))
-            .push(Space::with_width(Length::Units(5)))
-            .push(Text::new(self.author.clone()).width(Length::Fill))
-            .push(Rule::vertical(0).style(style::max_rule::Rule))
+            .push(Container::new(Row::new()
+              .push(Rule::vertical(0).style(style::max_rule::Rule))
+              .push(Space::with_width(Length::Units(5)))
+              .push(Text::new(self.name.clone()).width(Length::Fill))
+            ).width(Length::FillPortion(name_portion)))
+            .push(Container::new(Row::new()
+              .push(Rule::vertical(0).style(style::max_rule::Rule))
+              .push(Space::with_width(Length::Units(5)))
+              .push(Text::new(self.id.clone()).width(Length::Fill))
+            ).width(Length::FillPortion(id_portion)))
+            .push(Container::new(Row::new()
+              .push(Rule::vertical(0).style(style::max_rule::Rule))
+              .push(Space::with_width(Length::Units(5)))
+              .push(Text::new(self.author.clone()).width(Length::Fill))
+            ).width(Length::FillPortion(author_portion)))
             .push::<Element<ModEntryMessage>>(
               if let Some(status) = &self.update_status {
                 Container::new(
                   Tooltip::new(
                     Container::new(Row::with_children(vec![
+                      Rule::vertical(0).style(style::max_rule::Rule).into(),
                       Space::with_width(Length::Units(5)).into(),
                       Text::new(self.version.clone()).into()
                     ]))
@@ -1040,19 +998,24 @@ impl ModEntry {
                     tooltip::Position::FollowCursor
                   ).style(UpdateStatusTTPatch(status.clone()))
                 )
-                .width(Length::Fill)
+                .width(Length::FillPortion(version_portion))
                 .height(Length::Fill)
                 .padding(1)
                 .into()
               } else {
-                Text::new(self.version.clone())
-                  .width(Length::Fill)
-                  .into()
+                Container::new(Row::new()
+                  .push(Rule::vertical(0).style(style::max_rule::Rule))
+                  .push(Space::with_width(Length::Units(5)))
+                  .push(Text::new(self.version.clone()).width(Length::Fill))
+                ).width(Length::FillPortion(version_portion))
+                .into()
               }
             )
-            .push(Rule::vertical(0).style(style::max_rule::Rule))
-            .push(Space::with_width(Length::Units(5)))
-            .push(Text::new(self.game_version.clone()).width(Length::Fill))
+            .push(Container::new(Row::new()
+              .push(Rule::vertical(0).style(style::max_rule::Rule))
+              .push(Space::with_width(Length::Units(5)))
+              .push(Text::new(self.game_version.clone()).width(Length::Fill))
+            ).width(Length::FillPortion(game_version_portion)))
             .height(Length::Fill)
         )
         .padding(0)
