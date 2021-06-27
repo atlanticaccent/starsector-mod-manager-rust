@@ -40,6 +40,7 @@ pub struct App {
   mod_list: mod_list::ModList,
   manager_update_status: Option<Result<String, String>>,
   manager_update_link_state: button::State,
+  settings_changed: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -72,6 +73,7 @@ impl Application for App {
         mod_list: mod_list::ModList::new(),
         manager_update_status: None,
         manager_update_link_state: button::State::new(),
+        settings_changed: false,
       },
       Command::batch(vec![
         Command::perform(Config::load(), Message::ConfigLoaded),
@@ -151,6 +153,7 @@ impl Application for App {
       },
       Message::SettingsApply(keep_open) => {
         self.settings_open = keep_open;
+        self.settings_changed = false;
 
         let mut commands = vec![
           self.settings.update(SettingsMessage::Close).map(|m| Message::SettingsMessage(m)),
@@ -193,6 +196,10 @@ impl Application for App {
         Command::batch(commands)
       } 
       Message::SettingsMessage(settings_message) => {
+        if let SettingsMessage::OpenNativeFilePick | SettingsMessage::PathChanged(_) | SettingsMessage::VMParamChanged(_, _) | SettingsMessage::UnitChanged(_, _) = settings_message {
+          self.settings_changed = true;
+        }
+
         self.settings.update(settings_message);
         return Command::none();
       },
@@ -242,17 +249,23 @@ impl Application for App {
         .push(update)
         .push(Row::new()
           .push(Space::with_width(Length::Fill))
-          .push(
-            Button::new(
+          .push({
+            let button = Button::new(
               &mut self.apply_button, 
               Text::new("Apply"),
             )
             .on_press(
               Message::SettingsApply(true)
             )
-            .style(style::button_only_hover::Button)
-            .padding(5)
-          )
+            .style(style::button_highlight_and_hover::Button)
+            .padding(5);
+
+            if self.settings_changed {
+              button.style(style::button_highlight_and_hover::Button)
+            } else {
+              button.style(style::button_only_hover::Button)
+            }
+          })
           .push(
             Button::new(
               &mut self.settings_button, 
