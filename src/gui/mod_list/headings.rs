@@ -11,11 +11,16 @@ pub enum HeadingsMessage {
 }
 
 pub struct Headings {
-  headings: pane_grid::State<Content>
+  headings: pane_grid::State<Content>,
+  pub enabled_name_split: pane_grid::Split,
+  pub name_id_split: pane_grid::Split,
+  pub id_author_split: pane_grid::Split,
+  pub author_mod_version_split: pane_grid::Split,
+  pub mod_version_ss_version_split: pane_grid::Split,
 }
 
 impl Headings {
-  pub fn new() -> Self {
+  pub fn new() -> Result<Self, ()> {
     let (mut state, enabled_pane) = pane_grid::State::new(Content::new(format!("Enabled"), ModEntryComp::Enabled));
 
     if_chain! {
@@ -30,11 +35,18 @@ impl Headings {
         state.resize(&id_author_split, 1.0 / 4.0);
         state.resize(&author_mod_version_split, 1.0 / 3.0);
         state.resize(&mod_version_ss_version_split, 1.0 / 2.0);
-      }
-    }
 
-    Headings {
-      headings: state
+        Ok(Headings {
+          headings: state,
+          enabled_name_split,
+          name_id_split,
+          id_author_split,
+          author_mod_version_split,
+          mod_version_ss_version_split,
+        })
+      } else {
+        Err(())
+      }
     }
   }
 

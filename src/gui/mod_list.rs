@@ -84,7 +84,7 @@ impl ModList {
       succ_messages: Vec::default(),
       err_messages: Vec::default(),
       debounce: None,
-      headings: headings::Headings::new(),
+      headings: headings::Headings::new().unwrap(),
     }
   }
 
