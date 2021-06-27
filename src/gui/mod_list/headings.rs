@@ -42,7 +42,9 @@ impl Headings {
     match message {
       HeadingsMessage::HeadingPressed(_) => Command::none(),
       HeadingsMessage::Resized(pane_grid::ResizeEvent { split, ratio }) => {
+        if split != self.enabled_name_split {
         self.headings.resize(&split, ratio);
+        }
 
         Command::none()
       }
