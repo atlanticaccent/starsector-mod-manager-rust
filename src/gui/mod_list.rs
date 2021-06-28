@@ -91,9 +91,13 @@ impl ModList {
   pub fn update(&mut self, message: ModListMessage) -> Command<ModListMessage> {
     match message {
       ModListMessage::SetRoot(root_dir) => {
-        self.root_dir = root_dir;
-
-        Command::batch(self.parse_mod_folder())
+        if self.root_dir != root_dir {
+          self.root_dir = root_dir;
+  
+          Command::batch(self.parse_mod_folder())
+        } else {
+          Command::none()
+        }
       },
       ModListMessage::ModEntryMessage(id, message) => {
         if let Some(entry) = self.mods.get_mut(&id) {
