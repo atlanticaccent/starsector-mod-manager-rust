@@ -4,7 +4,7 @@ use serde::{Serialize, Deserialize};
 use serde_json;
 
 const DEV_VERSION: &'static str = "IN_DEV";
-const TAG: &'static str = DEV_VERSION;
+const TAG: &'static str = "v0.3.0";
 
 // https://users.rust-lang.org/t/show-value-only-in-debug-mode/43686/5
 macro_rules! dbg {
