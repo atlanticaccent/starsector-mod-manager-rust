@@ -70,7 +70,7 @@ pub async fn handle_archive(
       } else {
         match archive_handler::handle_archive(&path.to_owned(), &temp_dest.to_owned(), &file_name.to_owned()) {
           Ok(true) => {
-            match find_nested_mod(&raw_temp_dest) {
+            let result = match find_nested_mod(&raw_temp_dest) {
               Ok(Some(mod_path)) => {
                 if let Ok(new_mod_info) = ModEntry::from_file(mod_path.join("mod_info.json").clone()) {
                   if let Some(id) = current_mods.iter().find(|id| **id == new_mod_info.id) {
@@ -93,7 +93,15 @@ pub async fn handle_archive(
                 }
               },
               _ => return Err(InstallError::NoModError)
-            }
+            };
+
+            if matches!(result, Err(InstallError::MoveError) | Err(InstallError::NewModParseError) | Err(InstallError::NoModError)) {
+              if remove_dir_all(raw_temp_dest).await.is_err() {
+                println!("Failed to clean up temp dir after failed install. Something is very wrong here.")
+              };
+            };
+
+            result
           },
           Ok(false) => return Err(InstallError::UnsupportedArchive),
           Err(_err) => return Err(InstallError::ArchiveError)

@@ -91,10 +91,10 @@ impl Settings {
 
         if let Ok(some_path) = diag.show_open_single_dir() {
           if let Some(ref path_buf) = some_path {
-            self.new_dir = Some(path_buf.to_string_lossy().into_owned())
+            self.new_dir = Some(path_buf.to_string_lossy().into_owned());
+
+            self.root_dir = some_path;
           }
-          
-          self.root_dir = some_path;
         }
 
         return Command::none();

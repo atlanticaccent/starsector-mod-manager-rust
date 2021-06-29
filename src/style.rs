@@ -47,6 +47,32 @@ pub mod button_only_hover {
   }
 }
 
+pub mod button_highlight_and_hover {
+  use iced::{button, Color, Vector};
+
+  pub struct Button;
+
+  impl button::StyleSheet for Button {
+    fn active(&self) -> button::Style {
+      button::Style {
+        shadow_offset: Vector::new(0.0, 0.0),
+        text_color: Color::WHITE.into(),
+        border_color: Color::from_rgb8(0x24, 0xA0, 0xED),
+        border_width: 1.0,
+        ..button::Style::default()
+      }
+    }
+  
+    fn hovered(&self) -> button::Style {
+      button::Style {
+        background: Color::from_rgb8(0x41, 0x41, 0x41).into(),
+        text_color: Color::WHITE.into(),
+        ..button::Style::default()
+      }
+    }
+  }
+}
+
 pub mod nav_bar {
   use iced::{container, Color};
 

@@ -76,17 +76,17 @@ pub fn handle_archive(file: &String, dest: &String, file_name: &String) -> Resul
                   };
                   
                   if (&*file.name()).ends_with('/') {
-                    dbg!("File {} extracted to \"{}\"", i, outpath.display());
+                    // dbg!("File {} extracted to \"{}\"", i, outpath.display());
                     if let Err(err) = fs::create_dir_all(&outpath) {
                       return Err(Box::new(err));
                     }
                   } else {
-                    dbg!(
-                      "File {} extracted to \"{}\" ({} bytes)",
-                      i,
-                      outpath.display(),
-                      file.size()
-                    );
+                    // dbg!(
+                    //   "File {} extracted to \"{}\" ({} bytes)",
+                    //   i,
+                    //   outpath.display(),
+                    //   file.size()
+                    // );
                     if let Some(p) = outpath.parent() {
                       if !p.exists() {
                         if let Err(err) = fs::create_dir_all(&p) {
@@ -116,21 +116,21 @@ pub fn handle_archive(file: &String, dest: &String, file_name: &String) -> Resul
       }
     },
     "application/x-7z-compressed" => {
-      #[cfg(target_family = "unix")]
+      #[cfg(target_os = "linux")]
       return compress_tools(file, dest);
 
-      // null-op on windows
-      #[cfg(not(target_family = "unix"))]
+      // null-op on anything other than linux
+      #[cfg(not(target_os = "linux"))]
       Ok(false)
     },
     _ => {
-      dbg!("is something else");
+      // dbg!("is something else");
       return Ok(false);
     },
   }
 }
 
-#[cfg(target_family = "unix")]
+#[cfg(target_os = "linux")]
 fn compress_tools(file: &String, dest: &String) -> Result<bool, Box<dyn Error + Send>> {
   match fs::File::open(&file) {
     Ok(mut source) => {
@@ -146,7 +146,7 @@ fn compress_tools(file: &String, dest: &String) -> Result<bool, Box<dyn Error + 
 }
 
 // null-op on windows
-#[cfg(not(target_family = "unix"))]
+#[cfg(not(target_os = "linux"))]
 fn _7z_support(_: &String, _: &String) -> Result<bool, Box<dyn Error + Send>> {
   Ok(false)
 }
