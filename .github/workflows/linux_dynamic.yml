@@ -26,5 +26,5 @@ jobs:
           args: --release
       - uses: actions/upload-artifact@v2
         with:
-          name: binary
+          name: linux_dynamic
           path: target/release/starsector_mod_manager
