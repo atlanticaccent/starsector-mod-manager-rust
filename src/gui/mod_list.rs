@@ -816,7 +816,7 @@ impl std::fmt::Display for ToolOptions {
       "{}",
       match self {
         ToolOptions::Default => "Tools",
-        ToolOptions::EnableAll => "Enabled All",
+        ToolOptions::EnableAll => "Enable All",
         ToolOptions::DisableAll => "Disable All",
         ToolOptions::FilterEnabled => "Show Enabled",
         ToolOptions::FilterDisabled => "Show Disabled",
