@@ -1013,13 +1013,7 @@ impl ModEntry {
                     .width(Length::Fill)
                     .height(Length::Fill),
                     match status {
-                      UpdateStatus::Major(delta) | UpdateStatus::Minor(delta) | UpdateStatus::Patch(delta) => {
-                        let local = &self.version_checker.as_ref().unwrap().version;
-                        let remote = ModVersion {
-                          major: local.major + delta.major,
-                          minor: local.minor + delta.minor,
-                          patch: delta.patch.clone()
-                        };
+                      UpdateStatus::Major(remote) | UpdateStatus::Minor(remote) | UpdateStatus::Patch(remote) => {
                         format!("{} update available.\nUpdate: {}", status, remote)
                       },
                       UpdateStatus::UpToDate => format!("Up to date!"),
