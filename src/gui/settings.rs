@@ -184,7 +184,13 @@ impl Settings {
   
     let mut controls = vec![
       Row::new()
-        .push(Text::new("Starsector Install Dir: "))
+        .push({
+          if cfg!(taget_os = "macos") {
+            Text::new("Starsector App: ")
+          } else {
+            Text::new("Starsector Install Dir: ")
+          }
+        })
         .push(input)
         .push(browse)
         .width(Length::Fill)
