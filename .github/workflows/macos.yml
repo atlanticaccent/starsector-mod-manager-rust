@@ -25,4 +25,6 @@ jobs:
       - uses: actions/upload-artifact@v2
         with:
           name: macos
-          path: target/release/starsector_mod_manager
+          path: |
+            target/release/starsector_mod_manager
+            target/release/bundle/osx/Starsector Mod Manager.app
