@@ -24,6 +24,7 @@ handwritten-json = { git = "https://github.com/atlanticaccent/rust-handwritten-j
 zip = "0.5.9"
 unrar = "0.4.4"
 opener = "0.5"
+directories = "3.0"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 compress-tools = "0.11.1"
