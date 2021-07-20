@@ -185,7 +185,7 @@ impl Settings {
     let mut controls = vec![
       Row::new()
         .push({
-          if cfg!(taget_os = "macos") {
+          if cfg!(target_os = "macos") {
             Text::new("Starsector App: ")
           } else {
             Text::new("Starsector Install Dir: ")
