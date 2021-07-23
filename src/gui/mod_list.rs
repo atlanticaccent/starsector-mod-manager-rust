@@ -629,7 +629,7 @@ impl ModList {
           .filter_map(|entry| entry.ok())
           .filter(|entry| {
             if let Ok(file_type) = entry.file_type() {
-              file_type.is_dir()
+              file_type.is_dir() || file_type.is_symlink()
             } else {
               false
             }
