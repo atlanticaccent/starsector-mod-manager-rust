@@ -13,6 +13,7 @@ tokio = { version = "1.6.0", features = ["fs", "io-util"] }
 iced = { version = "0.3.0", features = ["glow", "tokio"] }
 iced_native ="0.4"
 tinyfiledialogs = "^3.8.3"
+iced_futures = "0.3"
 serde = { version = "1.0.126", features = ["derive"] }
 serde_json = "1.0"
 json5 = "0.3.0"
