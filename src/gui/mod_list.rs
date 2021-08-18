@@ -607,9 +607,6 @@ impl ModList {
           installer::Progress::Query(id, path) => {
             ModListMessage::ModInstalled(Err(install::InstallError::DeleteError(format!("Test: encountered dupe {}", id))))
           },
-          installer::Progress::Errored(err) => {
-            ModListMessage::ModInstalled(Err(install::InstallError::ArchiveError))
-          },
           installer::Progress::Finished(completed, failed) => {
             ModListMessage::ModInstalled(Ok(format!("Completed installing: {:#?}, Failed to install: {:#?}", completed, failed)))
           }

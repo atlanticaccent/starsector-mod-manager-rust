@@ -41,8 +41,6 @@ where
     self: Box<Self>,
     _input: futures::stream::BoxStream<'static, I>,
   ) -> futures::stream::BoxStream<'static, Self::Output> {
-    let id = self.id;
-
     Box::pin(futures::stream::unfold(
       State::Ready(self.paths, self.mods_dir),
       move |state| async move {
@@ -62,7 +60,7 @@ where
             }.await;
 
             Some((
-              (id, None),
+              None,
               State::Installing {
                 receiver: rx,
                 complete: vec![],
@@ -79,7 +77,7 @@ where
               complete.push(mod_id);
 
               Some((
-                (id, None),
+                None,
                 State::Installing {
                   receiver,
                   complete,
@@ -89,7 +87,7 @@ where
             },
             Some(Message::Duplicate(mod_id, path)) => {
               Some((
-                (id, Some(Progress::Query(mod_id, path))),
+                Some(Progress::Query(mod_id, path)),
                 State::Installing {
                   receiver,
                   complete,
@@ -101,7 +99,7 @@ where
               errored.push(mod_id.clone());
 
               Some((
-                (id, Some(Progress::Errored(mod_id))),
+                None,
                 State::Installing {
                   receiver,
                   complete,
@@ -111,7 +109,7 @@ where
             },
             None => {
               Some((
-                (id, Some(Progress::Finished(complete, errored))),
+                Some(Progress::Finished(complete, errored)),
                 State::Finished
               ))
             }
@@ -121,7 +119,7 @@ where
           }
         }
       },
-    ).filter_map(|(_, prog)| future::ready(prog)))
+    ).filter_map(|prog| future::ready(prog)))
   }
 }
 
@@ -139,7 +137,6 @@ async fn handle_path(tx: mpsc::UnboundedSender<Message>, path: PathBuf, mods_dir
 pub enum Progress {
   Finished(Vec<String>, Vec<String>),
   Query(String, PathBuf),
-  Errored(String),
 }
 
 pub enum State {
