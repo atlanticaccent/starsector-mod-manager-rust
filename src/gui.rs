@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use iced::{Application, button, Button, Column, Command, Element, Length, Row, Text, executor, Clipboard, Container, Space};
+use iced::{Application, button, Button, Column, Command, Element, Length, Row, Text, executor, Clipboard, Container, Space, Subscription};
 use serde::{Serialize, Deserialize};
 use serde_json;
 
@@ -26,6 +26,7 @@ mod settings;
 pub mod mod_list;
 mod install;
 pub mod dialog;
+mod installer;
 
 use crate::style;
 
@@ -315,6 +316,10 @@ impl Application for App {
       .push(content)
       .width(Length::Fill)
       .into()
+  }
+
+  fn subscription(&self) -> Subscription<Message> {
+    self.mod_list.subscription().map(Message::ModListMessage)
   }
 }
 

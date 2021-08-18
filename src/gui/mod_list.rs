@@ -7,7 +7,7 @@ use std::{
 use iced::{
   Text, Column, Command, Element, Length, Row, Scrollable, scrollable, Button,
   button, Checkbox, Container, Rule, PickList, pick_list, Space, Tooltip,
-  tooltip
+  tooltip, Subscription
 };
 use serde::{Serialize, Deserialize};
 use json_comments::strip_comments;
@@ -20,6 +20,7 @@ use opener;
 use serde_aux::prelude::*;
 
 use crate::gui::install;
+use crate::gui::installer;
 use crate::style;
 use crate::gui::SaveError;
 use crate::gui::dialog;
@@ -43,7 +44,8 @@ pub struct ModList {
   succ_messages: Vec<String>,
   err_messages: Vec<String>,
   debounce: Option<i32>,
-  headings: headings::Headings
+  headings: headings::Headings,
+  installs: Option<Vec<PathBuf>>
 }
 
 #[derive(Debug, Clone)]
@@ -81,6 +83,7 @@ impl ModList {
       err_messages: Vec::default(),
       debounce: None,
       headings: headings::Headings::new().unwrap(),
+      installs: Some(vec![PathBuf::from("good"), PathBuf::from("dupe"), PathBuf::from("error")]),
     }
   }
 
@@ -595,6 +598,28 @@ impl ModList {
       .padding(5)
       .height(Length::Fill)
       .into()
+  }
+
+  pub fn subscription(&self) -> Subscription<ModListMessage> {
+    if let Some(tests) = &self.installs {
+      if let Some(root) = &self.root_dir {
+        installer::install(0, tests.to_vec(), root.join("mods")).map(|message| match message {
+          installer::Progress::Query(id, path) => {
+            ModListMessage::ModInstalled(Err(install::InstallError::DeleteError(format!("Test: encountered dupe {}", id))))
+          },
+          installer::Progress::Errored(err) => {
+            ModListMessage::ModInstalled(Err(install::InstallError::ArchiveError))
+          },
+          installer::Progress::Finished(completed, failed) => {
+            ModListMessage::ModInstalled(Ok(format!("Completed installing: {:#?}, Failed to install: {:#?}", completed, failed)))
+          }
+        })
+      } else {
+        Subscription::none()
+      }
+    } else {
+      Subscription::none()
+    }
   }
 
   #[must_use]
