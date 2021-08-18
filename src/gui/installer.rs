@@ -11,15 +11,33 @@ pub fn install<I: 'static + Hash + Copy + Send>(
 ) -> iced::Subscription<Progress> {
   iced::Subscription::from_recipe(Installation {
     id,
-    paths,
+    payload: Payload::Initial(paths),
+    mods_dir
+  })
+}
+
+pub fn resume<I: 'static + Hash + Copy + Send>(
+  id: I,
+  resumed_id: String, 
+  resumed_path: PathBuf,
+  mods_dir: PathBuf
+) -> iced::Subscription<Progress> {
+  iced::Subscription::from_recipe(Installation {
+    id,
+    payload: Payload::Resumed(resumed_id, resumed_path),
     mods_dir
   })
 }
 
 pub struct Installation<I> {
   id: I,
-  paths: Vec<PathBuf>,
+  payload: Payload,
   mods_dir: PathBuf
+}
+
+pub enum Payload {
+  Initial(Vec<PathBuf>),
+  Resumed(String, PathBuf)
 }
 
 // Make sure iced can use our download stream
@@ -42,20 +60,27 @@ where
     _input: futures::stream::BoxStream<'static, I>,
   ) -> futures::stream::BoxStream<'static, Self::Output> {
     Box::pin(futures::stream::unfold(
-      State::Ready(self.paths, self.mods_dir),
+      State::Ready(self.payload, self.mods_dir),
       move |state| async move {
         match state {
-          State::Ready(paths, mods_dir) => {
+          State::Ready(payload, mods_dir) => {
             let (tx, rx) = mpsc::unbounded_channel();
 
             async {
-              for path in paths {
-                let task_tx = tx.clone();
-                let mods_dir = mods_dir.clone();
-
-                tokio::spawn(async move {
-                  handle_path(task_tx, path, mods_dir).await;
-                });
+              match payload {
+                Payload::Initial(paths) => {
+                  for path in paths {
+                    let task_tx = tx.clone();
+                    let mods_dir = mods_dir.clone();
+    
+                    tokio::spawn(async move {
+                      handle_path(task_tx, path, mods_dir).await;
+                    });
+                  }
+                },
+                Payload::Resumed(id, path) => {
+                  
+                }
               }
             }.await;
 
@@ -67,7 +92,7 @@ where
                 errored: vec![]
               }
             ))
-          }
+          },
           State::Installing {
             mut receiver,
             mut complete,
@@ -140,7 +165,7 @@ pub enum Progress {
 }
 
 pub enum State {
-  Ready(Vec<PathBuf>, PathBuf),
+  Ready(Payload, PathBuf),
   Installing {
     receiver: mpsc::UnboundedReceiver<Message>,
     complete: Vec<String>,
