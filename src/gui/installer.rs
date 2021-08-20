@@ -149,13 +149,11 @@ where
 }
 
 async fn handle_path(tx: mpsc::UnboundedSender<Message>, path: PathBuf, mods_dir: PathBuf) {
-  if path.clone().to_string_lossy() == "good" {
-    tx.send(Message::Success(String::from("good"))).expect("Sending message from task");
-  } else if path.clone().to_string_lossy() == "dupe" {
-    tx.send(Message::Duplicate(String::from("dupe"), path)).expect("Sending message from task");
-  } else {
-    tx.send(Message::Error(String::from("error"))).expect("Sending message from task");
-  }
+}
+
+enum HybridPath {
+  PathBuf(PathBuf),
+  Temp(tempfile::TempDir)
 }
 
 #[derive(Debug, Clone)]
