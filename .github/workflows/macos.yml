@@ -18,11 +18,13 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release
+      - name: Install cargo-bundle
+        run: cargo install cargo-bundle
+      - name: Run cargo-bundle
+        run: cargo bundle --release
       - uses: actions/upload-artifact@v2
         with:
           name: macos
-          path: target/release/starsector_mod_manager
+          path: |
+            target/release/starsector_mod_manager
+            target/release/bundle/osx/Starsector Mod Manager.app
