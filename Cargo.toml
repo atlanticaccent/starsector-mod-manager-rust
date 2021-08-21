@@ -27,6 +27,7 @@ unrar = "0.4.4"
 opener = "0.5"
 directories = "3.0"
 tempfile = "^3.2"
+libarchive = { git = "https://github.com/AtlanticAccent/libarchive-rust" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 compress-tools = "0.11.1"

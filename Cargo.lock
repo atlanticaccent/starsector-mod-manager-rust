@@ -1825,6 +1825,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
+name = "libarchive"
+version = "0.2.0"
+source = "git+https://github.com/AtlanticAccent/libarchive-rust#40cec20f492189fccebb842ede144dc2a50b3007"
+dependencies = [
+ "libarchive3-sys",
+ "libc",
+]
+
+[[package]]
+name = "libarchive3-sys"
+version = "0.1.2"
+source = "git+https://github.com/ntoskrnl7/libarchive3-sys#6b02cc8e93ac598684998c11f9d0340ff038c2c6"
+dependencies = [
+ "libc",
+ "pkg-config",
+ "vcpkg",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.95"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3089,6 +3108,7 @@ dependencies = [
  "infer",
  "json5",
  "json_comments",
+ "libarchive",
  "opener",
  "reqwest",
  "serde",
