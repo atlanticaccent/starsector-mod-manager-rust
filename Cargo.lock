@@ -775,14 +775,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e88a8acf291dafb59c2d96e8f59828f3838bb1a70398823ade51a84de6a6deed"
 
 [[package]]
-name = "find_mountpoint"
-version = "1.0.3"
-source = "git+https://github.com/othiym23/find_mountpoint#3a8c0c93fed9db9eb77e925bad0b33517b4da1d6"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "fixedbitset"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3148,7 +3140,6 @@ version = "0.3.0"
 dependencies = [
  "compress-tools",
  "directories",
- "find_mountpoint",
  "handwritten-json",
  "iced",
  "iced_futures",

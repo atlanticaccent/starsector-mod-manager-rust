@@ -14,7 +14,7 @@ use tokio::{
 use libarchive;
 use tempfile::{tempdir_in, TempDir};
 use snafu::{Snafu, ResultExt};
-use find_mountpoint::find_mountpoint;
+// use find_mountpoint::find_mountpoint;
 
 use super::mod_list::ModEntry;
 
@@ -244,12 +244,10 @@ fn find_nested_mod(dest: &PathBuf) -> std::io::Result<Option<PathBuf>> {
 }
 
 async fn move_or_copy(from: PathBuf, to: PathBuf) {
-  let mount_from = find_mountpoint(&from).expect("Find origin mount point");
-  let mount_to = find_mountpoint(&to).expect("Find destination mount point");
+  // let mount_from = find_mountpoint(&from).expect("Find origin mount point");
+  // let mount_to = find_mountpoint(&to).expect("Find destination mount point");
 
-  if mount_from == mount_to {
-    rename(from, to).await.expect("Move new mod into mods directory");
-  } else {
+  if let Err(_) = rename(from.clone(), to.clone()).await {
     task::spawn_blocking(move || copy_dir_recursive(&to, &from)).await
       .expect("Run blocking dir copy")
       .expect("Copy dir to new destination");
