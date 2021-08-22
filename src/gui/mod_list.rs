@@ -603,8 +603,9 @@ impl ModList {
   pub fn subscription(&self) -> Subscription<ModListMessage> {
     if let Some(tests) = &self.installs {
       if let Some(root) = &self.root_dir {
-        installer::install(0, tests.to_vec(), root.join("mods")).map(|message| match message {
-          installer::Progress::Query(id, path) => {
+        let mod_ids: Vec<String> = self.mods.iter().map(|(id, _)| id.clone()).collect();
+        installer::install(0, tests.to_vec(), root.join("mods"), mod_ids).map(|message| match message {
+          installer::Progress::Query(name, id, path) => {
             ModListMessage::ModInstalled(Err(install::InstallError::DeleteError(format!("Test: encountered dupe {}", id))))
           },
           installer::Progress::Finished(completed, failed) => {
@@ -848,7 +849,7 @@ impl From<VersionUnion> for String {
 #[derive(Debug, Clone, Deserialize)]
 pub struct ModEntry {
   pub id: String,
-  name: String,
+  pub name: String,
   #[serde(default)]
   author: String,
   version: VersionUnion,
