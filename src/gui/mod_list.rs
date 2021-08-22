@@ -20,10 +20,10 @@ use opener;
 use serde_aux::prelude::*;
 
 use crate::gui::install;
-use crate::gui::installer;
+use crate::gui::installer::{self, Installation};
 use crate::style;
 use crate::gui::SaveError;
-use crate::gui::dialog;
+use crate::gui::util;
 
 mod headings;
 
@@ -185,7 +185,7 @@ impl ModList {
                   return Command::perform(install::handle_archive(PathBuf::from(source_path), root_dir.clone(), true, mod_ids), ModListMessage::ModInstalled)
                 },
                 None => {},
-                _ => { dialog::error("Experienced an error. Did not move given folder into mods directory."); }
+                _ => { util::error("Experienced an error. Did not move given folder into mods directory."); }
               }
 
               Command::none()
@@ -193,7 +193,7 @@ impl ModList {
             _ => Command::none()
           }
         } else {
-          dialog::error("No install directory set. Please set the Starsector install directory in Settings.");
+          util::error("No install directory set. Please set the Starsector install directory in Settings.");
           return Command::none();
         }
       },
@@ -336,7 +336,7 @@ impl ModList {
         Command::none()
       },
       ModListMessage::ParseModListError(_) => {
-        dialog::error(format!("Failed to parse mods folder. Mod list has not been populated."));
+        util::error(format!("Failed to parse mods folder. Mod list has not been populated."));
 
         Command::none()
       },
@@ -425,12 +425,12 @@ impl ModList {
       ModListMessage::Timeout(id) => {
         if Some(id) == self.debounce {
           if self.succ_messages.len() > 0 {
-            dialog::notif(format!("{}", self.succ_messages.join("\n")));
+            util::notif(format!("{}", self.succ_messages.join("\n")));
             self.succ_messages.clear();
           }
 
           if self.err_messages.len() > 0 {
-            dialog::error(format!("{}", self.err_messages.join("\n")));
+            util::error(format!("{}", self.err_messages.join("\n")));
             self.err_messages.clear();
           }
 
@@ -692,7 +692,7 @@ impl ModList {
 
         versions.iter()
           .filter_map(|v| v.as_ref())
-          .map(|v| Command::perform(install::get_master_version(v.clone()), ModListMessage::MasterVersionReceived))
+          .map(|v| Command::perform(util::get_master_version(v.clone()), ModListMessage::MasterVersionReceived))
           .collect()
       } else {
         // debug_println!("Fatal. Could not parse mods folder. Alert developer");
@@ -1118,7 +1118,7 @@ impl ModDescription {
       },
       ModDescriptionMessage::LinkClicked(url) => {
         if let Err(_) = opener::open(url) {
-          dialog::error(format!("Failed to open update link. This could be due to a number of issues unfortunately.\nMake sure you have a default browser set for your operating system, otherwise there's not much that can be done."))
+          util::error(format!("Failed to open update link. This could be due to a number of issues unfortunately.\nMake sure you have a default browser set for your operating system, otherwise there's not much that can be done."))
         }
       }
     }

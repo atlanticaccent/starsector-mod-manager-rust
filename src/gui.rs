@@ -25,7 +25,7 @@ macro_rules! dbg {
 mod settings;
 pub mod mod_list;
 mod install;
-pub mod dialog;
+pub mod util;
 mod installer;
 
 use crate::style;
