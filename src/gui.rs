@@ -4,7 +4,7 @@ use serde::{Serialize, Deserialize};
 use serde_json;
 
 const DEV_VERSION: &'static str = "IN_DEV";
-const TAG: &'static str = "v0.3.0";
+const TAG: &'static str = env!("CARGO_PKG_VERSION");
 
 // https://users.rust-lang.org/t/show-value-only-in-debug-mode/43686/5
 macro_rules! dbg {
@@ -240,7 +240,7 @@ impl Application for App {
           .padding(5)
         )
       },
-      Some(Ok(remote)) if remote < &String::from(TAG) => Container::new(Text::new("Are you from the future?")).padding(5),
+      Some(Ok(remote)) if remote < &format!("v{}", TAG) => Container::new(Text::new("Are you from the future?")).padding(5),
       Some(Ok(_)) | None => Container::new(Text::new(TAG)).padding(5),
       Some(Err(_)) => Container::new(Text::new(&err_string)).padding(5),
     }.width(Length::Fill).align_x(iced::Align::Center);
