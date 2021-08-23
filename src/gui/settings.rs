@@ -86,7 +86,11 @@ impl Settings {
         return Command::none();
       },
       SettingsMessage::OpenNativeFilePick => {
-        let maybe_path = tfd::select_folder_dialog("Select Starsector installation:", UserDirs::new().unwrap().document_dir().unwrap().to_str().unwrap());
+        let maybe_path = if cfg!(target_os = "macos") {
+          tfd::save_file_dialog("Select Starsector app:", UserDirs::new().unwrap().document_dir().unwrap().to_str().unwrap())
+        } else {
+          tfd::select_folder_dialog("Select Starsector installation:", UserDirs::new().unwrap().document_dir().unwrap().to_str().unwrap())
+        };
         if let Some(ref path) = maybe_path { 
           self.new_dir = Some(path.to_string());
         }
@@ -180,7 +184,7 @@ impl Settings {
     let mut controls = vec![
       Row::new()
         .push({
-          if cfg!(taget_os = "macos") {
+          if cfg!(target_os = "macos") {
             Text::new("Starsector App: ")
           } else {
             Text::new("Starsector Install Dir: ")
