@@ -1,7 +1,7 @@
 use std::{
   io::{Read, BufReader, BufRead},
   path::PathBuf, collections::HashMap,
-  fs::{remove_dir_all, rename, File},
+  fs::File,
   fmt::Display
 };
 use iced::{
@@ -19,7 +19,6 @@ use opener;
 
 use serde_aux::prelude::*;
 
-use crate::gui::install;
 use crate::gui::installer::{self, Installation};
 use crate::style;
 use crate::gui::SaveError;
@@ -41,9 +40,9 @@ pub struct ModList {
   author_version_ratio: f32,
   version_game_version_ratio: f32,
   last_browsed: Option<PathBuf>,
-  succ_messages: Vec<String>,
-  err_messages: Vec<String>,
-  debounce: Option<i32>,
+  // succ_messages: Vec<String>,
+  // err_messages: Vec<String>,
+  // debounce: Option<i32>,
   headings: headings::Headings,
   installs: Vec<Installation<u16>>,
   installation_id: u16,
@@ -62,7 +61,7 @@ pub enum ModListMessage {
   SingleInstallComplete,
   MasterVersionReceived((String, Result<Option<ModVersionMeta>, String>)),
   ParseModListError(()),
-  Timeout(i32),
+  // Timeout(i32),
   HeadingsMessage(headings::HeadingsMessage),
 }
 
@@ -82,9 +81,9 @@ impl ModList {
       author_version_ratio: 1.0 / 3.0,
       version_game_version_ratio: 0.5,
       last_browsed: None,
-      succ_messages: Vec::default(),
-      err_messages: Vec::default(),
-      debounce: None,
+      // succ_messages: Vec::default(),
+      // err_messages: Vec::default(),
+      // debounce: None,
       headings: headings::Headings::new().unwrap(),
       installs: vec![],
       installation_id: 0,
@@ -202,7 +201,6 @@ impl ModList {
                   self.installation_id += 1;
                 },
                 None => {},
-                _ => { util::error("Experienced an error. Did not move given folder into mods directory."); }
               }
 
               Command::none()
@@ -408,23 +406,23 @@ impl ModList {
           }
         }
       },
-      ModListMessage::Timeout(id) => {
-        if Some(id) == self.debounce {
-          if self.succ_messages.len() > 0 {
-            util::notif(format!("{}", self.succ_messages.join("\n")));
-            self.succ_messages.clear();
-          }
+      // ModListMessage::Timeout(id) => {
+      //   if Some(id) == self.debounce {
+      //     if self.succ_messages.len() > 0 {
+      //       util::notif(format!("{}", self.succ_messages.join("\n")));
+      //       self.succ_messages.clear();
+      //     }
 
-          if self.err_messages.len() > 0 {
-            util::error(format!("{}", self.err_messages.join("\n")));
-            self.err_messages.clear();
-          }
+      //     if self.err_messages.len() > 0 {
+      //       util::error(format!("{}", self.err_messages.join("\n")));
+      //       self.err_messages.clear();
+      //     }
 
-          self.debounce = None;
-        };
+      //     self.debounce = None;
+      //   };
 
-        Command::none()
-      },
+      //   Command::none()
+      // },
       ModListMessage::HeadingsMessage(message) => {
         match message {
           headings::HeadingsMessage::HeadingPressed(sorting) => {
@@ -681,7 +679,7 @@ impl ModList {
     }
   }
 
-  #[must_use]
+/*   #[must_use]
   fn queue_message(&mut self, message: String, is_err: bool) -> Command<ModListMessage> {
     if is_err {
       self.err_messages.push(message);
@@ -698,7 +696,7 @@ impl ModList {
 
       Command::perform(tokio::time::sleep(tokio::time::Duration::from_millis(50)), |_| { ModListMessage::Timeout(0) })
     }
-  }
+  } */
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
