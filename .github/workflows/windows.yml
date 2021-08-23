@@ -18,6 +18,12 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+      - name: Install libarchive
+        uses: lukka/run-vcpkg@v7.4
+        with:
+          vcpkgArguments: libarchive
+          vcpkgTriplet: x64-windows-static
+          vcpkgGitCommitId: 0bf3923f9fab4001c00f0f429682a0853b5749e0
       - uses: actions-rs/cargo@v1
         with:
           command: build
