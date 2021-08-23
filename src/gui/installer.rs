@@ -1,0 +1,349 @@
+use std::path::PathBuf;
+use std::hash::{Hash, Hasher};
+use std::{
+  fs::{copy, create_dir_all, read_dir},
+  io
+};
+use std::sync::Arc;
+use iced_futures::futures::{self, future, StreamExt};
+use tokio::{
+  sync::mpsc,
+  task,
+  fs::rename
+};
+use libarchive;
+use tempfile::{tempdir, TempDir};
+use snafu::{Snafu, ResultExt};
+// use find_mountpoint::find_mountpoint;
+use remove_dir_all::remove_dir_all;
+
+use super::mod_list::ModEntry;
+
+#[derive(Clone)]
+pub struct Installation<I> 
+where
+  I: 'static + Hash + Copy + Send,
+{
+  pub id: I,
+  payload: Payload,
+  mods_dir: PathBuf,
+  installed: Vec<String>
+}
+
+#[derive(Clone)]
+pub enum Payload {
+  Initial(Vec<PathBuf>),
+  Resumed(String, HybridPath, PathBuf)
+}
+
+impl From<Vec<PathBuf>> for Payload {
+  fn from(from: Vec<PathBuf>) -> Self {
+    Payload::Initial(from)
+  }
+}
+
+impl From<(String, HybridPath, PathBuf)> for Payload {
+  fn from(from: (String, HybridPath, PathBuf)) -> Self {
+    let (name, new_path, old_path) = from;
+
+    Payload::Resumed(name, new_path, old_path)
+  }
+}
+
+impl<I> Installation<I> 
+where
+  I: 'static + Hash + Copy + Send,
+{
+  pub fn new<T: Into<Payload>>(id: I, payload: T, mods_dir: PathBuf, installed: Vec<String>) -> Self {
+    Installation {
+      id,
+      payload: payload.into(),
+      mods_dir,
+      installed
+    }
+  }
+
+  pub fn install(self) -> iced::Subscription<Progress<I>> {
+    iced::Subscription::from_recipe(self)
+  }
+}
+
+// Make sure iced can use our download stream
+impl<H, I, T> iced_native::subscription::Recipe<H, I> for Installation<T>
+where
+  T: 'static + Hash + Copy + Send,
+  H: Hasher,
+{
+  type Output = Progress<T>;
+
+  fn hash(&self, state: &mut H) {
+    struct Marker;
+    std::any::TypeId::of::<Marker>().hash(state);
+
+    self.id.hash(state);
+  }
+
+  fn stream(
+    self: Box<Self>,
+    _input: futures::stream::BoxStream<'static, I>,
+  ) -> futures::stream::BoxStream<'static, Self::Output> {
+    let id = self.id;
+
+    Box::pin(futures::stream::unfold(
+      State::Ready(self.payload, self.mods_dir, self.installed),
+      move |state| async move {
+        match state {
+          State::Ready(payload, mods_dir, installed) => {
+            let (tx, rx) = mpsc::unbounded_channel();
+
+            match payload {
+              Payload::Initial(paths) => {
+                for path in paths {
+                  let task_tx = tx.clone();
+                  let mods_dir = mods_dir.clone();
+                  let installed = installed.clone();
+  
+                  tokio::spawn(async move {
+                    handle_path(task_tx, path, mods_dir, installed).await;
+                  });
+                }
+              },
+              Payload::Resumed(name, new_path, old_path) => {
+                tokio::spawn(async move {
+                  handle_delete(tx, name, new_path, old_path).await;
+                });
+              }
+            }
+
+            Some((
+              None,
+              State::Installing {
+                receiver: rx,
+                complete: vec![],
+                errored: vec![]
+              }
+            ))
+          },
+          State::Installing {
+            mut receiver,
+            mut complete,
+            mut errored
+          } => match receiver.recv().await {
+            Some(ChannelMessage::Success(mod_name)) => {
+              complete.push(mod_name);
+
+              Some((
+                Some(Progress::Finished),
+                State::Installing {
+                  receiver,
+                  complete,
+                  errored
+                }
+              ))
+            },
+            Some(ChannelMessage::Duplicate(name, id, new_path, old_path)) => {
+              Some((
+                Some(Progress::Query(name, id, new_path, old_path)),
+                State::Installing {
+                  receiver,
+                  complete,
+                  errored
+                }
+              ))
+            },
+            Some(ChannelMessage::Error(mod_name)) => {
+              errored.push(mod_name);
+
+              Some((
+                None,
+                State::Installing {
+                  receiver,
+                  complete,
+                  errored
+                }
+              ))
+            },
+            None => {
+              Some((
+                Some(Progress::Completed(id, complete, errored)),
+                State::Finished
+              ))
+            }
+          },
+          State::Finished => {
+            None
+          }
+        }
+      },
+    ).filter_map(|prog| future::ready(prog)))
+  }
+}
+
+async fn handle_path(tx: mpsc::UnboundedSender<ChannelMessage>, path: PathBuf, mods_dir: PathBuf, installed: Vec<String>) {
+  let mut mod_folder = if path.is_file() {
+    let decompress = task::spawn_blocking(move || decompress(path)).await.expect("Run decompression");
+    match decompress {
+      Ok(temp) => HybridPath::Temp(Arc::new(temp), None),
+      Err(err) => {
+        println!("{:?}", err);
+        tx.send(ChannelMessage::Error(err.to_string())).expect("Send error over async channel");
+
+        return;
+      }
+    }
+  } else {
+    HybridPath::PathBuf(path)
+  };
+
+  let dir = mod_folder.get_path_copy();
+  if let Ok(maybe_path) = task::spawn_blocking(move || find_nested_mod(&dir)).await.expect("Find mod in given folder") {
+    if let Some(mod_path) = maybe_path {
+      if let Ok(mod_info) = ModEntry::from_file(mod_path.join("mod_info.json")) {
+        if let Some(id) = installed.into_iter().find(|existing| **existing == mod_info.id) {
+          mod_folder = match mod_folder {
+            HybridPath::PathBuf(_) => HybridPath::PathBuf(mod_path.clone()),
+            HybridPath::Temp(temp, _) => HybridPath::Temp(temp, Some(mod_path.clone()))
+          };
+
+          tx.send(ChannelMessage::Duplicate(mod_info.name, id, mod_folder, None)).expect("Send query over async channel");
+        } else if !mods_dir.join(mod_info.id.clone()).exists() {
+          move_or_copy(mod_path, mods_dir.join(mod_info.id)).await;
+
+          tx.send(ChannelMessage::Success(mod_info.name)).expect("Send success over async channel");
+        } else {
+          mod_folder = match mod_folder {
+            HybridPath::PathBuf(_) => HybridPath::PathBuf(mod_path.clone()),
+            HybridPath::Temp(temp, _) => HybridPath::Temp(temp, Some(mod_path.clone()))
+          };
+
+          tx.send(ChannelMessage::Duplicate(mod_info.name, String::new(), mod_folder, Some(mods_dir.join(mod_info.id.clone())))).expect("Send query over async channel");
+        }
+      }
+    }
+  }
+}
+
+fn decompress(path: PathBuf) -> Result<TempDir, InstallError> {
+  let temp_dir = tempdir().context(Io {})?;
+
+  let mut builder = libarchive::reader::Builder::new();
+
+  // builder.support_compression(libarchive::archive::ReadCompression::All).context(Libarchive)?;
+  builder.support_format(libarchive::archive::ReadFormat::All).context(Libarchive)?;
+  builder.support_filter(libarchive::archive::ReadFilter::All).context(Libarchive)?;
+
+  let mut reader = builder.open_file(path).context(Libarchive)?;
+
+  let mut writer = libarchive::writer::Disk::new();
+  let output_dir = temp_dir.path();
+
+  writer.write(&mut reader, Some(&output_dir.to_owned().to_string_lossy())).context(Libarchive)?;
+
+  Ok(temp_dir)
+}
+
+fn find_nested_mod(dest: &PathBuf) -> std::io::Result<Option<PathBuf>> {
+  for entry in read_dir(dest)? {
+    let entry = entry?;
+    if entry.file_type()?.is_dir() {
+      let res = find_nested_mod(&entry.path())?;
+      if res.is_some() {
+        return Ok(res);
+      }
+    } else if entry.file_type()?.is_file() {
+      if entry.file_name() == "mod_info.json" {
+        return Ok(Some(dest.to_path_buf()));
+      }
+    }
+  }
+
+  Ok(None)
+}
+
+async fn move_or_copy(from: PathBuf, to: PathBuf) {
+  // let mount_from = find_mountpoint(&from).expect("Find origin mount point");
+  // let mount_to = find_mountpoint(&to).expect("Find destination mount point");
+
+  if let Err(_) = rename(from.clone(), to.clone()).await {
+    task::spawn_blocking(move || copy_dir_recursive(&to, &from)).await
+      .expect("Run blocking dir copy")
+      .expect("Copy dir to new destination");
+  }
+}
+
+fn copy_dir_recursive(to: &PathBuf, from: &PathBuf) -> io::Result<()> {
+  if !to.exists() {
+    create_dir_all(to)?;
+  }
+
+  for entry in from.read_dir()? {
+    let entry = entry?;
+    if entry.file_type()?.is_dir() {
+      copy_dir_recursive(&to.to_path_buf().join(entry.file_name()), &entry.path())?;
+    } else if entry.file_type()?.is_file() {
+      copy(entry.path(), &to.to_path_buf().join(entry.file_name()))?;
+    }
+  }
+
+  Ok(())
+}
+
+async fn handle_delete(tx: mpsc::UnboundedSender<ChannelMessage>, name: String, new_path: HybridPath, old_path: PathBuf) {
+  let destination = old_path.canonicalize().expect("Canonicalize destination");
+  remove_dir_all(destination).expect("Remove old mod");
+
+  let origin = new_path.get_path_copy();
+  move_or_copy(origin, old_path).await;
+
+  tx.send(ChannelMessage::Success(name)).expect("Send success over async channel");
+}
+
+#[derive(Debug, Clone)]
+pub enum HybridPath {
+  PathBuf(PathBuf),
+  Temp(Arc<TempDir>, Option<PathBuf>)
+}
+
+impl HybridPath {
+  fn get_path_copy(&self) -> PathBuf {
+    match self {
+      HybridPath::PathBuf(ref path) => path.clone(),
+      HybridPath::Temp(_, Some(ref path)) => path.clone(),
+      HybridPath::Temp(ref arc, None) => arc.path().to_path_buf()
+    }
+  }
+}
+
+#[derive(Debug, Snafu)]
+enum InstallError {
+  Io { source: std::io::Error },
+  Libarchive { source: libarchive::error::ArchiveError },
+  Any { detail: String }
+}
+
+#[derive(Debug, Clone)]
+pub enum Progress<I> 
+where
+  I: 'static + Hash + Copy + Send,
+{
+  Completed(I, Vec<String>, Vec<String>),
+  Query(String, String, HybridPath, Option<PathBuf>),
+  Finished
+}
+
+pub enum State {
+  Ready(Payload, PathBuf, Vec<String>),
+  Installing {
+    receiver: mpsc::UnboundedReceiver<ChannelMessage>,
+    complete: Vec<String>,
+    errored: Vec<String>
+  },
+  Finished
+}
+
+#[derive(Debug, Clone)]
+pub enum ChannelMessage {
+  Success(String),
+  Duplicate(String, String, HybridPath, Option<PathBuf>),
+  Error(String)
+}

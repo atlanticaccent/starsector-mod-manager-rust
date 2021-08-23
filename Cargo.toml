@@ -9,10 +9,11 @@ description = "A mod manager for the game Starsector"
 
 [dependencies]
 infer = "0.3.4"
-tokio = { version = "1.6.0", features = ["fs", "io-util"] }
+tokio = { version = "1.6.0", features = ["fs", "io-util", "rt"] }
 iced = { version = "0.3.0", features = ["glow", "tokio"] }
 iced_native ="0.4"
 tinyfiledialogs = "^3.8.3"
+iced_futures = "0.3"
 serde = { version = "1.0.126", features = ["derive"] }
 serde_json = "1.0"
 json5 = "0.3.0"
@@ -25,6 +26,11 @@ zip = "0.5.9"
 unrar = "0.4.4"
 opener = "0.5"
 directories = "3.0"
+tempfile = "^3.2"
+libarchive = { git = "https://github.com/AtlanticAccent/libarchive-rust" }
+snafu = "^0.6.10"
+# find_mountpoint = { git = "https://github.com/othiym23/find_mountpoint" } // doesn't quite work
+remove_dir_all = "^0.7.0"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 compress-tools = "0.11.1"

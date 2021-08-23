@@ -4,7 +4,6 @@
 use iced::{Application, Settings};
 
 mod gui;
-mod archive_handler;
 mod style;
 
 fn main() {
