@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use iced::{Application, button, Button, Column, Command, Element, Length, Row, Text, executor, Clipboard, Container, Space};
+use iced::{Application, button, Button, Column, Command, Element, Length, Row, Text, executor, Clipboard, Container, Space, Subscription};
 use serde::{Serialize, Deserialize};
 use serde_json;
 
@@ -24,7 +24,8 @@ macro_rules! dbg {
 
 mod settings;
 pub mod mod_list;
-mod install;
+pub mod util;
+mod installer;
 
 use crate::style;
 
@@ -315,6 +316,10 @@ impl Application for App {
       .width(Length::Fill)
       .into()
   }
+
+  fn subscription(&self) -> Subscription<Message> {
+    self.mod_list.subscription().map(Message::ModListMessage)
+  }
 }
 
 impl App {
@@ -365,7 +370,15 @@ pub struct Config {
 }
 
 impl Config {
-  fn path() -> PathBuf {
+  async fn path(try_make: bool) -> PathBuf {
+    use directories::ProjectDirs;
+    use tokio::fs;
+
+    if let Some(proj_dirs) = ProjectDirs::from("org", "laird", "Starsector Mod Manager") {
+      if proj_dirs.config_dir().exists() || (try_make && fs::create_dir_all(proj_dirs.config_dir()).await.is_ok()) {
+        return proj_dirs.config_dir().to_path_buf().join("config.json");
+      }
+    };
     PathBuf::from(r"./config.json")
   }
 
@@ -373,7 +386,7 @@ impl Config {
     use tokio::fs;
     use tokio::io::AsyncReadExt;
 
-    let mut config_file = fs::File::open(Config::path())
+    let mut config_file = fs::File::open(Config::path(false).await)
       .await
       .map_err(|_| LoadError::NoSuchFile)?;
 
@@ -392,7 +405,7 @@ impl Config {
     let json = serde_json::to_string_pretty(&self)
       .map_err(|_| SaveError::FormatError)?;
 
-    let mut file = fs::File::create(Config::path())
+    let mut file = fs::File::create(Config::path(true).await)
       .await
       .map_err(|_| SaveError::FileError)?;
 

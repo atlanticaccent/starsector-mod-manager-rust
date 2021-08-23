@@ -14,15 +14,32 @@ jobs:
     name: Rust project
     runs-on: macos-latest
     steps:
+      - name: Install dependencies
+        run: |
+          brew install pkgconfig
+          brew install libarchive
+          echo PKG_CONFIG_PATH="/usr/local/opt/libarchive/lib/pkgconfig" >> $GITHUB_ENV
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - uses: actions-rs/cargo@v1
+      - name: Check cache
+        uses: actions/cache@v2
         with:
-          command: build
-          args: --release
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install cargo-bundle
+        run: cargo install cargo-bundle
+      - name: Run cargo-bundle
+        run: cargo bundle --release
       - uses: actions/upload-artifact@v2
         with:
           name: macos
-          path: target/release/starsector_mod_manager
+          path: |
+            target/release/starsector_mod_manager
+            target/release/bundle/osx/Starsector Mod Manager.app

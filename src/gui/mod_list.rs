@@ -1,27 +1,28 @@
 use std::{
   io::{Read, BufReader, BufRead},
   path::PathBuf, collections::HashMap,
-  fs::{remove_dir_all, rename, File},
+  fs::File,
   fmt::Display
 };
 use iced::{
   Text, Column, Command, Element, Length, Row, Scrollable, scrollable, Button,
   button, Checkbox, Container, Rule, PickList, pick_list, Space, Tooltip,
-  tooltip
+  tooltip, Subscription
 };
 use serde::{Serialize, Deserialize};
 use json_comments::strip_comments;
 use json5;
 use handwritten_json;
 use if_chain::if_chain;
-use native_dialog::{FileDialog, MessageDialog, MessageType};
+use tinyfiledialogs as tfd;
 use opener;
 
 use serde_aux::prelude::*;
 
-use crate::gui::install;
+use crate::gui::installer::{self, Installation};
 use crate::style;
 use crate::gui::SaveError;
+use crate::gui::util;
 
 mod headings;
 
@@ -39,10 +40,12 @@ pub struct ModList {
   author_version_ratio: f32,
   version_game_version_ratio: f32,
   last_browsed: Option<PathBuf>,
-  succ_messages: Vec<String>,
-  err_messages: Vec<String>,
-  debounce: Option<i32>,
-  headings: headings::Headings
+  // succ_messages: Vec<String>,
+  // err_messages: Vec<String>,
+  // debounce: Option<i32>,
+  headings: headings::Headings,
+  installs: Vec<Installation<u16>>,
+  installation_id: u16,
 }
 
 #[derive(Debug, Clone)]
@@ -53,10 +56,12 @@ pub enum ModListMessage {
   InstallPressed(InstallOptions),
   ToolsPressed(ToolOptions),
   EnabledModsSaved(Result<(), SaveError>),
-  ModInstalled(Result<String, install::InstallError>),
+  InstallationComplete(u16, Vec<String>, Vec<String>),
+  DuplicateMod(String, String, installer::HybridPath, Option<PathBuf>),
+  SingleInstallComplete,
   MasterVersionReceived((String, Result<Option<ModVersionMeta>, String>)),
   ParseModListError(()),
-  Timeout(i32),
+  // Timeout(i32),
   HeadingsMessage(headings::HeadingsMessage),
 }
 
@@ -76,10 +81,12 @@ impl ModList {
       author_version_ratio: 1.0 / 3.0,
       version_game_version_ratio: 0.5,
       last_browsed: None,
-      succ_messages: Vec::default(),
-      err_messages: Vec::default(),
-      debounce: None,
+      // succ_messages: Vec::default(),
+      // err_messages: Vec::default(),
+      // debounce: None,
       headings: headings::Headings::new().unwrap(),
+      installs: vec![],
+      installation_id: 0,
     }
   }
 
@@ -151,8 +158,7 @@ impl ModList {
             &last_browsed
           } else {
             &root_dir
-          };
-          let diag = FileDialog::new().set_location(start_path);
+          }.to_str().expect("Convert path to string");
 
           match opt {
             InstallOptions::FromArchive => {
@@ -160,28 +166,41 @@ impl ModList {
               if cfg!(unix) {
                 filters.push("7z");
               }
-              if let Ok(paths) = diag.add_filter("Archive types", &filters).show_open_multiple_file() {
+
+              if let Some(paths) = tfd::open_file_dialog_multi("Select archives:", start_path, Some((&["*.tar", "*.zip", "*.7z", "*.rar"], "Archive types"))) {
                 if let Some(last) = paths.last() {
-                  self.last_browsed = last.parent().map(|p| p.to_path_buf());
+                  self.last_browsed = PathBuf::from(last).parent().map(|p| p.to_path_buf());
                 }
 
                 let mod_ids: Vec<String> = self.mods.iter().map(|(id, _)| id.clone()).collect();
-                return Command::batch(paths.iter().map(|path| {
-                  Command::perform(install::handle_archive(path.to_path_buf(), root_dir.clone(), false, mod_ids.clone()), ModListMessage::ModInstalled)
-                }))
+                self.installs.push(Installation::new(
+                  self.installation_id,
+                  paths.iter().map(|p| PathBuf::from(p)).collect::<Vec<PathBuf>>(),
+                  root_dir.join("mods"),
+                  mod_ids
+                ));
+
+                self.installation_id += 1;
               }
 
               Command::none()
             },
             InstallOptions::FromFolder => {
-              match diag.show_open_single_dir() {
-                Ok(Some(source_path)) => {
-                  self.last_browsed = source_path.parent().map(|p| p.to_path_buf());
+              match tfd::select_folder_dialog("Select mod folder:", start_path) {
+                Some(source_path) => {
+                  self.last_browsed = PathBuf::from(&source_path).parent().map(|p| p.to_path_buf());
+                  
                   let mod_ids: Vec<String> = self.mods.iter().map(|(id, _)| id.clone()).collect();
-                  return Command::perform(install::handle_archive(source_path.to_path_buf(), root_dir.clone(), true, mod_ids), ModListMessage::ModInstalled)
+                  self.installs.push(Installation::new(
+                    self.installation_id,
+                    vec![PathBuf::from(source_path)],
+                    root_dir.join("mods"),
+                    mod_ids
+                  ));
+
+                  self.installation_id += 1;
                 },
-                Ok(None) => {},
-                _ => { ModList::make_alert("Experienced an error. Did not move given folder into mods directory.".to_owned()); }
+                None => {},
               }
 
               Command::none()
@@ -189,7 +208,7 @@ impl ModList {
             _ => Command::none()
           }
         } else {
-          ModList::make_alert("No install directory set. Please set the Starsector install directory in Settings.".to_string());
+          util::error("No install directory set. Please set the Starsector install directory in Settings.");
           return Command::none();
         }
       },
@@ -201,98 +220,63 @@ impl ModList {
 
         Command::none()
       },
-      ModListMessage::ModInstalled(res) => {
-        let is_err = res.is_err();
-        match res {
-          Ok(mod_name) | Err(install::InstallError::DeleteError(mod_name)) => {
-            let mess = self.queue_message(format!("Successfully installed {}{}", mod_name, if is_err {".\nFailed to clean up temporary directory"} else {""}), false);
+      ModListMessage::InstallationComplete(id, successful, failed) => {
+        self.installs.retain(|i| i.id != id);
 
-            let mut commands = self.parse_mod_folder();
+        let complete = if successful.len() > 0 {
+          format!("Succesfully installed:\n{}\n", successful.join(", "))
+        } else {
+          String::new()
+        };
+        let errors = if failed.len() > 0 {
+          format!("Failed to install:\n{}", failed.join(", "))
+        } else {
+          String::new()
+        };
+        if successful.len() > 0 || failed.len() > 0 {
+          util::notif(format!("{}{}", complete, errors));
+        }
 
-            commands.push(mess);
+        Command::batch(self.parse_mod_folder())
+      },
+      ModListMessage::DuplicateMod(name, id, new_path, old_path) => {
+        if let Some(old_path) = old_path {
+          let id = if let Some(mod_id) = self.mods.iter().find_map(|(_, entry)| (entry.path == old_path).then(|| entry.id.clone())) {
+            format!(", containing mod with ID `{}`, ", mod_id)
+          } else {
+            String::new()
+          };
+          let folder_name = old_path.file_name().unwrap().to_string_lossy();
+          if util::query(format!("A folder named `{}`{} already exists. Do you want to replace it?\nClicking no will cancel the installation of this mod.", folder_name, id)) {
+            self.installs.push(Installation::new(
+              self.installation_id,
+              (name, new_path, old_path),
+              PathBuf::new(),
+              vec![]
+            ));
 
-            Command::batch(commands)
-          },
-          Err(err) => {
-            match err {
-              install::InstallError::DirectoryExists(path, is_folder) => {
-                if_chain! {
-                  if let Some(_file_name) = path.file_stem();
-                  if let Some(root_dir) = self.root_dir.clone();
-                  let mod_dir = root_dir.join("mods");
-                  let raw_dest = mod_dir.join(_file_name);
-                  then {
-                    match ModList::make_query(format!("A directory named {:?} already exists. Do you want to replace it?\nChoosing no will abort this operation.", _file_name)) {
-                      Ok(true) => {
-                        if !raw_dest.exists() || remove_dir_all(&raw_dest).is_ok() {
-                          self.mods.retain(|_, entry| entry.path != raw_dest);
+            self.installation_id += 1;
+          };
+        } else {
+          if let Some((_, entry)) = self.mods.iter().find(|(_, entry)| entry.id == id) {
+            if util::query(format!("A mod with ID `{}`, named `{}`, already exists. Do you want to replace it?\nClicking no will cancel the installation of this mod.", id, name)) {
+              self.installs.push(Installation::new(
+                self.installation_id,
+                (name, new_path, entry.path.clone()),
+                self.root_dir.clone().unwrap(),
+                vec![]
+              ));
 
-                          let mod_ids: Vec<String> = self.mods.iter().map(|(id, _)| id.clone()).collect();
-                          Command::perform(install::handle_archive(path.to_path_buf(), root_dir.clone(), is_folder, mod_ids), ModListMessage::ModInstalled)
-                        } else {
-                          ModList::make_alert(format!("Failed to delete existing directory. Please check permissions on mod folder/{:?}", raw_dest));
-                          Command::none()
-                        }
-                      },
-                      _ => Command::none()
-                    }
-                  } else {
-                    ModList::make_alert(format!("Encountered an error. Could not install to {:?}", path));
-                    Command::none()
-                  }
-                }
-              },
-              install::InstallError::IDExists(current_path, intended_path, maybe_parent_path, id) => {
-                match ModList::make_query(format!("A mod with ID {} already exists. Do you want to replace it?\nChoosing no will abort this operation.", id)) {
-                  Ok(true) => {
-                    let mut commands: Vec<Command<ModListMessage>> = vec![];
-
-                    if let Some(entry) = self.mods.get(&id).as_ref() {
-                      if !entry.path.exists() || remove_dir_all(&entry.path).is_ok() {
-                        if let Ok(_) = rename(&current_path, intended_path) {
-                          let mut success_message = format!("Successfully installed {}", id);
-
-                          if let Some(parent_temp_path) = maybe_parent_path {
-                            if parent_temp_path != current_path {
-                              if remove_dir_all(parent_temp_path).is_err() {
-                                success_message = format!("Successfully deleted old version and installed new version, however failed to clean up empty temporary folder at {}", current_path.to_string_lossy())
-                              }
-                            }
-                          }
-
-                          commands.push(self.queue_message(success_message, false));
-                        } else {
-                          ModList::make_alert(format!("Successfully deleted old version, however, failed to move new version's files - new version was unpacked to {}", current_path.to_string_lossy()));
-                        }
-                      } else {
-                        ModList::make_alert(format!("Encountered an error: failed to delete old mod directory.\n Both the old version and new version of this mod are now present, you should delete one of them to avoid issues.\nThe old version is installed at {} and the new version was unpacked to {}.", entry.path.to_string_lossy(), current_path.to_string_lossy()));
-                      }
-                    } else {
-                      ModList::make_alert(format!("Encountered an error: could not get old mod's entry.\n Both the old version and new version of this mod may now be installed, you should delete one of them to avoid issues.\nThe new version is installed at {:?}.", current_path));
-                    }
-
-                    commands.append(&mut self.parse_mod_folder());
-                    Command::batch(commands)
-                  },
-                  _ => {
-                    if let Some(parent_temp_path) = maybe_parent_path {
-                      if remove_dir_all(parent_temp_path).is_err() {
-                        println!("Failed to remove temporary directory.")
-                      }
-                    }
-
-                    Command::none()
-                  }
-                }
-              },
-              other => {
-                ModList::make_alert(format!("Encountered error: {:?}", other));
-                Command::none()
-              }
-            }
+              self.installation_id += 1;
+            };
           }
         }
+
+        Command::none()
       },
+      ModListMessage::SingleInstallComplete => {
+        Command::batch(self.parse_mod_folder())
+      }
       ModListMessage::MasterVersionReceived((id, res)) => {
         if_chain! {
           if let Some(entry) = self.mods.get_mut(&id);
@@ -336,7 +320,7 @@ impl ModList {
         Command::none()
       },
       ModListMessage::ParseModListError(_) => {
-        ModList::make_alert(format!("Failed to parse mods folder. Mod list has not been populated."));
+        util::error(format!("Failed to parse mods folder. Mod list has not been populated."));
 
         Command::none()
       },
@@ -422,23 +406,23 @@ impl ModList {
           }
         }
       },
-      ModListMessage::Timeout(id) => {
-        if Some(id) == self.debounce {
-          if self.succ_messages.len() > 0 {
-            ModList::make_alert(format!("{}", self.succ_messages.join("\n")));
-            self.succ_messages.clear();
-          }
+      // ModListMessage::Timeout(id) => {
+      //   if Some(id) == self.debounce {
+      //     if self.succ_messages.len() > 0 {
+      //       util::notif(format!("{}", self.succ_messages.join("\n")));
+      //       self.succ_messages.clear();
+      //     }
 
-          if self.err_messages.len() > 0 {
-            ModList::make_alert(format!("{}", self.err_messages.join("\n")));
-            self.err_messages.clear();
-          }
+      //     if self.err_messages.len() > 0 {
+      //       util::error(format!("{}", self.err_messages.join("\n")));
+      //       self.err_messages.clear();
+      //     }
 
-          self.debounce = None;
-        };
+      //     self.debounce = None;
+      //   };
 
-        Command::none()
-      },
+      //   Command::none()
+      // },
       ModListMessage::HeadingsMessage(message) => {
         match message {
           headings::HeadingsMessage::HeadingPressed(sorting) => {
@@ -600,6 +584,18 @@ impl ModList {
       .into()
   }
 
+  pub fn subscription(&self) -> Subscription<ModListMessage> {
+    if self.installs.len() > 0 {
+      return Subscription::batch(self.installs.iter().map(|i| i.clone().install())).map(|message| match message {
+        installer::Progress::Query(name, id, new_path, old_path) => ModListMessage::DuplicateMod(name, id, new_path, old_path),
+        installer::Progress::Completed(id, completed, failed) => ModListMessage::InstallationComplete(id, completed, failed),
+        installer::Progress::Finished => ModListMessage::SingleInstallComplete
+      })
+    }
+
+    Subscription::none()
+  }
+
   #[must_use]
   fn parse_mod_folder(&mut self) -> Vec<Command<ModListMessage>>{
     self.mods.clear();
@@ -672,7 +668,7 @@ impl ModList {
 
         versions.iter()
           .filter_map(|v| v.as_ref())
-          .map(|v| Command::perform(install::get_master_version(v.clone()), ModListMessage::MasterVersionReceived))
+          .map(|v| Command::perform(util::get_master_version(v.clone()), ModListMessage::MasterVersionReceived))
           .collect()
       } else {
         // debug_println!("Fatal. Could not parse mods folder. Alert developer");
@@ -683,7 +679,7 @@ impl ModList {
     }
   }
 
-  #[must_use]
+/*   #[must_use]
   fn queue_message(&mut self, message: String, is_err: bool) -> Command<ModListMessage> {
     if is_err {
       self.err_messages.push(message);
@@ -700,57 +696,7 @@ impl ModList {
 
       Command::perform(tokio::time::sleep(tokio::time::Duration::from_millis(50)), |_| { ModListMessage::Timeout(0) })
     }
-  }
-
-  pub fn make_alert(message: String) {
-    let mbox = move || {
-      MessageDialog::new()
-      .set_title("Alert:")
-      .set_type(MessageType::Info)
-      .set_text(&message)
-      .show_alert()
-      .map_err(|err| { err.to_string() })
-    };
-
-    // On windows we need to spawn a thread as the msg doesn't work otherwise
-    #[cfg(target_os = "windows")]
-    match std::thread::spawn(move || {
-      mbox()
-    }).join() {
-      Ok(Ok(())) => Ok(()),
-      Ok(Err(err)) => Err(err),
-      Err(err) => Err(err).map_err(|err| format!("{:?}", err))
-    }.unwrap();
-    // unwrap() because if this goes to hell there's not really much we can do about it...
-
-    #[cfg(not(target_os = "windows"))]
-    mbox();
-  }
-
-  pub fn make_query(message: String) -> Result<bool, String> {
-    let mbox = move || {
-      MessageDialog::new()
-      .set_type(MessageType::Warning)
-      .set_text(&message)
-      .show_confirm()
-      .map_err(|err| { err.to_string() })
-    };
-
-    // On windows we need to spawn a thread as the msg doesn't work otherwise
-    #[cfg(target_os = "windows")]
-    let res = match std::thread::spawn(move || {
-      mbox()
-    }).join() {
-      Ok(Ok(confirm)) => Ok(confirm),
-      Ok(Err(err)) => Err(err),
-      Err(err) => Err(err).map_err(|err| format!("{:?}", err))
-    };
-
-    #[cfg(not(target_os = "windows"))]
-    let res = mbox();
-
-    res
-  }
+  } */
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -879,7 +825,7 @@ impl From<VersionUnion> for String {
 #[derive(Debug, Clone, Deserialize)]
 pub struct ModEntry {
   pub id: String,
-  name: String,
+  pub name: String,
   #[serde(default)]
   author: String,
   version: VersionUnion,
@@ -1013,13 +959,7 @@ impl ModEntry {
                     .width(Length::Fill)
                     .height(Length::Fill),
                     match status {
-                      UpdateStatus::Major(delta) | UpdateStatus::Minor(delta) | UpdateStatus::Patch(delta) => {
-                        let local = &self.version_checker.as_ref().unwrap().version;
-                        let remote = ModVersion {
-                          major: local.major + delta.major,
-                          minor: local.minor + delta.minor,
-                          patch: delta.patch.clone()
-                        };
+                      UpdateStatus::Major(remote) | UpdateStatus::Minor(remote) | UpdateStatus::Patch(remote) => {
                         format!("{} update available.\nUpdate: {}", status, remote)
                       },
                       UpdateStatus::UpToDate => format!("Up to date!"),
@@ -1154,7 +1094,7 @@ impl ModDescription {
       },
       ModDescriptionMessage::LinkClicked(url) => {
         if let Err(_) = opener::open(url) {
-          ModList::make_alert(format!("Failed to open update link. This could be due to a number of issues unfortunately.\nMake sure you have a default browser set for your operating system, otherwise there's not much that can be done."))
+          util::error(format!("Failed to open update link. This could be due to a number of issues unfortunately.\nMake sure you have a default browser set for your operating system, otherwise there's not much that can be done."))
         }
       }
     }

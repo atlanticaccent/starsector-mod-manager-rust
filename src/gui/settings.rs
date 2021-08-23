@@ -2,10 +2,9 @@ use iced::{
   Align, Button, Length, Text, TextInput, Command, Row, Column, Element,
   text_input, button, Container, Space, Checkbox, PickList, pick_list
 };
-use native_dialog::{FileDialog};
+use tinyfiledialogs as tfd;
 use std::path::PathBuf;
-
-use super::mod_list;
+use directories::UserDirs;
 
 pub mod vmparams;
 
@@ -87,20 +86,20 @@ impl Settings {
         return Command::none();
       },
       SettingsMessage::OpenNativeFilePick => {
-        let diag = FileDialog::new().set_location("~/Desktop");
-
-        if let Ok(some_path) = diag.show_open_single_dir() {
-          if let Some(ref path_buf) = some_path {
-            self.new_dir = Some(path_buf.to_string_lossy().into_owned());
-
-            self.root_dir = some_path;
-          }
+        let maybe_path = if cfg!(target_os = "macos") {
+          tfd::save_file_dialog("Select Starsector app:", UserDirs::new().unwrap().document_dir().unwrap().to_str().unwrap())
+        } else {
+          tfd::select_folder_dialog("Select Starsector installation:", UserDirs::new().unwrap().document_dir().unwrap().to_str().unwrap())
+        };
+        if let Some(ref path) = maybe_path { 
+          self.new_dir = Some(path.to_string());
         }
+        self.root_dir = maybe_path.map(PathBuf::from);
 
         return Command::none();
       },
       SettingsMessage::OpenNativeMessage => {
-        mod_list::ModList::make_alert(COPYRIGHT.to_string());
+        tfd::message_box_ok("Copyright:", COPYRIGHT, tfd::MessageBoxIcon::Info);
 
         Command::none()
       },
@@ -184,7 +183,13 @@ impl Settings {
   
     let mut controls = vec![
       Row::new()
-        .push(Text::new("Starsector Install Dir: "))
+        .push({
+          if cfg!(target_os = "macos") {
+            Text::new("Starsector App: ")
+          } else {
+            Text::new("Starsector Install Dir: ")
+          }
+        })
         .push(input)
         .push(browse)
         .width(Length::Fill)
@@ -290,11 +295,11 @@ This program is provided under the following terms:
 
 Copyright (c) 2021 Iain Laird
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the `Software`), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+THE SOFTWARE IS PROVIDED `AS IS`, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 This program makes use of multiple open source components and framewords. They include, and are not limited to:
 
