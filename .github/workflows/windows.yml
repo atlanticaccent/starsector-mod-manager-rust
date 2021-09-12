@@ -24,6 +24,8 @@ jobs:
           vcpkgArguments: libarchive
           vcpkgTriplet: x64-windows-static
           vcpkgGitCommitId: 0bf3923f9fab4001c00f0f429682a0853b5749e0
+      - name: Install cargo-wix
+        run: cargo install cargo-wix
       - name: Check cache
         uses: actions/cache@v2
         with:
@@ -38,7 +40,11 @@ jobs:
         with:
           command: build
           args: --release
+      - name: Run cargo-wix
+        run: cargo wix -b $env:WIX/bin --nocapture
       - uses: actions/upload-artifact@v2
         with:
           name: windows
-          path: target/release/starsector_mod_manager.exe
+          path: |
+            target/release/starsector_mod_manager.exe
+            target/wix/*.msi
