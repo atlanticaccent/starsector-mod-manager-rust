@@ -226,10 +226,11 @@ impl Application for App {
     let mut buttons: Row<Message> = Row::new()
       .push(Space::with_width(Length::Units(5)));
 
-    let err_string = format!("{} Err", TAG);
+    let tag = format!("v{}", TAG);
+    let err_string = format!("{} Err", &tag);
     let update = match &self.manager_update_status {
-      Some(Ok(_)) if TAG == DEV_VERSION => Container::new(Text::new("If you see this I forgot to set the version")).padding(5),
-      Some(Ok(remote)) if remote > &String::from(TAG) => {
+      Some(Ok(_)) if &tag == DEV_VERSION => Container::new(Text::new("If you see this I forgot to set the version")).padding(5),
+      Some(Ok(remote)) if remote > &tag => {
         Container::new(
           Button::new(
             &mut self.manager_update_link_state,
@@ -240,8 +241,8 @@ impl Application for App {
           .padding(5)
         )
       },
-      Some(Ok(remote)) if remote < &format!("v{}", TAG) => Container::new(Text::new("Are you from the future?")).padding(5),
-      Some(Ok(_)) | None => Container::new(Text::new(TAG)).padding(5),
+      Some(Ok(remote)) if remote < &tag => Container::new(Text::new("Are you from the future?")).padding(5),
+      Some(Ok(_)) | None => Container::new(Text::new(&tag)).padding(5),
       Some(Err(_)) => Container::new(Text::new(&err_string)).padding(5),
     }.width(Length::Fill).align_x(iced::Align::Center);
     buttons = if self.settings_open {

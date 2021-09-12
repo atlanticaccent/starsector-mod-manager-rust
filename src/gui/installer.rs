@@ -11,7 +11,7 @@ use tokio::{
   task,
   fs::rename
 };
-use libarchive;
+use compress_tools;
 use tempfile::{tempdir, TempDir};
 use snafu::{Snafu, ResultExt};
 // use find_mountpoint::find_mountpoint;
@@ -224,20 +224,10 @@ async fn handle_path(tx: mpsc::UnboundedSender<ChannelMessage>, path: PathBuf, m
 }
 
 fn decompress(path: PathBuf) -> Result<TempDir, InstallError> {
+  let source = std::fs::File::open(path).context(Io {})?;
   let temp_dir = tempdir().context(Io {})?;
 
-  let mut builder = libarchive::reader::Builder::new();
-
-  // builder.support_compression(libarchive::archive::ReadCompression::All).context(Libarchive)?;
-  builder.support_format(libarchive::archive::ReadFormat::All).context(Libarchive)?;
-  builder.support_filter(libarchive::archive::ReadFilter::All).context(Libarchive)?;
-
-  let mut reader = builder.open_file(path).context(Libarchive)?;
-
-  let mut writer = libarchive::writer::Disk::new();
-  let output_dir = temp_dir.path();
-
-  writer.write(&mut reader, Some(&output_dir.to_owned().to_string_lossy())).context(Libarchive)?;
+  compress_tools::uncompress_archive(source, temp_dir.path(), compress_tools::Ownership::Preserve).context(Archive {})?;
 
   Ok(temp_dir)
 }
@@ -317,7 +307,7 @@ impl HybridPath {
 #[derive(Debug, Snafu)]
 enum InstallError {
   Io { source: std::io::Error },
-  Libarchive { source: libarchive::error::ArchiveError },
+  Archive { source: compress_tools::Error },
   Any { detail: String }
 }
 

@@ -382,9 +382,8 @@ dependencies = [
 
 [[package]]
 name = "compress-tools"
-version = "0.11.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9c7af15fac888edf71f08e0718f722099d4a21d3b9e2e6cf6b95edc1d6575be"
+version = "0.12.1"
+source = "git+https://github.com/OSSystems/compress-tools-rs.git#8c477291def1e046a87d313f5c29e6b8c2e5645d"
 dependencies = [
  "derive_more",
  "libc",
@@ -1831,25 +1830,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
-name = "libarchive"
-version = "0.2.0"
-source = "git+https://github.com/AtlanticAccent/libarchive-rust#40cec20f492189fccebb842ede144dc2a50b3007"
-dependencies = [
- "libarchive3-sys",
- "libc",
-]
-
-[[package]]
-name = "libarchive3-sys"
-version = "0.1.2"
-source = "git+https://github.com/ntoskrnl7/libarchive3-sys#6b02cc8e93ac598684998c11f9d0340ff038c2c6"
-dependencies = [
- "libc",
- "pkg-config",
- "vcpkg",
-]
-
-[[package]]
 name = "libc"
 version = "0.2.95"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3136,7 +3116,7 @@ dependencies = [
 
 [[package]]
 name = "starsector_mod_manager"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "compress-tools",
  "directories",
@@ -3148,7 +3128,6 @@ dependencies = [
  "infer",
  "json5",
  "json_comments",
- "libarchive",
  "opener",
  "remove_dir_all 0.7.0",
  "reqwest",
