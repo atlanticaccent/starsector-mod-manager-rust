@@ -6,18 +6,22 @@ use std::io::Read;
 use crate::gui::mod_list::ModVersionMeta;
 
 pub fn error<T: AsRef<str>>(message: T) {
-  tfd::message_box_ok("Error", message.as_ref(), tfd::MessageBoxIcon::Error);
+  tfd::message_box_ok("Error", sanitise(message).as_ref(), tfd::MessageBoxIcon::Error);
 }
 
 pub fn notif<T: AsRef<str>>(message: T) {
-  tfd::message_box_ok("Message:", message.as_ref(), tfd::MessageBoxIcon::Info);
+  tfd::message_box_ok("Message:", sanitise(message).as_ref(), tfd::MessageBoxIcon::Info);
 }
 
 pub fn query<T: AsRef<str>>(message: T) -> bool {
-  match tfd::message_box_yes_no("Query:", message.as_ref(), tfd::MessageBoxIcon::Question, tfd::YesNo::No) {
+  match tfd::message_box_yes_no("Query:", sanitise(message).as_ref(), tfd::MessageBoxIcon::Question, tfd::YesNo::No) {
     tfd::YesNo::Yes => true,
     tfd::YesNo::No => false
   }
+}
+
+fn sanitise<T: AsRef<str>>(message: T) -> String {
+  message.as_ref().replace("'", "`").replace("\"", "`")
 }
 
 pub async fn get_master_version(local: ModVersionMeta) -> (String, Result<Option<ModVersionMeta>, String>) {
