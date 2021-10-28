@@ -13,9 +13,11 @@ use tokio::{
 };
 use compress_tools;
 use tempfile::{tempdir, TempDir};
-use snafu::{Snafu, ResultExt};
+use snafu::{Snafu, ResultExt, OptionExt};
 // use find_mountpoint::find_mountpoint;
 use remove_dir_all::remove_dir_all;
+use infer;
+use unrar;
 
 use super::mod_list::ModEntry;
 
@@ -224,10 +226,29 @@ async fn handle_path(tx: mpsc::UnboundedSender<ChannelMessage>, path: PathBuf, m
 }
 
 fn decompress(path: PathBuf) -> Result<TempDir, InstallError> {
-  let source = std::fs::File::open(path).context(Io {})?;
+  let source = std::fs::File::open(&path).context(Io {})?;
   let temp_dir = tempdir().context(Io {})?;
+  let mime_type = infer::get_from_path(&path)
+    .context(Io {})?
+    .context(Mime { detail: "Failed to get mime type"})?
+    .mime_type();
 
-  compress_tools::uncompress_archive(source, temp_dir.path(), compress_tools::Ownership::Preserve).context(Archive {})?;
+  match mime_type {
+    "application/vnd.rar" | "application/x-rar-compressed" => {
+      #[cfg(not(target_env="musl"))]
+      unrar::Archive::new(path.to_string_lossy().to_string())
+        .extract_to(temp_dir.path().to_string_lossy().to_string())
+        .ok().context(Unrar { detail: "Opaque Unrar error. Assume there's been an error unpacking your rar archive." })?
+        .process()
+        .ok().context(Unrar { detail: "Opaque Unrar error. Assume there's been an error unpacking your rar archive." })?;
+        // trust me I tried to de-dupe this and it's buggered
+      #[cfg(target_env="musl")]
+      compress_tools::uncompress_archive(source, temp_dir.path(), compress_tools::Ownership::Preserve).context(CompressTools {})?
+    }
+    _ => {
+      compress_tools::uncompress_archive(source, temp_dir.path(), compress_tools::Ownership::Preserve).context(CompressTools {})?
+    }
+  }
 
   Ok(temp_dir)
 }
@@ -307,7 +328,9 @@ impl HybridPath {
 #[derive(Debug, Snafu)]
 enum InstallError {
   Io { source: std::io::Error },
-  Archive { source: compress_tools::Error },
+  Mime { detail: String },
+  CompressTools { source: compress_tools::Error },
+  Unrar { detail: String },
   Any { detail: String }
 }
 
