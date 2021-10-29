@@ -16,6 +16,7 @@ jobs:
     steps:
       - name: Install dependencies
         run: |
+          brew install coreutils
           brew install pkgconfig
           brew install libarchive
           echo PKG_CONFIG_PATH="/usr/local/opt/libarchive/lib/pkgconfig" >> $GITHUB_ENV
@@ -37,6 +38,9 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Run cargo-bundle
         run: cargo bundle --release
+      - name: Run make_portable.sh
+        run: ./scripts/make_portable.sh target/release/bundle/osx/Starsector\ Mod\ Manager.app/Contents/MacOS/starsector_mod_manager ../Resources
+        shell: bash
       - uses: actions/upload-artifact@v2
         with:
           name: macos
