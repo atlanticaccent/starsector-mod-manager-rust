@@ -23,15 +23,12 @@ if_chain = "1.0.1"
 reqwest = { version = "0.11.3", default-features = false, features = ["rustls-tls", "json"]}
 serde-aux = "2.1.1"
 handwritten-json = { git = "https://github.com/atlanticaccent/rust-handwritten-json.git" }
-zip = "0.5.9"
 unrar = "0.4.4"
 opener = "0.5"
 directories = "3.0"
 tempfile = "^3.2"
-# libarchive = { git = "https://github.com/AtlanticAccent/libarchive-rust" }
 compress-tools = { git = "https://github.com/OSSystems/compress-tools-rs.git" }
 snafu = "^0.6.10"
-# find_mountpoint = { git = "https://github.com/othiym23/find_mountpoint" } // doesn't quite work
 remove_dir_all = "^0.7.0"
 
 [package.metadata.bundle]
