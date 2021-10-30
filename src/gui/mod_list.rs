@@ -14,7 +14,6 @@ use json_comments::strip_comments;
 use json5;
 use handwritten_json;
 use if_chain::if_chain;
-use tinyfiledialogs as tfd;
 use opener;
 
 use serde_aux::prelude::*;
@@ -162,7 +161,7 @@ impl ModList {
 
           match opt {
             InstallOptions::FromSingleArchive | InstallOptions::FromMultipleArchive => {
-              if let Some(paths) = tfd::open_file_dialog_multi("Select archives:", start_path, Some((&["*.tar", "*.zip", "*.7z", "*.rar"], "Archive types"))) {
+              if let Some(paths) = util::select_file_dialog_multiple("Select archives:", start_path, &["*.tar", "*.zip", "*.7z", "*.rar"], "Archive types") {
                 if let Some(last) = paths.last() {
                   self.last_browsed = PathBuf::from(last).parent().map(|p| p.to_path_buf());
                 }
@@ -181,7 +180,7 @@ impl ModList {
               Command::none()
             },
             InstallOptions::FromFolder => {
-              match tfd::select_folder_dialog("Select mod folder:", start_path) {
+              match util::select_folder_dialog("Select mod folder:", start_path) {
                 Some(source_path) => {
                   self.last_browsed = PathBuf::from(&source_path).parent().map(|p| p.to_path_buf());
                   
