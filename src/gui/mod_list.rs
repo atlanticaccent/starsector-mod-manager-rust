@@ -14,7 +14,6 @@ use json_comments::strip_comments;
 use json5;
 use handwritten_json;
 use if_chain::if_chain;
-use tinyfiledialogs as tfd;
 use opener;
 
 use serde_aux::prelude::*;
@@ -161,13 +160,8 @@ impl ModList {
           }.to_str().expect("Convert path to string");
 
           match opt {
-            InstallOptions::FromArchive => {
-              let mut filters = vec!["zip", "rar"];
-              if cfg!(unix) {
-                filters.push("7z");
-              }
-
-              if let Some(paths) = tfd::open_file_dialog_multi("Select archives:", start_path, Some((&["*.tar", "*.zip", "*.7z", "*.rar"], "Archive types"))) {
+            InstallOptions::FromSingleArchive | InstallOptions::FromMultipleArchive => {
+              if let Some(paths) = util::select_file_dialog_multiple("Select archives:", start_path, &["*.tar", "*.zip", "*.7z", "*.rar"], "Archive types") {
                 if let Some(last) = paths.last() {
                   self.last_browsed = PathBuf::from(last).parent().map(|p| p.to_path_buf());
                 }
@@ -186,7 +180,7 @@ impl ModList {
               Command::none()
             },
             InstallOptions::FromFolder => {
-              match tfd::select_folder_dialog("Select mod folder:", start_path) {
+              match util::select_folder_dialog("Select mod folder:", start_path) {
                 Some(source_path) => {
                   self.last_browsed = PathBuf::from(&source_path).parent().map(|p| p.to_path_buf());
                   
@@ -701,14 +695,16 @@ impl ModList {
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum InstallOptions {
-  FromArchive,
+  FromMultipleArchive,
+  FromSingleArchive,
   FromFolder,
   Default
 }
 
 impl InstallOptions {
-  const SHOW: [InstallOptions; 2] = [
-    InstallOptions::FromArchive,
+  const SHOW: [InstallOptions; 3] = [
+    InstallOptions::FromMultipleArchive,
+    InstallOptions::FromSingleArchive,
     InstallOptions::FromFolder
   ];
 }
@@ -720,7 +716,8 @@ impl std::fmt::Display for InstallOptions {
       "{}",
       match self {
         InstallOptions::Default => "Install Mod",
-        InstallOptions::FromArchive => "From Archive",
+        InstallOptions::FromMultipleArchive => "From Multiple Archives",
+        InstallOptions::FromSingleArchive => "From Single Archive",
         InstallOptions::FromFolder => "From Folder"
       }
     )

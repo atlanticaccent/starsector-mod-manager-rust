@@ -87,7 +87,7 @@ impl Settings {
       },
       SettingsMessage::OpenNativeFilePick => {
         let maybe_path = if cfg!(target_os = "macos") {
-          tfd::save_file_dialog("Select Starsector app:", UserDirs::new().unwrap().document_dir().unwrap().to_str().unwrap())
+          tfd::open_file_dialog("Select Starsector app:", UserDirs::new().unwrap().document_dir().unwrap().to_str().unwrap(), Some((&["*.app"], "*.app")))
         } else {
           tfd::select_folder_dialog("Select Starsector installation:", UserDirs::new().unwrap().document_dir().unwrap().to_str().unwrap())
         };

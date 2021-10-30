@@ -1,23 +1,32 @@
-use tinyfiledialogs as tfd;
 use if_chain::if_chain;
 use json_comments::strip_comments;
-use std::io::Read;
+use std::{io::Read, path::PathBuf};
+
+#[cfg_attr(target_os = "macos", path = "dialogs/macos.rs")]
+#[cfg_attr(not(target_os = "macos"), path = "dialogs/other.rs")]
+mod dialogs;
+pub use self::dialogs::*;
 
 use crate::gui::mod_list::ModVersionMeta;
 
 pub fn error<T: AsRef<str>>(message: T) {
-  tfd::message_box_ok("Error", message.as_ref(), tfd::MessageBoxIcon::Error);
+  Dialog::error(String::from(message.as_ref()));
 }
 
 pub fn notif<T: AsRef<str>>(message: T) {
-  tfd::message_box_ok("Message:", message.as_ref(), tfd::MessageBoxIcon::Info);
+  Dialog::notif(String::from(message.as_ref()));
 }
 
 pub fn query<T: AsRef<str>>(message: T) -> bool {
-  match tfd::message_box_yes_no("Query:", message.as_ref(), tfd::MessageBoxIcon::Question, tfd::YesNo::No) {
-    tfd::YesNo::Yes => true,
-    tfd::YesNo::No => false
-  }
+  Dialog::query(String::from(message.as_ref()))
+}
+
+pub fn select_folder_dialog(title: &str, path: &str) -> Option<PathBuf> {
+  Dialog::select_folder(title, path)
+}
+
+pub fn select_file_dialog_multiple(title: &str, path: &str, filter: &[&str], filter_label: &str) -> Option<Vec<PathBuf>> {
+  Dialog::select_file_dialog_multiple(title, path, filter, filter_label)
 }
 
 pub async fn get_master_version(local: ModVersionMeta) -> (String, Result<Option<ModVersionMeta>, String>) {

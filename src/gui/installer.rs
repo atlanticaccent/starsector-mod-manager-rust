@@ -13,9 +13,12 @@ use tokio::{
 };
 use compress_tools;
 use tempfile::{tempdir, TempDir};
-use snafu::{Snafu, ResultExt};
+use snafu::{Snafu, ResultExt, OptionExt};
 // use find_mountpoint::find_mountpoint;
 use remove_dir_all::remove_dir_all;
+use infer;
+use unrar;
+use if_chain::if_chain;
 
 use super::mod_list::ModEntry;
 
@@ -196,38 +199,60 @@ async fn handle_path(tx: mpsc::UnboundedSender<ChannelMessage>, path: PathBuf, m
   };
 
   let dir = mod_folder.get_path_copy();
-  if let Ok(maybe_path) = task::spawn_blocking(move || find_nested_mod(&dir)).await.expect("Find mod in given folder") {
-    if let Some(mod_path) = maybe_path {
-      if let Ok(mod_info) = ModEntry::from_file(mod_path.join("mod_info.json")) {
-        if let Some(id) = installed.into_iter().find(|existing| **existing == mod_info.id) {
-          mod_folder = match mod_folder {
-            HybridPath::PathBuf(_) => HybridPath::PathBuf(mod_path.clone()),
-            HybridPath::Temp(temp, _) => HybridPath::Temp(temp, Some(mod_path.clone()))
-          };
+  if_chain! {
+    if let Ok(maybe_path) = task::spawn_blocking(move || find_nested_mod(&dir)).await.expect("Find mod in given folder");
+    if let Some(mod_path) = maybe_path;
+    if let Ok(mod_info) = ModEntry::from_file(mod_path.join("mod_info.json"));
+    then {
+      if let Some(id) = installed.into_iter().find(|existing| **existing == mod_info.id) {
+        mod_folder = match mod_folder {
+          HybridPath::PathBuf(_) => HybridPath::PathBuf(mod_path.clone()),
+          HybridPath::Temp(temp, _) => HybridPath::Temp(temp, Some(mod_path.clone()))
+        };
 
-          tx.send(ChannelMessage::Duplicate(mod_info.name, id, mod_folder, None)).expect("Send query over async channel");
-        } else if !mods_dir.join(mod_info.id.clone()).exists() {
-          move_or_copy(mod_path, mods_dir.join(mod_info.id)).await;
+        tx.send(ChannelMessage::Duplicate(mod_info.name, id, mod_folder, None)).expect("Send query over async channel");
+      } else if !mods_dir.join(mod_info.id.clone()).exists() {
+        move_or_copy(mod_path, mods_dir.join(mod_info.id)).await;
 
-          tx.send(ChannelMessage::Success(mod_info.name)).expect("Send success over async channel");
-        } else {
-          mod_folder = match mod_folder {
-            HybridPath::PathBuf(_) => HybridPath::PathBuf(mod_path.clone()),
-            HybridPath::Temp(temp, _) => HybridPath::Temp(temp, Some(mod_path.clone()))
-          };
+        tx.send(ChannelMessage::Success(mod_info.name)).expect("Send success over async channel");
+      } else {
+        mod_folder = match mod_folder {
+          HybridPath::PathBuf(_) => HybridPath::PathBuf(mod_path.clone()),
+          HybridPath::Temp(temp, _) => HybridPath::Temp(temp, Some(mod_path.clone()))
+        };
 
-          tx.send(ChannelMessage::Duplicate(mod_info.name, String::new(), mod_folder, Some(mods_dir.join(mod_info.id.clone())))).expect("Send query over async channel");
-        }
+        tx.send(ChannelMessage::Duplicate(mod_info.name, String::new(), mod_folder, Some(mods_dir.join(mod_info.id.clone())))).expect("Send query over async channel");
       }
+    } else {
+      tx.send(ChannelMessage::Error(format!("Could not find mod folder or parse mod_info file."))).expect("Send error over async channel");
     }
   }
 }
 
 fn decompress(path: PathBuf) -> Result<TempDir, InstallError> {
-  let source = std::fs::File::open(path).context(Io {})?;
+  let source = std::fs::File::open(&path).context(Io {})?;
   let temp_dir = tempdir().context(Io {})?;
+  let mime_type = infer::get_from_path(&path)
+    .context(Io {})?
+    .context(Mime { detail: "Failed to get mime type"})?
+    .mime_type();
 
-  compress_tools::uncompress_archive(source, temp_dir.path(), compress_tools::Ownership::Preserve).context(Archive {})?;
+  match mime_type {
+    "application/vnd.rar" | "application/x-rar-compressed" => {
+      #[cfg(not(target_env="musl"))]
+      unrar::Archive::new(path.to_string_lossy().to_string())
+        .extract_to(temp_dir.path().to_string_lossy().to_string())
+        .ok().context(Unrar { detail: "Opaque Unrar error. Assume there's been an error unpacking your rar archive." })?
+        .process()
+        .ok().context(Unrar { detail: "Opaque Unrar error. Assume there's been an error unpacking your rar archive." })?;
+        // trust me I tried to de-dupe this and it's buggered
+      #[cfg(target_env="musl")]
+      compress_tools::uncompress_archive(source, temp_dir.path(), compress_tools::Ownership::Preserve).context(CompressTools {})?
+    }
+    _ => {
+      compress_tools::uncompress_archive(source, temp_dir.path(), compress_tools::Ownership::Preserve).context(CompressTools {})?
+    }
+  }
 
   Ok(temp_dir)
 }
@@ -307,7 +332,9 @@ impl HybridPath {
 #[derive(Debug, Snafu)]
 enum InstallError {
   Io { source: std::io::Error },
-  Archive { source: compress_tools::Error },
+  Mime { detail: String },
+  CompressTools { source: compress_tools::Error },
+  Unrar { detail: String },
   Any { detail: String }
 }
 
