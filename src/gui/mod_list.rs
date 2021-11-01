@@ -161,7 +161,7 @@ impl ModList {
 
           match opt {
             InstallOptions::FromSingleArchive | InstallOptions::FromMultipleArchive => {
-              if let Some(paths) = util::select_file_dialog_multiple("Select archives:", start_path, &["*.tar", "*.zip", "*.7z", "*.rar"], "Archive types") {
+              if let Some(paths) = util::select_archives(start_path) {
                 if let Some(last) = paths.last() {
                   self.last_browsed = PathBuf::from(last).parent().map(|p| p.to_path_buf());
                 }

@@ -9,6 +9,8 @@ pub trait DialogInterface {
 
   fn select_folder(title: &str, path: &str) -> Option<PathBuf>;
 
+  fn select_archives(path: &str) -> Option<Vec<PathBuf>>;
+
   fn select_file_dialog_multiple(title: &str, path: &str, filter: &[&str], filter_label: &str) -> Option<Vec<PathBuf>>;
 }
 
