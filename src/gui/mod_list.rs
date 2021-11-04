@@ -169,7 +169,7 @@ impl ModList {
                 let mod_ids: Vec<String> = self.mods.iter().map(|(id, _)| id.clone()).collect();
                 self.installs.push(Installation::new(
                   self.installation_id,
-                  paths.iter().map(|p| PathBuf::from(p)).collect::<Vec<PathBuf>>(),
+                  paths,
                   root_dir.join("mods"),
                   mod_ids
                 ));
