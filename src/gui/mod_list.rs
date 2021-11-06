@@ -38,10 +38,7 @@ pub struct ModList {
   id_author_ratio: f32,
   author_version_ratio: f32,
   version_game_version_ratio: f32,
-  last_browsed: Option<PathBuf>,
-  // succ_messages: Vec<String>,
-  // err_messages: Vec<String>,
-  // debounce: Option<i32>,
+  pub last_browsed: Option<PathBuf>,
   headings: headings::Headings,
   installs: Vec<Installation<u16>>,
   installation_id: u16,
@@ -50,6 +47,7 @@ pub struct ModList {
 #[derive(Debug, Clone)]
 pub enum ModListMessage {
   SetRoot(Option<PathBuf>),
+  SetLastBrowsed(Option<PathBuf>),
   ModEntryMessage(String, ModEntryMessage),
   ModDescriptionMessage(ModDescriptionMessage),
   InstallPressed(InstallOptions),
@@ -60,7 +58,6 @@ pub enum ModListMessage {
   SingleInstallComplete,
   MasterVersionReceived((String, Result<Option<ModVersionMeta>, String>)),
   ParseModListError(()),
-  // Timeout(i32),
   HeadingsMessage(headings::HeadingsMessage),
 }
 
@@ -80,9 +77,6 @@ impl ModList {
       author_version_ratio: 1.0 / 3.0,
       version_game_version_ratio: 0.5,
       last_browsed: None,
-      // succ_messages: Vec::default(),
-      // err_messages: Vec::default(),
-      // debounce: None,
       headings: headings::Headings::new().unwrap(),
       installs: vec![],
       installation_id: 0,
@@ -105,6 +99,11 @@ impl ModList {
           Command::none()
         }
       },
+      ModListMessage::SetLastBrowsed(last_browsed) => {
+        self.last_browsed = last_browsed;
+
+        Command::none()
+      }
       ModListMessage::ModEntryMessage(id, message) => {
         if let Some(entry) = self.mods.get_mut(&id) {
           match message {
@@ -176,7 +175,6 @@ impl ModList {
 
                 self.installation_id += 1;
               }
-
               Command::none()
             },
             InstallOptions::FromFolder => {
@@ -400,23 +398,6 @@ impl ModList {
           }
         }
       },
-      // ModListMessage::Timeout(id) => {
-      //   if Some(id) == self.debounce {
-      //     if self.succ_messages.len() > 0 {
-      //       util::notif(format!("{}", self.succ_messages.join("\n")));
-      //       self.succ_messages.clear();
-      //     }
-
-      //     if self.err_messages.len() > 0 {
-      //       util::error(format!("{}", self.err_messages.join("\n")));
-      //       self.err_messages.clear();
-      //     }
-
-      //     self.debounce = None;
-      //   };
-
-      //   Command::none()
-      // },
       ModListMessage::HeadingsMessage(message) => {
         match message {
           headings::HeadingsMessage::HeadingPressed(sorting) => {
@@ -672,25 +653,6 @@ impl ModList {
       vec![Command::perform(async {}, ModListMessage::ParseModListError)]
     }
   }
-
-/*   #[must_use]
-  fn queue_message(&mut self, message: String, is_err: bool) -> Command<ModListMessage> {
-    if is_err {
-      self.err_messages.push(message);
-    } else {
-      self.succ_messages.push(message);
-    };
-
-    if let Some(id) = self.debounce {
-      self.debounce = Some(id.clone() + 1);
-
-      Command::perform(tokio::time::sleep(tokio::time::Duration::from_millis(50)), move |_| { ModListMessage::Timeout(id.clone() + 1) })
-    } else {
-      self.debounce = Some(0);
-
-      Command::perform(tokio::time::sleep(tokio::time::Duration::from_millis(50)), |_| { ModListMessage::Timeout(0) })
-    }
-  } */
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]

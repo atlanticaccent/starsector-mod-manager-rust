@@ -100,6 +100,7 @@ impl Application for App {
             commands.push(self.settings.update(SettingsMessage::InitRoot(config.install_dir.clone())).map(|m| Message::SettingsMessage(m)));
 
             commands.push(self.mod_list.update(ModListMessage::SetRoot(config.install_dir.clone())).map(|m| Message::ModListMessage(m)));
+            commands.push(self.mod_list.update(ModListMessage::SetLastBrowsed(config.last_browsed.clone())).map(|m| Message::ModListMessage(m)));
 
             if let Some(install_dir) = &config.install_dir {
               commands.push(Command::perform(VMParams::load(install_dir.clone()), Message::VMParamsLoaded));
@@ -113,7 +114,8 @@ impl Application for App {
             commands.push(self.settings.update(SettingsMessage::InitRoot(None)).map(|m| Message::SettingsMessage(m)));
 
             self.config = Some(Config {
-              install_dir: None
+              install_dir: None,
+              last_browsed: None
             })
           }
         }
@@ -205,7 +207,15 @@ impl Application for App {
         return Command::none();
       },
       Message::ModListMessage(mod_list_message) => {
-        return self.mod_list.update(mod_list_message.clone()).map(|m| Message::ModListMessage(m));
+        let mut commands = vec![self.mod_list.update(mod_list_message.clone()).map(|m| Message::ModListMessage(m))];
+
+        if let Some(config) = self.config.as_mut() {
+          config.last_browsed = self.mod_list.last_browsed.clone();
+
+          commands.push(Command::perform(config.clone().save(), Message::ConfigSaved));
+        }
+
+        Command::batch(commands)
       },
       Message::TagsReceived(res) => {
         self.manager_update_status = Some(res);
@@ -367,7 +377,8 @@ pub enum SaveError {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-  install_dir: Option<PathBuf>
+  install_dir: Option<PathBuf>,
+  last_browsed: Option<PathBuf>
 }
 
 impl Config {
