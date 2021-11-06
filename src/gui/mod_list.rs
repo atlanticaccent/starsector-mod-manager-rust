@@ -7,7 +7,7 @@ use std::{
 use iced::{
   Text, Column, Command, Element, Length, Row, Scrollable, scrollable, Button,
   button, Checkbox, Container, Rule, PickList, pick_list, Space, Tooltip,
-  tooltip, Subscription
+  tooltip, Subscription, TextInput, text_input
 };
 use serde::{Serialize, Deserialize};
 use json_comments::strip_comments;
@@ -15,6 +15,7 @@ use json5;
 use handwritten_json;
 use if_chain::if_chain;
 use opener;
+use sublime_fuzzy::best_match;
 
 use serde_aux::prelude::*;
 
@@ -42,6 +43,8 @@ pub struct ModList {
   headings: headings::Headings,
   installs: Vec<Installation<u16>>,
   installation_id: u16,
+  search_state: text_input::State,
+  search_query: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -59,6 +62,7 @@ pub enum ModListMessage {
   MasterVersionReceived((String, Result<Option<ModVersionMeta>, String>)),
   ParseModListError(()),
   HeadingsMessage(headings::HeadingsMessage),
+  SearchChanged(String),
 }
 
 impl ModList {
@@ -80,6 +84,8 @@ impl ModList {
       headings: headings::Headings::new().unwrap(),
       installs: vec![],
       installation_id: 0,
+      search_state: text_input::State::default(),
+      search_query: None
     }
   }
 
@@ -424,6 +430,30 @@ impl ModList {
         }
 
         Command::none()
+      },
+      ModListMessage::SearchChanged(search_query) => {
+        self.search_query = Some(search_query.clone());
+
+        if search_query.len() > 0 {
+          self.mods.iter_mut().for_each(|(id, mod_entry)| {
+            let id_score = best_match(&search_query, id).map(|m| m.score());
+            let name_score = best_match(&search_query, &mod_entry.name).map(|m| m.score());
+            let author_score = best_match(&search_query, &mod_entry.author).map(|m| m.score());
+
+            mod_entry.display = id_score.is_some() || name_score.is_some() || author_score.is_some();
+            mod_entry.search_score = std::cmp::max(std::cmp::max(id_score, name_score), author_score);
+          });
+
+          self.sorting = (ModEntryComp::Score, true);
+        } else {
+          self.mods.iter_mut().for_each(|(_, mod_entry)| {
+            mod_entry.display = true;
+          });
+          
+          self.sorting = (ModEntryComp::ID, false);
+        }
+
+        Command::none()
       }
     }
   }
@@ -444,6 +474,16 @@ impl ModList {
           Some(ToolOptions::Default),
           ModListMessage::ToolsPressed
         ))
+        .push(Space::with_width(Length::Units(5)))
+        .push(Container::new(Text::new("Search:").height(Length::Fill)).padding(5))
+        .push(TextInput::new(
+          &mut self.search_state,
+          "",
+          if let Some(ref query) = self.search_query {
+            query
+          } else { "" },
+          ModListMessage::SearchChanged
+        ).padding(5))
       )
       .push(Space::with_height(Length::Units(10)))
       .push(Column::new()
@@ -468,6 +508,7 @@ impl ModList {
             let cmp = &self.sorting;
             sorted_mods.sort_by(|left, right| {
               match cmp {
+                (ModEntryComp::Score, _) => right.search_score.cmp(&left.search_score),
                 (ModEntryComp::ID, false) => left.id.cmp(&right.id),
                 (ModEntryComp::Name, false) => left.name.cmp(&right.name),
                 (ModEntryComp::Author, false) => left.author.cmp(&right.author),
@@ -809,6 +850,8 @@ pub struct ModEntry {
   #[serde(skip)]
   #[serde(default = "ModEntry::def_true")]
   display: bool,
+  #[serde(skip)]
+  search_score: Option<isize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -818,7 +861,8 @@ pub enum ModEntryComp {
   Author,
   GameVersion,
   Enabled,
-  Version
+  Version,
+  Score
 }
 
 #[derive(Debug, Clone)]
