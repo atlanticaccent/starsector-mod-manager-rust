@@ -84,6 +84,10 @@ impl DialogInterface for Dialog {
       .flatten()
   }
 
+  fn select_archives(path: &str) -> Option<Vec<PathBuf>> {
+    Self::select_file_dialog_multiple("Select Archives", path, &["rar", "zip", "7z", "tar"], "Archive types")
+  }
+
   fn select_file_dialog_multiple(_: &str, path: &str, filters: &[&str], description: &str) -> Option<Vec<PathBuf>> {
     FileDialog::new().set_location(path)
       .add_filter(description, filters)

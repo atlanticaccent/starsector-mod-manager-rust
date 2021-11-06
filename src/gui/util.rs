@@ -25,8 +25,11 @@ pub fn select_folder_dialog(title: &str, path: &str) -> Option<PathBuf> {
   Dialog::select_folder(title, path)
 }
 
-pub fn select_file_dialog_multiple(title: &str, path: &str, filter: &[&str], filter_label: &str) -> Option<Vec<PathBuf>> {
-  Dialog::select_file_dialog_multiple(title, path, filter, filter_label)
+pub fn select_archives(path: &str) -> Option<Vec<PathBuf>> {
+  match Dialog::select_archives(path) {
+    Some(paths) if paths.len() == 0 => None,
+    _else @ _ => _else
+  }
 }
 
 pub async fn get_master_version(local: ModVersionMeta) -> (String, Result<Option<ModVersionMeta>, String>) {

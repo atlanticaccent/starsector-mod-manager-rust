@@ -26,6 +26,10 @@ impl DialogInterface for Dialog {
       .map(|p| PathBuf::from(p))
   }
 
+  fn select_archives(path: &str) -> Option<Vec<PathBuf>> {
+    Self::select_file_dialog_multiple("Select Archives", path, &["*.tar", "*.zip", "*.7z", "*.rar"], "Archive types")
+  }
+
   fn select_file_dialog_multiple(title: &str, path: &str, filters: &[&str], description: &str) -> Option<Vec<PathBuf>> {
     tfd::open_file_dialog_multi(title, path, Some((filters, description)))
       .map(|paths| paths.into_iter().map(|path| PathBuf::from(path)).collect())

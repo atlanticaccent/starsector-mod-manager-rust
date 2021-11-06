@@ -7,7 +7,7 @@ use std::{
 use iced::{
   Text, Column, Command, Element, Length, Row, Scrollable, scrollable, Button,
   button, Checkbox, Container, Rule, PickList, pick_list, Space, Tooltip,
-  tooltip, Subscription
+  tooltip, Subscription, TextInput, text_input
 };
 use serde::{Serialize, Deserialize};
 use json_comments::strip_comments;
@@ -15,6 +15,7 @@ use json5;
 use handwritten_json;
 use if_chain::if_chain;
 use opener;
+use sublime_fuzzy::best_match;
 
 use serde_aux::prelude::*;
 
@@ -38,18 +39,18 @@ pub struct ModList {
   id_author_ratio: f32,
   author_version_ratio: f32,
   version_game_version_ratio: f32,
-  last_browsed: Option<PathBuf>,
-  // succ_messages: Vec<String>,
-  // err_messages: Vec<String>,
-  // debounce: Option<i32>,
+  pub last_browsed: Option<PathBuf>,
   headings: headings::Headings,
   installs: Vec<Installation<u16>>,
   installation_id: u16,
+  search_state: text_input::State,
+  search_query: Option<String>,
 }
 
 #[derive(Debug, Clone)]
 pub enum ModListMessage {
   SetRoot(Option<PathBuf>),
+  SetLastBrowsed(Option<PathBuf>),
   ModEntryMessage(String, ModEntryMessage),
   ModDescriptionMessage(ModDescriptionMessage),
   InstallPressed(InstallOptions),
@@ -60,8 +61,8 @@ pub enum ModListMessage {
   SingleInstallComplete,
   MasterVersionReceived((String, Result<Option<ModVersionMeta>, String>)),
   ParseModListError(()),
-  // Timeout(i32),
   HeadingsMessage(headings::HeadingsMessage),
+  SearchChanged(String),
 }
 
 impl ModList {
@@ -80,12 +81,11 @@ impl ModList {
       author_version_ratio: 1.0 / 3.0,
       version_game_version_ratio: 0.5,
       last_browsed: None,
-      // succ_messages: Vec::default(),
-      // err_messages: Vec::default(),
-      // debounce: None,
       headings: headings::Headings::new().unwrap(),
       installs: vec![],
       installation_id: 0,
+      search_state: text_input::State::default(),
+      search_query: None
     }
   }
 
@@ -105,6 +105,11 @@ impl ModList {
           Command::none()
         }
       },
+      ModListMessage::SetLastBrowsed(last_browsed) => {
+        self.last_browsed = last_browsed;
+
+        Command::none()
+      }
       ModListMessage::ModEntryMessage(id, message) => {
         if let Some(entry) = self.mods.get_mut(&id) {
           match message {
@@ -161,7 +166,7 @@ impl ModList {
 
           match opt {
             InstallOptions::FromSingleArchive | InstallOptions::FromMultipleArchive => {
-              if let Some(paths) = util::select_file_dialog_multiple("Select archives:", start_path, &["*.tar", "*.zip", "*.7z", "*.rar"], "Archive types") {
+              if let Some(paths) = util::select_archives(start_path) {
                 if let Some(last) = paths.last() {
                   self.last_browsed = PathBuf::from(last).parent().map(|p| p.to_path_buf());
                 }
@@ -169,14 +174,13 @@ impl ModList {
                 let mod_ids: Vec<String> = self.mods.iter().map(|(id, _)| id.clone()).collect();
                 self.installs.push(Installation::new(
                   self.installation_id,
-                  paths.iter().map(|p| PathBuf::from(p)).collect::<Vec<PathBuf>>(),
+                  paths,
                   root_dir.join("mods"),
                   mod_ids
                 ));
 
                 self.installation_id += 1;
               }
-
               Command::none()
             },
             InstallOptions::FromFolder => {
@@ -400,23 +404,6 @@ impl ModList {
           }
         }
       },
-      // ModListMessage::Timeout(id) => {
-      //   if Some(id) == self.debounce {
-      //     if self.succ_messages.len() > 0 {
-      //       util::notif(format!("{}", self.succ_messages.join("\n")));
-      //       self.succ_messages.clear();
-      //     }
-
-      //     if self.err_messages.len() > 0 {
-      //       util::error(format!("{}", self.err_messages.join("\n")));
-      //       self.err_messages.clear();
-      //     }
-
-      //     self.debounce = None;
-      //   };
-
-      //   Command::none()
-      // },
       ModListMessage::HeadingsMessage(message) => {
         match message {
           headings::HeadingsMessage::HeadingPressed(sorting) => {
@@ -443,6 +430,30 @@ impl ModList {
         }
 
         Command::none()
+      },
+      ModListMessage::SearchChanged(search_query) => {
+        self.search_query = Some(search_query.clone());
+
+        if search_query.len() > 0 {
+          self.mods.iter_mut().for_each(|(id, mod_entry)| {
+            let id_score = best_match(&search_query, id).map(|m| m.score());
+            let name_score = best_match(&search_query, &mod_entry.name).map(|m| m.score());
+            let author_score = best_match(&search_query, &mod_entry.author).map(|m| m.score());
+
+            mod_entry.display = id_score.is_some() || name_score.is_some() || author_score.is_some();
+            mod_entry.search_score = std::cmp::max(std::cmp::max(id_score, name_score), author_score);
+          });
+
+          self.sorting = (ModEntryComp::Score, true);
+        } else {
+          self.mods.iter_mut().for_each(|(_, mod_entry)| {
+            mod_entry.display = true;
+          });
+          
+          self.sorting = (ModEntryComp::ID, false);
+        }
+
+        Command::none()
       }
     }
   }
@@ -463,6 +474,16 @@ impl ModList {
           Some(ToolOptions::Default),
           ModListMessage::ToolsPressed
         ))
+        .push(Space::with_width(Length::Units(5)))
+        .push(Container::new(Text::new("Search:").height(Length::Fill)).padding(5))
+        .push(TextInput::new(
+          &mut self.search_state,
+          "",
+          if let Some(ref query) = self.search_query {
+            query
+          } else { "" },
+          ModListMessage::SearchChanged
+        ).padding(5))
       )
       .push(Space::with_height(Length::Units(10)))
       .push(Column::new()
@@ -487,6 +508,7 @@ impl ModList {
             let cmp = &self.sorting;
             sorted_mods.sort_by(|left, right| {
               match cmp {
+                (ModEntryComp::Score, _) => right.search_score.cmp(&left.search_score),
                 (ModEntryComp::ID, false) => left.id.cmp(&right.id),
                 (ModEntryComp::Name, false) => left.name.cmp(&right.name),
                 (ModEntryComp::Author, false) => left.author.cmp(&right.author),
@@ -494,14 +516,14 @@ impl ModList {
                 (ModEntryComp::GameVersion, false) => left.game_version.cmp(&right.game_version),
                 (ModEntryComp::Version, false) => {
                   if left.update_status.is_none() && right.update_status.is_none() {
-                    std::cmp::Ordering::Equal
+                    left.name.cmp(&right.name)
                   } else if left.update_status.is_none() {
                     std::cmp::Ordering::Greater
                   } else if right.update_status.is_none() {
                     std::cmp::Ordering::Less
                   } else {
                     if left.update_status.cmp(&right.update_status) == std::cmp::Ordering::Equal {
-                      left.version_checker.cmp(&right.version_checker)
+                      left.name.cmp(&right.name)
                     } else {
                       left.update_status.cmp(&right.update_status)
                     }
@@ -515,13 +537,13 @@ impl ModList {
                 (ModEntryComp::GameVersion, true) => right.game_version.cmp(&left.game_version),
                 (ModEntryComp::Version, true) => {
                   if right.update_status.is_none() && left.update_status.is_none() {
-                    std::cmp::Ordering::Equal
+                    left.name.cmp(&right.name)
                   } else if right.update_status.is_none() {
                     std::cmp::Ordering::Greater
                   } else if left.update_status.is_none() {
                     std::cmp::Ordering::Less
                   } else if right.update_status.cmp(&left.update_status) == std::cmp::Ordering::Equal {
-                    right.version_checker.cmp(&left.version_checker)
+                    left.name.cmp(&right.name)
                   } else {
                     right.update_status.cmp(&left.update_status)
                   }
@@ -672,25 +694,6 @@ impl ModList {
       vec![Command::perform(async {}, ModListMessage::ParseModListError)]
     }
   }
-
-/*   #[must_use]
-  fn queue_message(&mut self, message: String, is_err: bool) -> Command<ModListMessage> {
-    if is_err {
-      self.err_messages.push(message);
-    } else {
-      self.succ_messages.push(message);
-    };
-
-    if let Some(id) = self.debounce {
-      self.debounce = Some(id.clone() + 1);
-
-      Command::perform(tokio::time::sleep(tokio::time::Duration::from_millis(50)), move |_| { ModListMessage::Timeout(id.clone() + 1) })
-    } else {
-      self.debounce = Some(0);
-
-      Command::perform(tokio::time::sleep(tokio::time::Duration::from_millis(50)), |_| { ModListMessage::Timeout(0) })
-    }
-  } */
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -847,6 +850,8 @@ pub struct ModEntry {
   #[serde(skip)]
   #[serde(default = "ModEntry::def_true")]
   display: bool,
+  #[serde(skip)]
+  search_score: Option<isize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -856,7 +861,8 @@ pub enum ModEntryComp {
   Author,
   GameVersion,
   Enabled,
-  Version
+  Version,
+  Score
 }
 
 #[derive(Debug, Clone)]
