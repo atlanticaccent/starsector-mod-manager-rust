@@ -30,6 +30,7 @@ tempfile = "^3.2"
 compress-tools = { git = "https://github.com/OSSystems/compress-tools-rs.git" }
 snafu = "^0.6.10"
 remove_dir_all = "^0.7.0"
+sublime_fuzzy = "0.7.0"
 
 [package.metadata.bundle]
 name = "Starsector Mod Manager"
