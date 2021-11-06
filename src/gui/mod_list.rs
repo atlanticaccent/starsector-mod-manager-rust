@@ -475,14 +475,14 @@ impl ModList {
                 (ModEntryComp::GameVersion, false) => left.game_version.cmp(&right.game_version),
                 (ModEntryComp::Version, false) => {
                   if left.update_status.is_none() && right.update_status.is_none() {
-                    std::cmp::Ordering::Equal
+                    left.name.cmp(&right.name)
                   } else if left.update_status.is_none() {
                     std::cmp::Ordering::Greater
                   } else if right.update_status.is_none() {
                     std::cmp::Ordering::Less
                   } else {
                     if left.update_status.cmp(&right.update_status) == std::cmp::Ordering::Equal {
-                      left.version_checker.cmp(&right.version_checker)
+                      left.name.cmp(&right.name)
                     } else {
                       left.update_status.cmp(&right.update_status)
                     }
@@ -496,13 +496,13 @@ impl ModList {
                 (ModEntryComp::GameVersion, true) => right.game_version.cmp(&left.game_version),
                 (ModEntryComp::Version, true) => {
                   if right.update_status.is_none() && left.update_status.is_none() {
-                    std::cmp::Ordering::Equal
+                    left.name.cmp(&right.name)
                   } else if right.update_status.is_none() {
                     std::cmp::Ordering::Greater
                   } else if left.update_status.is_none() {
                     std::cmp::Ordering::Less
                   } else if right.update_status.cmp(&left.update_status) == std::cmp::Ordering::Equal {
-                    right.version_checker.cmp(&left.version_checker)
+                    left.name.cmp(&right.name)
                   } else {
                     right.update_status.cmp(&left.update_status)
                   }
