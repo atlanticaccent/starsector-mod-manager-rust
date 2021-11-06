@@ -3119,6 +3119,7 @@ dependencies = [
  "serde-aux",
  "serde_json",
  "snafu",
+ "sublime_fuzzy",
  "tempfile",
  "tinyfiledialogs",
  "tokio",
@@ -3151,6 +3152,12 @@ name = "strsim"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6446ced80d6c486436db5c078dde11a9f73d42b57fb273121e160b84f63d894c"
+
+[[package]]
+name = "sublime_fuzzy"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa7986063f7c0ab374407e586d7048a3d5aac94f103f751088bf398e07cd5400"
 
 [[package]]
 name = "svg_fmt"
