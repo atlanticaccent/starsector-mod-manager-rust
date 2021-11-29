@@ -35,3 +35,4 @@ sublime_fuzzy = "0.7.0"
 [package.metadata.bundle]
 name = "Starsector Mod Manager"
 id = "org.laird.starsector_mod_manager"
+osx_minimum_system_version = "10.10"

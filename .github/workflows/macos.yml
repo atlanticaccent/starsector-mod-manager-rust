@@ -24,8 +24,6 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - name: Install cargo-bundle
-        run: cargo install cargo-bundle
       - name: Check cache
         uses: actions/cache@v2
         with:
@@ -36,6 +34,10 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install cargo-bundle
+        run: (cargo install cargo-bundle || true)
+      - name: Emit target macOS version env variable
+        run: echo MACOSX_DEPLOYMENT_TARGET=10.10 >> $GITHUB_ENV
       - name: Run cargo-bundle
         run: cargo bundle --release
       - name: Run make_portable.sh
