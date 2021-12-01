@@ -44,7 +44,7 @@ pub async fn get_master_version(local: ModVersionMeta) -> (String, Result<Option
         if let Ok(normalized) = handwritten_json::normalize(&stripped);
         if let Ok(remote) = json5::from_str::<ModVersionMeta>(&normalized);
         then {
-          if remote.version > local.version {
+          if remote.version != local.version {
             (
               local.id,
               Ok(Some(remote))

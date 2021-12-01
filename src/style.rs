@@ -144,7 +144,8 @@ impl From<UpdateStatus> for Box<dyn container::StyleSheet> {
     match theme {
       UpdateStatus::Major(_) | UpdateStatus::Minor(_) | UpdateStatus::Patch(_) => update::major::Container.into(),
       UpdateStatus::UpToDate => update::up_to_date::Container.into(),
-      UpdateStatus::Error => update::error::Container.into()
+      UpdateStatus::Error => update::error::Container.into(),
+      UpdateStatus::Discrepancy(_) => update::discrepancy::Container.into(),
     }
   }
 }
@@ -155,7 +156,8 @@ impl From<UpdateStatusTTPatch> for Box<dyn container::StyleSheet> {
     match theme {
       UpdateStatus::Major(_) | UpdateStatus::Minor(_) | UpdateStatus::Patch(_) => update::major::Tooltip.into(),
       UpdateStatus::UpToDate => update::up_to_date::Tooltip.into(),
-      UpdateStatus::Error => update::error::Tooltip.into()
+      UpdateStatus::Error => update::error::Tooltip.into(),
+      UpdateStatus::Discrepancy(_) => update::discrepancy::Tooltip.into(),
     }
   }
 }
@@ -228,6 +230,36 @@ pub mod update {
     fn style() -> super::container::Style {
       super::container::Style {
         background: super::Color::from_rgb8(0xB0, 0x00, 0x20).into(),
+        text_color: Some(super::Color::WHITE),
+        ..super::container::Style::default()
+      }
+    }
+
+    impl super::container::StyleSheet for Container {
+      fn style(&self) -> super::container::Style {
+        style()
+      }
+    }
+
+    impl super::container::StyleSheet for Tooltip {
+      fn style(&self) -> super::container::Style {
+        super::container::Style {
+          border_color: super::Color::BLACK,
+          border_width: 1.0,
+          border_radius: 5.0,
+          ..style()
+        }
+      }
+    }
+  }
+
+  pub mod discrepancy {
+    pub struct Container;
+    pub struct Tooltip;
+
+    fn style() -> super::container::Style {
+      super::container::Style {
+        background: super::Color::from_rgb8(0x80, 0x00, 0x80).into(),
         text_color: Some(super::Color::WHITE),
         ..super::container::Style::default()
       }

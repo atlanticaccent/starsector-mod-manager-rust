@@ -286,7 +286,9 @@ impl ModList {
                     Some(remote_version_meta) => {
                       let version = remote_version_meta.version.clone();
                       // debug_print!("{}. ", entry.id);
-                      if version.major - local_version.major > 0 {
+                      if version < *local_version {
+                        entry.update_status = Some(UpdateStatus::Discrepancy(version))
+                      } else if version.major - local_version.major > 0 {
                         // debug_println!("New major version available.");
                         entry.update_status = Some(UpdateStatus::Major(version))
                       } else if version.minor - local_version.minor > 0 {
@@ -391,6 +393,14 @@ impl ModList {
 
             Command::none()
           },
+          ToolOptions::FilterDiscrepancy => {
+            self.mods.iter_mut()
+              .for_each(|(_, entry)| {
+                entry.display = matches!(entry.update_status, Some(UpdateStatus::Discrepancy(_)));
+              });
+
+            Command::none()
+          }
           ToolOptions::FilterNone => {
             self.mods.iter_mut()
               .for_each(|(_, entry)| {
@@ -737,12 +747,13 @@ pub enum ToolOptions {
   FilterOutdated,
   FilterError,
   FilterUnsupported,
+  FilterDiscrepancy,
   FilterNone,
   Refresh,
 }
 
 impl ToolOptions {
-  const SHOW: [ToolOptions; 9] = [
+  const SHOW: [ToolOptions; 10] = [
     ToolOptions::EnableAll,
     ToolOptions::DisableAll,
     ToolOptions::FilterEnabled,
@@ -750,6 +761,7 @@ impl ToolOptions {
     ToolOptions::FilterOutdated,
     ToolOptions::FilterError,
     ToolOptions::FilterUnsupported,
+    ToolOptions::FilterDiscrepancy,
     ToolOptions::FilterNone,
     ToolOptions::Refresh,
   ];
@@ -769,6 +781,7 @@ impl std::fmt::Display for ToolOptions {
         ToolOptions::FilterOutdated => "Show New Version Available",
         ToolOptions::FilterError => "Show Version Check Failed",
         ToolOptions::FilterUnsupported => "Show Version Check Unsupported",
+        ToolOptions::FilterDiscrepancy => "Show Version Discrepancy",
         ToolOptions::FilterNone => "Show All",
         ToolOptions::Refresh => "Refresh Mod List",
       }
@@ -783,6 +796,7 @@ pub enum UpdateStatus {
   Minor(ModVersion),
   Patch(ModVersion),
   UpToDate,
+  Discrepancy(ModVersion),
 }
 
 impl Display for UpdateStatus {
@@ -793,6 +807,7 @@ impl Display for UpdateStatus {
       UpdateStatus::Patch(_) => write!(f, "Patch"),
       UpdateStatus::UpToDate => write!(f, "Up to date"),
       UpdateStatus::Error => write!(f, "Error"),
+      UpdateStatus::Discrepancy(_) => write!(f, "Discrepancy"),
     }
   }
 }
@@ -966,7 +981,8 @@ impl ModEntry {
                         format!("{} update available.\nUpdate: {}", status, remote)
                       },
                       UpdateStatus::UpToDate => format!("Up to date!"),
-                      UpdateStatus::Error => format!("Could not retrieve remote update data.")
+                      UpdateStatus::Error => format!("Could not retrieve remote update data."),
+                      UpdateStatus::Discrepancy(remote) => format!("Local is a higher version than remote.\nRemote: {}", remote)
                     },
                     tooltip::Position::FollowCursor
                   ).style(UpdateStatusTTPatch(status.clone()))
