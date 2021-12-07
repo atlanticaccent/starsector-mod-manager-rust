@@ -7,5 +7,5 @@ mod gui;
 mod style;
 
 fn main() {
-  gui::App::run(Settings::default());
+  gui::App::run(Settings::default()).expect("Start main application");
 }
