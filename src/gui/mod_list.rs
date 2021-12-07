@@ -7,7 +7,7 @@ use std::{
 use iced::{
   Text, Column, Command, Element, Length, Row, Scrollable, scrollable, Button,
   button, Checkbox, Container, Rule, PickList, pick_list, Space, Tooltip,
-  tooltip, Subscription, TextInput, text_input
+  tooltip, Subscription, TextInput, text_input, Align
 };
 use serde::{Serialize, Deserialize};
 use json_comments::strip_comments;
@@ -507,7 +507,7 @@ impl ModList {
       )
       .push(Rule::horizontal(2).style(style::max_rule::Rule))
       .push(Scrollable::new(&mut self.scroll)
-        .height(Length::FillPortion(2))
+        .height(Length::FillPortion(3))
         .push(Row::new()
           .push::<Element<ModListMessage>>(if self.mods.len() > 0 {
             let mut sorted_mods = self.mods
@@ -594,12 +594,12 @@ impl ModList {
         )
       )
       .push(Rule::horizontal(1).style(style::max_rule::Rule))
-      .push(Space::with_height(Length::Units(10)))
+      .push(Space::with_height(Length::Units(5)))
       .push(
         Container::new(self.mod_description.view().map(|message| {
           ModListMessage::ModDescriptionMessage(message)
         }))
-        .height(Length::FillPortion(1))
+        .height(Length::FillPortion(2))
         .width(Length::Fill)
       );
 
@@ -1088,13 +1088,15 @@ impl Display for ModVersion {
 pub struct ModDescription {
   mod_entry: Option<ModEntry>,
   fractal_link: button::State,
-  nexus_link: button::State
+  nexus_link: button::State,
+  file_link: button::State,
 }
 
 #[derive(Debug, Clone)]
 pub enum ModDescriptionMessage {
   ModChanged(ModEntry),
-  LinkClicked(String)
+  LinkClicked(String),
+  FileClicked(PathBuf),
 }
 
 impl ModDescription {
@@ -1102,7 +1104,8 @@ impl ModDescription {
     ModDescription {
       mod_entry: None,
       fractal_link: button::State::new(),
-      nexus_link: button::State::new()
+      nexus_link: button::State::new(),
+      file_link: button::State::new(),
     }
   }
 
@@ -1114,6 +1117,11 @@ impl ModDescription {
       ModDescriptionMessage::LinkClicked(url) => {
         if let Err(_) = opener::open(url) {
           util::error(format!("Failed to open update link. This could be due to a number of issues unfortunately.\nMake sure you have a default browser set for your operating system, otherwise there's not much that can be done."))
+        }
+      },
+      ModDescriptionMessage::FileClicked(path) => {
+        if let Err(_) = opener::open(path) {
+          util::error(format!("Failed to open mod path."))
         }
       }
     }
@@ -1203,6 +1211,22 @@ impl ModDescription {
 
       text.push(Text::new(format!("Description:")).into());
       text.push(Text::new(entry.description.clone()).into());
+
+      text.push(Row::new()
+        .push(Space::with_width(Length::Fill))
+        .push(
+          Button::new(
+            &mut self.file_link,
+            Text::new(format!("Open in system file manager..."))
+          )
+          .width(Length::Shrink)
+          .on_press(ModDescriptionMessage::FileClicked(entry.path.clone()))
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .align_items(Align::End)
+        .into()
+      );
     } else {
       text.push(Text::new(format!("No mod selected.")).into());
     }
