@@ -38,7 +38,8 @@ pub struct ModList {
   name_id_ratio: f32,
   id_author_ratio: f32,
   author_version_ratio: f32,
-  version_game_version_ratio: f32,
+  local_version_remote_version_ratio: f32,
+  remote_version_game_version_ratio: f32,
   pub last_browsed: Option<PathBuf>,
   headings: headings::Headings,
   installs: Vec<Installation<u16>>,
@@ -76,10 +77,11 @@ impl ModList {
       tool_state: pick_list::State::default(),
       currently_highlighted: None,
       sorting: (ModEntryComp::ID, false),
-      name_id_ratio: 0.2,
-      id_author_ratio: 0.25,
-      author_version_ratio: 1.0 / 3.0,
-      version_game_version_ratio: 0.5,
+      name_id_ratio: 1.0 / 6.0,
+      id_author_ratio: 0.2,
+      author_version_ratio: 0.25,
+      local_version_remote_version_ratio: 1.0 / 3.0,
+      remote_version_game_version_ratio: 0.5,
       last_browsed: None,
       headings: headings::Headings::new().unwrap(),
       installs: vec![],
@@ -431,8 +433,10 @@ impl ModList {
               self.id_author_ratio = event.ratio;
             } else if event.split == self.headings.author_mod_version_split {
               self.author_version_ratio = event.ratio;
-            } else if event.split == self.headings.mod_version_ss_version_split {
-              self.version_game_version_ratio = event.ratio;
+            } else if event.split == self.headings.local_version_remote_version_split {
+              self.local_version_remote_version_ratio = event.ratio;
+            } else if event.split == self.headings.remote_version_game_version_split {
+              self.remote_version_game_version_ratio = event.ratio;
             }
 
             self.headings.update(message);
@@ -565,15 +569,16 @@ impl ModList {
             let name_portion = 10000.0 * self.name_id_ratio;
             let id_portion = (10000.0 - name_portion) * self.id_author_ratio;
             let author_portion = (10000.0 - name_portion - id_portion) * self.author_version_ratio;
-            let version_portion = (10000.0 - name_portion - id_portion - author_portion) * self.version_game_version_ratio;
-            let game_version_portion = 10000.0 - name_portion - id_portion - author_portion - version_portion;
+            let local_version_portion = (10000.0 - name_portion - id_portion - author_portion) * self.local_version_remote_version_ratio;
+            let remote_version_portion = (10000.0 - name_portion - id_portion - author_portion - local_version_portion) * self.remote_version_game_version_ratio;
+            let game_version_portion = 10000.0 - name_portion - id_portion - author_portion - local_version_portion - remote_version_portion;
 
             sorted_mods.into_iter()
               .filter(|entry| entry.display)
               .for_each(|entry| {
                 every_other = !every_other;
                 let id_clone = entry.id.clone();
-                views.push(entry.view(every_other, name_portion as u16, id_portion as u16, author_portion as u16, version_portion as u16, game_version_portion as u16).map(move |message| {
+                views.push(entry.view(every_other, name_portion as u16, id_portion as u16, author_portion as u16, local_version_portion as u16, remote_version_portion as u16, game_version_portion as u16).map(move |message| {
                   ModListMessage::ModEntryMessage(id_clone.clone(), message)
                 }))
               });
@@ -932,7 +937,7 @@ impl ModEntry {
     }
   }
 
-  pub fn view(&mut self, other: bool, name_portion: u16, id_portion: u16, author_portion: u16, version_portion: u16, game_version_portion: u16) -> Element<ModEntryMessage> {
+  pub fn view(&mut self, other: bool, name_portion: u16, id_portion: u16, author_portion: u16, local_version_portion: u16, remote_version_portion: u16, game_version_portion: u16) -> Element<ModEntryMessage> {
     let row = Container::new(Row::new()
       .push(
         Container::new(
@@ -964,6 +969,11 @@ impl ModEntry {
               .push(Space::with_width(Length::Units(5)))
               .push(Text::new(self.author.clone()).width(Length::Fill))
             ).width(Length::FillPortion(author_portion)))
+            .push(Container::new(Row::new()
+              .push(Rule::vertical(0).style(style::max_rule::Rule))
+              .push(Space::with_width(Length::Units(5)))
+              .push(Text::new(self.version.clone()).width(Length::Fill))
+            ).width(Length::FillPortion(local_version_portion)))
             .push::<Element<ModEntryMessage>>(
               if let Some(status) = &self.update_status {
                 Container::new(
@@ -971,23 +981,35 @@ impl ModEntry {
                     Container::new(Row::with_children(vec![
                       Rule::vertical(0).style(style::max_rule::Rule).into(),
                       Space::with_width(Length::Units(5)).into(),
-                      Text::new(self.version.clone()).into()
+                      Text::new(match status {
+                        UpdateStatus::Major(remote) | UpdateStatus::Minor(remote) | UpdateStatus::Patch(remote) => {
+                          if self.remote_version.as_ref().and_then(|remote| remote.direct_download_url.as_ref()).is_some() {
+                            format!("{}\nAuto-update?", remote)
+                          } else {
+                            format!("{}", remote)
+                          }
+                        },
+                        UpdateStatus::UpToDate => format!("Up to date!"),
+                        UpdateStatus::Error => format!("Could not retrieve remote update data."),
+                        UpdateStatus::Discrepancy(remote) => format!("{}", remote)
+                      }).into()
                     ]))
-                    .style(status.clone())
+                    .style(status)
                     .width(Length::Fill)
                     .height(Length::Fill),
                     match status {
-                      UpdateStatus::Major(remote) | UpdateStatus::Minor(remote) | UpdateStatus::Patch(remote) => {
-                        format!("{} update available.\nUpdate: {}", status, remote)
+                      UpdateStatus::Major(_) | UpdateStatus::Minor(_) => {
+                        format!("{} update available", status)
                       },
+                      UpdateStatus::Patch(_) => format!("Patch available"),
                       UpdateStatus::UpToDate => format!("Up to date!"),
-                      UpdateStatus::Error => format!("Could not retrieve remote update data."),
-                      UpdateStatus::Discrepancy(remote) => format!("Local is a higher version than remote.\nRemote: {}", remote)
+                      UpdateStatus::Error => format!("Could not retrieve remote update data"),
+                      UpdateStatus::Discrepancy(_) => format!("Local is a higher version than remote")
                     },
                     tooltip::Position::FollowCursor
                   ).style(UpdateStatusTTPatch(status.clone()))
                 )
-                .width(Length::FillPortion(version_portion))
+                .width(Length::FillPortion(remote_version_portion))
                 .height(Length::Fill)
                 .padding(1)
                 .into()
@@ -996,7 +1018,7 @@ impl ModEntry {
                   .push(Rule::vertical(0).style(style::max_rule::Rule))
                   .push(Space::with_width(Length::Units(5)))
                   .push(Text::new(self.version.clone()).width(Length::Fill))
-                ).width(Length::FillPortion(version_portion))
+                ).width(Length::FillPortion(remote_version_portion))
                 .into()
               }
             )
@@ -1037,6 +1059,9 @@ impl ModEntry {
 pub struct ModVersionMeta {
   #[serde(alias="masterVersionFile")]
   pub remote_url: String,
+  #[serde(alias="directDownloadURL")]
+  #[serde(default)]
+  pub direct_download_url: Option<String>,
   #[serde(alias="modName")]
   pub id: String,
   #[serde(alias="modThreadId")]

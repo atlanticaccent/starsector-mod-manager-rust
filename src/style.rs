@@ -139,8 +139,8 @@ pub mod highlight_background {
 use iced::container;
 use crate::gui::mod_list::{UpdateStatus, UpdateStatusTTPatch};
 
-impl From<UpdateStatus> for Box<dyn container::StyleSheet> {
-  fn from(theme: UpdateStatus) -> Self {
+impl From<&UpdateStatus> for Box<dyn container::StyleSheet> {
+  fn from(theme: &UpdateStatus) -> Self {
     match theme {
       UpdateStatus::Major(_) | UpdateStatus::Minor(_) | UpdateStatus::Patch(_) => update::major::Container.into(),
       UpdateStatus::UpToDate => update::up_to_date::Container.into(),

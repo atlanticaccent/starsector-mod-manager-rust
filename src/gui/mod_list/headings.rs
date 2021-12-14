@@ -16,7 +16,8 @@ pub struct Headings {
   pub name_id_split: pane_grid::Split,
   pub id_author_split: pane_grid::Split,
   pub author_mod_version_split: pane_grid::Split,
-  pub mod_version_ss_version_split: pane_grid::Split,
+  pub local_version_remote_version_split: pane_grid::Split,
+  pub remote_version_game_version_split: pane_grid::Split,
 }
 
 impl Headings {
@@ -27,14 +28,16 @@ impl Headings {
       if let Some((name_pane, enabled_name_split)) = state.split(pane_grid::Axis::Vertical, &enabled_pane, Content::new(format!("Name"), ModEntryComp::Name));
       if let Some((id_pane, name_id_split)) = state.split(pane_grid::Axis::Vertical, &name_pane, Content::new(format!("ID"), ModEntryComp::ID));
       if let Some((author_pane, id_author_split)) = state.split(pane_grid::Axis::Vertical, &id_pane, Content::new(format!("Author"), ModEntryComp::Author));
-      if let Some((mod_version_pane, author_mod_version_split)) = state.split(pane_grid::Axis::Vertical, &author_pane, Content::new(format!("Mod Version"), ModEntryComp::Version));
-      if let Some((_, mod_version_ss_version_split)) = state.split(pane_grid::Axis::Vertical, &mod_version_pane, Content::new(format!("Starsector Version"), ModEntryComp::GameVersion));
+      if let Some((mod_version_pane, author_mod_version_split)) = state.split(pane_grid::Axis::Vertical, &author_pane, Content::new(format!("Local Version"), ModEntryComp::Version));
+      if let Some((local_version_pane, local_version_remote_version_split)) = state.split(pane_grid::Axis::Vertical, &mod_version_pane, Content::new(format!("Available Version"), ModEntryComp::GameVersion));
+      if let Some((_, remote_version_game_version_split)) = state.split(pane_grid::Axis::Vertical, &local_version_pane, Content::new(format!("Starsector Version"), ModEntryComp::GameVersion));
       then {
         state.resize(&enabled_name_split, 3.0 / 43.0);
-        state.resize(&name_id_split, 1.0 / 5.0);
-        state.resize(&id_author_split, 1.0 / 4.0);
-        state.resize(&author_mod_version_split, 1.0 / 3.0);
-        state.resize(&mod_version_ss_version_split, 1.0 / 2.0);
+        state.resize(&name_id_split, 1.0 / 6.0);
+        state.resize(&id_author_split, 1.0 / 5.0);
+        state.resize(&author_mod_version_split, 1.0 / 4.0);
+        state.resize(&local_version_remote_version_split, 1.0 / 3.0);
+        state.resize(&remote_version_game_version_split, 1.0 / 2.0);
 
         Ok(Headings {
           headings: state,
@@ -42,7 +45,8 @@ impl Headings {
           name_id_split,
           id_author_split,
           author_mod_version_split,
-          mod_version_ss_version_split,
+          local_version_remote_version_split,
+          remote_version_game_version_split
         })
       } else {
         Err(())
