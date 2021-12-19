@@ -25,12 +25,13 @@ use crate::gui::SaveError;
 use crate::gui::util;
 
 mod headings;
+use headings::{Headings, HeadingsMessage};
 
 pub struct ModList {
   root_dir: Option<PathBuf>,
   pub mods: HashMap<String, ModEntry>,
   scroll: scrollable::State,
-  mod_description: ModDescription,
+  pub mod_description: ModDescription,
   install_state: pick_list::State<InstallOptions>,
   tool_state: pick_list::State<ToolOptions>,
   currently_highlighted: Option<String>,
@@ -38,9 +39,10 @@ pub struct ModList {
   name_id_ratio: f32,
   id_author_ratio: f32,
   author_version_ratio: f32,
-  version_game_version_ratio: f32,
+  mod_version_auto_update_ratio: f32,
+  auto_update_game_version_ratio: f32,
   pub last_browsed: Option<PathBuf>,
-  headings: headings::Headings,
+  headings: Headings,
   installs: Vec<Installation<u16>>,
   installation_id: u16,
   search_state: text_input::State,
@@ -59,9 +61,9 @@ pub enum ModListMessage {
   InstallationComplete(u16, Vec<String>, Vec<String>),
   DuplicateMod(String, String, installer::HybridPath, Option<PathBuf>),
   SingleInstallComplete,
-  MasterVersionReceived((String, Result<Option<ModVersionMeta>, String>)),
+  MasterVersionReceived((String, Result<ModVersionMeta, String>)),
   ParseModListError(()),
-  HeadingsMessage(headings::HeadingsMessage),
+  HeadingsMessage(HeadingsMessage),
   SearchChanged(String),
 }
 
@@ -76,12 +78,13 @@ impl ModList {
       tool_state: pick_list::State::default(),
       currently_highlighted: None,
       sorting: (ModEntryComp::ID, false),
-      name_id_ratio: 0.2,
-      id_author_ratio: 0.25,
-      author_version_ratio: 1.0 / 3.0,
-      version_game_version_ratio: 0.5,
+      name_id_ratio: Headings::NAME_ID_RATIO,
+      id_author_ratio: Headings::ID_AUTHOR_RATIO,
+      author_version_ratio: Headings::AUTHOR_MOD_VERSION_RATIO,
+      mod_version_auto_update_ratio: Headings::MOD_VERSION_AUTO_UPDATE_RATIO,
+      auto_update_game_version_ratio: Headings::AUTO_UPDATE_GAME_VERSION_RATIO,
       last_browsed: None,
-      headings: headings::Headings::new().unwrap(),
+      headings: Headings::new().unwrap(),
       installs: vec![],
       installation_id: 0,
       search_state: text_input::State::default(),
@@ -145,6 +148,9 @@ impl ModList {
                 };
                 return Command::perform(enabled_mods.save(path.join("mods").join("enabled_mods.json")), ModListMessage::EnabledModsSaved)
               }
+            },
+            ModEntryMessage::AutoUpdate => {
+              self.update(ModListMessage::ModEntryMessage(id, ModEntryMessage::EntryHighlighted));
             }
           }
         }
@@ -200,6 +206,18 @@ impl ModList {
                 },
                 None => {},
               }
+
+              Command::none()
+            },
+            InstallOptions::FromDownload(url, target_version, old_path) => {
+              self.installs.push(Installation::new(
+                self.installation_id,
+                (url, target_version, old_path),
+                root_dir.join("mods"),
+                Vec::new()
+              ));
+
+              self.installation_id += 1;
 
               Command::none()
             },
@@ -281,31 +299,21 @@ impl ModList {
           if let Some(ModVersionMeta { version: local_version, .. }) = &entry.version_checker;
           then {
             match res {
-              Ok(maybe_version) => {
-                  match maybe_version {
-                    Some(remote_version_meta) => {
-                      let version = remote_version_meta.version.clone();
-                      // debug_print!("{}. ", entry.id);
-                      if version < *local_version {
-                        entry.update_status = Some(UpdateStatus::Discrepancy(version))
-                      } else if version.major - local_version.major > 0 {
-                        // debug_println!("New major version available.");
-                        entry.update_status = Some(UpdateStatus::Major(version))
-                      } else if version.minor - local_version.minor > 0 {
-                        // debug_println!("New minor version available.");
-                        entry.update_status = Some(UpdateStatus::Minor(version))
-                      } else {
-                        // debug_println!("New patch available.");
-                        entry.update_status = Some(UpdateStatus::Patch(version))
-                      };
-                      // debug_println!("{:?}", entry.version_checker.as_ref().unwrap().version);
-                      entry.remote_version = Some(remote_version_meta);
-                    },
-                    None => {
-                      // debug_println!("No update available for {}.", entry.id);
-                      entry.update_status = Some(UpdateStatus::UpToDate)
-                    }
-                  }
+              Ok(remote_version_meta) => {
+                let version = remote_version_meta.version.clone();
+
+                if version == *local_version {
+                  entry.update_status = Some(UpdateStatus::UpToDate)
+                } else if version < *local_version {
+                  entry.update_status = Some(UpdateStatus::Discrepancy(version))
+                } else if version.major - local_version.major > 0 {
+                  entry.update_status = Some(UpdateStatus::Major(version))
+                } else if version.minor - local_version.minor > 0 {
+                  entry.update_status = Some(UpdateStatus::Minor(version))
+                } else {
+                  entry.update_status = Some(UpdateStatus::Patch(version))
+                };
+                entry.remote_version = Some(remote_version_meta);
               },
               Err(_err) => {
                 // debug_println!("Could not get remote update data for {}.\nError: {}", id, err);
@@ -416,7 +424,7 @@ impl ModList {
       },
       ModListMessage::HeadingsMessage(message) => {
         match message {
-          headings::HeadingsMessage::HeadingPressed(sorting) => {
+          HeadingsMessage::HeadingPressed(sorting) => {
             let (current, val) = &self.sorting;
             if *current == sorting {
               self.sorting = (sorting, !val)
@@ -424,15 +432,25 @@ impl ModList {
               self.sorting = (sorting, false)
             }
           },
-          headings::HeadingsMessage::Resized(event) => {
+          HeadingsMessage::Resized(event) => {
             if event.split == self.headings.name_id_split {
               self.name_id_ratio = event.ratio;
             } else if event.split == self.headings.id_author_split {
               self.id_author_ratio = event.ratio;
             } else if event.split == self.headings.author_mod_version_split {
               self.author_version_ratio = event.ratio;
-            } else if event.split == self.headings.mod_version_ss_version_split {
-              self.version_game_version_ratio = event.ratio;
+            } else if event.split == self.headings.mod_version_auto_update_split {
+              self.mod_version_auto_update_ratio = if event.ratio > Headings::MOD_VERSION_AUTO_UPDATE_RATIO {
+                Headings::MOD_VERSION_AUTO_UPDATE_RATIO
+              } else {
+                event.ratio
+              };
+            } else if event.split == self.headings.auto_update_game_version_split {
+              self.auto_update_game_version_ratio = if event.ratio < Headings::AUTO_UPDATE_GAME_VERSION_RATIO {
+                Headings::AUTO_UPDATE_GAME_VERSION_RATIO
+              } else {
+                event.ratio
+              };
             }
 
             self.headings.update(message);
@@ -540,6 +558,10 @@ impl ModList {
                   }
 
                 },
+                (ModEntryComp::AutoUpdateSupport, true) => {
+                  left.remote_version.as_ref().and_then(|r| r.direct_download_url.as_ref()).is_some()
+                    .cmp(&right.remote_version.as_ref().and_then(|r| r.direct_download_url.as_ref()).is_some())
+                }
                 (ModEntryComp::ID, true) => right.id.cmp(&left.id),
                 (ModEntryComp::Name, true) => right.name.cmp(&left.name),
                 (ModEntryComp::Author, true) => right.author.cmp(&left.author),
@@ -558,6 +580,10 @@ impl ModList {
                     right.update_status.cmp(&left.update_status)
                   }
                 },
+                (ModEntryComp::AutoUpdateSupport, false) => {
+                  right.remote_version.as_ref().and_then(|r| r.direct_download_url.as_ref()).is_some()
+                    .cmp(&left.remote_version.as_ref().and_then(|r| r.direct_download_url.as_ref()).is_some())
+                }
               }
             });
 
@@ -565,15 +591,16 @@ impl ModList {
             let name_portion = 10000.0 * self.name_id_ratio;
             let id_portion = (10000.0 - name_portion) * self.id_author_ratio;
             let author_portion = (10000.0 - name_portion - id_portion) * self.author_version_ratio;
-            let version_portion = (10000.0 - name_portion - id_portion - author_portion) * self.version_game_version_ratio;
-            let game_version_portion = 10000.0 - name_portion - id_portion - author_portion - version_portion;
+            let mod_version_portion = (10000.0 - name_portion - id_portion - author_portion) * self.mod_version_auto_update_ratio;
+            let auto_update_portion = (10000.0 - name_portion - id_portion - author_portion - mod_version_portion) * self.auto_update_game_version_ratio;
+            let game_version_portion = 10000.0 - name_portion - id_portion - author_portion - mod_version_portion - auto_update_portion;
 
             sorted_mods.into_iter()
               .filter(|entry| entry.display)
               .for_each(|entry| {
                 every_other = !every_other;
                 let id_clone = entry.id.clone();
-                views.push(entry.view(every_other, name_portion as u16, id_portion as u16, author_portion as u16, version_portion as u16, game_version_portion as u16).map(move |message| {
+                views.push(entry.view(every_other, name_portion as u16, id_portion as u16, author_portion as u16, mod_version_portion as u16, auto_update_portion as u16, game_version_portion as u16).map(move |message| {
                   ModListMessage::ModEntryMessage(id_clone.clone(), message)
                 }))
               });
@@ -706,11 +733,12 @@ impl ModList {
   }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum InstallOptions {
   FromMultipleArchive,
   FromSingleArchive,
   FromFolder,
+  FromDownload(String, String, PathBuf),
   Default
 }
 
@@ -731,6 +759,7 @@ impl std::fmt::Display for InstallOptions {
         InstallOptions::Default => "Install Mod",
         InstallOptions::FromMultipleArchive => "From Multiple Archives",
         InstallOptions::FromSingleArchive => "From Single Archive",
+        InstallOptions::FromDownload(_, _, _) => "From Download",
         InstallOptions::FromFolder => "From Folder"
       }
     )
@@ -816,7 +845,7 @@ pub struct UpdateStatusTTPatch(pub UpdateStatus);
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
-enum VersionUnion {
+pub enum VersionUnion {
   String(String),
   Object(ModVersion)
 }
@@ -843,7 +872,7 @@ pub struct ModEntry {
   pub name: String,
   #[serde(default)]
   author: String,
-  version: VersionUnion,
+  pub version: VersionUnion,
   description: String,
   #[serde(alias = "gameVersion")]
   game_version: String,
@@ -854,14 +883,17 @@ pub struct ModEntry {
   #[serde(skip)]
   version_checker: Option<ModVersionMeta>,
   #[serde(skip)]
-  remote_version: Option<ModVersionMeta>,
+  pub remote_version: Option<ModVersionMeta>,
   #[serde(skip)]
   update_status: Option<UpdateStatus>,
   #[serde(skip)]
-  path: PathBuf,
+  pub path: PathBuf,
   #[serde(skip)]
   #[serde(default = "button::State::new")]
   button_state: button::State,
+  #[serde(skip)]
+  #[serde(default = "button::State::new")]
+  auto_update_button_state: button::State,
   #[serde(skip)]
   #[serde(default = "ModEntry::def_true")]
   display: bool,
@@ -877,14 +909,16 @@ pub enum ModEntryComp {
   GameVersion,
   Enabled,
   Version,
-  Score
+  Score,
+  AutoUpdateSupport
 }
 
 #[derive(Debug, Clone)]
 pub enum ModEntryMessage {
   ToggleEnabled(bool),
   EntryHighlighted,
-  EntryCleared
+  EntryCleared,
+  AutoUpdate
 }
 
 pub enum ModEntryError {
@@ -893,6 +927,11 @@ pub enum ModEntryError {
 }
 
 impl ModEntry {
+  const ICONS: iced::Font = iced::Font::External {
+    name: "Icons",
+    bytes: std::include_bytes!("../../assets/icons.ttf")
+  };
+
   pub fn from_file(mut path: PathBuf) -> Result<ModEntry, ModEntryError> {
     if let Ok(mod_info_file) = std::fs::read_to_string(path.clone()) {
       if_chain! {
@@ -928,11 +967,54 @@ impl ModEntry {
         self.highlighted = false;
 
         Command::none()
+      },
+      ModEntryMessage::AutoUpdate => {
+        Command::none()
       }
     }
   }
 
-  pub fn view(&mut self, other: bool, name_portion: u16, id_portion: u16, author_portion: u16, version_portion: u16, game_version_portion: u16) -> Element<ModEntryMessage> {
+  pub fn view(&mut self, other: bool, name_portion: u16, id_portion: u16, author_portion: u16, mod_version_portion: u16, auto_update_portion: u16, game_version_portion: u16) -> Element<ModEntryMessage> {
+    let auto_update_supported = self.remote_version.as_ref().and_then(|remote| remote.direct_download_url.as_ref()).is_some();
+
+    let mut auto_update_button = Button::new(
+      &mut self.auto_update_button_state,
+      Row::new()
+        .push(Rule::vertical(0).style(style::max_rule::Rule))
+        .push(Column::with_children(vec![
+          Space::with_height(Length::FillPortion(1)).into(),
+          {
+            let text = Text::new(if auto_update_supported {
+              '\u{f270}'.to_string()
+            } else {
+              '\u{f623}'.to_string()
+            }).font(ModEntry::ICONS).size(32);
+
+            if !auto_update_supported {
+              text.color(iced::Color::from_rgb8(0xB0, 0x00, 0x20))
+            } else {
+              text
+            }.into()
+          },
+          Space::with_height(Length::FillPortion(1)).into(),
+        ]).width(Length::Fill).height(Length::Fill).align_items(Align::Center))
+    )
+    .width(Length::FillPortion(auto_update_portion))
+    .height(Length::Fill)
+    .padding(0);
+
+    auto_update_button = if auto_update_supported {
+      let button = auto_update_button.style(style::button_highlight_and_hover_green::Button);
+
+      if self.update_status != Some(UpdateStatus::UpToDate) {
+        button.on_press(ModEntryMessage::AutoUpdate)
+      } else {
+        button
+      }
+    } else {
+      auto_update_button.style(style::button_none::Button)
+    };
+
     let row = Container::new(Row::new()
       .push(
         Container::new(
@@ -942,7 +1024,7 @@ impl ModEntry {
         )
         .center_x()
         .center_y()
-        .width(Length::FillPortion(3))
+        .width(Length::FillPortion(Headings::ENABLED_PORTION as u16))
         .height(Length::Fill)
       )
       .push(
@@ -971,23 +1053,43 @@ impl ModEntry {
                     Container::new(Row::with_children(vec![
                       Rule::vertical(0).style(style::max_rule::Rule).into(),
                       Space::with_width(Length::Units(5)).into(),
-                      Text::new(self.version.clone()).into()
+                      if let UpdateStatus::Major(remote) | UpdateStatus::Minor(remote) | UpdateStatus::Patch(remote) = status {
+                        Column::with_children(vec![
+                          Space::with_height(Length::Units(5)).into(),
+                          Row::with_children(vec![
+                            Text::new(format!("Installed:")).into(),
+                            Space::with_width(Length::Fill).into(),
+                            Text::new(self.version.to_string()).into(),
+                          ]).width(Length::Fill).into(),
+                          Space::with_height(Length::Fill).into(),
+                          Row::with_children(vec![
+                            Text::new(format!("Available:")).into(),
+                            Space::with_width(Length::Fill).into(),
+                            Text::new(remote.to_string()).into(),
+                          ]).width(Length::Fill).into(),
+                          Space::with_height(Length::Units(5)).into(),
+                        ]).height(Length::Fill).width(Length::Fill).into()
+                      } else {
+                        Text::new(self.version.to_string()).into()
+                      },
+                      Space::with_width(Length::Units(5)).into(),
                     ]))
-                    .style(status.clone())
+                    .style(status)
                     .width(Length::Fill)
                     .height(Length::Fill),
                     match status {
-                      UpdateStatus::Major(remote) | UpdateStatus::Minor(remote) | UpdateStatus::Patch(remote) => {
-                        format!("{} update available.\nUpdate: {}", status, remote)
+                      UpdateStatus::Major(_) | UpdateStatus::Minor(_) => {
+                        format!("{} update available", status)
                       },
+                      UpdateStatus::Patch(_) => format!("Patch available"),
                       UpdateStatus::UpToDate => format!("Up to date!"),
-                      UpdateStatus::Error => format!("Could not retrieve remote update data."),
-                      UpdateStatus::Discrepancy(remote) => format!("Local is a higher version than remote.\nRemote: {}", remote)
+                      UpdateStatus::Error => format!("Could not retrieve remote update data"),
+                      UpdateStatus::Discrepancy(_) => format!("Local is a higher version than remote")
                     },
                     tooltip::Position::FollowCursor
                   ).style(UpdateStatusTTPatch(status.clone()))
                 )
-                .width(Length::FillPortion(version_portion))
+                .width(Length::FillPortion(mod_version_portion))
                 .height(Length::Fill)
                 .padding(1)
                 .into()
@@ -996,10 +1098,11 @@ impl ModEntry {
                   .push(Rule::vertical(0).style(style::max_rule::Rule))
                   .push(Space::with_width(Length::Units(5)))
                   .push(Text::new(self.version.clone()).width(Length::Fill))
-                ).width(Length::FillPortion(version_portion))
+                ).width(Length::FillPortion(mod_version_portion))
                 .into()
               }
             )
+            .push(auto_update_button)
             .push(Container::new(Row::new()
               .push(Rule::vertical(0).style(style::max_rule::Rule))
               .push(Space::with_width(Length::Units(5)))
@@ -1011,7 +1114,7 @@ impl ModEntry {
         .height(Length::Fill)
         .style(style::button_none::Button)
         .on_press(ModEntryMessage::EntryHighlighted)
-        .width(Length::FillPortion(40))
+        .width(Length::FillPortion(Headings::REMAINING_PORTION as u16))
       )
       .height(Length::Units(50))
     );
@@ -1031,12 +1134,19 @@ impl ModEntry {
   }
 
   fn def_true() -> bool { true }
+
+  pub fn get_master_version(&self) -> Option<&ModVersionMeta> {
+    self.remote_version.as_ref()
+  }
 }
 
 #[derive(Debug, Clone, Deserialize, Eq, Ord)]
 pub struct ModVersionMeta {
   #[serde(alias="masterVersionFile")]
   pub remote_url: String,
+  #[serde(alias="directDownloadURL")]
+  #[serde(default)]
+  pub direct_download_url: Option<String>,
   #[serde(alias="modName")]
   pub id: String,
   #[serde(alias="modThreadId")]
@@ -1086,7 +1196,7 @@ impl Display for ModVersion {
 
 #[derive(Debug, Clone)]
 pub struct ModDescription {
-  mod_entry: Option<ModEntry>,
+  pub mod_entry: Option<ModEntry>,
   fractal_link: button::State,
   nexus_link: button::State,
   file_link: button::State,

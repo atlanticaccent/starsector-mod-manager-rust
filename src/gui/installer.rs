@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::hash::{Hash, Hasher};
 use std::{
   fs::{copy, create_dir_all, read_dir},
-  io
+  io, io::Write
 };
 use std::sync::Arc;
 use iced_futures::futures::{self, future, StreamExt};
@@ -36,7 +36,8 @@ where
 #[derive(Clone)]
 pub enum Payload {
   Initial(Vec<PathBuf>),
-  Resumed(String, HybridPath, PathBuf)
+  Resumed(String, HybridPath, PathBuf),
+  Download(String, String, PathBuf)
 }
 
 impl From<Vec<PathBuf>> for Payload {
@@ -46,10 +47,14 @@ impl From<Vec<PathBuf>> for Payload {
 }
 
 impl From<(String, HybridPath, PathBuf)> for Payload {
-  fn from(from: (String, HybridPath, PathBuf)) -> Self {
-    let (name, new_path, old_path) = from;
-
+  fn from((name, new_path, old_path) : (String, HybridPath, PathBuf)) -> Self {
     Payload::Resumed(name, new_path, old_path)
+  }
+}
+
+impl From<(String, String, PathBuf)> for Payload {
+  fn from((url, target_version, old_path): (String, String, PathBuf)) -> Self {
+    Payload::Download(url, target_version, old_path)
   }
 }
 
@@ -114,6 +119,11 @@ where
               Payload::Resumed(name, new_path, old_path) => {
                 tokio::spawn(async move {
                   handle_delete(tx, name, new_path, old_path).await;
+                });
+              },
+              Payload::Download(url, target_version, old_path) => {
+                tokio::spawn(async move {
+                  handle_auto(tx, url, target_version, old_path, mods_dir).await;
                 });
               }
             }
@@ -313,10 +323,62 @@ async fn handle_delete(tx: mpsc::UnboundedSender<ChannelMessage>, name: String, 
   tx.send(ChannelMessage::Success(name)).expect("Send success over async channel");
 }
 
+async fn handle_auto(tx: mpsc::UnboundedSender<ChannelMessage>, url: String, target_version: String, old_path: PathBuf, _: PathBuf) {
+  match download(url).await {
+    Ok(file) => {
+      let path = file.path().to_path_buf();
+      let decompress = task::spawn_blocking(move || decompress(path)).await.expect("Run decompression");
+      match decompress {
+        Ok(temp) => {
+          let hybrid = HybridPath::Temp(Arc::new(temp), None);
+          let path = hybrid.get_path_copy();
+          if_chain! {
+            if let Ok(Some(path)) = task::spawn_blocking(move || find_nested_mod(&path)).await.expect("Run blocking search").context(Io {});
+            if let Ok(mod_info) = ModEntry::from_file(path.join("mod_info.json"));
+            then {
+              if mod_info.version.to_string() != target_version {
+                tx.send(ChannelMessage::Error(format!("Downloaded version does not match expected version"))).expect("Send error over async channel");
+              } else {
+                handle_delete(tx, mod_info.name, hybrid, old_path).await;
+              }
+            } else {
+              tx.send(ChannelMessage::Error(format!("Some kind of unpack error"))).expect("Send error over async channel");
+            }
+          }
+        },
+        Err(err) => {
+          println!("{:?}", err);
+          tx.send(ChannelMessage::Error(err.to_string())).expect("Send error over async channel");
+
+          return;
+        }
+      };
+
+      // remove_dir_all(old_path).expect("Remove old mod");
+
+      // handle_path(tx, file.path().to_path_buf(), mods_dir, Vec::new()).await;
+    },
+    Err(err) => {
+      tx.send(ChannelMessage::Error(err.to_string())).expect("Send error over async channel");
+    }
+  }
+}
+
+async fn download(url: String) -> Result<tempfile::NamedTempFile, InstallError> {
+  let mut file = tempfile::NamedTempFile::new().context(Io {})?;
+  let mut res = reqwest::get(url).await.context(Network {})?;
+
+  while let Some(chunk) = res.chunk().await.context(Network {})? {
+    file.write(&chunk).context(Io {})?;
+  };
+
+  Ok(file)
+}
+
 #[derive(Debug, Clone)]
 pub enum HybridPath {
   PathBuf(PathBuf),
-  Temp(Arc<TempDir>, Option<PathBuf>)
+  Temp(Arc<TempDir>, Option<PathBuf>),
 }
 
 impl HybridPath {
@@ -335,6 +397,7 @@ enum InstallError {
   Mime { detail: String },
   CompressTools { source: compress_tools::Error },
   Unrar { detail: String },
+  Network { source: reqwest::Error },
   Any { detail: String }
 }
 

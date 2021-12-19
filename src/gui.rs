@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 use iced::{Application, button, Button, Column, Command, Element, Length, Row, Text, executor, Clipboard, Container, Space, Subscription};
+use iced_aw::{modal, Modal, Card};
+
 use serde::{Serialize, Deserialize};
 use serde_json;
 
@@ -30,7 +32,13 @@ mod installer;
 use crate::style;
 
 use settings::{SettingsMessage, vmparams::{VMParams, Value, Unit}};
-use mod_list::ModListMessage;
+use mod_list::{ModListMessage, ModEntryMessage};
+
+#[derive(Default)]
+struct ModalState {
+  cancel_state: button::State,
+  accept_state: button::State,
+}
 
 pub struct App {
   config: Option<Config>,
@@ -42,6 +50,7 @@ pub struct App {
   manager_update_status: Option<Result<String, String>>,
   manager_update_link_state: button::State,
   settings_changed: bool,
+  modal_state: modal::State<ModalState>,
 }
 
 #[derive(Debug, Clone)]
@@ -56,6 +65,7 @@ pub enum Message {
   ModListMessage(ModListMessage),
   TagsReceived(Result<String, String>),
   OpenReleases,
+  CloseModal(Option<(String, String, PathBuf)>),
 }
 
 impl Application for App {
@@ -75,6 +85,7 @@ impl Application for App {
         manager_update_status: None,
         manager_update_link_state: button::State::new(),
         settings_changed: false,
+        modal_state: modal::State::default(),
       },
       Command::batch(vec![
         Command::perform(Config::load(), Message::ConfigLoaded),
@@ -207,6 +218,10 @@ impl Application for App {
         return Command::none();
       },
       Message::ModListMessage(mod_list_message) => {
+        if let ModListMessage::ModEntryMessage(_, ModEntryMessage::AutoUpdate) = mod_list_message {
+          self.modal_state.show(true);
+        }
+
         let mut commands = vec![self.mod_list.update(mod_list_message.clone()).map(|m| Message::ModListMessage(m))];
 
         if let Some(config) = self.config.as_mut() {
@@ -228,6 +243,15 @@ impl Application for App {
         }
         
         Command::none()
+      },
+      Message::CloseModal(result) => {
+        self.modal_state.show(false);
+
+        if let Some((url, target_version, old_path)) = result {
+          self.mod_list.update(ModListMessage::InstallPressed(mod_list::InstallOptions::FromDownload(url, target_version, old_path))).map(|m| Message::ModListMessage(m))
+        } else {
+          Command::none()
+        }
       }
     }
   }
@@ -316,9 +340,83 @@ impl Application for App {
         Message::SettingsMessage(_message)
       })
     } else {
-      self.mod_list.view().map(move |_message| {
+      let entry = self.mod_list.mod_description.mod_entry.clone();
+
+      let inner_content = self.mod_list.view().map(move |_message| {
         Message::ModListMessage(_message)
-      })
+      });
+
+      Modal::new(
+        &mut self.modal_state,
+        inner_content,
+        move |state| {
+          Card::new(
+            Text::new("Auto-update?"),
+            Column::with_children(vec![
+              Text::new(format!("Do you want to automatically download and update {} from version {} to version {}?", if let Some(highlighted) = &entry {
+                &highlighted.name
+              } else {
+                "{Error: Failed to retrieve mod name}"
+              }, if let Some(current) = &entry.as_ref().map(|entry| entry.version.to_string()) {
+                current
+              } else {
+                "{Error: Failed to retrieve version}"
+              }, if let Some(remote) = &entry.as_ref().and_then(|entry| entry.remote_version.as_ref()).map(|m| m.version.to_string()) {
+                remote
+              } else {
+                "{Error: Failed to retrieve remote version}"
+              })).into(),
+              Text::new("WARNING:").color(iced::Color::from_rgb8(0xB0, 0x00, 0x20)).into(),
+              Text::new("Save compatibility is not guaranteed when updating a mod. Your save may no longer load if you apply this update.").into(),
+              Text::new("Bug reports about saves broken by using this feature will be ignored.").into(),
+            ]),
+          )
+          .foot(
+            Column::with_children(vec![
+              iced::Rule::horizontal(2).style(style::max_rule::Rule).into(),
+              Text::new("Are you sure you want to continue?").into(),
+              Space::with_height(Length::Units(2)).into(),
+              Row::new()
+                .spacing(10)
+                .padding(5)
+                .width(Length::Fill)
+                .push(
+                  Button::new(
+                    &mut state.cancel_state,
+                    Text::new("Cancel"),
+                  )
+                  .width(Length::Fill)
+                  .on_press(Message::CloseModal(None)),
+                )
+                .push(
+                  Button::new(
+                    &mut state.accept_state,
+                    Text::new("Ok"),
+                  )
+                  .width(Length::Fill)
+                  .on_press(Message::CloseModal(if let Some(highlighted) = entry.as_ref()
+                    .and_then(|e| e.get_master_version())
+                    .and_then(|v| v.direct_download_url.clone())
+                    .zip(entry.as_ref()
+                      .and_then(|entry| entry.remote_version.as_ref())
+                      .map(|m| m.version.to_string())
+                    )
+                    .zip_with(entry.as_ref().map(|e| e.path.clone()), |(url, version): (String, String), other| (url, version, other))
+                  {
+                    Some(highlighted)
+                  } else { None })),
+                )
+                .into(),
+            ])
+          )
+          .max_width(300)
+          .on_close(Message::CloseModal(None))
+          .into()
+        }
+      )
+      .backdrop(Message::CloseModal(None))
+      .on_esc(Message::CloseModal(None))
+      .into()
     };
 
     Column::new()

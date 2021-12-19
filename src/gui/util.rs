@@ -32,7 +32,7 @@ pub fn select_archives(path: &str) -> Option<Vec<PathBuf>> {
   }
 }
 
-pub async fn get_master_version(local: ModVersionMeta) -> (String, Result<Option<ModVersionMeta>, String>) {
+pub async fn get_master_version(local: ModVersionMeta) -> (String, Result<ModVersionMeta, String>) {
   let res = send_request(local.remote_url.clone()).await;
 
   match res {
@@ -44,17 +44,10 @@ pub async fn get_master_version(local: ModVersionMeta) -> (String, Result<Option
         if let Ok(normalized) = handwritten_json::normalize(&stripped);
         if let Ok(remote) = json5::from_str::<ModVersionMeta>(&normalized);
         then {
-          if remote.version != local.version {
-            (
-              local.id,
-              Ok(Some(remote))
-            )
-          } else {
-            (
-              local.id,
-              Ok(None)
-            )
-          }
+          (
+            local.id,
+            Ok(remote)
+          )
         } else {
           (
             local.id,
