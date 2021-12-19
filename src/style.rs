@@ -65,8 +65,37 @@ pub mod button_highlight_and_hover {
   
     fn hovered(&self) -> button::Style {
       button::Style {
-        background: Color::from_rgb8(0x41, 0x41, 0x41).into(),
+        background: Color::from_rgb8(0xC0, 0xC0, 0xC0).into(),
         text_color: Color::WHITE.into(),
+        ..button::Style::default()
+      }
+    }
+  }
+}
+
+pub mod button_highlight_and_hover_green {
+  use iced::{button, Color, Vector};
+
+  pub struct Button;
+
+  impl button::StyleSheet for Button {
+    fn active(&self) -> button::Style {
+      button::Style {
+        shadow_offset: Vector::new(0.0, 0.0),
+        text_color: Color::from_rgb8(0x32, 0xA8, 0x52),
+        border_color: Color::from_rgb8(0x32, 0xA8, 0x52),
+        border_width: 1.5,
+        border_radius: 7.5,
+        ..button::Style::default()
+      }
+    }
+  
+    fn hovered(&self) -> button::Style {
+      button::Style {
+        background: Color::from_rgb8(0x32, 0xA8, 0x52).into(),
+        border_color: Color::BLACK.into(),
+        text_color: Color::BLACK.into(),
+        border_radius: 7.5,
         ..button::Style::default()
       }
     }
