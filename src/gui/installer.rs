@@ -336,6 +336,11 @@ async fn handle_auto(tx: mpsc::UnboundedSender<ChannelMessage>, url: String, tar
             if let Ok(Some(path)) = task::spawn_blocking(move || find_nested_mod(&path)).await.expect("Run blocking search").context(Io {});
             if let Ok(mod_info) = ModEntry::from_file(path.join("mod_info.json"));
             then {
+              let hybrid = if let HybridPath::Temp(temp, _) = hybrid {
+                HybridPath::Temp(temp, Some(path))
+              } else {
+                unreachable!()
+              };
               if mod_info.version.to_string() != target_version {
                 tx.send(ChannelMessage::Error(format!("Downloaded version does not match expected version"))).expect("Send error over async channel");
               } else {
@@ -353,10 +358,6 @@ async fn handle_auto(tx: mpsc::UnboundedSender<ChannelMessage>, url: String, tar
           return;
         }
       };
-
-      // remove_dir_all(old_path).expect("Remove old mod");
-
-      // handle_path(tx, file.path().to_path_buf(), mods_dir, Vec::new()).await;
     },
     Err(err) => {
       tx.send(ChannelMessage::Error(err.to_string())).expect("Send error over async channel");
