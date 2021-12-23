@@ -16,6 +16,12 @@ use handwritten_json;
 use if_chain::if_chain;
 use opener;
 use sublime_fuzzy::best_match;
+use lazy_static::lazy_static;
+use regex::Regex;
+
+lazy_static! {
+  static ref VERSION_REGEX: Regex = Regex::new(r"\.|a-RC|A-RC|a-rc|a").unwrap();
+}
 
 use serde_aux::prelude::*;
 
@@ -47,6 +53,7 @@ pub struct ModList {
   installation_id: u16,
   search_state: text_input::State,
   search_query: Option<String>,
+  pub starsector_version: (Option<String>, Option<String>, Option<String>, Option<String>),
 }
 
 #[derive(Debug, Clone)]
@@ -65,6 +72,7 @@ pub enum ModListMessage {
   ParseModListError(()),
   HeadingsMessage(HeadingsMessage),
   SearchChanged(String),
+  SetVersion(String),
 }
 
 impl ModList {
@@ -88,7 +96,8 @@ impl ModList {
       installs: vec![],
       installation_id: 0,
       search_state: text_input::State::default(),
-      search_query: None
+      search_query: None,
+      starsector_version: (None, None, None, None),
     }
   }
 
@@ -99,6 +108,11 @@ impl ModList {
    */
   pub fn update(&mut self, message: ModListMessage) -> Command<ModListMessage> {
     match message {
+      ModListMessage::SetVersion(version) => {
+        self.starsector_version = parse_game_version(&version);
+
+        Command::none()
+      },
       ModListMessage::SetRoot(root_dir) => {
         if self.root_dir != root_dir {
           self.root_dir = root_dir;
@@ -487,6 +501,7 @@ impl ModList {
   }
 
   pub fn view(&mut self) -> Element<ModListMessage> {
+    let starsector_version = self.starsector_version.clone();
     let mut every_other = true;
     let content = Column::new()
       .push(Row::new()
@@ -600,7 +615,15 @@ impl ModList {
               .for_each(|entry| {
                 every_other = !every_other;
                 let id_clone = entry.id.clone();
-                views.push(entry.view(every_other, name_portion as u16, id_portion as u16, author_portion as u16, mod_version_portion as u16, auto_update_portion as u16, game_version_portion as u16).map(move |message| {
+                views.push(entry.view(every_other,
+                  name_portion as u16,
+                  id_portion as u16,
+                  author_portion as u16,
+                  mod_version_portion as u16,
+                  auto_update_portion as u16,
+                  game_version_portion as u16,
+                  starsector_version.clone()
+                ).map(move |message| {
                   ModListMessage::ModEntryMessage(id_clone.clone(), message)
                 }))
               });
@@ -731,6 +754,21 @@ impl ModList {
       vec![Command::perform(async {}, ModListMessage::ParseModListError)]
     }
   }
+
+  pub fn get_game_version(&self) -> Option<String> {
+    match &self.starsector_version {
+      (None, None, None, None) => None,
+      (major, minor, patch, rc) => {
+        Some(format!(
+          "{}.{}{}{}",
+          major.clone().unwrap_or("0".to_string()),
+          minor.clone().unwrap_or("".to_string()),
+          patch.clone().map_or_else(|| "".to_string(), |p| format!(".{}", p)),
+          rc.clone().map_or_else(|| "".to_string(), |rc| format!("a-RC{}", rc))
+        ))
+      }
+    }
+  }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -821,11 +859,11 @@ impl std::fmt::Display for ToolOptions {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum UpdateStatus {
   Error,
-  Major(ModVersion),
-  Minor(ModVersion),
-  Patch(ModVersion),
+  Major(Version),
+  Minor(Version),
+  Patch(Version),
   UpToDate,
-  Discrepancy(ModVersion),
+  Discrepancy(Version),
 }
 
 impl Display for UpdateStatus {
@@ -847,7 +885,7 @@ pub struct UpdateStatusTTPatch(pub UpdateStatus);
 #[serde(untagged)]
 pub enum VersionUnion {
   String(String),
-  Object(ModVersion)
+  Object(Version)
 }
 
 impl Display for VersionUnion {
@@ -876,6 +914,8 @@ pub struct ModEntry {
   description: String,
   #[serde(alias = "gameVersion")]
   game_version: String,
+  #[serde(skip)]
+  parsed_game_version: (Option<String>, Option<String>, Option<String>, Option<String>),
   #[serde(skip)]
   enabled: bool,
   #[serde(skip)]
@@ -941,6 +981,7 @@ impl ModEntry {
         then {
           path.pop();
           mod_info.path = path;
+          mod_info.parsed_game_version = parse_game_version(&mod_info.game_version);
           Ok(mod_info)
         } else {
           Err(ModEntryError::ParseError)
@@ -974,7 +1015,17 @@ impl ModEntry {
     }
   }
 
-  pub fn view(&mut self, other: bool, name_portion: u16, id_portion: u16, author_portion: u16, mod_version_portion: u16, auto_update_portion: u16, game_version_portion: u16) -> Element<ModEntryMessage> {
+  pub fn view(
+    &mut self,
+    other: bool,
+    name_portion: u16,
+    id_portion: u16,
+    author_portion: u16,
+    mod_version_portion: u16,
+    auto_update_portion: u16,
+    game_version_portion: u16,
+    starsector_version: (Option<std::string::String>, Option<std::string::String>, Option<std::string::String>, Option<std::string::String>)
+  ) -> Element<ModEntryMessage> {
     let auto_update_supported = self.remote_version.as_ref().and_then(|remote| remote.direct_download_url.as_ref()).is_some();
 
     let mut auto_update_button = Button::new(
@@ -1103,11 +1154,58 @@ impl ModEntry {
               }
             )
             .push(auto_update_button)
-            .push(Container::new(Row::new()
-              .push(Rule::vertical(0).style(style::max_rule::Rule))
-              .push(Space::with_width(Length::Units(5)))
-              .push(Text::new(self.game_version.clone()).width(Length::Fill))
-            ).width(Length::FillPortion(game_version_portion)))
+            .push(Container::new::<Element<ModEntryMessage>>({
+                let game_version: Container<ModEntryMessage> = Container::new(Row::new()
+                  .push(Rule::vertical(0).style(style::max_rule::Rule))
+                  .push(Space::with_width(Length::Units(5)))
+                  .push(Text::new(self.game_version.clone()).width(Length::Fill)))
+                  .width(Length::Fill)
+                  .height(Length::Fill);
+
+                match (self.parsed_game_version.clone(), starsector_version) {
+                  ((mod_major, ..), (game_major, ..)) if mod_major != game_major => {
+                    Tooltip::new(
+                      game_version.style(style::update::error::Container),
+                      "Major version mismatch!\nAlmost guaranteed to crash!",
+                      tooltip::Position::FollowCursor
+                    ).style(style::update::error::Tooltip).into()
+                  },
+                  ((_, mod_minor, ..), (_, game_minor, ..)) if mod_minor != game_minor => {
+                    Tooltip::new(
+                      game_version.style(style::update::error::Container),
+                      "Minor version mismatch!\nHighly likely to crash!",
+                      tooltip::Position::FollowCursor
+                    ).style(style::update::error::Tooltip).into()
+                  },
+                  ((.., mod_patch, _), (.., game_patch, _)) if mod_patch != game_patch => {
+                    Tooltip::new(
+                      game_version.style(style::update::major::Container),
+                      "Patch version mismatch!\nMild possibility of issues.",
+                      tooltip::Position::FollowCursor
+                    ).style(style::update::major::Tooltip).into()
+                  },
+                  ((.., mod_rc), (.., game_rc)) if mod_rc != game_rc => {
+                    Tooltip::new(
+                      game_version.style(style::update::major::Container),
+                      "Release Candidate mismatch.\nUnlikely to cause issues.",
+                      tooltip::Position::FollowCursor
+                    ).style(style::update::major::Tooltip).into()
+                  },
+                  ((.., mod_rc), (.., game_rc)) if mod_rc == game_rc => {
+                    Tooltip::new(
+                      game_version.style(style::update::up_to_date::Container),
+                      "Up to date!",
+                      tooltip::Position::FollowCursor
+                    ).style(style::update::up_to_date::Tooltip).into()
+                  }
+                  _ => {
+                    game_version.into()
+                  }
+                }
+              }
+            )
+            .padding(1)
+            .width(Length::FillPortion(game_version_portion)))
             .height(Length::Fill)
         )
         .padding(0)
@@ -1140,6 +1238,54 @@ impl ModEntry {
   }
 }
 
+  /**
+   * Parses a given version into a four-tuple of the assumed components.
+   * Assumptions:
+   * - The first component is always EITHER 0 and thus the major component OR it has been omitted and the first component is the minor component
+   * - If there are two components it is either the major and minor components OR minor and patch OR minor and RC (release candidate)
+   * - If there are three components it is either the major, minor and patch OR major, minor and RC OR minor, patch and RC
+   * - If there are four components then the first components MUST be 0 and MUST be the major component, and the following components 
+        are the minor, patch and RC components
+   */
+fn parse_game_version(text: &str) -> (Option<String>, Option<String>, Option<String>, Option<String>) {
+  let components: Vec<&str> = VERSION_REGEX.split(text).filter(|c| !c.is_empty()).collect();
+
+  match components.as_slice() {
+    [major, minor] if major == &"0" => {
+      // text = format!("{}.{}a", major, minor);
+      (Some(major.to_string()), Some(minor.to_string()), None, None)
+    }
+    [minor, patch_rc] => {
+      // text = format!("0.{}a-RC{}", minor, rc);
+      if text.contains("a-RC") {
+        (Some("0".to_string()), Some(minor.to_string()), None, Some(patch_rc.to_string()))
+      } else {
+        (Some("0".to_string()), Some(minor.to_string()), Some(patch_rc.to_string()), None)
+      }
+    }
+    [major, minor, patch_rc] if major == &"0" => {
+      // text = format!("{}.{}a-RC{}", major, minor, rc);
+      if text.contains("a-RC") {
+        (Some(major.to_string()), Some(minor.to_string()), None, Some(patch_rc.to_string()))
+      } else {
+        (Some(major.to_string()), Some(minor.to_string()), Some(patch_rc.to_string()), None)
+      }
+    }
+    [minor, patch, rc] => {
+      // text = format!("0.{}.{}a-RC{}", minor, patch, rc);
+      (Some("0".to_string()), Some(minor.to_string()), Some(patch.to_string()), Some(rc.to_string()))
+    }
+    [major, minor, patch, rc] if major == &"0" => {
+      // text = format!("{}.{}.{}a-RC{}", major, minor, patch, rc);
+      (Some(major.to_string()), Some(minor.to_string()), Some(patch.to_string()), Some(rc.to_string()))
+    }
+    _ => {
+      dbg!("Failed to normalise mod's quoted game version");
+      (None, None, None, None)
+    }
+  }
+}
+
 #[derive(Debug, Clone, Deserialize, Eq, Ord)]
 pub struct ModVersionMeta {
   #[serde(alias="masterVersionFile")]
@@ -1158,7 +1304,7 @@ pub struct ModVersionMeta {
   #[serde(default)]
   nexus_id: String,
   #[serde(alias="modVersion")]
-  pub version: ModVersion
+  pub version: Version
 }
 
 impl PartialEq for ModVersionMeta {
@@ -1174,7 +1320,7 @@ impl PartialOrd for ModVersionMeta {
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ModVersion {
+pub struct Version {
   #[serde(deserialize_with="deserialize_number_from_string")]
   pub major: i32,
   #[serde(deserialize_with="deserialize_number_from_string")]
@@ -1184,7 +1330,7 @@ pub struct ModVersion {
   pub patch: String
 }
 
-impl Display for ModVersion {
+impl Display for Version {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
     if self.patch.len() > 0 {
       write!(f, "{}.{}.{}", self.major, self.minor, self.patch)

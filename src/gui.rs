@@ -5,7 +5,9 @@ use iced_aw::{modal, Modal, Card};
 use serde::{Serialize, Deserialize};
 use serde_json;
 
-const DEV_VERSION: &'static str = "IN_DEV";
+use lazy_static::lazy_static;
+
+// const DEV_VERSION: &'static str = "IN_DEV";
 const TAG: &'static str = env!("CARGO_PKG_VERSION");
 
 // https://users.rust-lang.org/t/show-value-only-in-debug-mode/43686/5
@@ -48,7 +50,7 @@ pub struct App {
   settings: settings::Settings,
   mod_list: mod_list::ModList,
   manager_update_status: Option<Result<String, String>>,
-  manager_update_link_state: button::State,
+  // manager_update_link_state: button::State,
   settings_changed: bool,
   modal_state: modal::State<ModalState>,
 }
@@ -66,6 +68,7 @@ pub enum Message {
   TagsReceived(Result<String, String>),
   OpenReleases,
   CloseModal(Option<(String, String, PathBuf)>),
+  VersionLoaded(Result<String, LoadError>),
 }
 
 impl Application for App {
@@ -83,7 +86,7 @@ impl Application for App {
         settings: settings::Settings::new(),
         mod_list: mod_list::ModList::new(),
         manager_update_status: None,
-        manager_update_link_state: button::State::new(),
+        // manager_update_link_state: button::State::new(),
         settings_changed: false,
         modal_state: modal::State::default(),
       },
@@ -95,7 +98,7 @@ impl Application for App {
   }
   
   fn title(&self) -> String {
-    String::from("Starsector Mod Manager")
+    String::from(format!("Starsector Mod Manager v{}", TAG))
   }
   
   fn update(
@@ -115,6 +118,7 @@ impl Application for App {
 
             if let Some(install_dir) = &config.install_dir {
               commands.push(Command::perform(VMParams::load(install_dir.clone()), Message::VMParamsLoaded));
+              commands.push(Command::perform(App::get_starsector_version(install_dir.clone()), Message::VersionLoaded))
             }
 
             self.config = Some(config);
@@ -200,7 +204,8 @@ impl Application for App {
                 };
               }
 
-              commands.push(Command::perform(vmparams.clone().save(install_dir.clone()), Message::VMParamsSaved))
+              commands.push(Command::perform(vmparams.clone().save(install_dir.clone()), Message::VMParamsSaved));
+              commands.push(Command::perform(App::get_starsector_version(install_dir.clone()), Message::VersionLoaded))
             } else {
               commands.push(Command::perform(VMParams::load(install_dir.clone()), Message::VMParamsLoaded))
             }
@@ -212,6 +217,9 @@ impl Application for App {
       Message::SettingsMessage(settings_message) => {
         if let SettingsMessage::OpenNativeFilePick | SettingsMessage::PathChanged(_) | SettingsMessage::VMParamChanged(_, _) | SettingsMessage::UnitChanged(_, _) = settings_message {
           self.settings_changed = true;
+        }
+        if let SettingsMessage::OpenReleases = settings_message {
+          self.open_releases();
         }
 
         self.settings.update(settings_message);
@@ -233,23 +241,39 @@ impl Application for App {
         Command::batch(commands)
       },
       Message::TagsReceived(res) => {
+        if let Ok(tags) = &res {
+          if tags > &format!("v{}", TAG) {
+            self.settings.update(SettingsMessage::InitUpdateStatus(true));
+          }
+        }
         self.manager_update_status = Some(res);
 
         Command::none()
       },
       Message::OpenReleases => {
-        if let Err(_) = opener::open("https://github.com/atlanticaccent/starsector-mod-manager-rust/releases") {
-          println!("Failed to open GitHub");
-        }
+        self.open_releases();
         
         Command::none()
       },
       Message::CloseModal(result) => {
         self.modal_state.show(false);
+        if self.manager_update_status.is_some() {
+          self.manager_update_status = None;
+        }
 
         if let Some((url, target_version, old_path)) = result {
           self.mod_list.update(ModListMessage::InstallPressed(mod_list::InstallOptions::FromDownload(url, target_version, old_path))).map(|m| Message::ModListMessage(m))
         } else {
+          Command::none()
+        }
+      },
+      Message::VersionLoaded(res) => {
+        if let Ok(version) = res {
+          println!("Version: {}", version);
+          self.mod_list.update(ModListMessage::SetVersion(version)).map(|m| Message::ModListMessage(m))
+        } else {
+          println!("{:?}", res);
+
           Command::none()
         }
       }
@@ -260,29 +284,20 @@ impl Application for App {
     let mut buttons: Row<Message> = Row::new()
       .push(Space::with_width(Length::Units(5)));
 
-    let tag = format!("v{}", TAG);
-    let err_string = format!("{} Err", &tag);
-    let update = match &self.manager_update_status {
-      Some(Ok(_)) if &tag == DEV_VERSION => Container::new(Text::new("If you see this I forgot to set the version")).padding(5),
-      Some(Ok(remote)) if remote > &tag => {
-        Container::new(
-          Button::new(
-            &mut self.manager_update_link_state,
-            Text::new("Update Available!")
-          )
-          .on_press(Message::OpenReleases)
-          .style(style::button_only_hover::Button)
-          .padding(5)
-        )
-      },
-      Some(Ok(remote)) if remote < &tag => Container::new(Text::new("Are you from the future?")).padding(5),
-      Some(Ok(_)) | None => Container::new(Text::new(&tag)).padding(5),
-      Some(Err(_)) => Container::new(Text::new(&err_string)).padding(5),
-    }.width(Length::Fill).align_x(iced::Align::Center);
+    let starsector_version = Container::new::<Element<Message>>(if let Some(version) = self.mod_list.get_game_version() {
+      Text::new(format!("Starsector Version:   {}", version)).into()
+    } else {
+      Space::with_width(Length::Shrink).into()
+    }).align_x(iced::Align::Center);
+    // let versions = Column::with_children(vec![
+    //   update.into(),
+    //   Space::with_height(Length::Units(2)).into(),
+    //   starsector_version.into()
+    // ]).align_items(iced::Align::Center).padding(5).width(Length::Fill);
     buttons = if self.settings_open {
       buttons
         .push(Space::with_width(Length::FillPortion(1)))
-        .push(update)
+        .push(starsector_version)
         .push(Row::new()
           .push(Space::with_width(Length::Fill))
           .push({
@@ -327,11 +342,11 @@ impl Application for App {
           .push(Space::with_width(Length::Fill))
           .width(Length::FillPortion(1))
         )
-        .push(update)
+        .push(starsector_version)
         .push(Space::with_width(Length::FillPortion(1)))
     };
 
-    let menu = Container::new(buttons)
+    let menu = Container::new(buttons.align_items(iced::Align::Center))
       .style(style::nav_bar::Container)
       .width(Length::Fill);
 
@@ -346,81 +361,159 @@ impl Application for App {
         Message::ModListMessage(_message)
       });
 
-      Modal::new(
-        &mut self.modal_state,
-        inner_content,
-        move |state| {
-          Card::new(
-            Text::new("Auto-update?"),
-            Column::with_children(vec![
-              Text::new(format!("Do you want to automatically download and update {} from version {} to version {}?", if let Some(highlighted) = &entry {
-                &highlighted.name
-              } else {
-                "{Error: Failed to retrieve mod name}"
-              }, if let Some(current) = &entry.as_ref().map(|entry| entry.version.to_string()) {
-                current
-              } else {
-                "{Error: Failed to retrieve version}"
-              }, if let Some(remote) = &entry.as_ref().and_then(|entry| entry.remote_version.as_ref()).map(|m| m.version.to_string()) {
-                remote
-              } else {
-                "{Error: Failed to retrieve remote version}"
-              })).into(),
-              Text::new("WARNING:").color(iced::Color::from_rgb8(0xB0, 0x00, 0x20)).into(),
-              Text::new("Save compatibility is not guaranteed when updating a mod. Your save may no longer load if you apply this update.").into(),
-              Text::new("Bug reports about saves broken by using this feature will be ignored.").into(),
-            ]),
-          )
-          .foot(
-            Column::with_children(vec![
-              iced::Rule::horizontal(2).style(style::max_rule::Rule).into(),
-              Text::new("Are you sure you want to continue?").into(),
-              Space::with_height(Length::Units(2)).into(),
-              Row::new()
-                .spacing(10)
-                .padding(5)
-                .width(Length::Fill)
-                .push(
-                  Button::new(
-                    &mut state.cancel_state,
-                    Text::new("Cancel"),
-                  )
-                  .width(Length::Fill)
-                  .on_press(Message::CloseModal(None)),
-                )
-                .push(
-                  Button::new(
-                    &mut state.accept_state,
-                    Text::new("Ok"),
-                  )
-                  .width(Length::Fill)
-                  .on_press(Message::CloseModal(if let Some(highlighted) = entry.as_ref()
-                    .and_then(|e| e.get_master_version())
-                    .and_then(|v| v.direct_download_url.clone())
-                    .zip(entry.as_ref()
-                      .and_then(|entry| entry.remote_version.as_ref())
-                      .map(|m| m.version.to_string())
+      // let err_string = format!("{} Err", &tag);
+      // let update = match &self.manager_update_status {
+      //   Some(Ok(_)) if &tag == DEV_VERSION => Container::new(Text::new("If you see this I forgot to set the version")),
+      //   Some(Ok(remote)) if remote > &tag => {
+      //     Container::new(
+      //       Button::new(
+      //         &mut self.manager_update_link_state,
+      //         Text::new("Update Available!")
+      //       )
+      //       .on_press(Message::OpenReleases)
+      //       .style(style::button_only_hover::Button)
+            
+      //     )
+      //   },
+      //   Some(Ok(remote)) if remote < &tag => Container::new(Text::new("Are you from the future?")),
+      //   Some(Ok(_)) | None => Container::new(Text::new(format!("Manager Version:   {}", &tag))),
+      //   Some(Err(_)) => Container::new(Text::new(&err_string)),
+      // }.align_x(iced::Align::Center);
+
+      let tag = format!("v{}", TAG);
+      match &self.manager_update_status {
+        Some(Ok(remote)) if remote > &tag => {
+          self.modal_state.show(true);
+
+          Modal::new(
+            &mut self.modal_state,
+            inner_content,
+            move |state| {
+              Card::new(
+                Text::new("Mod Manager update available"),
+                Column::with_children(vec![
+                  Text::new("An update is available for the Mod Manager.").into(),
+                  Text::new(format!("Current version is {}", TAG)).into(),
+                  Text::new(format!("New version is {}", remote)).into(),
+                  Text::new("Would you like to open the update in your browser?").into(),
+                  Text::new("NOTE:").into(),
+                  Text::new("This will not update the manager automatically, it will simply open a browser so that you can download the update yourself.").into(),
+                ])
+              )
+              .foot(
+                Column::with_children(vec![
+                  iced::Rule::horizontal(2).style(style::max_rule::Rule).into(),
+                  Space::with_height(Length::Units(2)).into(),
+                  Row::new()
+                    .spacing(10)
+                    .padding(5)
+                    .width(Length::Fill)
+                    .push(
+                      Button::new(
+                        &mut state.cancel_state,
+                        Text::new("Cancel"),
+                      )
+                      .width(Length::Fill)
+                      .on_press(Message::CloseModal(None)),
                     )
-                    .zip_with(entry.as_ref().map(|e| e.path.clone()), |(url, version): (String, String), other| (url, version, other))
-                  {
-                    Some(highlighted)
-                  } else { None })),
-                )
-                .into(),
-            ])
+                    .push(
+                      Button::new(
+                        &mut state.accept_state,
+                        Text::new("Ok"),
+                      )
+                      .width(Length::Fill)
+                      .on_press(Message::OpenReleases),
+                    )
+                    .into(),
+                ])
+              )
+              .max_width(300)
+              .on_close(Message::CloseModal(None))
+              .into()
+            }
           )
-          .max_width(300)
-          .on_close(Message::CloseModal(None))
+          .backdrop(Message::CloseModal(None))
+          .on_esc(Message::CloseModal(None))
           .into()
         }
-      )
-      .backdrop(Message::CloseModal(None))
-      .on_esc(Message::CloseModal(None))
-      .into()
+        _ => {
+          Modal::new(
+            &mut self.modal_state,
+            inner_content,
+            move |state| {
+              Card::new(
+                Text::new("Auto-update?"),
+                Column::with_children(vec![
+                  Text::new(format!("Do you want to automatically download and update {} from version {} to version {}?", if let Some(highlighted) = &entry {
+                    &highlighted.name
+                  } else {
+                    "{Error: Failed to retrieve mod name}"
+                  }, if let Some(current) = &entry.as_ref().map(|entry| entry.version.to_string()) {
+                    current
+                  } else {
+                    "{Error: Failed to retrieve version}"
+                  }, if let Some(remote) = &entry.as_ref().and_then(|entry| entry.remote_version.as_ref()).map(|m| m.version.to_string()) {
+                    remote
+                  } else {
+                    "{Error: Failed to retrieve remote version}"
+                  })).into(),
+                  Text::new("WARNING:").color(iced::Color::from_rgb8(0xB0, 0x00, 0x20)).into(),
+                  Text::new("Save compatibility is not guaranteed when updating a mod. Your save may no longer load if you apply this update.").into(),
+                  Text::new("Bug reports about saves broken by using this feature will be ignored.").into(),
+                ]),
+              )
+              .foot(
+                Column::with_children(vec![
+                  iced::Rule::horizontal(2).style(style::max_rule::Rule).into(),
+                  Text::new("Are you sure you want to continue?").into(),
+                  Space::with_height(Length::Units(2)).into(),
+                  Row::new()
+                    .spacing(10)
+                    .padding(5)
+                    .width(Length::Fill)
+                    .push(
+                      Button::new(
+                        &mut state.cancel_state,
+                        Text::new("Cancel"),
+                      )
+                      .width(Length::Fill)
+                      .on_press(Message::CloseModal(None)),
+                    )
+                    .push(
+                      Button::new(
+                        &mut state.accept_state,
+                        Text::new("Ok"),
+                      )
+                      .width(Length::Fill)
+                      .on_press(Message::CloseModal(if let Some(highlighted) = entry.as_ref()
+                        .and_then(|e| e.get_master_version())
+                        .and_then(|v| v.direct_download_url.clone())
+                        .zip(entry.as_ref()
+                          .and_then(|entry| entry.remote_version.as_ref())
+                          .map(|m| m.version.to_string())
+                        )
+                        .zip_with(entry.as_ref().map(|e| e.path.clone()), |(url, version): (String, String), other| (url, version, other))
+                      {
+                        Some(highlighted)
+                      } else { None })),
+                    )
+                    .into(),
+                ])
+              )
+              .max_width(300)
+              .on_close(Message::CloseModal(None))
+              .into()
+            }
+          )
+          .backdrop(Message::CloseModal(None))
+          .on_esc(Message::CloseModal(None))
+          .into()
+        }
+      }
     };
 
     Column::new()
-      .push(menu)
+      .push(menu.height(Length::Shrink))
       .push(content)
       .width(Length::Fill)
       .into()
@@ -432,6 +525,15 @@ impl Application for App {
 }
 
 impl App {
+  fn open_releases(&mut self) {
+    self.modal_state.show(false);
+    self.manager_update_status = None;
+
+    if let Err(_) = opener::open("https://github.com/atlanticaccent/starsector-mod-manager-rust/releases") {
+      println!("Failed to open GitHub");
+    }
+  }
+
   async fn get_latest_manager() -> Result<String, String> {
     #[derive(Deserialize)]
     struct Release {
@@ -455,6 +557,63 @@ impl App {
       Ok(release.name.clone())
     } else {
       Err(format!("Could not find any releases."))
+    }
+  }
+
+  async fn get_starsector_version(install_dir: PathBuf) -> Result<String, LoadError> {
+    use std::io::Read;
+    use classfile_parser::class_parser;
+    use tokio::{task, fs};
+    use if_chain::if_chain;
+    use regex::bytes::Regex;
+
+    let install_dir_clone = install_dir.clone();
+    let res = task::spawn_blocking(move || {
+      let mut zip = zip::ZipArchive::new(std::fs::File::open(install_dir_clone.join("starsector-core").join("starfarer_obf.jar")).unwrap()).unwrap();
+
+      // println!("{:?}", zip.file_names().collect::<Vec<&str>>());
+      
+      let mut version_class = zip.by_name("com/fs/starfarer/Version.class").map_err(|_| LoadError::NoSuchFile)?;
+
+      let mut buf: Vec<u8> = Vec::new();
+      version_class.read_to_end(&mut buf)
+        .map_err(|_| LoadError::ReadError)
+        .and_then(|_| {
+          class_parser(&buf).map_err(|_| LoadError::FormatError).map(|(_, class_file)| class_file)
+        })
+        .and_then(|class_file| {
+          class_file.fields.iter().find_map(|f| {
+            if_chain! {
+              if let classfile_parser::constant_info::ConstantInfo::Utf8(name) =  &class_file.const_pool[(f.name_index - 1) as usize];
+              if name.utf8_string == "versionOnly";
+              if let Ok((_, attr)) = classfile_parser::attribute_info::constant_value_attribute_parser(&f.attributes.first().unwrap().info);
+              if let classfile_parser::constant_info::ConstantInfo::Utf8(utf_const) = &class_file.const_pool[attr.constant_value_index as usize];
+              then {
+                return Some(utf_const.utf8_string.clone())
+              } else {
+                None
+              }
+            }
+          }).ok_or_else(|| LoadError::FormatError)
+        })
+    }).await
+    .map_err(|_| LoadError::ReadError)
+    .flatten();
+
+    if res.is_err() {
+      lazy_static! {
+        static ref RE: Regex = Regex::new(r"Starting Starsector (.*) launcher").unwrap();
+      }
+      fs::read(install_dir.join("starsector-core").join("starsector.log")).await
+        .map_err(|_| LoadError::ReadError)
+        .and_then(|file| {
+          RE.captures(&file)
+            .and_then(|captures| captures.get(1))
+            .ok_or(LoadError::FormatError)
+            .and_then(|m| String::from_utf8(m.as_bytes().to_vec()).map_err(|_| LoadError::FormatError))
+        })
+    } else {
+      res
     }
   }
 }
