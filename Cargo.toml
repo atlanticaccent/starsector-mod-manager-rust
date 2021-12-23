@@ -11,7 +11,7 @@ description = "A mod manager for the game Starsector"
 infer = "0.3.4"
 tokio = { version = "1.6.0", features = ["fs", "io-util", "rt"] }
 iced = { version = "0.3.0", features = ["glow", "tokio"] }
-iced_native ="0.4"
+iced_native = "0.4"
 iced_aw = { git = "https://github.com/iced-rs/iced_aw", branch = "main", default-features = false, features = ["modal", "card"] }
 tinyfiledialogs = "^3.8.3"
 native-dialog = "0.5.5"
@@ -32,6 +32,10 @@ compress-tools = { git = "https://github.com/OSSystems/compress-tools-rs.git" }
 snafu = "^0.6.10"
 remove_dir_all = "^0.7.0"
 sublime_fuzzy = "0.7.0"
+classfile-parser = "~0.3"
+zip = "^0.5"
+regex = "1.5"
+lazy_static = "1.4"
 
 [package.metadata.bundle]
 name = "Starsector Mod Manager"
