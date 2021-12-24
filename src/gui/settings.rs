@@ -8,6 +8,7 @@ use directories::UserDirs;
 
 pub mod vmparams;
 
+#[derive(Debug, Clone)]
 pub struct Settings {
   dirty: bool,
   pub root_dir: Option<PathBuf>,
@@ -22,7 +23,8 @@ pub struct Settings {
   min_ram_pick_state: pick_list::State<vmparams::Unit>,
   max_ram_pick_state: pick_list::State<vmparams::Unit>,
   manager_update_url: bool,
-  manager_update_button_state: button::State
+  manager_update_button_state: button::State,
+  pub git_warn: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -37,7 +39,8 @@ pub enum SettingsMessage {
   VMParamChanged(String, VMParamChanged),
   UnitChanged(vmparams::Unit, VMParamChanged),
   InitUpdateStatus(bool),
-  OpenReleases
+  OpenReleases,
+  GitWarnToggled(bool),
 }
 
 #[derive(Debug, Clone)]
@@ -64,11 +67,17 @@ impl Settings {
       max_ram_pick_state: pick_list::State::default(),
       manager_update_url: false,
       manager_update_button_state: button::State::new(),
+      git_warn: false,
     }
   }
 
   pub fn update(&mut self, message: SettingsMessage) -> Command<SettingsMessage> {
     match message {
+      SettingsMessage::GitWarnToggled(val) => {
+        self.git_warn = val;
+
+        Command::none()
+      }
       SettingsMessage::InitUpdateStatus(status) => {
         self.manager_update_url = status;
 
@@ -197,25 +206,35 @@ impl Settings {
   
     let mut controls: Vec<Element<SettingsMessage>> = vec![
       Row::new()
-        .push({
-          if cfg!(target_os = "macos") {
-            Text::new("Starsector App: ")
-          } else {
-            Text::new("Starsector Install Dir: ")
-          }
-        })
-        .push(input)
-        .push(browse)
+        .push(if cfg!(target_os = "macos") {
+          Text::new("Starsector App:")
+        } else {
+          Text::new("Starsector Install Dir:")
+        }.width(Length::FillPortion(3)))
+        .push(Row::with_children(vec![input.into(), browse.into()]).width(Length::FillPortion(7)))
         .width(Length::Fill)
         .align_items(Align::Center)
         .padding(2)
         .into(),
       Row::new()
+        .push(Text::new("Warn when overwriting '.git' folders:").width(Length::FillPortion(3)))
+        .push(Checkbox::new(
+          self.git_warn,
+          "",
+          SettingsMessage::GitWarnToggled
+        ).width(Length::FillPortion(2)))
+        .push(Space::with_width(Length::FillPortion(5)))
+        .width(Length::Fill)
+        .padding(2)
+        .into(),
+      Row::new()
+        .push(Text::new("Enable VM params editing:").width(Length::FillPortion(3)))
         .push(Checkbox::new(
           self.vmparams_editing_enabled,
-          "Enable VM params editing",
+          "",
           SettingsMessage::VMParamsEditingToggled
-        ))
+        ).width(Length::FillPortion(2)))
+        .push(Space::with_width(Length::FillPortion(5)))
         .padding(2)
         .into()
     ];
