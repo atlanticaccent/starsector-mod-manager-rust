@@ -501,6 +501,8 @@ impl ModList {
   }
 
   pub fn view(&mut self) -> Element<ModListMessage> {
+    let install_count = self.mods.len();
+    let active_count = self.mods.values().filter(|entry| entry.enabled).count();
     let starsector_version = self.starsector_version.clone();
     let mut every_other = true;
     let content = Column::new()
@@ -651,7 +653,17 @@ impl ModList {
         }))
         .height(Length::FillPortion(2))
         .width(Length::Fill)
-      );
+      )
+      .push(Row::with_children(vec![
+        Text::new("Installed:").into(),
+        Space::with_width(Length::Units(10)).into(),
+        Text::new(format!("{}", install_count)).into(),
+        Space::with_width(Length::Units(10)).into(),
+        Text::new("Active:").into(),
+        Space::with_width(Length::Units(10)).into(),
+        Text::new(format!("{}", active_count)).into(),
+        Space::with_width(Length::Units(10)).into(),
+      ]).width(Length::Fill).height(Length::Shrink));
 
     Column::new()
       .push(content)
@@ -1387,21 +1399,22 @@ impl ModDescription {
 
   pub fn view(&mut self) -> Element<ModDescriptionMessage> {
     let mut text: Vec<Element<ModDescriptionMessage>> = vec![];
+    let mut right: Vec<Element<ModDescriptionMessage>> = vec![];
 
     if let Some(entry) = &self.mod_entry {
       text.push(Row::new()
         .push(Text::new(format!("Name:")).width(Length::FillPortion(1)))
-        .push(Text::new(format!("{}", entry.name)).width(Length::FillPortion(10)))
+        .push(Text::new(format!("{}", entry.name)).width(Length::FillPortion(4)))
         .into()
       );
       text.push(Row::new()
         .push(Text::new(format!("ID:")).width(Length::FillPortion(1)))
-        .push(Text::new(format!("{}", entry.id)).width(Length::FillPortion(10)))
+        .push(Text::new(format!("{}", entry.id)).width(Length::FillPortion(4)))
         .into()
       );
       text.push(Row::new()
         .push(Text::new(format!("Author(s):")).width(Length::FillPortion(1)))
-        .push(Text::new(format!("{}", entry.author)).width(Length::FillPortion(10)))
+        .push(Text::new(format!("{}", entry.author)).width(Length::FillPortion(4)))
         .into()
       );
       text.push(Row::new()
@@ -1410,12 +1423,12 @@ impl ModDescription {
           "TRUE"
         } else {
           "FALSE"
-        })).width(Length::FillPortion(10)))
+        })).width(Length::FillPortion(4)))
         .into()
       );
       text.push(Row::new()
         .push(Text::new(format!("Version:")).width(Length::FillPortion(1)))
-        .push(Text::new(format!("{}", entry.version)).width(Length::FillPortion(10)))
+        .push(Text::new(format!("{}", entry.version)).width(Length::FillPortion(4)))
         .into()
       );
 
@@ -1437,7 +1450,7 @@ impl ModDescription {
                   .on_press(ModDescriptionMessage::LinkClicked(format!("{}{}", ModDescription::FRACTAL_URL, version.fractal_id)))
                 )
                 .push(Space::with_width(Length::Fill))
-                .width(Length::FillPortion(10))
+                .width(Length::FillPortion(4))
             )
             .into()
           );
@@ -1458,36 +1471,39 @@ impl ModDescription {
                   .on_press(ModDescriptionMessage::LinkClicked(format!("{}{}", ModDescription::NEXUS_URL, version.nexus_id)))
                 )
                 .push(Space::with_width(Length::Fill))
-                .width(Length::FillPortion(10))
+                .width(Length::FillPortion(4))
             )
             .into()
           );
         }
       }
 
-      text.push(Text::new(format!("Description:")).into());
-      text.push(Text::new(entry.description.clone()).into());
-
-      text.push(Row::new()
-        .push(Space::with_width(Length::Fill))
-        .push(
-          Button::new(
-            &mut self.file_link,
-            Text::new(format!("Open in system file manager..."))
+      right.extend(vec![
+        Text::new(format!("Description:")).into(),
+        Text::new(entry.description.clone()).into(),
+        Row::new()
+          .push(Space::with_width(Length::Fill))
+          .push(
+            Button::new(
+              &mut self.file_link,
+              Text::new(format!("Open in system file manager..."))
+            )
+            .width(Length::Shrink)
+            .on_press(ModDescriptionMessage::FileClicked(entry.path.clone()))
           )
-          .width(Length::Shrink)
-          .on_press(ModDescriptionMessage::FileClicked(entry.path.clone()))
-        )
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .align_items(Align::End)
-        .into()
-      );
+          .width(Length::Fill)
+          .height(Length::Fill)
+          .align_items(Align::End)
+          .into()
+      ]);
     } else {
       text.push(Text::new(format!("No mod selected.")).into());
     }
 
-    Column::with_children(text)
+    Row::new()
+      .push(Column::with_children(text).width(Length::FillPortion(1)))
+      .push(Rule::vertical(20))
+      .push(Column::with_children(right).width(Length::FillPortion(1)))
       .padding(5)
       .into()
   }
