@@ -42,6 +42,7 @@ struct ModalState {
   accept_state: button::State,
 }
 
+
 pub struct App {
   config: Option<Config>,
   settings_button: button::State,
@@ -50,7 +51,6 @@ pub struct App {
   settings: settings::Settings,
   mod_list: mod_list::ModList,
   manager_update_status: Option<Result<String, String>>,
-  // manager_update_link_state: button::State,
   settings_changed: bool,
   modal_state: modal::State<ModalState>,
 }
@@ -86,7 +86,6 @@ impl Application for App {
         settings: settings::Settings::new(),
         mod_list: mod_list::ModList::new(),
         manager_update_status: None,
-        // manager_update_link_state: button::State::new(),
         settings_changed: false,
         modal_state: modal::State::default(),
       },
@@ -112,9 +111,11 @@ impl Application for App {
         match res {
           Ok(config) => {
             commands.push(self.settings.update(SettingsMessage::InitRoot(config.install_dir.clone())).map(|m| Message::SettingsMessage(m)));
+            commands.push(self.settings.update(SettingsMessage::GitWarnToggled(config.git_warn)).map(|m| Message::SettingsMessage(m)));
 
             commands.push(self.mod_list.update(ModListMessage::SetRoot(config.install_dir.clone())).map(|m| Message::ModListMessage(m)));
             commands.push(self.mod_list.update(ModListMessage::SetLastBrowsed(config.last_browsed.clone())).map(|m| Message::ModListMessage(m)));
+            self.mod_list.git_warn = config.git_warn;
 
             if let Some(install_dir) = &config.install_dir {
               commands.push(Command::perform(VMParams::load(install_dir.clone()), Message::VMParamsLoaded));
@@ -130,7 +131,8 @@ impl Application for App {
 
             self.config = Some(Config {
               install_dir: None,
-              last_browsed: None
+              last_browsed: None,
+              git_warn: false,
             })
           }
         }
@@ -173,6 +175,8 @@ impl Application for App {
         self.settings_open = keep_open;
         self.settings_changed = false;
 
+        self.mod_list.git_warn = self.settings.git_warn;
+
         let mut commands = vec![
           self.settings.update(SettingsMessage::Close).map(|m| Message::SettingsMessage(m)),
           self.mod_list.update(ModListMessage::SetRoot(self.settings.root_dir.clone())).map(|m| Message::ModListMessage(m))
@@ -180,6 +184,7 @@ impl Application for App {
 
         if let Some(config) = self.config.as_mut() {
           config.install_dir = self.settings.root_dir.clone();
+          config.git_warn = self.settings.git_warn;
 
           commands.push(Command::perform(config.clone().save(), Message::ConfigSaved));
 
@@ -215,11 +220,14 @@ impl Application for App {
         Command::batch(commands)
       } 
       Message::SettingsMessage(settings_message) => {
-        if let SettingsMessage::OpenNativeFilePick | SettingsMessage::PathChanged(_) | SettingsMessage::VMParamChanged(_, _) | SettingsMessage::UnitChanged(_, _) = settings_message {
+        if let SettingsMessage::OpenNativeFilePick | SettingsMessage::PathChanged(_) | SettingsMessage::VMParamChanged(_, _) | SettingsMessage::UnitChanged(_, _) | SettingsMessage::GitWarnToggled(_) = settings_message {
           self.settings_changed = true;
-        }
+        };
         if let SettingsMessage::OpenReleases = settings_message {
           self.open_releases();
+        };
+        if let SettingsMessage::GitWarnToggled(val) = settings_message {
+          self.mod_list.git_warn = val;
         }
 
         self.settings.update(settings_message);
@@ -360,25 +368,6 @@ impl Application for App {
       let inner_content = self.mod_list.view().map(move |_message| {
         Message::ModListMessage(_message)
       });
-
-      // let err_string = format!("{} Err", &tag);
-      // let update = match &self.manager_update_status {
-      //   Some(Ok(_)) if &tag == DEV_VERSION => Container::new(Text::new("If you see this I forgot to set the version")),
-      //   Some(Ok(remote)) if remote > &tag => {
-      //     Container::new(
-      //       Button::new(
-      //         &mut self.manager_update_link_state,
-      //         Text::new("Update Available!")
-      //       )
-      //       .on_press(Message::OpenReleases)
-      //       .style(style::button_only_hover::Button)
-            
-      //     )
-      //   },
-      //   Some(Ok(remote)) if remote < &tag => Container::new(Text::new("Are you from the future?")),
-      //   Some(Ok(_)) | None => Container::new(Text::new(format!("Manager Version:   {}", &tag))),
-      //   Some(Err(_)) => Container::new(Text::new(&err_string)),
-      // }.align_x(iced::Align::Center);
 
       let tag = format!("v{}", TAG);
       match &self.manager_update_status {
@@ -635,7 +624,8 @@ pub enum SaveError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
   install_dir: Option<PathBuf>,
-  last_browsed: Option<PathBuf>
+  last_browsed: Option<PathBuf>,
+  git_warn: bool
 }
 
 impl Config {

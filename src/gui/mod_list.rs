@@ -54,6 +54,7 @@ pub struct ModList {
   search_state: text_input::State,
   search_query: Option<String>,
   pub starsector_version: (Option<String>, Option<String>, Option<String>, Option<String>),
+  pub git_warn: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -98,6 +99,7 @@ impl ModList {
       search_state: text_input::State::default(),
       search_query: None,
       starsector_version: (None, None, None, None),
+      git_warn: false
     }
   }
 
@@ -277,7 +279,13 @@ impl ModList {
             String::new()
           };
           let folder_name = old_path.file_name().unwrap().to_string_lossy();
-          if util::query(format!("A folder named `{}`{} already exists. Do you want to replace it?\nClicking no will cancel the installation of this mod.", folder_name, id)) {
+          let git_warn = self.git_warn && old_path.join(".git").exists();
+          if util::query(format!(
+            "A folder named `{}`{} already exists. Do you want to replace it?{}\nClicking no will cancel the installation of this mod.",
+            folder_name,
+            id,
+            if git_warn { "\nWarning: Old mod install includes a .git folder, are you developing this mod?" } else { "" }
+          )) {
             self.installs.push(Installation::new(
               self.installation_id,
               (name, new_path, old_path),
