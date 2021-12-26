@@ -262,10 +262,9 @@ impl Application for App {
 
         match mod_list_message {
           ModListMessage::LaunchStarsector => {
-            self.modal_state.show(true);
-            self.starsector_running = true;
-
             if let Some(install_dir) = self.settings.root_dir.clone() {
+              self.modal_state.show(true);
+              self.starsector_running = true;
               let experimental_launch = self.settings.experimental_launch;
               let resolution = self.settings.experimental_resolution;
               commands.push(Command::perform((async move || -> Result<(), String> {
@@ -292,6 +291,8 @@ impl Application for App {
 
                 child.wait_with_output().map_or_else(|err| Err(err.to_string()), |_| Ok(()))
               })(), Message::StarsectorClosed));
+            } else {
+              util::notif("Can't launch Starsector. Have you set the Starsector install/app path in settings?")
             };
           }
           ModListMessage::ModEntryMessage(_, ModEntryMessage::AutoUpdate) => {
