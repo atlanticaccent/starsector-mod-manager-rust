@@ -3198,7 +3198,7 @@ dependencies = [
 
 [[package]]
 name = "starsector_mod_manager"
-version = "0.4.4"
+version = "0.5.0"
 dependencies = [
  "classfile-parser",
  "compress-tools",
