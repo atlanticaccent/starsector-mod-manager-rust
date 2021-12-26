@@ -1,3 +1,8 @@
+pub const ICONS: iced::Font = iced::Font::External {
+  name: "Icons",
+  bytes: std::include_bytes!("../assets/additional-icons.ttf")
+};
+
 pub mod button_none {
   use iced::{button, Color, Vector};
 
@@ -65,8 +70,37 @@ pub mod button_highlight_and_hover {
   
     fn hovered(&self) -> button::Style {
       button::Style {
-        background: Color::from_rgb8(0x41, 0x41, 0x41).into(),
+        background: Color::from_rgb8(0xC0, 0xC0, 0xC0).into(),
         text_color: Color::WHITE.into(),
+        ..button::Style::default()
+      }
+    }
+  }
+}
+
+pub mod button_highlight_and_hover_green {
+  use iced::{button, Color, Vector};
+
+  pub struct Button;
+
+  impl button::StyleSheet for Button {
+    fn active(&self) -> button::Style {
+      button::Style {
+        shadow_offset: Vector::new(0.0, 0.0),
+        text_color: Color::from_rgb8(0x32, 0xA8, 0x52),
+        border_color: Color::from_rgb8(0x32, 0xA8, 0x52),
+        border_width: 1.5,
+        border_radius: 7.5,
+        ..button::Style::default()
+      }
+    }
+  
+    fn hovered(&self) -> button::Style {
+      button::Style {
+        background: Color::from_rgb8(0x32, 0xA8, 0x52).into(),
+        border_color: Color::BLACK.into(),
+        text_color: Color::BLACK.into(),
+        border_radius: 7.5,
         ..button::Style::default()
       }
     }
@@ -139,12 +173,13 @@ pub mod highlight_background {
 use iced::container;
 use crate::gui::mod_list::{UpdateStatus, UpdateStatusTTPatch};
 
-impl From<UpdateStatus> for Box<dyn container::StyleSheet> {
-  fn from(theme: UpdateStatus) -> Self {
+impl From<&UpdateStatus> for Box<dyn container::StyleSheet> {
+  fn from(theme: &UpdateStatus) -> Self {
     match theme {
       UpdateStatus::Major(_) | UpdateStatus::Minor(_) | UpdateStatus::Patch(_) => update::major::Container.into(),
       UpdateStatus::UpToDate => update::up_to_date::Container.into(),
-      UpdateStatus::Error => update::error::Container.into()
+      UpdateStatus::Error => update::error::Container.into(),
+      UpdateStatus::Discrepancy(_) => update::discrepancy::Container.into(),
     }
   }
 }
@@ -155,7 +190,8 @@ impl From<UpdateStatusTTPatch> for Box<dyn container::StyleSheet> {
     match theme {
       UpdateStatus::Major(_) | UpdateStatus::Minor(_) | UpdateStatus::Patch(_) => update::major::Tooltip.into(),
       UpdateStatus::UpToDate => update::up_to_date::Tooltip.into(),
-      UpdateStatus::Error => update::error::Tooltip.into()
+      UpdateStatus::Error => update::error::Tooltip.into(),
+      UpdateStatus::Discrepancy(_) => update::discrepancy::Tooltip.into(),
     }
   }
 }
@@ -228,6 +264,36 @@ pub mod update {
     fn style() -> super::container::Style {
       super::container::Style {
         background: super::Color::from_rgb8(0xB0, 0x00, 0x20).into(),
+        text_color: Some(super::Color::WHITE),
+        ..super::container::Style::default()
+      }
+    }
+
+    impl super::container::StyleSheet for Container {
+      fn style(&self) -> super::container::Style {
+        style()
+      }
+    }
+
+    impl super::container::StyleSheet for Tooltip {
+      fn style(&self) -> super::container::Style {
+        super::container::Style {
+          border_color: super::Color::BLACK,
+          border_width: 1.0,
+          border_radius: 5.0,
+          ..style()
+        }
+      }
+    }
+  }
+
+  pub mod discrepancy {
+    pub struct Container;
+    pub struct Tooltip;
+
+    fn style() -> super::container::Style {
+      super::container::Style {
+        background: super::Color::from_rgb8(0x80, 0x00, 0x80).into(),
         text_color: Some(super::Color::WHITE),
         ..super::container::Style::default()
       }

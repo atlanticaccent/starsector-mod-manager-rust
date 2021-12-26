@@ -8,6 +8,7 @@ use directories::UserDirs;
 
 pub mod vmparams;
 
+#[derive(Debug, Clone)]
 pub struct Settings {
   dirty: bool,
   pub root_dir: Option<PathBuf>,
@@ -20,7 +21,14 @@ pub struct Settings {
   min_ram_input_state: text_input::State,
   max_ram_input_state: text_input::State,
   min_ram_pick_state: pick_list::State<vmparams::Unit>,
-  max_ram_pick_state: pick_list::State<vmparams::Unit>
+  max_ram_pick_state: pick_list::State<vmparams::Unit>,
+  manager_update_url: bool,
+  manager_update_button_state: button::State,
+  pub git_warn: bool,
+  pub experimental_launch: bool,
+  pub experimental_resolution: (u32, u32),
+  horizontal_res_input_state: text_input::State,
+  vertical_res_input_state: text_input::State,
 }
 
 #[derive(Debug, Clone)]
@@ -33,7 +41,12 @@ pub enum SettingsMessage {
   InitVMParams(Option<vmparams::VMParams>),
   VMParamsEditingToggled(bool),
   VMParamChanged(String, VMParamChanged),
-  UnitChanged(vmparams::Unit, VMParamChanged)
+  UnitChanged(vmparams::Unit, VMParamChanged),
+  InitUpdateStatus(bool),
+  OpenReleases,
+  GitWarnToggled(bool),
+  ExperimentalLaunchToggled(bool),
+  ResolutionChanged((String, String)),
 }
 
 #[derive(Debug, Clone)]
@@ -57,12 +70,51 @@ impl Settings {
       min_ram_input_state: text_input::State::new(),
       max_ram_input_state: text_input::State::new(),
       min_ram_pick_state: pick_list::State::default(),
-      max_ram_pick_state: pick_list::State::default()
+      max_ram_pick_state: pick_list::State::default(),
+      manager_update_url: false,
+      manager_update_button_state: button::State::new(),
+      git_warn: false,
+      experimental_launch: false,
+      experimental_resolution: (1280, 768),
+      horizontal_res_input_state: text_input::State::new(),
+      vertical_res_input_state: text_input::State::new(),
     }
   }
 
   pub fn update(&mut self, message: SettingsMessage) -> Command<SettingsMessage> {
     match message {
+      SettingsMessage::ExperimentalLaunchToggled(val) => {
+        self.experimental_launch = val;
+
+        Command::none()
+      }
+      SettingsMessage::ResolutionChanged(mut res) => {
+        if res.0.len() == 0 {
+          res.0 = String::from("0");
+        }
+        if res.1.len() == 0 {
+          res.1 = String::from("0");
+        }
+        self.experimental_resolution = (
+          res.0.parse::<u32>().unwrap_or(self.experimental_resolution.0),
+          res.1.parse::<u32>().unwrap_or(self.experimental_resolution.1),
+        );
+
+        Command::none()
+      }
+      SettingsMessage::GitWarnToggled(val) => {
+        self.git_warn = val;
+
+        Command::none()
+      }
+      SettingsMessage::InitUpdateStatus(status) => {
+        self.manager_update_url = status;
+
+        Command::none()
+      },
+      SettingsMessage::OpenReleases => {
+        Command::none()
+      },
       SettingsMessage::InitRoot(mut _root_dir) => {
         self.root_dir = _root_dir.take();
         self.dirty = false;
@@ -181,27 +233,37 @@ impl Settings {
     )
     .on_press(SettingsMessage::OpenNativeFilePick);
   
-    let mut controls = vec![
+    let mut controls: Vec<Element<SettingsMessage>> = vec![
       Row::new()
-        .push({
-          if cfg!(target_os = "macos") {
-            Text::new("Starsector App: ")
-          } else {
-            Text::new("Starsector Install Dir: ")
-          }
-        })
-        .push(input)
-        .push(browse)
+        .push(if cfg!(target_os = "macos") {
+          Text::new("Starsector App:")
+        } else {
+          Text::new("Starsector Install Dir:")
+        }.width(Length::FillPortion(3)))
+        .push(Row::with_children(vec![input.into(), browse.into()]).width(Length::FillPortion(7)))
         .width(Length::Fill)
         .align_items(Align::Center)
         .padding(2)
         .into(),
       Row::new()
+        .push(Text::new("Warn when overwriting '.git' folders:").width(Length::FillPortion(3)))
+        .push(Checkbox::new(
+          self.git_warn,
+          "",
+          SettingsMessage::GitWarnToggled
+        ).width(Length::FillPortion(2)))
+        .push(Space::with_width(Length::FillPortion(5)))
+        .width(Length::Fill)
+        .padding(2)
+        .into(),
+      Row::new()
+        .push(Text::new("Enable VM params editing:").width(Length::FillPortion(3)))
         .push(Checkbox::new(
           self.vmparams_editing_enabled,
-          "Enable VM params editing",
+          "",
           SettingsMessage::VMParamsEditingToggled
-        ))
+        ).width(Length::FillPortion(2)))
+        .push(Space::with_width(Length::FillPortion(5)))
         .padding(2)
         .into()
     ];
@@ -261,8 +323,61 @@ impl Settings {
       } else {
         controls.push(Container::new(Text::new("VMParams editing is currently unavailable. Have you selected/saved a Starsector installation directory?")).padding(7).into())
       }
-    } else {
-      controls.push(Container::new(Text::new(" ")).padding(7).into())
+    }
+
+    controls.push(
+      Row::new()
+        .push(Text::new("Enable experimental launch:").width(Length::FillPortion(3)))
+        .push(Checkbox::new(
+          self.experimental_launch,
+          "",
+          SettingsMessage::ExperimentalLaunchToggled
+        ).width(Length::FillPortion(2)))
+        .push(Space::with_width(Length::FillPortion(5)))
+        .width(Length::Fill)
+        .padding(2)
+        .into()
+    );
+
+    if self.experimental_launch {
+      let defaults = self.experimental_resolution.clone();
+      controls.push(
+        Row::new()
+          .push(Text::new("Resolution:").width(Length::FillPortion(3)))
+          .push(
+            TextInput::new(
+              &mut self.horizontal_res_input_state,
+              "",
+              &self.experimental_resolution.0.to_string(),
+              move |input| -> SettingsMessage {
+                SettingsMessage::ResolutionChanged((input, defaults.1.to_string()))
+              }
+            )
+            .padding(5)
+            .width(Length::FillPortion(2))
+          )
+          .push(Text::new("x")
+            .horizontal_alignment(iced::HorizontalAlignment::Center)
+            .vertical_alignment(iced::VerticalAlignment::Center)
+            .width(Length::FillPortion(1))
+          )
+          .push(
+            TextInput::new(
+              &mut self.vertical_res_input_state,
+              "",
+              &self.experimental_resolution.1.to_string(),
+              move |input| -> SettingsMessage {
+                SettingsMessage::ResolutionChanged((defaults.0.to_string(), input))
+              }
+            )
+            .padding(5)
+            .width(Length::FillPortion(2))
+          )
+          .push(Space::with_width(Length::FillPortion(2)))
+          .width(Length::Fill)
+          .padding(2)
+          .into()
+      );
     }
 
     Column::new()
@@ -273,6 +388,21 @@ impl Settings {
         .center_y()
         .height(Length::FillPortion(1))
       )
+      .push(if self.manager_update_url {
+        Row::new()
+          .push(Space::with_width(Length::Fill))
+          .push(Text::new("Mod Manager update available:"))
+          .push(Space::with_width(Length::Units(10)))
+          .push(Button::new(
+            &mut self.manager_update_button_state,
+            Text::new("Open in browser?")
+            ).on_press(SettingsMessage::OpenReleases)
+          )
+          .align_items(iced::Align::Center)
+      } else {
+        Row::new().height(Length::Shrink)
+      })
+      .push(Space::with_height(Length::Units(10)))
       .push::<Element<SettingsMessage>>(
         Row::new()
           .push(Space::with_width(Length::Fill))
@@ -303,5 +433,5 @@ THE SOFTWARE IS PROVIDED `AS IS`, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 This program makes use of multiple open source components and framewords. They include, and are not limited to:
 
-iced, serde, tokio, infer, native-dialog, serde_json, json5, json_comments, and if_chain.
+infer, tokio, iced, iced_native, iced_aw, tinyfiledialogs, native-dialog, iced_futures, serde, serde_json, json5, json_comments, if_chain, reqwest, serde-aux, handwritten-json, unrar, opener, directories, tempfile, compress-tools, snafu, remove_dir_all, sublime_fuzzy, classfile-parser, zip, regex, lazy_static
 "#;
