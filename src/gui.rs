@@ -127,8 +127,11 @@ impl Application for App {
         let mut commands = vec![];
         match res {
           Ok(config) => {
+            let resolution = (config.experimental_resolution.0.to_string(), config.experimental_resolution.1.to_string());
+
             commands.push(self.settings.update(SettingsMessage::InitRoot(config.install_dir.clone())).map(|m| Message::SettingsMessage(m)));
             commands.push(self.settings.update(SettingsMessage::GitWarnToggled(config.git_warn)).map(|m| Message::SettingsMessage(m)));
+            commands.push(self.settings.update(SettingsMessage::ResolutionChanged(resolution)).map(|m| Message::SettingsMessage(m)));
 
             commands.push(self.mod_list.update(ModListMessage::SetRoot(config.install_dir.clone())).map(|m| Message::ModListMessage(m)));
             commands.push(self.mod_list.update(ModListMessage::SetLastBrowsed(config.last_browsed.clone())).map(|m| Message::ModListMessage(m)));
@@ -150,6 +153,8 @@ impl Application for App {
               install_dir: None,
               last_browsed: None,
               git_warn: false,
+              experimental_launch: false,
+              experimental_resolution: (1280, 768)
             })
           }
         }
@@ -202,6 +207,8 @@ impl Application for App {
         if let Some(config) = self.config.as_mut() {
           config.install_dir = self.settings.root_dir.clone();
           config.git_warn = self.settings.git_warn;
+          config.experimental_launch = self.settings.experimental_launch;
+          config.experimental_resolution = self.settings.experimental_resolution;
 
           commands.push(Command::perform(config.clone().save(), Message::ConfigSaved));
 
@@ -693,7 +700,9 @@ pub enum SaveError {
 pub struct Config {
   install_dir: Option<PathBuf>,
   last_browsed: Option<PathBuf>,
-  git_warn: bool
+  git_warn: bool,
+  experimental_launch: bool,
+  experimental_resolution: (u32, u32),
 }
 
 impl Config {
