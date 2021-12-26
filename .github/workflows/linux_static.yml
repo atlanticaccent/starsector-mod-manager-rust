@@ -18,7 +18,7 @@ jobs:
       PKG_CONFIG_ALLOW_CROSS: 1
     steps:
       - name: Install Dependencies
-        run: apk update; apk add libarchive-dev musl-dev gcc g++ libgcc make cmake binutils freetype-dev
+        run: apk update; apk add libarchive-dev musl-dev gcc g++ libgcc make cmake binutils freetype-dev expat-dev
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
