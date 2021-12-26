@@ -18,6 +18,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
+          override: true
       - name: Install libarchive
         uses: lukka/run-vcpkg@v7.4
         with:
