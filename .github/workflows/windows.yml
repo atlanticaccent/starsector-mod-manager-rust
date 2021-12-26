@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly
       - name: Install libarchive
         uses: lukka/run-vcpkg@v7.4
         with:
