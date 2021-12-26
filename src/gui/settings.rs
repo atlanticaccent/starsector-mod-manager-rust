@@ -25,6 +25,10 @@ pub struct Settings {
   manager_update_url: bool,
   manager_update_button_state: button::State,
   pub git_warn: bool,
+  pub experimental_launch: bool,
+  pub experimental_resolution: (u32, u32),
+  horizontal_res_input_state: text_input::State,
+  vertical_res_input_state: text_input::State,
 }
 
 #[derive(Debug, Clone)]
@@ -41,6 +45,8 @@ pub enum SettingsMessage {
   InitUpdateStatus(bool),
   OpenReleases,
   GitWarnToggled(bool),
+  ExperimentalLaunchToggled(bool),
+  ResolutionChanged((String, String)),
 }
 
 #[derive(Debug, Clone)]
@@ -68,11 +74,34 @@ impl Settings {
       manager_update_url: false,
       manager_update_button_state: button::State::new(),
       git_warn: false,
+      experimental_launch: false,
+      experimental_resolution: (1280, 768),
+      horizontal_res_input_state: text_input::State::new(),
+      vertical_res_input_state: text_input::State::new(),
     }
   }
 
   pub fn update(&mut self, message: SettingsMessage) -> Command<SettingsMessage> {
     match message {
+      SettingsMessage::ExperimentalLaunchToggled(val) => {
+        self.experimental_launch = val;
+
+        Command::none()
+      }
+      SettingsMessage::ResolutionChanged(mut res) => {
+        if res.0.len() == 0 {
+          res.0 = String::from("0");
+        }
+        if res.1.len() == 0 {
+          res.1 = String::from("0");
+        }
+        self.experimental_resolution = (
+          res.0.parse::<u32>().unwrap_or(self.experimental_resolution.0),
+          res.1.parse::<u32>().unwrap_or(self.experimental_resolution.1),
+        );
+
+        Command::none()
+      }
       SettingsMessage::GitWarnToggled(val) => {
         self.git_warn = val;
 
@@ -294,8 +323,61 @@ impl Settings {
       } else {
         controls.push(Container::new(Text::new("VMParams editing is currently unavailable. Have you selected/saved a Starsector installation directory?")).padding(7).into())
       }
-    } else {
-      controls.push(Container::new(Text::new(" ")).padding(7).into())
+    }
+
+    controls.push(
+      Row::new()
+        .push(Text::new("Enable experimental launch:").width(Length::FillPortion(3)))
+        .push(Checkbox::new(
+          self.experimental_launch,
+          "",
+          SettingsMessage::ExperimentalLaunchToggled
+        ).width(Length::FillPortion(2)))
+        .push(Space::with_width(Length::FillPortion(5)))
+        .width(Length::Fill)
+        .padding(2)
+        .into()
+    );
+
+    if self.experimental_launch {
+      let defaults = self.experimental_resolution.clone();
+      controls.push(
+        Row::new()
+          .push(Text::new("Resolution:").width(Length::FillPortion(3)))
+          .push(
+            TextInput::new(
+              &mut self.horizontal_res_input_state,
+              "",
+              &self.experimental_resolution.0.to_string(),
+              move |input| -> SettingsMessage {
+                SettingsMessage::ResolutionChanged((input, defaults.1.to_string()))
+              }
+            )
+            .padding(5)
+            .width(Length::FillPortion(2))
+          )
+          .push(Text::new("x")
+            .horizontal_alignment(iced::HorizontalAlignment::Center)
+            .vertical_alignment(iced::VerticalAlignment::Center)
+            .width(Length::FillPortion(1))
+          )
+          .push(
+            TextInput::new(
+              &mut self.vertical_res_input_state,
+              "",
+              &self.experimental_resolution.1.to_string(),
+              move |input| -> SettingsMessage {
+                SettingsMessage::ResolutionChanged((defaults.0.to_string(), input))
+              }
+            )
+            .padding(5)
+            .width(Length::FillPortion(2))
+          )
+          .push(Space::with_width(Length::FillPortion(2)))
+          .width(Length::Fill)
+          .padding(2)
+          .into()
+      );
     }
 
     Column::new()

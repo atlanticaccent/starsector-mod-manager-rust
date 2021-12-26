@@ -55,6 +55,7 @@ pub struct ModList {
   search_query: Option<String>,
   pub starsector_version: (Option<String>, Option<String>, Option<String>, Option<String>),
   pub git_warn: bool,
+  launch_button_state: button::State,
 }
 
 #[derive(Debug, Clone)]
@@ -74,6 +75,7 @@ pub enum ModListMessage {
   HeadingsMessage(HeadingsMessage),
   SearchChanged(String),
   SetVersion(String),
+  LaunchStarsector,
 }
 
 impl ModList {
@@ -99,7 +101,8 @@ impl ModList {
       search_state: text_input::State::default(),
       search_query: None,
       starsector_version: (None, None, None, None),
-      git_warn: false
+      git_warn: false,
+      launch_button_state: button::State::default(),
     }
   }
 
@@ -110,6 +113,9 @@ impl ModList {
    */
   pub fn update(&mut self, message: ModListMessage) -> Command<ModListMessage> {
     match message {
+      ModListMessage::LaunchStarsector => {
+        Command::none()
+      }
       ModListMessage::SetVersion(version) => {
         self.starsector_version = parse_game_version(&version);
 
@@ -527,16 +533,17 @@ impl ModList {
           Some(ToolOptions::Default),
           ModListMessage::ToolsPressed
         ))
-        .push(Space::with_width(Length::Units(5)))
-        .push(Container::new(Text::new("Search:").height(Length::Fill)).padding(5))
-        .push(TextInput::new(
-          &mut self.search_state,
-          "",
-          if let Some(ref query) = self.search_query {
-            query
-          } else { "" },
-          ModListMessage::SearchChanged
-        ).padding(5))
+        .push(Space::with_width(Length::Fill))
+        .push(Button::new(
+          &mut self.launch_button_state,
+          Row::with_children(vec![
+            Space::with_width(Length::Units(5)).into(),
+            Text::new("Launch Starsector").into(),
+            Space::with_width(Length::Units(5)).into(),
+            Text::new('\u{f4f4}').font(style::ICONS).size(32).into(),
+          ]).align_items(Align::Center)
+        ).on_press(ModListMessage::LaunchStarsector))
+        .spacing(5)
       )
       .push(Space::with_height(Length::Units(10)))
       .push(Column::new()
@@ -655,23 +662,38 @@ impl ModList {
       )
       .push(Rule::horizontal(1).style(style::max_rule::Rule))
       .push(Space::with_height(Length::Units(5)))
+      .push(Row::new()
+        .push(Row::with_children(vec![
+          Text::new("Installed:").into(),
+          Space::with_width(Length::Units(10)).into(),
+          Text::new(format!("{}", install_count)).into(),
+          Space::with_width(Length::Units(10)).into(),
+          Text::new("Active:").into(),
+          Space::with_width(Length::Units(10)).into(),
+          Text::new(format!("{}", active_count)).into(),
+          Space::with_width(Length::Units(10)).into(),
+        ]).align_items(Align::Center).width(Length::FillPortion(6)))
+        // .push(Space::with_width(Length::FillPortion(6)))
+        .push(Container::new(Text::new("Search:").height(Length::FillPortion(1))).padding(5))
+        .push(TextInput::new(
+          &mut self.search_state,
+          "",
+          if let Some(ref query) = self.search_query {
+            query
+          } else { "" },
+          ModListMessage::SearchChanged
+        ).padding(5).width(Length::FillPortion(3))).align_items(Align::Center)
+      )
+      .push(Space::with_height(Length::Units(5)))
+      .push(Rule::horizontal(1).style(style::max_rule::Rule))
+      .push(Space::with_height(Length::Units(5)))
       .push(
         Container::new(self.mod_description.view().map(|message| {
           ModListMessage::ModDescriptionMessage(message)
         }))
         .height(Length::FillPortion(2))
         .width(Length::Fill)
-      )
-      .push(Row::with_children(vec![
-        Text::new("Installed:").into(),
-        Space::with_width(Length::Units(10)).into(),
-        Text::new(format!("{}", install_count)).into(),
-        Space::with_width(Length::Units(10)).into(),
-        Text::new("Active:").into(),
-        Space::with_width(Length::Units(10)).into(),
-        Text::new(format!("{}", active_count)).into(),
-        Space::with_width(Length::Units(10)).into(),
-      ]).width(Length::Fill).height(Length::Shrink));
+      );
 
     Column::new()
       .push(content)
@@ -987,10 +1009,10 @@ pub enum ModEntryError {
 }
 
 impl ModEntry {
-  const ICONS: iced::Font = iced::Font::External {
-    name: "Icons",
-    bytes: std::include_bytes!("../../assets/icons.ttf")
-  };
+  // const ICONS: iced::Font = iced::Font::External {
+  //   name: "Icons",
+  //   bytes: std::include_bytes!("../../assets/icons.ttf")
+  // };
 
   pub fn from_file(mut path: PathBuf) -> Result<ModEntry, ModEntryError> {
     if let Ok(mod_info_file) = std::fs::read_to_string(path.clone()) {
@@ -1056,10 +1078,10 @@ impl ModEntry {
           Space::with_height(Length::FillPortion(1)).into(),
           {
             let text = Text::new(if auto_update_supported {
-              '\u{f270}'.to_string()
+              '\u{f270}'
             } else {
-              '\u{f623}'.to_string()
-            }).font(ModEntry::ICONS).size(32);
+              '\u{f623}'
+            }).font(style::ICONS).size(32);
 
             if !auto_update_supported {
               text.color(iced::Color::from_rgb8(0xB0, 0x00, 0x20))

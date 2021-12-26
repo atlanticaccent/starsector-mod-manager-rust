@@ -7,6 +7,10 @@ use serde_json;
 
 use lazy_static::lazy_static;
 
+lazy_static! {
+  static ref JAVA_REGEX: regex::Regex = regex::Regex::new(r"java\.exe").expect("compile regex");
+}
+
 // const DEV_VERSION: &'static str = "IN_DEV";
 const TAG: &'static str = env!("CARGO_PKG_VERSION");
 
@@ -53,6 +57,7 @@ pub struct App {
   manager_update_status: Option<Result<String, String>>,
   settings_changed: bool,
   modal_state: modal::State<ModalState>,
+  starsector_running: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -69,6 +74,7 @@ pub enum Message {
   OpenReleases,
   CloseModal(Option<(String, String, PathBuf)>),
   VersionLoaded(Result<String, LoadError>),
+  StarsectorClosed(Result<(), String>),
 }
 
 impl Application for App {
@@ -88,6 +94,7 @@ impl Application for App {
         manager_update_status: None,
         settings_changed: false,
         modal_state: modal::State::default(),
+        starsector_running: false,
       },
       Command::batch(vec![
         Command::perform(Config::load(), Message::ConfigLoaded),
@@ -106,6 +113,16 @@ impl Application for App {
     _clipboard: &mut Clipboard,
   ) -> Command<Message> {
     match _message {
+      Message::StarsectorClosed(_res) => {
+        self.starsector_running = false;
+        self.modal_state.show(false);
+
+        if let Err(err) = _res {
+          dbg!(err);
+        }
+
+        Command::none()
+      }
       Message::ConfigLoaded(res) => {
         let mut commands = vec![];
         match res {
@@ -234,11 +251,47 @@ impl Application for App {
         return Command::none();
       },
       Message::ModListMessage(mod_list_message) => {
-        if let ModListMessage::ModEntryMessage(_, ModEntryMessage::AutoUpdate) = mod_list_message {
-          self.modal_state.show(true);
-        }
-
         let mut commands = vec![self.mod_list.update(mod_list_message.clone()).map(|m| Message::ModListMessage(m))];
+
+        match mod_list_message {
+          ModListMessage::LaunchStarsector => {
+            self.modal_state.show(true);
+            self.starsector_running = true;
+
+            if let Some(install_dir) = self.settings.root_dir.clone() {
+              let experimental_launch = self.settings.experimental_launch;
+              let resolution = self.settings.experimental_resolution;
+              commands.push(Command::perform((async move || -> Result<(), String> {
+                use tokio::fs::read_to_string;
+    
+                let child = if experimental_launch {
+                  // let mut args_raw = String::from(r"java.exe -XX:CompilerThreadPriority=1 -XX:+CompilerThreadHintNoPreempt -XX:+DisableExplicitGC -XX:+UnlockExperimentalVMOptions -XX:+AggressiveOpts -XX:+TieredCompilation -XX:+UseG1GC -XX:InitialHeapSize=2048m -XX:MaxMetaspaceSize=2048m -XX:MaxNewSize=2048m -XX:+ParallelRefProcEnabled -XX:G1NewSizePercent=5 -XX:G1MaxNewSizePercent=10 -XX:G1ReservePercent=5 -XX:G1MixedGCLiveThresholdPercent=70 -XX:InitiatingHeapOccupancyPercent=90 -XX:G1HeapWastePercent=5 -XX:MaxGCPauseMillis=50 -XX:G1HeapRegionSize=2M -XX:+UseStringDeduplication -Djava.library.path=native\windows -Xms1536m -Xmx1536m -Xss2048k -classpath janino.jar;commons-compiler.jar;commons-compiler-jdk.jar;starfarer.api.jar;starfarer_obf.jar;jogg-0.0.7.jar;jorbis-0.0.15.jar;json.jar;lwjgl.jar;jinput.jar;log4j-1.2.9.jar;lwjgl_util.jar;fs.sound_obf.jar;fs.common_obf.jar;xstream-1.4.10.jar -Dcom.fs.starfarer.settings.paths.saves=..\\saves -Dcom.fs.starfarer.settings.paths.screenshots=..\\screenshots -Dcom.fs.starfarer.settings.paths.mods=..\\mods -Dcom.fs.starfarer.settings.paths.logs=. com.fs.starfarer.StarfarerLauncher");
+                  let mut args_raw = read_to_string(install_dir.join("vmparams")).await.map_err(|err| err.to_string())?;
+                  args_raw = JAVA_REGEX.replace(&args_raw, "").to_string();
+                  let args: Vec<&str> = args_raw.split_ascii_whitespace().collect();
+      
+                  std::process::Command::new(install_dir.join("jre").join("bin").join("java.exe"))
+                    .current_dir(install_dir.join("starsector-core"))
+                    .args(["-DlaunchDirect=true", &format!("-DstartRes={}x{}", resolution.0, resolution.1), "-DstartFS=false", "-DstartSound=true"])
+                    .args(args)
+                    .spawn()
+                    .expect("Execute Starsector")
+                } else {
+                  std::process::Command::new(install_dir.join("starsector.exe"))
+                    .current_dir(install_dir)
+                    .spawn()
+                    .expect("Execute Starsector")
+                };
+
+                child.wait_with_output().map_or_else(|err| Err(err.to_string()), |_| Ok(()))
+              })(), Message::StarsectorClosed));
+            };
+          }
+          ModListMessage::ModEntryMessage(_, ModEntryMessage::AutoUpdate) => {
+            self.modal_state.show(true);
+          }
+          _ => {}
+        }
 
         if let Some(config) = self.config.as_mut() {
           config.last_browsed = self.mod_list.last_browsed.clone();
@@ -251,6 +304,7 @@ impl Application for App {
       Message::TagsReceived(res) => {
         if let Ok(tags) = &res {
           if tags > &format!("v{}", TAG) {
+            self.modal_state.show(true);
             self.settings.update(SettingsMessage::InitUpdateStatus(true));
           }
         }
@@ -372,8 +426,6 @@ impl Application for App {
       let tag = format!("v{}", TAG);
       match &self.manager_update_status {
         Some(Ok(remote)) if remote > &tag => {
-          self.modal_state.show(true);
-
           Modal::new(
             &mut self.modal_state,
             inner_content,
@@ -424,7 +476,23 @@ impl Application for App {
           .backdrop(Message::CloseModal(None))
           .on_esc(Message::CloseModal(None))
           .into()
-        }
+        },
+        _ if self.starsector_running => {
+          Modal::new(
+            &mut self.modal_state,
+            inner_content,
+            move |_| {
+              Card::new(
+                Text::new("Starsector running!"),
+                Text::new("App suspended until Starsector quits.").height(Length::Fill).vertical_alignment(iced::VerticalAlignment::Center),
+              )
+              .max_height(200)
+              .max_width(300)
+              .into()
+            }
+          )
+          .into()
+        },
         _ => {
           Modal::new(
             &mut self.modal_state,
