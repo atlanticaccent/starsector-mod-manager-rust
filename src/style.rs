@@ -1,3 +1,8 @@
+pub const ICONS: iced::Font = iced::Font::External {
+  name: "Icons",
+  bytes: std::include_bytes!("../assets/additional-icons.ttf")
+};
+
 pub mod button_none {
   use iced::{button, Color, Vector};
 
