@@ -18,7 +18,7 @@ jobs:
       PKG_CONFIG_ALLOW_CROSS: 1
     steps:
       - name: Install Dependencies
-        run: apk update; apk add libarchive-dev git
+        run: apk update; apk add libarchive-dev git musl-dev
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
