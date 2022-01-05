@@ -749,31 +749,14 @@ impl ModList {
             }
           })
           .filter_map(|entry| {
-            if let Ok(mut mod_info) = ModEntry::from_file(entry.path().join("mod_info.json")) {
-              let version = if_chain! {
-                if let Ok(version_loc_file) = File::open(entry.path().join("data").join("config").join("version").join("version_files.csv"));
-                let lines = BufReader::new(version_loc_file).lines();
-                if let Some(Ok(version_filename)) = lines.skip(1).next();
-                if let Ok(version_data) = std::fs::read_to_string(entry.path().join(version_filename));
-                let mut no_comments = String::new();
-                if strip_comments(version_data.as_bytes()).read_to_string(&mut no_comments).is_ok();
-                if let Ok(normalized) = handwritten_json::normalize(&no_comments);
-                if let Ok(mut version) = json5::from_str::<ModVersionMeta>(&normalized);
-                then {
-                  version.id = mod_info.id.clone();
-                  Some(version)
-                } else {
-                  None
-                }
-              };
+            if let Ok(mut mod_info) = ModEntry::from_file(entry.path()) {
               mod_info.enabled = enabled_mods_iter.clone().find(|id| mod_info.id.clone().eq(*id)).is_some();
-              mod_info.version_checker = version.clone();
               Some((
                 (
                   mod_info.id.clone(),
                   mod_info.clone()
                 ),
-                version
+                mod_info.version_checker.clone()
               ))
             } else {
               dbg!(entry.path());
@@ -963,7 +946,7 @@ pub struct ModEntry {
   #[serde(skip)]
   highlighted: bool,
   #[serde(skip)]
-  version_checker: Option<ModVersionMeta>,
+  pub version_checker: Option<ModVersionMeta>,
   #[serde(skip)]
   pub remote_version: Option<ModVersionMeta>,
   #[serde(skip)]
@@ -1014,14 +997,29 @@ impl ModEntry {
   //   bytes: std::include_bytes!("../../assets/icons.ttf")
   // };
 
-  pub fn from_file(mut path: PathBuf) -> Result<ModEntry, ModEntryError> {
-    if let Ok(mod_info_file) = std::fs::read_to_string(path.clone()) {
+  pub fn from_file(path: PathBuf) -> Result<ModEntry, ModEntryError> {
+    if let Ok(mod_info_file) = std::fs::read_to_string(path.join("mod_info.json")) {
       if_chain! {
         let mut stripped = String::new();
         if strip_comments(mod_info_file.as_bytes()).read_to_string(&mut stripped).is_ok();
         if let Ok(mut mod_info) = json5::from_str::<ModEntry>(&stripped);
         then {
-          path.pop();
+          mod_info.version_checker = if_chain! {
+            if let Ok(version_loc_file) = File::open(path.join("data").join("config").join("version").join("version_files.csv"));
+            let lines = BufReader::new(version_loc_file).lines();
+            if let Some(Ok(version_filename)) = lines.skip(1).next();
+            if let Ok(version_data) = std::fs::read_to_string(path.join(version_filename));
+            let mut no_comments = String::new();
+            if strip_comments(version_data.as_bytes()).read_to_string(&mut no_comments).is_ok();
+            if let Ok(normalized) = handwritten_json::normalize(&no_comments);
+            if let Ok(mut version) = json5::from_str::<ModVersionMeta>(&normalized);
+            then {
+              version.id = mod_info.id.clone();
+              Some(version)
+            } else {
+              None
+            }
+          };
           mod_info.path = path;
           mod_info.parsed_game_version = parse_game_version(&mod_info.game_version);
           Ok(mod_info)

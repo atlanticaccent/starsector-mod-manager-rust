@@ -334,14 +334,14 @@ async fn handle_auto(tx: mpsc::UnboundedSender<ChannelMessage>, url: String, tar
           let path = hybrid.get_path_copy();
           if_chain! {
             if let Ok(Some(path)) = task::spawn_blocking(move || find_nested_mod(&path)).await.expect("Run blocking search").context(Io {});
-            if let Ok(mod_info) = ModEntry::from_file(path.join("mod_info.json"));
+            if let Ok(mod_info) = ModEntry::from_file(path.clone());
             then {
               let hybrid = if let HybridPath::Temp(temp, _) = hybrid {
                 HybridPath::Temp(temp, Some(path))
               } else {
                 unreachable!()
               };
-              if mod_info.version.to_string() != target_version {
+              if mod_info.version_checker.map(|v| v.version.to_string()) != Some(target_version) {
                 tx.send(ChannelMessage::Error(format!("Downloaded version does not match expected version"))).expect("Send error over async channel");
               } else {
                 handle_delete(tx, mod_info.name, hybrid, old_path).await;
