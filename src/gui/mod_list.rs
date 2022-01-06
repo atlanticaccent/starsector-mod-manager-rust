@@ -749,7 +749,7 @@ impl ModList {
             }
           })
           .filter_map(|entry| {
-            if let Ok(mut mod_info) = ModEntry::from_file(entry.path()) {
+            if let Ok(mut mod_info) = ModEntry::from_file(&entry.path()) {
               mod_info.enabled = enabled_mods_iter.clone().find(|id| mod_info.id.clone().eq(*id)).is_some();
               Some((
                 (
@@ -997,7 +997,7 @@ impl ModEntry {
   //   bytes: std::include_bytes!("../../assets/icons.ttf")
   // };
 
-  pub fn from_file(path: PathBuf) -> Result<ModEntry, ModEntryError> {
+  pub fn from_file(path: &PathBuf) -> Result<ModEntry, ModEntryError> {
     if let Ok(mod_info_file) = std::fs::read_to_string(path.join("mod_info.json")) {
       if_chain! {
         let mut stripped = String::new();
@@ -1020,7 +1020,7 @@ impl ModEntry {
               None
             }
           };
-          mod_info.path = path;
+          mod_info.path = path.clone();
           mod_info.parsed_game_version = parse_game_version(&mod_info.game_version);
           Ok(mod_info)
         } else {
