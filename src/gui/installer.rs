@@ -212,7 +212,7 @@ async fn handle_path(tx: mpsc::UnboundedSender<ChannelMessage>, path: PathBuf, m
   if_chain! {
     if let Ok(maybe_path) = task::spawn_blocking(move || find_nested_mod(&dir)).await.expect("Find mod in given folder");
     if let Some(mod_path) = maybe_path;
-    if let Ok(mod_info) = ModEntry::from_file(mod_path.join("mod_info.json"));
+    if let Ok(mod_info) = ModEntry::from_file(&mod_path);
     then {
       if let Some(id) = installed.into_iter().find(|existing| **existing == mod_info.id) {
         mod_folder = match mod_folder {
@@ -334,7 +334,7 @@ async fn handle_auto(tx: mpsc::UnboundedSender<ChannelMessage>, url: String, tar
           let path = hybrid.get_path_copy();
           if_chain! {
             if let Ok(Some(path)) = task::spawn_blocking(move || find_nested_mod(&path)).await.expect("Run blocking search").context(Io {});
-            if let Ok(mod_info) = ModEntry::from_file(path.clone());
+            if let Ok(mod_info) = ModEntry::from_file(&path);
             then {
               let hybrid = if let HybridPath::Temp(temp, _) = hybrid {
                 HybridPath::Temp(temp, Some(path))
