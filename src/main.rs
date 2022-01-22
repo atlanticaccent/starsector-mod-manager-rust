@@ -3,12 +3,30 @@
 #![feature(option_zip)]
 #![feature(result_flattening)]
 #![feature(async_closure)]
+#![feature(btree_drain_filter)]
+#![feature(array_zip)]
+#![feature(result_option_inspect)]
 
-use iced::{Application, Settings};
+use druid::{AppLauncher, WindowDesc, theme};
 
-mod gui;
-mod style;
+#[path ="patch/mod.rs"]
+mod patch;
+mod app;
 
 fn main() {
-  gui::App::run(Settings::default()).expect("Start main application");
+  let main_window = WindowDesc::new(app::App::ui_builder())
+    .window_size((900., 800.));
+  
+  // create the initial app state
+  let initial_state = app::App::new();
+  
+  // start the application
+  AppLauncher::with_window(main_window)
+    .configure_env(|env, _| {
+      env.set(theme::BUTTON_BORDER_RADIUS, 0.);
+      env.set(theme::BUTTON_BORDER_WIDTH, 2.);
+    })
+    .delegate(app::AppDelegate::default())
+    .launch(initial_state)
+    .expect("Failed to launch application");
 }

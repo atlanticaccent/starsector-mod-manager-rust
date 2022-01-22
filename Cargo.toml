@@ -8,14 +8,12 @@ description = "A mod manager for the game Starsector"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+druid = { git = "https://github.com/linebender/druid", rev = "2f5beb8faba648c170a485b8d6a00d0d991a1737" }
+druid-widget-nursery = { git = "https://github.com/linebender/druid-widget-nursery", features = ["derive"] }
 infer = "0.3.4"
 tokio = { version = "1.6.0", features = ["fs", "io-util", "rt"] }
-iced = { version = "0.3.0", features = ["glow", "tokio"] }
-iced_native = "0.4"
-iced_aw = { git = "https://github.com/iced-rs/iced_aw", branch = "main", default-features = false, features = ["modal", "card"] }
 tinyfiledialogs = "^3.8.3"
 native-dialog = "0.5.5"
-iced_futures = "0.3"
 serde = { version = "1.0.126", features = ["derive"] }
 serde_json = "1.0"
 json5 = "0.3.0"

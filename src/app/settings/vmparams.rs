@@ -2,18 +2,20 @@ use std::fmt::Display;
 use std::str::Chars;
 use std::iter::Peekable;
 use std::path::PathBuf;
+use druid::{Data, Lens};
+use druid_widget_nursery::prism::Prism;
 use if_chain::if_chain;
 
-use crate::gui::{LoadError, SaveError};
+use crate::app::util::{LoadError, SaveError};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Data, Lens)]
 pub struct VMParams {
   pub heap_init: Value,
   pub heap_max: Value,
   pub thread_stack_size: Value
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Data, Lens)]
 pub struct Value {
   pub amount: i32,
   pub unit: Unit
@@ -28,7 +30,7 @@ impl Value {
   }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Data)]
 pub enum Unit {
   Giga,
   Mega,
@@ -37,9 +39,9 @@ pub enum Unit {
 
 impl Unit {
   pub const ALL: [Unit; 3] = [
-    Unit::Giga,
+    Unit::Kilo,
     Unit::Mega,
-    Unit::Kilo
+    Unit::Giga,
   ];
 
   pub fn to_char(&self) -> char {
@@ -72,17 +74,15 @@ impl VMParams {
     PathBuf::from(r"./vmparams")
   }
 
-  pub async fn load(install_dir: PathBuf) -> Result<VMParams, LoadError> {
-    use tokio::fs;
-    use tokio::io::AsyncReadExt;
+  pub fn load(install_dir: PathBuf) -> Result<VMParams, LoadError> {
+    use std::fs;
+    use std::io::Read;
 
     let mut params_file = fs::File::open(install_dir.join(VMParams::path()))
-      .await
       .map_err(|_| LoadError::NoSuchFile)?;
 
     let mut params_string = String::new();
     params_file.read_to_string(&mut params_string)
-      .await
       .map_err(|_| LoadError::ReadError)?;
 
     let (mut heap_init, mut heap_max, mut thread_stack_size) = (None, None, None);
