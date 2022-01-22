@@ -129,17 +129,15 @@ impl VMParams {
     }
   }
 
-  pub async fn save(self, install_dir: PathBuf) -> Result<(), SaveError> {
-    use tokio::fs;
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+  pub fn save(self, install_dir: PathBuf) -> Result<(), SaveError> {
+    use std::fs;
+    use std::io::{Read, Write};
 
     let mut params_file = fs::File::open(install_dir.join(VMParams::path()))
-      .await
       .map_err(|_| SaveError::FormatError)?;
 
     let mut params_string = String::new();
     params_file.read_to_string(&mut params_string)
-      .await
       .map_err(|_| SaveError::FormatError)?;
 
     let mut output = String::new();
@@ -178,11 +176,9 @@ impl VMParams {
     };
 
     let mut file = fs::File::create(install_dir.join(VMParams::path()))
-      .await
       .map_err(|_| SaveError::FileError)?;
 
     file.write_all(output.as_bytes())
-      .await
       .map_err(|_| SaveError::WriteError)
   }
 

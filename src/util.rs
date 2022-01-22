@@ -44,6 +44,5 @@ impl<T: Data> LabelExt<T> for Label<T> {}
 pub fn make_description_row<T: Data>(label: impl Widget<T> + 'static, val: impl Widget<T> + 'static) -> impl Widget<T> {
   Flex::row()
     .with_flex_child(label.expand_width(), 1.)
-    .with_flex_child(val.expand_width(), 2.)
-    .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+    .with_flex_child(val.expand_width(), 1.5)
 }

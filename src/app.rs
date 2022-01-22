@@ -36,6 +36,9 @@ impl App {
             settings.vmparams = settings::vmparams::VMParams::load(path).ok();
           }
         }
+        if let Some(install_dir) = settings.install_dir.clone() {
+          settings.install_dir_buf = install_dir.to_string_lossy().to_string()
+        }
         Ok(settings)
       }).unwrap_or_else(|_| settings::Settings::default()),
       mod_list: mod_list::ModList::new(),
@@ -45,11 +48,20 @@ impl App {
   
   pub fn ui_builder() -> impl Widget<Self> {
     Flex::column()
-      .with_child(Flex::row().with_flex_child(Button::new("Settings").on_click(
-        move |event_ctx, _, _| {
-          event_ctx.submit_command(App::SELECTOR.with(AppCommands::OpenSettings))
-        },
-      ), FlexParams::new(1., CrossAxisAlignment::Start)))
+      .with_child(
+        Flex::row()
+          .with_flex_child(
+            Flex::row().with_child(Button::new("Settings").on_click(move |event_ctx, _, _| {
+              event_ctx.submit_command(App::SELECTOR.with(AppCommands::OpenSettings))
+            })).expand_width(),
+            FlexParams::new(1., CrossAxisAlignment::Start)
+          )
+          .with_flex_child(
+            Settings::install_dir_browser_builder().lens(App::settings).expand_width().padding(2.),
+            FlexParams::new(2., CrossAxisAlignment::Center)
+          )
+          .expand_width()
+      )
       .with_flex_child(
         mod_list::ModList::ui_builder()
         .lens(App::mod_list)
@@ -99,8 +111,10 @@ impl Delegate<App> for AppDelegate {
             .put(data, install_dir.map_or_else(|| "".to_string(), |p| p.to_string_lossy().to_string()));
 
           let settings_window = WindowDesc::new(settings::Settings::ui_builder().lens(App::settings).on_change(|_, _old, data, _| {
-            data.settings.clone().save().inspect_err(|e| println!("{:?}", e));
-          }))
+              if let Err(err) = data.settings.clone().save() {
+                eprintln!("{:?}", err)
+              }
+            }))
             .window_size((800., 400.))
             .menu(|_, _, _| Menu::empty()
                 .entry(platform_menus::common::copy())

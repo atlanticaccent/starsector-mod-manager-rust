@@ -3,12 +3,15 @@ use std::{path::PathBuf, rc::Rc};
 use druid::{Widget, Lens, Data, widget::{Flex, Label, TextBox, WidgetExt, ValidationDelegate, TextBoxEvent, Controller, Button, Checkbox, SizedBox, ViewSwitcher}, text::{Formatter, Validation, ValidationError, ParseFormatter}, lens, Selector, EventCtx, Event, Point, theme, LensExt, Menu, MenuItem, FileDialogOptions};
 use druid_widget_nursery::{WidgetExt as WidgetExtNursery, DynLens, Wedge};
 use serde::{Serialize, Deserialize};
+use if_chain::if_chain;
 
 use self::vmparams::{VMParams, Value, Unit};
 
 use super::util::{LoadError, SaveError, make_description_row, LabelExt};
 
 pub mod vmparams;
+
+const TRAILING_PADDING: (f64, f64, f64, f64) = (0., 0., 0., 5.);
 
 #[derive(Clone, Data, Lens, Serialize, Deserialize, Default)]
 pub struct Settings {
@@ -32,41 +35,15 @@ impl Settings {
   pub const SELECTOR: Selector<SettingsCommand> = Selector::new("SETTINGS");
 
   pub fn ui_builder() -> impl Widget<Self> {
-    let input = TextBox::new()
-      .with_formatter(InstallDirFormatter {})
-      .delegate(InstallDirDelegate {})
-      .lens(lens!(Settings, install_dir_buf));
-
     Flex::column()
       .with_child(Label::new("Settings").with_text_size(theme::TEXT_SIZE_LARGE).with_font(theme::UI_FONT_BOLD).center().padding(2.).expand_width().background(theme::BACKGROUND_LIGHT).controller(DragWindowController::default()))
       .with_flex_child(
         Flex::column()
-          .with_child(make_description_row(
-            Label::wrapped("Starsector Install Directory:"),
-            Flex::row()
-              .with_flex_child(input, 3.)
-              .with_flex_child(
-                Button::new("Browse...").on_click(|ctx, _, _| {
-                  ctx.submit_command(druid::commands::SHOW_OPEN_PANEL.with(FileDialogOptions::new()
-                    .packages_as_directories()
-                    .select_directories()
-                  ))
-                }).on_command(druid::commands::OPEN_FILE, |ctx, payload, data: &mut Settings| {
-                  if payload.path().is_dir() {
-                    // assert!(payload.path().join("mods").exists());
-                    data.install_dir = Some(payload.path().to_path_buf());
-                    ctx.submit_command(Settings::SELECTOR.with(SettingsCommand::UpdateInstallDir(payload.path().to_path_buf())));
-                  }
-                }),
-                1.
-              )
-          ))
-          .with_default_spacer()
+          .with_child(Self::install_dir_browser_builder().padding(TRAILING_PADDING))
           .with_child(make_description_row(
             Label::wrapped("Warn when overwriting '.git' folders:"),
             Checkbox::new("").lens(Settings::git_warn)
-          ))
-          .with_default_spacer()
+          ).padding(TRAILING_PADDING))
           .with_child(make_description_row(
             Label::wrapped("Enable vmparams editing:"),
             Checkbox::new("").lens(Settings::vmparams_enabled)
@@ -74,8 +51,7 @@ impl Settings {
             if data.vmparams_enabled && data.vmparams.is_none() {
               data.vmparams = data.install_dir.clone().ok_or(LoadError::NoSuchFile).and_then(|p| vmparams::VMParams::load(p)).ok()
             }
-          }))
-          .with_default_spacer()
+          }).padding(TRAILING_PADDING))
           .with_child(ViewSwitcher::new(
             |data: &Settings, _| data.vmparams_enabled,
             |enabled, data, _| {
@@ -95,13 +71,13 @@ impl Settings {
                         .with_flex_child(Label::new("Minimum RAM:").expand_width(), 1.)
                         .with_flex_child(
                           TextBox::new().with_formatter(ParseFormatter::new())
-                            .lens(vmparam_lens.clone().then(VMParams::heap_init).then(Value::amount))
+                            .lens(VMParams::heap_init.then(Value::amount))
                             .expand_width(),
                           3.
                         )
                         .with_flex_child(
                           Label::dynamic(|u: &Unit, _| u.to_string())
-                            .lens(vmparam_lens.clone().then(VMParams::heap_init).then(Value::unit))
+                            .lens(VMParams::heap_init.then(Value::unit))
                             .controller(UnitController::new(VMParams::heap_init.then(Value::unit)))
                             .expand_width(),
                           0.5
@@ -113,29 +89,38 @@ impl Settings {
                         .with_flex_child(Label::new("Maximum RAM:").expand_width(), 1.)
                         .with_flex_child(
                           TextBox::new().with_formatter(ParseFormatter::new())
-                            .lens(vmparam_lens.clone().then(VMParams::heap_max).then(Value::amount))
+                            .lens(VMParams::heap_max.then(Value::amount))
                             .expand_width(),
                           3.
                         )
                         .with_flex_child(
                           Label::dynamic(|u: &Unit, _| u.to_string())
-                            .lens(vmparam_lens.then(VMParams::heap_max).then(Value::unit))
+                            .lens(VMParams::heap_max.then(Value::unit))
                             .controller(UnitController::new(VMParams::heap_max.then(Value::unit)))
                             .expand_width(),
                           0.5
                         )
                     )
+                    .lens(vmparam_lens)
+                    .on_change(|_, _, data, _| {
+                      if_chain! {
+                        if let Some(install_dir) = data.install_dir.clone();
+                        if let Some(vmparams) = data.vmparams.clone();
+                        if let Err(err) = vmparams.save(install_dir);
+                        then {
+                          eprintln!("{:?}", err)
+                        }
+                      }
+                    })
                 )
               }
               Box::new(SizedBox::empty())
             }
-          ))
-          .with_default_spacer()
+          ).padding(TRAILING_PADDING))
           .with_child(make_description_row(
             Label::wrapped("Enable experimental direct launch:"),
             Checkbox::new("").lens(Settings::experimental_launch)
-          ))
-          .with_default_spacer()
+          ).padding(TRAILING_PADDING))
           .with_child(ViewSwitcher::new(
             |data: &Settings, _| data.experimental_launch,
             |enabled, _, _| {
@@ -168,7 +153,7 @@ impl Settings {
               }
               Box::new(SizedBox::empty())
             }
-          ))
+          ).padding(TRAILING_PADDING))
           .padding((10., 10.))
           .expand(),
         1.
@@ -179,9 +164,38 @@ impl Settings {
         }))
         .cross_axis_alignment(druid::widget::CrossAxisAlignment::End)
         .main_axis_alignment(druid::widget::MainAxisAlignment::End)
-        .expand()
+        .expand_width()
       )
       .expand_height()
+  }
+
+  pub fn install_dir_browser_builder() -> impl Widget<Self> {
+    let input = TextBox::new()
+      .with_formatter(InstallDirFormatter {})
+      .delegate(InstallDirDelegate {})
+      .lens(lens!(Settings, install_dir_buf));
+
+    make_description_row(
+      Label::wrapped("Starsector Install Directory:"),
+      Flex::row()
+        .with_flex_child(input.expand_width(), 1.)
+        .with_child(
+          Button::new("Browse...").on_click(|ctx, _, _| {
+            ctx.submit_command(druid::commands::SHOW_OPEN_PANEL.with(FileDialogOptions::new()
+              .packages_as_directories()
+              .select_directories()
+            ))
+          }).on_command(druid::commands::OPEN_FILE, |ctx, payload, data: &mut Settings| {
+            if payload.path().is_dir() {
+              // assert!(payload.path().join("mods").exists());
+              data.install_dir = Some(payload.path().to_path_buf());
+              data.install_dir_buf = payload.path().to_string_lossy().to_string();
+              ctx.request_paint();
+              ctx.submit_command(Settings::SELECTOR.with(SettingsCommand::UpdateInstallDir(payload.path().to_path_buf())));
+            }
+          })
+        )
+    )
   }
 
   pub  fn path(try_make: bool) -> PathBuf {
@@ -315,8 +329,8 @@ impl<T: Data, U: Data> UnitController<T, U> {
   }
 }
 
-impl<W: Widget<Settings>> Controller<Settings, W> for UnitController<VMParams, Unit> {
-  fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut Settings, env: &druid::Env) {
+impl<W: Widget<VMParams>> Controller<VMParams, W> for UnitController<VMParams, Unit> {
+  fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut VMParams, env: &druid::Env) {
     match event {
       Event::MouseDown(mouse_event) => {
         if mouse_event.button == druid::MouseButton::Left {
@@ -335,14 +349,18 @@ impl<W: Widget<Settings>> Controller<Settings, W> for UnitController<VMParams, U
                   let lens = self.lens.clone();
                   move |_, d: &mut super::App, _| {
                     if let Some(vmparams) = d.settings.vmparams.as_mut() {
-                      lens.with_mut(vmparams, |data| *data = unit)
+                      lens.with_mut(vmparams, |data| *data = unit);
+                      if_chain! {
+                        if let Some(install_dir) = d.settings.install_dir.clone();
+                        let vmparams = vmparams.clone();
+                        if let Err(err) = vmparams.save(install_dir);
+                        then {
+                          eprintln!("{:?}", err)
+                        }
+                      }
                     }
                   }
-                }).enabled(if let Some(vmparams) = &data.vmparams {
-                  vmparams.heap_init.unit != unit
-                } else {
-                  false
-                })
+                }).enabled(self.lens.with(data, |d| *d != unit))
               )
             }
 
