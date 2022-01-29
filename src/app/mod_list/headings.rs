@@ -97,7 +97,7 @@ impl<W: Widget<()>> Controller<(), W> for ResizeController {
         ratios[self.id] = *ratio;
 
         ctx.set_handled();
-        ctx.submit_command(ModEntry::SELECTOR.with(EntryCommands::UpdateRatios(self.id, *ratio)))
+        ctx.submit_command(ModEntry::UPDATE_RATIOS.with(EntryCommands::UpdateRatios(self.id, *ratio)))
       }
     }
     child.event(ctx, event, data, env)

@@ -1,6 +1,7 @@
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
 use druid::{Widget, widget::{Scroll, List, ListIter, Painter, Flex, Either, Label}, lens, WidgetExt, Data, Lens, LensExt, RenderContext, theme, Selector};
+use druid_widget_nursery::WidgetExt as WidgetExtNursery;
 use if_chain::if_chain;
 use serde::{Serialize, Deserialize};
 
@@ -11,7 +12,7 @@ pub mod headings;
 #[derive(Clone, Data, Lens)]
 pub struct ModList {
   #[data(same_fn="PartialEq::eq")]
-  mods: BTreeMap<String, Arc<ModEntry>>,
+  pub mods: BTreeMap<String, Arc<ModEntry>>,
 }
 
 impl ModList {
@@ -39,7 +40,10 @@ impl ModList {
                   ctx.fill(rect, &env.get(theme::BACKGROUND_LIGHT))
                 }
               }))
-            }).lens(lens::Identity).background(theme::BACKGROUND_LIGHT)
+            }).lens(lens::Identity).background(theme::BACKGROUND_LIGHT).on_command(ModEntry::REPLACE, |ctx, payload, data: &mut ModList| {
+              data.mods.insert(payload.id.clone(), payload.clone());
+              ctx.children_changed();
+            })
           ).vertical(),
           Label::new("No mods").expand().background(theme::BACKGROUND_LIGHT)
         ),
@@ -144,19 +148,25 @@ pub struct EnabledMods {
 }
 
 impl EnabledMods {
-  pub async fn save(self, path: PathBuf) -> Result<(), SaveError> {
-    use tokio::fs;
-    use tokio::io::AsyncWriteExt;
+  pub fn save(self, path: &PathBuf) -> Result<(), SaveError> {
+    use std::fs;
+    use std::io::Write;
 
     let json = serde_json::to_string_pretty(&self)
       .map_err(|_| SaveError::FormatError)?;
 
-    let mut file = fs::File::create(path)
-      .await
+    let mut file = fs::File::create(path.join("mods").join("enabled_mods.json"))
       .map_err(|_| SaveError::FileError)?;
 
     file.write_all(json.as_bytes())
-      .await
       .map_err(|_| SaveError::WriteError)
+  }
+}
+
+impl From<Vec<Arc<ModEntry>>> for EnabledMods {
+  fn from(from: Vec<Arc<ModEntry>>) -> Self {
+    Self {
+      enabled_mods: from.iter().into_iter().map(|v| v.id.clone()).collect()
+    }
   }
 }

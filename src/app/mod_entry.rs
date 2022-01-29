@@ -6,6 +6,7 @@ use std::{
 };
 
 use druid::{widget::{Checkbox, Label, LineBreaking, SizedBox, Controller, ControllerHost}, WidgetExt, Lens, Data, Widget, Selector, LensExt};
+use druid_widget_nursery::WidgetExt as WidgetExtNursery;
 use serde::Deserialize;
 use json_comments::strip_comments;
 use json5;
@@ -39,7 +40,7 @@ pub struct ModEntry {
   #[serde(skip)]
   game_version: GameVersion,
   #[serde(skip)]
-  enabled: bool,
+  pub enabled: bool,
   #[serde(skip)]
   highlighted: bool,
   #[serde(skip)]
@@ -59,11 +60,12 @@ pub struct ModEntry {
 }
 
 pub enum EntryCommands {
-  UpdateRatios(usize, f64)
+  UpdateRatios(usize, f64),
 }
 
 impl ModEntry {
-  pub const SELECTOR: Selector<EntryCommands> = Selector::new("MOD_ENTRY");
+  pub const UPDATE_RATIOS: Selector<EntryCommands> = Selector::new("MOD_ENTRY_UPDATE_RATIOS");
+  pub const REPLACE: Selector<Arc<ModEntry>> = Selector::new("MOD_ENTRY_REPLACE");
 
   pub fn from_file(path: &PathBuf) -> Result<ModEntry, ModEntryError> {
     if let Ok(mod_info_file) = std::fs::read_to_string(path.join("mod_info.json")) {
@@ -138,7 +140,9 @@ impl ModEntry {
     }
     
     Split::columns(
-      Checkbox::new("").lens(ModEntry::enabled.in_arc()).center(),
+      Checkbox::new("").lens(ModEntry::enabled.in_arc()).center().on_change(|ctx, _old, data, _| {
+        ctx.submit_command(ModEntry::REPLACE.with(data.clone()))
+      }),
       recursive_split(0, children, &ratios)
     ).split_point(1. / 7.).on_click(|ctx: &mut druid::EventCtx, data: &mut Arc<ModEntry>, _env: &druid::Env| {
       ctx.submit_command(App::SELECTOR.with(AppCommands::UpdateModDescription(data.clone())))
@@ -157,7 +161,7 @@ impl RowController {
 impl Controller<Arc<ModEntry>, Split<Arc<ModEntry>>> for RowController {
   fn event(&mut self, child: &mut Split<Arc<ModEntry>>, ctx: &mut druid::EventCtx, event: &druid::Event, data: &mut Arc<ModEntry>, env: &druid::Env) {
     if let druid::Event::Command(cmd) = event {
-      if let Some(EntryCommands::UpdateRatios(idx, ratio)) = cmd.get(ModEntry::SELECTOR) {
+      if let Some(EntryCommands::UpdateRatios(idx, ratio)) = cmd.get(ModEntry::UPDATE_RATIOS) {
         if self.id == *idx {
           child.set_split_point_chosen(*ratio);
           ctx.request_layout();

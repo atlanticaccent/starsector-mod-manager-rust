@@ -3,7 +3,6 @@ use std::str::Chars;
 use std::iter::Peekable;
 use std::path::PathBuf;
 use druid::{Data, Lens};
-use druid_widget_nursery::prism::Prism;
 use if_chain::if_chain;
 
 use crate::app::util::{LoadError, SaveError};

@@ -7,7 +7,7 @@ use druid::{
 };
 use druid_widget_nursery::WidgetExt as WidgetExtNursery;
 
-use self::{mod_entry::ModEntry, mod_description::ModDescription, settings::{SettingsCommand, Settings}};
+use self::{mod_entry::ModEntry, mod_description::ModDescription, settings::{SettingsCommand, Settings}, mod_list::EnabledMods};
 
 mod mod_description;
 mod mod_entry;
@@ -65,6 +65,15 @@ impl App {
       .with_flex_child(
         mod_list::ModList::ui_builder()
         .lens(App::mod_list)
+        .on_change(|_ctx, _old, data, _env| {
+          if let Some(install_dir) = &data.settings.install_dir {
+            let enabled: Vec<Arc<ModEntry>> = data.mod_list.mods.iter().filter_map(|(_, v)| v.enabled.then(|| v.clone())).collect();
+  
+            if let Err(err) = EnabledMods::from(enabled).save(install_dir) {
+              eprintln!("{:?}", err)
+            };
+          }
+        })
         .expand(),
         2.0,
       )
