@@ -76,7 +76,7 @@ impl Settings {
                           3.
                         )
                         .with_flex_child(
-                          Label::dynamic(|u: &Unit, _| u.to_string())
+                          Button::new(|u: &Unit, _env: &druid::Env| u.to_string())
                             .lens(VMParams::heap_init.then(Value::unit))
                             .controller(UnitController::new(VMParams::heap_init.then(Value::unit)))
                             .expand_width(),
@@ -94,7 +94,7 @@ impl Settings {
                           3.
                         )
                         .with_flex_child(
-                          Label::dynamic(|u: &Unit, _| u.to_string())
+                          Button::new(|u: &Unit, _env: &druid::Env| u.to_string())
                             .lens(VMParams::heap_max.then(Value::unit))
                             .controller(UnitController::new(VMParams::heap_max.then(Value::unit)))
                             .expand_width(),
