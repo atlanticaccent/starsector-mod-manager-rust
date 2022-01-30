@@ -196,7 +196,7 @@ impl Settings {
             ctx.submit_command(Settings::SELECTOR.with(SettingsCommand::UpdateInstallDir(payload.path().to_path_buf())));
           }
         }).on_change(|ctx, _old, data, _| {
-          data.clone().save();
+          data.save();
         })
     )
   }
@@ -229,7 +229,7 @@ impl Settings {
     })
   }
 
-   pub fn save(self) -> Result<(), SaveError> {
+   pub fn save(&self) -> Result<(), SaveError> {
     use std::{fs, io::Write};
 
     let json = serde_json::to_string_pretty(&self)

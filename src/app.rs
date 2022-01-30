@@ -128,7 +128,7 @@ impl Delegate<App> for AppDelegate {
             .put(data, install_dir.map_or_else(|| "".to_string(), |p| p.to_string_lossy().to_string()));
 
           let settings_window = WindowDesc::new(settings::Settings::ui_builder().lens(App::settings).on_change(|_, _old, data, _| {
-              if let Err(err) = data.settings.clone().save() {
+              if let Err(err) = data.settings.save() {
                 eprintln!("{:?}", err)
               }
             }))
