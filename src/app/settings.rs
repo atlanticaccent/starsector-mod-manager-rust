@@ -181,20 +181,23 @@ impl Settings {
         .with_flex_child(input.expand_width(), 1.)
         .with_child(
           Button::new("Browse...").on_click(|ctx, _, _| {
+            ctx.submit_command(Selector::new("druid.builtin.textbox-cancel-editing"));
             ctx.submit_command(druid::commands::SHOW_OPEN_PANEL.with(FileDialogOptions::new()
               .packages_as_directories()
               .select_directories()
             ))
-          }).on_command(druid::commands::OPEN_FILE, |ctx, payload, data: &mut Settings| {
-            if payload.path().is_dir() {
-              // assert!(payload.path().join("mods").exists());
-              data.install_dir = Some(payload.path().to_path_buf());
-              data.install_dir_buf = payload.path().to_string_lossy().to_string();
-              ctx.request_paint();
-              ctx.submit_command(Settings::SELECTOR.with(SettingsCommand::UpdateInstallDir(payload.path().to_path_buf())));
-            }
           })
-        )
+        ).on_command(druid::commands::OPEN_FILE, |ctx, payload, data: &mut Settings| {
+          if payload.path().is_dir() {
+            // assert!(payload.path().join("mods").exists());
+            data.install_dir_buf = payload.path().to_string_lossy().to_string();
+
+            ctx.request_paint();
+            ctx.submit_command(Settings::SELECTOR.with(SettingsCommand::UpdateInstallDir(payload.path().to_path_buf())));
+          }
+        }).on_change(|ctx, _old, data, _| {
+          data.clone().save();
+        })
     )
   }
 

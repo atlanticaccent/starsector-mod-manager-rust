@@ -1,11 +1,11 @@
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
-use druid::{Widget, widget::{Scroll, List, ListIter, Painter, Flex, Either, Label}, lens, WidgetExt, Data, Lens, LensExt, RenderContext, theme, Selector};
+use druid::{Widget, widget::{Scroll, List, ListIter, Painter, Flex, Either, Label}, lens, WidgetExt, Data, Lens, RenderContext, theme, Selector, ExtEventSink, Target, LensExt};
 use druid_widget_nursery::WidgetExt as WidgetExtNursery;
 use if_chain::if_chain;
 use serde::{Serialize, Deserialize};
 
-use super::{mod_entry::{ModEntry, ModVersionMeta}, util::SaveError};
+use super::{mod_entry::ModEntry, util::{SaveError, self}};
 
 pub mod headings;
 
@@ -16,7 +16,7 @@ pub struct ModList {
 }
 
 impl ModList {
-  const SELECTOR: Selector<ModListCommands> = Selector::new("mod_list");
+  const SUBMIT_ENTRY: Selector<Arc<ModEntry>> = Selector::new("submit_entry");
 
   pub fn new() -> Self {
     Self {
@@ -49,12 +49,20 @@ impl ModList {
         ),
         1.
       )
+      .on_command(ModList::SUBMIT_ENTRY, |_ctx, payload, data| {
+        data.mods.insert(payload.id.clone(), payload.clone());
+      })
+      .on_command(util::MASTER_VERSION_RECEIVED, |_ctx, payload, data| {
+        if let Ok(meta) = payload.1.clone() {
+          if let Some(mut entry) = data.mods.get(&payload.0).cloned() {
+            ModEntry::remote_version.in_arc().put(&mut entry, Some(meta));
+            data.mods.insert(entry.id.clone(), entry);
+          };
+        }
+      })
   }
 
-  #[must_use]
-  pub fn parse_mod_folder(&mut self, root_dir: &Option<PathBuf>) {
-    self.mods.clear();
-
+  pub async fn parse_mod_folder(event_sink: ExtEventSink, root_dir: Option<PathBuf>) {
     if let Some(root_dir) = root_dir {
       let mod_dir = root_dir.join("mods");
       let enabled_mods_filename = mod_dir.join("enabled_mods.json");
@@ -76,7 +84,7 @@ impl ModList {
       if let Ok(dir_iter) = std::fs::read_dir(mod_dir) {
         let enabled_mods_iter = enabled_mods.iter();
 
-        let (mods, versions): (Vec<(String, Arc<ModEntry>)>, Vec<Option<ModVersionMeta>>) = dir_iter
+        dir_iter
           .filter_map(|entry| entry.ok())
           .filter(|entry| {
             if let Ok(file_type) = entry.file_type() {
@@ -89,10 +97,7 @@ impl ModList {
             if let Ok(mut mod_info) = ModEntry::from_file(&entry.path()) {
               mod_info.set_enabled(enabled_mods_iter.clone().find(|id| mod_info.id.clone().eq(*id)).is_some());
               Some((
-                (
-                  mod_info.id.clone(),
-                  Arc::new(mod_info.clone())
-                ),
+                Arc::new(mod_info.clone()),
                 mod_info.version_checker.clone()
               ))
             } else {
@@ -100,9 +105,16 @@ impl ModList {
               None
             }
           })
-          .unzip();
+          .for_each(|(entry, version)| {
+            if let Err(err) = event_sink.submit_command(ModList::SUBMIT_ENTRY, entry, Target::Auto) {
+              eprintln!("Failed to submit found mod {}", err);
+            };
+            if let Some(version) = version {
+              tokio::spawn(util::get_master_version(event_sink.clone(), version));
+            }
+          });
 
-        self.mods.extend(mods);
+        // self.mods.extend(mods);
 
         // versions.iter()
         //   .filter_map(|v| v.as_ref())
@@ -116,11 +128,6 @@ impl ModList {
       
     }
   }
-}
-
-enum ModListCommands {
-  UpdateChildren(usize, f64),
-  RestoreList
 }
 
 impl ListIter<(Arc<ModEntry>, usize)> for ModList {

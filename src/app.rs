@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, rc::Rc};
 
 use druid::{
   widget::{Button, Flex, FlexParams, CrossAxisAlignment, ViewSwitcher},
@@ -6,8 +6,9 @@ use druid::{
   Target, Widget, WidgetExt, WindowDesc, lens, LensExt, WindowId, commands, Menu, platform_menus,
 };
 use druid_widget_nursery::WidgetExt as WidgetExtNursery;
+use tokio::runtime::{Runtime, Builder};
 
-use self::{mod_entry::ModEntry, mod_description::ModDescription, settings::{SettingsCommand, Settings}, mod_list::EnabledMods};
+use self::{mod_entry::ModEntry, mod_description::ModDescription, settings::{SettingsCommand, Settings}, mod_list::{EnabledMods, ModList}};
 
 mod mod_description;
 mod mod_entry;
@@ -21,7 +22,8 @@ pub struct App {
   init: bool,
   settings: settings::Settings,
   mod_list: mod_list::ModList,
-  active: Option<Arc<ModEntry>>
+  active: Option<Arc<ModEntry>>,
+  runtime: Rc<Runtime>,
 }
 
 impl App {
@@ -42,7 +44,13 @@ impl App {
         Ok(settings)
       }).unwrap_or_else(|_| settings::Settings::default()),
       mod_list: mod_list::ModList::new(),
-      active: None
+      active: None,
+      runtime: Rc::new(
+        Builder::new_multi_thread()
+          .enable_all()
+          .build()
+          .unwrap()
+      )
     }
   }
   
@@ -51,7 +59,7 @@ impl App {
       .with_child(
         Flex::row()
           .with_flex_child(
-            Flex::row().with_child(Button::new("Settings").on_click(move |event_ctx, _, _| {
+            Flex::row().with_child(Button::new("Settings").on_click(|event_ctx, _, _| {
               event_ctx.submit_command(App::SELECTOR.with(AppCommands::OpenSettings))
             })).expand_width(),
             FlexParams::new(1., CrossAxisAlignment::Start)
@@ -145,8 +153,11 @@ impl Delegate<App> for AppDelegate {
     } else if cmd.is(settings::Settings::SELECTOR) {
       match cmd.get_unchecked(settings::Settings::SELECTOR) {
         settings::SettingsCommand::UpdateInstallDir(new_install_dir) => {
-          lens!(App, settings).then(lens!(settings::Settings, install_dir)).put(data, Some(new_install_dir.to_path_buf()));
-          data.mod_list.parse_mod_folder(&Some(new_install_dir.to_path_buf()));
+          if data.settings.install_dir != Some(new_install_dir.clone()) {
+            lens!(App, settings).then(lens!(settings::Settings, install_dir)).put(data, Some(new_install_dir.clone()));
+            data.mod_list.mods.clear();
+            data.runtime.spawn(ModList::parse_mod_folder(ctx.get_external_handle(), Some(new_install_dir.clone())));
+          }
           return Handled::Yes
         },
       }
