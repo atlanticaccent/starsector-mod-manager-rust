@@ -195,8 +195,6 @@ impl Settings {
             ctx.request_paint();
             ctx.submit_command(Settings::SELECTOR.with(SettingsCommand::UpdateInstallDir(payload.path().to_path_buf())));
           }
-        }).on_change(|ctx, _old, data, _| {
-          data.save();
         })
     )
   }

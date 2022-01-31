@@ -153,8 +153,12 @@ impl Delegate<App> for AppDelegate {
     } else if cmd.is(settings::Settings::SELECTOR) {
       match cmd.get_unchecked(settings::Settings::SELECTOR) {
         settings::SettingsCommand::UpdateInstallDir(new_install_dir) => {
-          if data.settings.install_dir != Some(new_install_dir.clone()) {
-            lens!(App, settings).then(lens!(settings::Settings, install_dir)).put(data, Some(new_install_dir.clone()));
+          if data.settings.install_dir != Some(new_install_dir.clone()) || data.settings.dirty {
+            data.settings.dirty = false;
+            data.settings.install_dir = Some(new_install_dir.clone());
+
+            data.settings.save();
+
             data.mod_list.mods.clear();
             data.runtime.spawn(ModList::parse_mod_folder(ctx.get_external_handle(), Some(new_install_dir.clone())));
           }
@@ -179,7 +183,6 @@ impl Delegate<App> for AppDelegate {
       if self.root_id.is_none() {
         self.root_id = Some(window_id);
         if data.settings.dirty {
-          data.settings.dirty = false;
           ctx.submit_command(Settings::SELECTOR.with(SettingsCommand::UpdateInstallDir(data.settings.install_dir.clone().unwrap_or_default())));
         }
       }
