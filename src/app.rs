@@ -1,12 +1,12 @@
-use std::{sync::Arc, rc::Rc};
+use std::sync::Arc;
 
 use druid::{
-  widget::{Button, Flex, FlexParams, CrossAxisAlignment, ViewSwitcher},
+  widget::{Button, Flex, FlexParams, CrossAxisAlignment, ViewSwitcher, Controller},
   AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Handled, Lens, Selector,
-  Target, Widget, WidgetExt, WindowDesc, lens, LensExt, WindowId, commands, Menu, platform_menus,
+  Target, Widget, WidgetExt, WindowDesc, lens, LensExt, WindowId, commands, Menu, platform_menus, Event, EventCtx, MenuItem, FileDialogOptions, FileSpec,
 };
 use druid_widget_nursery::WidgetExt as WidgetExtNursery;
-use tokio::runtime::{Runtime, Builder};
+use tokio::runtime::Handle;
 
 use self::{mod_entry::ModEntry, mod_description::ModDescription, settings::{SettingsCommand, Settings}, mod_list::{EnabledMods, ModList}};
 
@@ -16,6 +16,7 @@ mod mod_list;
 mod settings;
 #[path = "./util.rs"]
 mod util;
+mod installer;
 
 #[derive(Clone, Data, Lens)]
 pub struct App {
@@ -66,6 +67,26 @@ impl App {
           )
           .expand_width()
       )
+      .with_child(
+        Flex::row()
+          .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
+          .with_child(Button::new("Install Mod").controller(InstallController).on_command(commands::OPEN_FILES, |ctx, payload, data| {
+            data.runtime.spawn(installer::Payload::Initial(payload.into_iter().map(|f| f.path.clone()).collect())
+              .install(
+                ctx.get_external_handle(),
+                data.settings.install_dir.clone().unwrap(), data.mod_list.mods.values().map(|v| v.id.clone()).collect()
+              )
+            );
+          }).on_command(commands::OPEN_FILE, |ctx, payload, data| {
+            data.runtime.spawn(installer::Payload::Initial(vec![payload.path().to_path_buf()])
+              .install(
+                ctx.get_external_handle(),
+                data.settings.install_dir.clone().unwrap(), data.mod_list.mods.values().map(|v| v.id.clone()).collect()
+              )
+            );
+          }))
+          .expand_width()
+      )
       .with_flex_child(
         mod_list::ModList::ui_builder()
         .lens(App::mod_list)
@@ -78,7 +99,8 @@ impl App {
             };
           }
         })
-        .expand(),
+        .expand()
+        .controller(ModListController),
         2.0,
       )
       .with_flex_child(ViewSwitcher::new(
@@ -187,5 +209,73 @@ impl Delegate<App> for AppDelegate {
     }
 
     Some(event)
+  }
+}
+
+struct InstallController;
+
+impl<W: Widget<App>> Controller<App, W> for InstallController {
+  fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut App, env: &druid::Env) {
+    match event {
+      Event::MouseDown(mouse_event) => {
+        if mouse_event.button == druid::MouseButton::Left {
+          ctx.set_active(true);
+          ctx.request_paint();
+        }
+      }
+      Event::MouseUp(mouse_event) => {
+        if ctx.is_active() && mouse_event.button == druid::MouseButton::Left {
+          ctx.set_active(false);
+          if ctx.is_hot() {
+            let menu: Menu<App> = Menu::empty()
+              .entry(MenuItem::new("From Archive(s)").on_activate(|ctx, _data, _| {
+                ctx.submit_command(commands::SHOW_OPEN_PANEL.with(FileDialogOptions::new()
+                  .multi_selection()
+                  .title("Select Archives:")
+                  .allowed_types(vec![
+                    FileSpec::new("zip", &["zip"]),
+                    FileSpec::new("7z", &["7z", "7zip"]),
+                    FileSpec::new("rar", &["rar", "rar4", "rar5"]),
+                    FileSpec::new("tar", &["tar"])
+                  ])
+                ))
+              }))
+              .entry(MenuItem::new("From Folder").on_activate(|ctx, _data, _| {
+                ctx.submit_command(commands::SHOW_OPEN_PANEL.with(FileDialogOptions::new()
+                  .title("Select Archives:")
+                  .select_directories()
+                ))
+              }));
+
+            ctx.show_context_menu::<App>(
+              menu,
+              ctx.to_window(mouse_event.pos)
+            )
+          }
+          ctx.request_paint();
+        }
+      }
+      _ => {}
+    }
+    
+    child.event(ctx, event, data, env);
+  }
+}
+
+struct ModListController;
+
+impl<W: Widget<App>> Controller<App, W> for ModListController {
+  fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut App, env: &Env) {
+    if let Event::Command(cmd) = event {
+      if let Some((conflict, install_to, entry)) = cmd.get(ModList::OVERWRITE) {
+        if let Some(install_dir) = &data.settings.install_dir {
+          data.runtime.spawn(installer::Payload::Resumed(entry.clone(), install_to.clone(), conflict.clone())
+            .install(ctx.get_external_handle(), install_dir.clone(), data.mod_list.mods.values().map(|v| v.id.clone()).collect()));
+        }
+        ctx.is_handled();
+      }
+    }
+
+    child.event(ctx, event, data, env)
   }
 }

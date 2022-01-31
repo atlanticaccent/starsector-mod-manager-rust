@@ -1,11 +1,11 @@
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
-use druid::{Widget, widget::{Scroll, List, ListIter, Painter, Flex, Either, Label}, lens, WidgetExt, Data, Lens, RenderContext, theme, Selector, ExtEventSink, Target, LensExt};
+use druid::{Widget, widget::{Scroll, List, ListIter, Painter, Flex, Either, Label, Button, Controller}, lens, WidgetExt, Data, Lens, RenderContext, theme, Selector, ExtEventSink, Target, LensExt, WindowConfig, Env, commands};
 use druid_widget_nursery::WidgetExt as WidgetExtNursery;
 use if_chain::if_chain;
 use serde::{Serialize, Deserialize};
 
-use super::{mod_entry::ModEntry, util::{SaveError, self}};
+use super::{mod_entry::ModEntry, util::{SaveError, self}, installer::{self, ChannelMessage, StringOrPath, HybridPath}};
 
 pub mod headings;
 
@@ -16,7 +16,8 @@ pub struct ModList {
 }
 
 impl ModList {
-  const SUBMIT_ENTRY: Selector<Arc<ModEntry>> = Selector::new("submit_entry");
+  const SUBMIT_ENTRY: Selector<Arc<ModEntry>> = Selector::new("mod_list.submit_entry");
+  pub const OVERWRITE: Selector<(PathBuf, HybridPath, Arc<ModEntry>)> = Selector::new("mod_list.notification.overwrite");
 
   pub fn new() -> Self {
     Self {
@@ -43,7 +44,7 @@ impl ModList {
             }).lens(lens::Identity).background(theme::BACKGROUND_LIGHT).on_command(ModEntry::REPLACE, |ctx, payload, data: &mut ModList| {
               data.mods.insert(payload.id.clone(), payload.clone());
               ctx.children_changed();
-            })
+            }).controller(InstallController)
           ).vertical(),
           Label::new("No mods").expand().background(theme::BACKGROUND_LIGHT)
         ),
@@ -145,6 +146,64 @@ impl ListIter<(Arc<ModEntry>, usize)> for ModList {
   
   fn data_len(&self) -> usize {
     self.mods.len()
+  }
+}
+
+struct InstallController;
+
+impl<W: Widget<ModList>> Controller<ModList, W> for InstallController {
+  fn event(&mut self, child: &mut W, ctx: &mut druid::EventCtx, event: &druid::Event, mod_list: &mut ModList, env: &Env) {
+    if let druid::Event::Command(cmd) = event {
+      if let Some(payload) = cmd.get(installer::INSTALL) {
+        match payload {
+          ChannelMessage::Success(entry) => {
+            mod_list.mods.insert(entry.id.clone(), entry.clone());
+            ctx.children_changed();
+            println!("Successfully installed {}", entry.id.clone())
+          },
+          ChannelMessage::Duplicate(conflict, to_install, entry) => {
+            let widget = Flex::column()
+              .with_child(Label::new(format!("Encountered conflict when trying to install {}", entry.id)))
+              .with_child(Label::new(match conflict {
+                StringOrPath::String(id) => format!("A mod with ID {} alread exists.", id),
+                StringOrPath::Path(path) => format!("A folder already exists at the path {}.", path.to_string_lossy()),
+              }))
+              .with_child(Label::new(format!("Would you like to replace the existing {}?", if let StringOrPath::String(_) = conflict { "mod" } else { "folder" })))
+              .with_default_spacer()
+              .with_child(
+                Flex::row()
+                  .with_child(Button::new("Overwrite").on_click({
+                    let conflict = match conflict {
+                      StringOrPath::String(id) => mod_list.mods.get(id).unwrap().path.clone(),
+                      StringOrPath::Path(path) => path.clone(),
+                    };
+                    let to_install = to_install.clone();
+                    let entry = entry.clone();
+                    move |ctx, _, _| {
+                      ctx.submit_command(commands::CLOSE_WINDOW);
+                      ctx.submit_command(ModList::OVERWRITE.with((conflict.clone(), to_install.clone(), entry.clone())).to(Target::Global))
+                    }
+                  }))
+                  .with_child(Button::new("Cancel").on_click(|ctx, _, _| {
+                    ctx.submit_command(commands::CLOSE_WINDOW)
+                  }))
+              ).cross_axis_alignment(druid::widget::CrossAxisAlignment::Start);
+
+            ctx.new_sub_window(
+              WindowConfig::default().resizable(true).window_size((500.0, 200.0)),
+              widget,
+              mod_list.clone(),
+              env.clone()
+            );
+          },
+          ChannelMessage::Error(err) => {
+            eprintln!("Failed to install {}", err);
+          }
+        }
+      }
+    }
+
+    child.event(ctx, event, mod_list, env)
   }
 }
 
