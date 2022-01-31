@@ -148,6 +148,11 @@ impl ModEntry {
       ctx.submit_command(App::SELECTOR.with(AppCommands::UpdateModDescription(data.clone())))
     })
   }
+
+  /// Set the mod entry's path.
+  pub fn set_path(&mut self, path: PathBuf) {
+    self.path = path;
+  }
 }
 
 struct RowController {

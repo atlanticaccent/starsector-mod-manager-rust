@@ -61,11 +61,12 @@ async fn handle_path(ext_ctx: ExtEventSink, path: PathBuf, mods_dir: Arc<PathBuf
   if_chain! {
     if let Ok(maybe_path) = task::spawn_blocking(move || find_nested_mod(&dir)).await.expect("Find mod in given folder");
     if let Some(mod_path) = maybe_path;
-    if let Ok(mod_info) = ModEntry::from_file(&mod_path);
+    if let Ok(mut mod_info) = ModEntry::from_file(&mod_path);
     then {
       if !mods_dir.join(mod_info.id.clone()).exists() {
         move_or_copy(mod_path, mods_dir.join(&mod_info.id)).await;
 
+        mod_info.set_path(mods_dir.join(&mod_info.id));
         ext_ctx.submit_command(INSTALL, ChannelMessage::Success(Arc::new(mod_info)), Target::Auto).expect("Send success over async channel");
       } else if let Some(id) = installed.iter().find(|existing| **existing == mod_info.id) {
         mod_folder = match mod_folder {
@@ -80,7 +81,7 @@ async fn handle_path(ext_ctx: ExtEventSink, path: PathBuf, mods_dir: Arc<PathBuf
           HybridPath::Temp(temp, _) => HybridPath::Temp(temp, Some(mod_path.clone()))
         };
 
-        ext_ctx.submit_command(INSTALL, ChannelMessage::Duplicate(mods_dir.join(mod_info.id.clone()).into(), mod_folder, Arc::new(mod_info)), Target::Auto).expect("Send query over async channel");
+        ext_ctx.submit_command(INSTALL, ChannelMessage::Duplicate(mod_path.into(), mod_folder, Arc::new(mod_info)), Target::Auto).expect("Send query over async channel");
       }
     } else {
       ext_ctx.submit_command(INSTALL, ChannelMessage::Error(format!("Could not find mod folder or parse mod_info file.")), Target::Auto).expect("Send error over async channel");
@@ -153,21 +154,22 @@ fn copy_dir_recursive(to: &PathBuf, from: &PathBuf) -> io::Result<()> {
   for entry in from.read_dir()? {
     let entry = entry?;
     if entry.file_type()?.is_dir() {
-      copy_dir_recursive(&to.to_path_buf().join(entry.file_name()), &entry.path())?;
+      copy_dir_recursive(&to.join(entry.file_name()), &entry.path())?;
     } else if entry.file_type()?.is_file() {
-      copy(entry.path(), &to.to_path_buf().join(entry.file_name()))?;
+      copy(entry.path(), &to.join(entry.file_name()))?;
     }
   }
 
   Ok(())
 }
 
-async fn handle_delete(ext_ctx: ExtEventSink, entry: Arc<ModEntry>, new_path: HybridPath, old_path: PathBuf) {
+async fn handle_delete(ext_ctx: ExtEventSink, mut entry: Arc<ModEntry>, new_path: HybridPath, old_path: PathBuf) {
   let destination = old_path.canonicalize().expect("Canonicalize destination");
   remove_dir_all(destination).expect("Remove old mod");
 
   let origin = new_path.get_path_copy();
-  move_or_copy(origin, old_path).await;
+  move_or_copy(origin, old_path.clone()).await;
+  (*Arc::make_mut(&mut entry)).set_path(old_path);
 
   ext_ctx.submit_command(INSTALL, ChannelMessage::Success(entry), Target::Auto).expect("Send success over async channel");
 }

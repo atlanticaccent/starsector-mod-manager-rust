@@ -3,9 +3,10 @@ use std::sync::Arc;
 use druid::{
   widget::{Button, Flex, FlexParams, CrossAxisAlignment, ViewSwitcher, Controller},
   AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Handled, Lens, Selector,
-  Target, Widget, WidgetExt, WindowDesc, lens, LensExt, WindowId, commands, Menu, platform_menus, Event, EventCtx, MenuItem, FileDialogOptions, FileSpec,
+  Target, Widget, WidgetExt, WindowDesc, lens, LensExt, WindowId, commands, Menu, platform_menus, Event, EventCtx, MenuItem,
 };
 use druid_widget_nursery::WidgetExt as WidgetExtNursery;
+use rfd::{FileHandle, AsyncFileDialog};
 use tokio::runtime::Handle;
 
 use self::{mod_entry::ModEntry, mod_description::ModDescription, settings::{SettingsCommand, Settings}, mod_list::{EnabledMods, ModList}};
@@ -30,6 +31,8 @@ pub struct App {
 
 impl App {
   const SELECTOR: Selector<AppCommands> = Selector::new("app.update.commands");
+  const OPEN_FILE: Selector<Option<Vec<FileHandle>>> = Selector::new("app.open.multiple");
+  const OPEN_FOLDER: Selector<Option<FileHandle>> = Selector::new("app.open.folder");
   
   pub fn new(handle: Handle) -> Self {
     App {
@@ -70,20 +73,24 @@ impl App {
       .with_child(
         Flex::row()
           .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
-          .with_child(Button::new("Install Mod").controller(InstallController).on_command(commands::OPEN_FILES, |ctx, payload, data| {
-            data.runtime.spawn(installer::Payload::Initial(payload.into_iter().map(|f| f.path.clone()).collect())
-              .install(
-                ctx.get_external_handle(),
-                data.settings.install_dir.clone().unwrap(), data.mod_list.mods.values().map(|v| v.id.clone()).collect()
-              )
-            );
-          }).on_command(commands::OPEN_FILE, |ctx, payload, data| {
-            data.runtime.spawn(installer::Payload::Initial(vec![payload.path().to_path_buf()])
-              .install(
-                ctx.get_external_handle(),
-                data.settings.install_dir.clone().unwrap(), data.mod_list.mods.values().map(|v| v.id.clone()).collect()
-              )
-            );
+          .with_child(Button::new("Install Mod").controller(InstallController).on_command(App::OPEN_FILE, |ctx, payload, data| {
+            if let Some(targets) = payload {
+              data.runtime.spawn(installer::Payload::Initial(targets.into_iter().map(|f| f.path().to_path_buf()).collect())
+                .install(
+                  ctx.get_external_handle(),
+                  data.settings.install_dir.clone().unwrap(), data.mod_list.mods.values().map(|v| v.id.clone()).collect()
+                )
+              );
+            }
+          }).on_command(App::OPEN_FOLDER, |ctx, payload, data| {
+            if let Some(target) = payload {
+              data.runtime.spawn(installer::Payload::Initial(vec![target.path().to_path_buf()])
+                .install(
+                  ctx.get_external_handle(),
+                  data.settings.install_dir.clone().unwrap(), data.mod_list.mods.values().map(|v| v.id.clone()).collect()
+                )
+              );
+            }
           }))
           .expand_width()
       )
@@ -228,23 +235,36 @@ impl<W: Widget<App>> Controller<App, W> for InstallController {
           ctx.set_active(false);
           if ctx.is_hot() {
             let menu: Menu<App> = Menu::empty()
-              .entry(MenuItem::new("From Archive(s)").on_activate(|ctx, _data, _| {
-                ctx.submit_command(commands::SHOW_OPEN_PANEL.with(FileDialogOptions::new()
-                  .multi_selection()
-                  .title("Select Archives:")
-                  .allowed_types(vec![
-                    FileSpec::new("zip", &["zip"]),
-                    FileSpec::new("7z", &["7z", "7zip"]),
-                    FileSpec::new("rar", &["rar", "rar4", "rar5"]),
-                    FileSpec::new("tar", &["tar"])
-                  ])
-                ))
+              .entry(MenuItem::new("From Archive(s)").on_activate({
+                let ext_ctx = ctx.get_external_handle().clone();
+                move |_ctx, data: &mut App, _| {
+                  data.runtime.spawn({
+                    let ext_ctx = ext_ctx.clone();
+                    async move {
+                      let res = AsyncFileDialog::new()
+                        .add_filter("Archives", &["zip", "7z", "7zip", "rar", "rar4", "rar5", "tar"])
+                        .pick_files()
+                        .await;
+
+                      ext_ctx.submit_command(App::OPEN_FILE, res, Target::Auto)
+                    }
+                  });
+                }
               }))
-              .entry(MenuItem::new("From Folder").on_activate(|ctx, _data, _| {
-                ctx.submit_command(commands::SHOW_OPEN_PANEL.with(FileDialogOptions::new()
-                  .title("Select Archives:")
-                  .select_directories()
-                ))
+              .entry(MenuItem::new("From Folder").on_activate({
+                let ext_ctx = ctx.get_external_handle().clone();
+                move |_ctx, data: &mut App, _| {
+                  data.runtime.spawn({
+                    let ext_ctx = ext_ctx.clone();
+                    async move {
+                      let res = AsyncFileDialog::new()
+                        .pick_folder()
+                        .await;
+
+                      ext_ctx.submit_command(App::OPEN_FOLDER, res, Target::Auto)
+                    }
+                  });
+                }
               }));
 
             ctx.show_context_menu::<App>(
