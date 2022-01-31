@@ -23,13 +23,14 @@ pub struct App {
   settings: settings::Settings,
   mod_list: mod_list::ModList,
   active: Option<Arc<ModEntry>>,
-  runtime: Rc<Runtime>,
+  #[data(same_fn="App::true_hack")]
+  runtime: Handle,
 }
 
 impl App {
   const SELECTOR: Selector<AppCommands> = Selector::new("app.update.commands");
   
-  pub fn new() -> Self {
+  pub fn new(handle: Handle) -> Self {
     App {
       init: false,
       settings: settings::Settings::load().and_then(|mut settings| {
@@ -45,12 +46,7 @@ impl App {
       }).unwrap_or_else(|_| settings::Settings::default()),
       mod_list: mod_list::ModList::new(),
       active: None,
-      runtime: Rc::new(
-        Builder::new_multi_thread()
-          .enable_all()
-          .build()
-          .unwrap()
-      )
+      runtime: handle
     }
   }
   
@@ -97,6 +93,8 @@ impl App {
       ).lens(App::active), 1.0)
       .must_fill_main_axis(true)
   }
+
+  fn true_hack(_: &Handle, _: &Handle) -> bool { true }
 }
 
 enum AppCommands {

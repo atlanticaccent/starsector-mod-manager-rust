@@ -8,6 +8,7 @@
 #![feature(result_option_inspect)]
 
 use druid::{AppLauncher, WindowDesc, theme};
+use tokio::runtime::Builder;
 
 #[path ="patch/mod.rs"]
 mod patch;
@@ -17,8 +18,13 @@ fn main() {
   let main_window = WindowDesc::new(app::App::ui_builder())
     .window_size((900., 800.));
   
+  let runtime = Builder::new_multi_thread()
+    .enable_all()
+    .build()
+    .unwrap();
+
   // create the initial app state
-  let initial_state = app::App::new();
+  let initial_state = app::App::new(runtime.handle().clone());
   
   // start the application
   AppLauncher::with_window(main_window)
