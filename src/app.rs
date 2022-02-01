@@ -25,7 +25,7 @@ pub struct App {
   settings: settings::Settings,
   mod_list: mod_list::ModList,
   active: Option<Arc<ModEntry>>,
-  #[data(same_fn="App::true_hack")]
+  #[data(ignore)]
   runtime: Handle,
 }
 
@@ -122,8 +122,6 @@ impl App {
       ).lens(App::active), 1.0)
       .must_fill_main_axis(true)
   }
-
-  fn true_hack(_: &Handle, _: &Handle) -> bool { true }
 }
 
 enum AppCommands {
