@@ -1,7 +1,7 @@
 use std::{path::PathBuf, rc::Rc};
 
 use druid::{Widget, Lens, Data, widget::{Flex, Label, TextBox, WidgetExt, ValidationDelegate, TextBoxEvent, Controller, Button, Checkbox, SizedBox, ViewSwitcher}, text::{Formatter, Validation, ValidationError, ParseFormatter}, lens, Selector, EventCtx, Event, Point, theme, LensExt, Menu, MenuItem, FileDialogOptions};
-use druid_widget_nursery::{WidgetExt as WidgetExtNursery, DynLens, Wedge};
+use druid_widget_nursery::{WidgetExt as WidgetExtNursery, DynLens};
 use serde::{Serialize, Deserialize};
 use if_chain::if_chain;
 
