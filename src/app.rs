@@ -50,7 +50,7 @@ impl App {
       }).unwrap_or_else(|_| settings::Settings::default()),
       mod_list: mod_list::ModList::new(),
       active: None,
-      runtime: handle
+      runtime: handle,
     }
   }
   
@@ -121,6 +121,7 @@ impl App {
         }
       ).lens(App::active), 1.0)
       .must_fill_main_axis(true)
+      .controller(AppController)
   }
 }
 
@@ -175,21 +176,18 @@ impl Delegate<App> for AppDelegate {
           return Handled::Yes
         }
       }
-    } else if cmd.is(settings::Settings::SELECTOR) {
-      match cmd.get_unchecked(settings::Settings::SELECTOR) {
-        settings::SettingsCommand::UpdateInstallDir(new_install_dir) => {
-          if data.settings.install_dir != Some(new_install_dir.clone()) || data.settings.dirty {
-            data.settings.dirty = false;
-            data.settings.install_dir = Some(new_install_dir.clone());
+    } else if let Some(SettingsCommand::UpdateInstallDir(new_install_dir)) = cmd.get(settings::Settings::SELECTOR) {
+      if data.settings.install_dir != Some(new_install_dir.clone()) || data.settings.dirty {
+        data.settings.dirty = false;
+        data.settings.install_dir_buf = new_install_dir.to_string_lossy().to_string();
+        data.settings.install_dir = Some(new_install_dir.clone());
 
-            data.settings.save();
+        data.settings.save();
 
-            data.mod_list.mods.clear();
-            data.runtime.spawn(ModList::parse_mod_folder(ctx.get_external_handle(), Some(new_install_dir.clone())));
-          }
-          return Handled::Yes
-        },
+        data.mod_list.mods.clear();
+        data.runtime.spawn(ModList::parse_mod_folder(ctx.get_external_handle(), Some(new_install_dir.clone())));
       }
+      return Handled::Yes
     }
 
     Handled::No
@@ -291,6 +289,36 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
             .install(ctx.get_external_handle(), install_dir.clone(), data.mod_list.mods.values().map(|v| v.id.clone()).collect()));
         }
         ctx.is_handled();
+      }
+    }
+
+    child.event(ctx, event, data, env)
+  }
+}
+
+struct AppController;
+
+impl<W: Widget<App>> Controller<App, W> for AppController {
+  fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut App, env: &Env) {
+    if let Event::Notification(notif) = event {
+      if let Some(settings::SettingsCommand::SelectInstallDir) = notif.get(Settings::SELECTOR) {
+        let ext_ctx = ctx.get_external_handle().clone();
+        ctx.set_disabled(true);
+        data.runtime.spawn(async move {
+          let res = AsyncFileDialog::new()
+            .pick_folder()
+            .await;
+
+          if let Some(handle) = res {
+            ext_ctx.submit_command(Settings::SELECTOR, SettingsCommand::UpdateInstallDir(handle.path().to_path_buf()), Target::Auto);
+          }
+        });
+      }
+    } else if let Event::Command(cmd) = event {
+      if let Some(_) = cmd.get(ModList::SUBMIT_ENTRY) {
+        if ctx.is_disabled() {
+          ctx.set_disabled(false);
+        }
       }
     }
 

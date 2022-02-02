@@ -18,7 +18,7 @@ pub struct ModList {
 }
 
 impl ModList {
-  const SUBMIT_ENTRY: Selector<Arc<ModEntry>> = Selector::new("mod_list.submit_entry");
+  pub const SUBMIT_ENTRY: Selector<Arc<ModEntry>> = Selector::new("mod_list.submit_entry");
   pub const OVERWRITE: Selector<(PathBuf, HybridPath, Arc<ModEntry>)> = Selector::new("mod_list.notification.overwrite");
 
   pub fn new() -> Self {
@@ -65,8 +65,6 @@ impl ModList {
                   let mut row_origin = rect.origin();
                   row_origin.x += enabled_shift + 3.;
                   let row_rect = rect.with_origin(row_origin).intersect(rect);
-
-                  // let version_left = (ratios[0] * row_rect.width()) + ()
 
                   let cell_left = calc_pos(3, &ratios, row_rect.width());
                   let cell_right = calc_pos(4, &ratios, row_rect.width());

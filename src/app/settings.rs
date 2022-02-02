@@ -171,7 +171,7 @@ impl Settings {
 
   pub fn install_dir_browser_builder() -> impl Widget<Self> {
     let input = TextBox::new()
-      .with_formatter(InstallDirFormatter {})
+      .with_formatter(ParseFormatter::new())
       .delegate(InstallDirDelegate {})
       .lens(lens!(Settings, install_dir_buf));
 
@@ -182,20 +182,9 @@ impl Settings {
         .with_child(
           Button::new("Browse...").on_click(|ctx, _, _| {
             ctx.submit_command(Selector::new("druid.builtin.textbox-cancel-editing"));
-            ctx.submit_command(druid::commands::SHOW_OPEN_PANEL.with(FileDialogOptions::new()
-              .packages_as_directories()
-              .select_directories()
-            ))
+            ctx.submit_notification(Settings::SELECTOR.with(SettingsCommand::SelectInstallDir))
           })
-        ).on_command(druid::commands::OPEN_FILE, |ctx, payload, data: &mut Settings| {
-          if payload.path().is_dir() {
-            // assert!(payload.path().join("mods").exists());
-            data.install_dir_buf = payload.path().to_string_lossy().to_string();
-
-            ctx.request_paint();
-            ctx.submit_command(Settings::SELECTOR.with(SettingsCommand::UpdateInstallDir(payload.path().to_path_buf())));
-          }
-        })
+        )
     )
   }
 
@@ -243,35 +232,7 @@ impl Settings {
 
 pub enum SettingsCommand {
   UpdateInstallDir(PathBuf),
-}
-
-struct InstallDirFormatter {}
-
-impl InstallDirFormatter {
-  fn validation_err() -> std::io::Error { std::io::Error::new(std::io::ErrorKind::NotFound, "Not a path") }
-}
-
-impl Formatter<String> for InstallDirFormatter {
-  fn format(&self, value: &String) -> String {
-    value.to_string()
-  }
-  
-  fn validate_partial_input(&self, input: &str, sel: &druid::text::Selection) -> Validation {
-    if PathBuf::from(input).exists() {
-      Validation::success()
-    } else {
-      Validation::failure(InstallDirFormatter::validation_err())
-        .change_text(input.to_string())
-        .change_selection(*sel)
-    }
-  }
-  
-  fn value(&self, input: &str) -> Result<String, druid::text::ValidationError> {
-    match PathBuf::from(input) {
-      path if path.exists() => Ok(input.to_string()),
-      _ => Err(ValidationError::new(InstallDirFormatter::validation_err()))
-    }
-  }
+  SelectInstallDir
 }
 
 struct InstallDirDelegate {}
