@@ -1,18 +1,20 @@
-use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
+use std::{collections::BTreeMap, path::PathBuf, sync::Arc, rc::Rc};
 
-use druid::{Widget, widget::{Scroll, List, ListIter, Painter, Flex, Either, Label, Button, Controller}, lens, WidgetExt, Data, Lens, RenderContext, theme, Selector, ExtEventSink, Target, LensExt, WindowConfig, Env, commands};
+use druid::{Widget, widget::{Scroll, List, ListIter, Painter, Flex, Either, Label, Button, Controller}, lens, WidgetExt, Data, Lens, RenderContext, theme, Selector, ExtEventSink, Target, LensExt, WindowConfig, Env, commands, Color, Rect};
 use druid_widget_nursery::WidgetExt as WidgetExtNursery;
 use if_chain::if_chain;
 use serde::{Serialize, Deserialize};
 
-use super::{mod_entry::ModEntry, util::{SaveError, self}, installer::{self, ChannelMessage, StringOrPath, HybridPath}};
+use super::{mod_entry::{ModEntry, UpdateStatus}, util::{SaveError, self}, installer::{self, ChannelMessage, StringOrPath, HybridPath}};
 
 pub mod headings;
+use self::headings::Headings;
 
 #[derive(Clone, Data, Lens)]
 pub struct ModList {
   #[data(same_fn="PartialEq::eq")]
   pub mods: BTreeMap<String, Arc<ModEntry>>,
+  headings: Headings
 }
 
 impl ModList {
@@ -22,23 +24,55 @@ impl ModList {
   pub fn new() -> Self {
     Self {
       mods: BTreeMap::new(),
+      headings: Headings::new(&headings::RATIOS)
     }
   }
 
   pub fn ui_builder() -> impl Widget<Self> {
     Flex::column()
-      .with_child(headings::Headings::ui_builder().lens(lens::Unit))
+      .with_child(headings::Headings::ui_builder().lens(ModList::headings))
       .with_flex_child(
         Either::new(
           |data: &ModList, _| data.mods.len() > 0,
           Scroll::new(
             List::new(|| {
-              ModEntry::ui_builder().expand_width().lens(lens!((Arc<ModEntry>, usize), 0)).background(Painter::new(|ctx, (_, i), env| {
+              ModEntry::ui_builder().expand_width().lens(lens!((Arc<ModEntry>, usize, Rc<[f64; 5]>), 0)).background(Painter::new(|ctx, (entry, i, ratios): &(Arc<ModEntry>, usize, Rc<[f64; 5]>), env| {
                 let rect = ctx.size().to_rect();
+                // manually paint cells here to indicate version info
+                // set ratios in ModList through a command listener on this widget
+                // implement update status parser
+                // calculate cell widths using ratios and paint appropriately
+                fn calc_pos(idx: usize, ratios: &Rc<[f64; 5]>, width: f64) -> f64 {
+                  return if idx == 0 {
+                    0.
+                  } else if idx == 1 {
+                    (ratios[idx - 1] * width) + 3.
+                  } else {
+                    let prev = calc_pos(idx - 1, ratios, width);
+                    prev + ((width - prev) * ratios[idx - 1]) + 3.
+                  }
+                }
+
                 if i % 2 == 0 {
                   ctx.fill(rect, &env.get(theme::BACKGROUND_DARK))
                 } else {
                   ctx.fill(rect, &env.get(theme::BACKGROUND_LIGHT))
+                }
+                if let Some(local) = &entry.version_checker {
+                  let update_status = UpdateStatus::from((local, &entry.remote_version));
+
+                  let enabled_shift = (1. / 7.) * rect.width();
+                  let mut row_origin = rect.origin();
+                  row_origin.x += enabled_shift + 3.;
+                  let row_rect = rect.with_origin(row_origin).intersect(rect);
+
+                  // let version_left = (ratios[0] * row_rect.width()) + ()
+
+                  let cell_left = calc_pos(3, &ratios, row_rect.width());
+                  let cell_right = calc_pos(4, &ratios, row_rect.width());
+                  let cell_0_rect = Rect::from_points((row_rect.origin().x + cell_left, row_rect.origin().y), (row_rect.origin().x + cell_right, row_rect.height()));
+
+                  ctx.fill(cell_0_rect, &update_status.into() as &Color)
                 }
               }))
             }).lens(lens::Identity).background(theme::BACKGROUND_LIGHT).on_command(ModEntry::REPLACE, |ctx, payload, data: &mut ModList| {
@@ -131,16 +165,18 @@ impl ModList {
   }
 }
 
-impl ListIter<(Arc<ModEntry>, usize)> for ModList {
-  fn for_each(&self, mut cb: impl FnMut(&(Arc<ModEntry>, usize), usize)) {
+impl ListIter<(Arc<ModEntry>, usize, Rc<[f64; 5]>)> for ModList {
+  fn for_each(&self, mut cb: impl FnMut(&(Arc<ModEntry>, usize, Rc<[f64; 5]>), usize)) {
+    let rc = Rc::new(self.headings.ratios.clone());
     for (i, item) in self.mods.values().cloned().enumerate() {
-      cb(&(item, i), i);
+      cb(&(item, i, rc.clone()), i);
     }
   }
   
-  fn for_each_mut(&mut self, mut cb: impl FnMut(&mut (Arc<ModEntry>, usize), usize)) {
+  fn for_each_mut(&mut self, mut cb: impl FnMut(&mut (Arc<ModEntry>, usize, Rc<[f64; 5]>), usize)) {
+    let rc = Rc::new(self.headings.ratios.clone());
     for (i, item) in self.mods.values_mut().enumerate() {
-      cb(&mut (item.clone(), i), i);
+      cb(&mut (item.clone(), i, rc.clone()), i);
     }
   }
   

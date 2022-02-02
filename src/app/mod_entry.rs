@@ -5,7 +5,7 @@ use std::{
   fmt::Display, collections::VecDeque, iter::FromIterator, sync::Arc
 };
 
-use druid::{widget::{Checkbox, Label, LineBreaking, SizedBox, Controller, ControllerHost}, WidgetExt, Lens, Data, Widget, Selector, LensExt};
+use druid::{widget::{Checkbox, Label, LineBreaking, SizedBox, Controller, ControllerHost}, WidgetExt, Lens, Data, Widget, Selector, LensExt, Color};
 use druid_widget_nursery::WidgetExt as WidgetExtNursery;
 use serde::Deserialize;
 use json_comments::strip_comments;
@@ -59,12 +59,8 @@ pub struct ModEntry {
   search_score: Option<isize>,
 }
 
-pub enum EntryCommands {
-  UpdateRatios(usize, f64),
-}
-
 impl ModEntry {
-  pub const UPDATE_RATIOS: Selector<EntryCommands> = Selector::new("MOD_ENTRY_UPDATE_RATIOS");
+  pub const UPDATE_RATIOS: Selector<(usize, f64)> = Selector::new("MOD_ENTRY_UPDATE_RATIOS");
   pub const REPLACE: Selector<Arc<ModEntry>> = Selector::new("MOD_ENTRY_REPLACE");
 
   pub fn from_file(path: &PathBuf) -> Result<ModEntry, ModEntryError> {
@@ -113,8 +109,6 @@ impl ModEntry {
   }
 
   pub fn ui_builder() -> impl Widget<Arc<Self>> {
-    let ratios = headings::RATIOS.lock().expect("Lock in single thread");
-
     let children: VecDeque<SizedBox<Arc<ModEntry>>> = VecDeque::from_iter(vec![
       Label::dynamic(|text: &String, _| text.to_string()).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::name.in_arc()).expand_width(),
       Label::dynamic(|text: &String, _| text.to_string()).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::id.in_arc()).expand_width(),
@@ -143,7 +137,7 @@ impl ModEntry {
       Checkbox::new("").lens(ModEntry::enabled.in_arc()).center().on_change(|ctx, _old, data, _| {
         ctx.submit_command(ModEntry::REPLACE.with(data.clone()))
       }),
-      recursive_split(0, children, &ratios)
+      recursive_split(0, children, &headings::RATIOS)
     ).split_point(1. / 7.).on_click(|ctx: &mut druid::EventCtx, data: &mut Arc<ModEntry>, _env: &druid::Env| {
       ctx.submit_command(App::SELECTOR.with(AppCommands::UpdateModDescription(data.clone())))
     })
@@ -166,7 +160,7 @@ impl RowController {
 impl Controller<Arc<ModEntry>, Split<Arc<ModEntry>>> for RowController {
   fn event(&mut self, child: &mut Split<Arc<ModEntry>>, ctx: &mut druid::EventCtx, event: &druid::Event, data: &mut Arc<ModEntry>, env: &druid::Env) {
     if let druid::Event::Command(cmd) = event {
-      if let Some(EntryCommands::UpdateRatios(idx, ratio)) = cmd.get(ModEntry::UPDATE_RATIOS) {
+      if let Some((idx, ratio)) = cmd.get(ModEntry::UPDATE_RATIOS) {
         if self.id == *idx {
           child.set_split_point_chosen(*ratio);
           ctx.request_layout();
@@ -314,7 +308,6 @@ impl Display for Version {
   }
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Data)]
 pub enum UpdateStatus {
   Error,
@@ -338,3 +331,38 @@ impl Display for UpdateStatus {
   }
 }
 
+impl From<(&ModVersionMeta, &Option<ModVersionMeta>)> for UpdateStatus {
+  fn from((local, remote): (&ModVersionMeta, &Option<ModVersionMeta>)) -> Self {
+    if let Some(remote) = remote {
+      let local = &local.version;
+      let remote = remote.version.clone();
+  
+      if remote == *local {
+        UpdateStatus::UpToDate
+      } else if remote < *local {
+        UpdateStatus::Discrepancy(remote)
+      } else if remote.major - local.major > 0 {
+        UpdateStatus::Major(remote)
+      } else if remote.minor - local.minor > 0 {
+        UpdateStatus::Minor(remote)
+      } else {
+        UpdateStatus::Patch(remote)
+      }
+    } else {
+      UpdateStatus::Error
+    }
+  }
+}
+
+impl From<UpdateStatus> for Color {
+  fn from(status: UpdateStatus) -> Self {
+    match status {
+      UpdateStatus::Major(_) => Color::NAVY,
+      UpdateStatus::Minor(_) => Color::rgb8(255, 117, 0),
+      UpdateStatus::Patch(_) => Color::OLIVE,
+      UpdateStatus::Discrepancy(_) => Color::PURPLE,
+      UpdateStatus::Error => Color::MAROON,
+      UpdateStatus::UpToDate => Color::GREEN
+    }
+  }
+}

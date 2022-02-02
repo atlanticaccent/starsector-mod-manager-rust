@@ -1,5 +1,5 @@
 use druid::{Widget, widget::{Label, Controller, ClipBox, ControllerHost}, WidgetExt, Data, Lens, UnitPoint};
-use crate::{patch::split::{Split, DRAGGED}, app::mod_entry::{ModEntry, EntryCommands}};
+use crate::{patch::split::{Split, DRAGGED}, app::mod_entry::ModEntry};
 
 pub const RATIOS: [f64; 5] = [
   1. / 6.,
@@ -12,14 +12,20 @@ pub const RATIOS: [f64; 5] = [
 #[derive(Clone, Data, Lens)]
 pub struct Headings {
   #[data(same_fn="PartialEq::eq")]
-  ratios: Vec<f64>
+  pub ratios: [f64; 5]
 }
 
 impl Headings {
   const TITLES: [&'static str; 6] = ["Name", "ID", "Author(s)", "Version", "Auto-Update Supported?", "Game Version"];
 
-  pub fn ui_builder() -> impl Widget<()> {
-    fn recursive_split(idx: usize, titles: &[&str]) -> ControllerHost<Split<()>, ResizeController> {
+  pub fn new(ratios: &[f64; 5]) -> Self {
+    Self {
+      ratios: ratios.clone()
+    }
+  }
+
+  pub fn ui_builder() -> impl Widget<Headings> {
+    fn recursive_split(idx: usize, titles: &[&str]) -> ControllerHost<Split<Headings>, ResizeController> {
       if idx < titles.len() - 2 {
         Split::columns(
           ClipBox::new(
@@ -82,12 +88,13 @@ impl ResizeController {
   }
 }
 
-impl<W: Widget<()>> Controller<(), W> for ResizeController {
-  fn event(&mut self, child: &mut W, ctx: &mut druid::EventCtx, event: &druid::Event, data: &mut (), env: &druid::Env) {
+impl<W: Widget<Headings>> Controller<Headings, W> for ResizeController {
+  fn event(&mut self, child: &mut W, ctx: &mut druid::EventCtx, event: &druid::Event, data: &mut Headings, env: &druid::Env) {
     if let druid::Event::Notification(notif) = event {
       if let Some(ratio) = notif.get(DRAGGED) {
         ctx.set_handled();
-        ctx.submit_command(ModEntry::UPDATE_RATIOS.with(EntryCommands::UpdateRatios(self.id, *ratio)))
+        data.ratios[self.id] = *ratio;
+        ctx.submit_command(ModEntry::UPDATE_RATIOS.with((self.id, *ratio)))
       }
     }
     child.event(ctx, event, data, env)
