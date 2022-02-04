@@ -89,7 +89,11 @@ impl ModList {
       .on_command(util::MASTER_VERSION_RECEIVED, |_ctx, payload, data| {
         if let Ok(meta) = payload.1.clone() {
           if let Some(mut entry) = data.mods.get(&payload.0).cloned() {
-            ModEntry::remote_version.in_arc().put(&mut entry, Some(meta));
+            ModEntry::remote_version.in_arc().put(&mut entry, Some(meta.clone()));
+            if let Some(version_checker) = &entry.version_checker {
+              let status = UpdateStatus::from((version_checker, &Some(meta)));
+              ModEntry::update_status.in_arc().put(&mut entry, Some(status));
+            }
             data.mods.insert(entry.id.clone(), entry);
           };
         }
