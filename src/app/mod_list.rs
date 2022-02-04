@@ -19,7 +19,8 @@ pub struct ModList {
 
 impl ModList {
   pub const SUBMIT_ENTRY: Selector<Arc<ModEntry>> = Selector::new("mod_list.submit_entry");
-  pub const OVERWRITE: Selector<(PathBuf, HybridPath, Arc<ModEntry>)> = Selector::new("mod_list.notification.overwrite");
+  pub const OVERWRITE: Selector<(PathBuf, HybridPath, Arc<ModEntry>)> = Selector::new("mod_list.install.overwrite");
+  pub const AUTO_UPDATE: Selector<Arc<ModEntry>> = Selector::new("mod_list.install.auto_update");
 
   pub fn new() -> Self {
     Self {
@@ -234,6 +235,34 @@ impl<W: Widget<ModList>> Controller<ModList, W> for InstallController {
             eprintln!("Failed to install {}", err);
           }
         }
+      }
+    } else if let druid::Event::Notification(notif) = event {
+      if let Some(entry) = notif.get(ModEntry::AUTO_UPDATE) {
+        let widget = Flex::column()
+          .with_child(Label::new(format!("Would you like to automatically update {}?", entry.name)))
+          .with_child(Label::new(format!("Installed version: {}", entry.version)))
+          .with_child(Label::new(format!("New version: {}", entry.remote_version.as_ref().and_then(|v| Some(v.version.to_string())).unwrap_or(String::from("Error: failed to retrieve version, this shouldn't be possible.")))))
+          .with_default_spacer()
+          .with_child(
+            Flex::row()
+              .with_child(Button::new("Update").on_click({
+                let entry = entry.clone();
+                move |ctx, _, _| {
+                  ctx.submit_command(commands::CLOSE_WINDOW);
+                  ctx.submit_command(ModList::AUTO_UPDATE.with(entry.clone()).to(Target::Global))
+                }
+              }))
+              .with_child(Button::new("Cancel").on_click(|ctx, _, _| {
+                ctx.submit_command(commands::CLOSE_WINDOW)
+              }))
+          ).cross_axis_alignment(druid::widget::CrossAxisAlignment::Start);
+
+        ctx.new_sub_window(
+          WindowConfig::default().resizable(true).window_size((500.0, 200.0)),
+          widget,
+          mod_list.clone(),
+          env.clone()
+        );
       }
     }
 

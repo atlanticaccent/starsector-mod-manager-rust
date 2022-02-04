@@ -13,7 +13,7 @@ use crate::app::mod_entry::ModEntry;
 pub enum Payload {
   Initial(Vec<PathBuf>),
   Resumed(Arc<ModEntry>, HybridPath, PathBuf),
-  Download(String, String, PathBuf)
+  Download(Arc<ModEntry>)
 }
 
 pub const INSTALL: Selector<ChannelMessage> = Selector::new("install.message");
@@ -34,8 +34,8 @@ impl Payload {
           handle_delete(ext_ctx.clone(), entry, path, existing).await
         });
       },
-      Payload::Download(url, target, old_path) => {
-        task::spawn(handle_auto(ext_ctx.clone(), url, target, old_path));
+      Payload::Download(entry) => {
+        task::spawn(handle_auto(ext_ctx.clone(), entry));
       }
     }
   }
@@ -174,8 +174,10 @@ async fn handle_delete(ext_ctx: ExtEventSink, mut entry: Arc<ModEntry>, new_path
   ext_ctx.submit_command(INSTALL, ChannelMessage::Success(entry), Target::Auto).expect("Send success over async channel");
 }
 
-async fn handle_auto(ext_ctx: ExtEventSink, url: String, target_version: String, old_path: PathBuf) {
-  match download(url).await {
+async fn handle_auto(ext_ctx: ExtEventSink, entry: Arc<ModEntry>) {
+  let url = entry.remote_version.as_ref().unwrap().direct_download_url.as_ref().unwrap();
+  let target_version = &entry.remote_version.as_ref().unwrap().version;
+  match download(url.clone()).await {
     Ok(file) => {
       let path = file.path().to_path_buf();
       let decompress = task::spawn_blocking(move || decompress(path)).await.expect("Run decompression");
@@ -192,10 +194,10 @@ async fn handle_auto(ext_ctx: ExtEventSink, url: String, target_version: String,
               } else {
                 unreachable!()
               };
-              if mod_info.version.to_string() != target_version {
+              if &mod_info.version_checker.as_ref().unwrap().version != target_version {
                 ext_ctx.submit_command(INSTALL, ChannelMessage::Error(format!("Downloaded version does not match expected version")), Target::Auto).expect("Send error over async channel");
               } else {
-                handle_delete(ext_ctx, Arc::new(mod_info), hybrid, old_path).await;
+                handle_delete(ext_ctx, Arc::new(mod_info), hybrid, entry.path.clone()).await;
               }
             } else {
               ext_ctx.submit_command(INSTALL, ChannelMessage::Error(format!("Some kind of unpack error")), Target::Auto).expect("Send error over async channel");

@@ -189,6 +189,14 @@ impl Delegate<App> for AppDelegate {
         data.runtime.spawn(ModList::parse_mod_folder(ctx.get_external_handle(), Some(new_install_dir.clone())));
       }
       return Handled::Yes
+    } else if let Some(entry) = cmd.get(ModList::AUTO_UPDATE) {
+      data.runtime.spawn(installer::Payload::Download(entry.clone())
+        .install(
+          ctx.get_external_handle(),
+          data.settings.install_dir.clone().unwrap(),
+          data.mod_list.mods.values().map(|v| v.id.clone()).collect()
+        )
+      );
     }
 
     Handled::No

@@ -5,7 +5,7 @@ use std::{
   fmt::Display, collections::VecDeque, iter::FromIterator, sync::Arc
 };
 
-use druid::{widget::{Checkbox, Label, LineBreaking, SizedBox, Controller, ControllerHost}, WidgetExt, Lens, Data, Widget, Selector, LensExt, Color};
+use druid::{widget::{Checkbox, Label, LineBreaking, SizedBox, Controller, ControllerHost, ViewSwitcher, Button}, WidgetExt, Lens, Data, Widget, Selector, LensExt, Color};
 use druid_widget_nursery::WidgetExt as WidgetExtNursery;
 use serde::Deserialize;
 use json_comments::strip_comments;
@@ -17,7 +17,7 @@ use sublime_fuzzy::best_match;
 use lazy_static::lazy_static;
 use regex::Regex;
 
-use crate::{app::{App, AppCommands}, patch::split::Split};
+use crate::{app::{App, AppCommands, util::LabelExt}, patch::split::Split};
 
 use super::{util, mod_list::headings};
 
@@ -62,6 +62,7 @@ pub struct ModEntry {
 impl ModEntry {
   pub const UPDATE_RATIOS: Selector<(usize, f64)> = Selector::new("MOD_ENTRY_UPDATE_RATIOS");
   pub const REPLACE: Selector<Arc<ModEntry>> = Selector::new("MOD_ENTRY_REPLACE");
+  pub const AUTO_UPDATE: Selector<Arc<ModEntry>> = Selector::new("mod_list.update.auto");
 
   pub fn from_file(path: &PathBuf) -> Result<ModEntry, ModEntryError> {
     if let Ok(mod_info_file) = std::fs::read_to_string(path.join("mod_info.json")) {
@@ -110,12 +111,35 @@ impl ModEntry {
 
   pub fn ui_builder() -> impl Widget<Arc<Self>> {
     let children: VecDeque<SizedBox<Arc<ModEntry>>> = VecDeque::from_iter(vec![
-      Label::dynamic(|text: &String, _| text.to_string()).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::name.in_arc()).expand_width(),
-      Label::dynamic(|text: &String, _| text.to_string()).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::id.in_arc()).expand_width(),
-      Label::dynamic(|text: &String, _| text.to_string()).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::author.in_arc()).expand_width(),
-      Label::dynamic(|version: &VersionUnion, _| version.to_string()).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::version.in_arc()).expand_width(),
-      Label::dynamic(|text: &Option<ModVersionMeta>, _| text.as_ref().and_then(|r| r.direct_download_url.as_ref()).is_some().to_string()).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::remote_version.in_arc()).expand_width(),
-      Label::dynamic(|version: &GameVersion, _| util::get_game_version(version).unwrap_or("".to_string())).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::game_version.in_arc()).expand_width()
+      Label::dynamic(|text: &String, _| text.to_string()).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::name.in_arc()).padding(5.).expand_width(),
+      Label::dynamic(|text: &String, _| text.to_string()).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::id.in_arc()).padding(5.).expand_width(),
+      Label::dynamic(|text: &String, _| text.to_string()).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::author.in_arc()).padding(5.).expand_width(),
+      Label::dynamic(|version: &VersionUnion, _| version.to_string()).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::version.in_arc()).padding(5.).expand_width(),
+      ViewSwitcher::new(
+        |entry: &Arc<ModEntry>, _| {
+          if entry.version_checker.is_some() {
+            if entry.remote_version.as_ref().and_then(|r| r.direct_download_url.as_ref()).is_some() {
+              if let Some(status) = &entry.update_status {
+                return status.clone()
+              }
+            }
+          }
+  
+          UpdateStatus::Error
+        },
+        |status, _, _| {
+          match status {
+            UpdateStatus::Error => Box::new(Label::new("Unsupported")),
+            UpdateStatus::UpToDate => Box::new(Label::new("No update available")),
+            _ => {
+              Box::new(Button::from_label(Label::wrapped("Update available!")).on_click(|ctx: &mut druid::EventCtx, data: &mut Arc<ModEntry>, _| {
+                ctx.submit_notification(ModEntry::AUTO_UPDATE.with(data.clone()))
+              }))
+            }
+          }
+        }
+      ).padding(5.).expand_width(),
+      Label::dynamic(|version: &GameVersion, _| util::get_game_version(version).unwrap_or("".to_string())).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::game_version.in_arc()).padding(5.).expand_width()
     ]);
     
     fn recursive_split(idx: usize, mut widgets: VecDeque<SizedBox<Arc<ModEntry>>>, ratios: &[f64]) -> ControllerHost<Split<Arc<ModEntry>>, RowController> {
@@ -134,7 +158,7 @@ impl ModEntry {
     }
     
     Split::columns(
-      Checkbox::new("").lens(ModEntry::enabled.in_arc()).center().on_change(|ctx, _old, data, _| {
+      Checkbox::new("").lens(ModEntry::enabled.in_arc()).center().padding(5.).expand_width().on_change(|ctx, _old, data, _| {
         ctx.submit_command(ModEntry::REPLACE.with(data.clone()))
       }),
       recursive_split(0, children, &headings::RATIOS)
