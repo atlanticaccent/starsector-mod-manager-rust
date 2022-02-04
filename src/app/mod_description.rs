@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use druid::{Widget, widget::{Label, Flex, Scroll, Button}, WidgetExt, LensExt};
+use druid::{Widget, widget::{Label, Flex, Scroll, Button, Maybe}, WidgetExt, LensExt};
 
-use super::ModEntry;
+use super::{ModEntry, mod_entry::ModVersionMeta};
 
 use super::util::{LabelExt, make_description_row};
 
@@ -10,6 +10,9 @@ use super::util::{LabelExt, make_description_row};
 pub struct ModDescription {}
 
 impl ModDescription {
+  const FRACTAL_URL: &'static str = "https://fractalsoftworks.com/forum/index.php?topic=";
+  const NEXUS_URL: &'static str = "https://www.nexusmods.com/starsector/mods/";
+
   pub fn ui_builder() -> impl Widget<Arc<ModEntry>> {
     Flex::column()
       .with_flex_child(
@@ -31,7 +34,41 @@ impl ModDescription {
               )).with_child(make_description_row(
                 Label::wrapped("Version:"),
                 Label::wrapped_lens(ModEntry::version.in_arc().map(|v| v.to_string(), |_, _| {}))
-              )).expand(),
+              )).with_child(
+                Maybe::or_empty(|| {
+                  Maybe::or_empty(|| {
+                    make_description_row(
+                      Label::wrapped("Fractal link:"),
+                      Button::from_label(Label::wrapped_func(|data: &String, _: &druid::Env| format!("{}{}", ModDescription::FRACTAL_URL, data.clone()))).on_click(|_, data, _| {
+                        if let Err(err) = opener::open(format!("{}{}", ModDescription::FRACTAL_URL, data)) {
+                          eprintln!("{}", err)
+                        }
+                      })
+                    )
+                  }).lens(ModVersionMeta::fractal_id.map(|id| if id.len() > 0 {
+                    Some(id.clone())
+                  } else {
+                    None
+                  },|_, _| {}))
+                }).lens(ModEntry::version_checker.in_arc())
+              ).with_child(
+                Maybe::or_empty(|| {
+                  Maybe::or_empty(|| {
+                    make_description_row(
+                      Label::wrapped("Nexus link:"),
+                      Button::from_label(Label::wrapped_func(|data: &String, _: &druid::Env| format!("{}{}", ModDescription::NEXUS_URL, data.clone()))).on_click(|_, data, _| {
+                        if let Err(err) = opener::open(format!("{}{}", ModDescription::NEXUS_URL, data)) {
+                          eprintln!("{}", err)
+                        }
+                      })
+                    )
+                  }).lens(ModVersionMeta::nexus_id.map(|id| if id.len() > 0 {
+                    Some(id.clone())
+                  } else {
+                    None
+                  },|_, _| {}))
+                }).lens(ModEntry::version_checker.in_arc())
+              ).expand(),
             1.
           ).with_flex_child(
             Flex::column()
@@ -44,7 +81,11 @@ impl ModDescription {
           ).expand_height(),
         1.
       ).with_child(
-        Button::new("Open in file manager...").align_right().expand_width()
+        Button::new("Open in file manager...").on_click(|_, data: &mut Arc<ModEntry>, _| {
+          if let Err(err) = opener::open(data.path.clone()) {
+            eprintln!("{}", err)
+          }
+        }).align_right().expand_width()
       ).padding(5.)
   }
 

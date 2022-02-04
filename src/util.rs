@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::{io::Read, sync::Arc};
 
 use druid::{widget::{Label, LensWrap, Flex}, Data, Lens, WidgetExt, Widget, ExtEventSink, Selector, Target};
 use if_chain::if_chain;
@@ -42,6 +42,14 @@ pub trait LabelExt<T: Data> {
   
   fn wrapped_lens<U: Data, L: Lens<T, U>>(lens: L) -> LensWrap<T, String, L, Label<String>> {
     LensWrap::new(Label::dynamic(|t: &String, _| t.to_string()).with_line_break_mode(druid::widget::LineBreaking::WordWrap), lens)
+  }
+
+  fn wrapped_func<F, S>(func: F) -> Label<T>
+  where 
+    S: Into<Arc<str>>,
+    F: Fn(&T, &druid::Env) -> S + 'static
+  {
+    Label::new(func).with_line_break_mode(druid::widget::LineBreaking::WordWrap)
   }
 }
 
