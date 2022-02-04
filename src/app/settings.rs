@@ -1,6 +1,6 @@
 use std::{path::PathBuf, rc::Rc};
 
-use druid::{Widget, Lens, Data, widget::{Flex, Label, TextBox, WidgetExt, ValidationDelegate, TextBoxEvent, Controller, Button, Checkbox, SizedBox, ViewSwitcher}, text::{Formatter, Validation, ValidationError, ParseFormatter}, lens, Selector, EventCtx, Event, Point, theme, LensExt, Menu, MenuItem, FileDialogOptions};
+use druid::{Widget, Lens, Data, widget::{Flex, Label, TextBox, WidgetExt, ValidationDelegate, TextBoxEvent, Controller, Button, Checkbox, SizedBox, ViewSwitcher}, text::ParseFormatter, lens, Selector, EventCtx, Event, Point, theme, LensExt, Menu, MenuItem, Target};
 use druid_widget_nursery::{WidgetExt as WidgetExtNursery, DynLens};
 use serde::{Serialize, Deserialize};
 use if_chain::if_chain;
@@ -181,8 +181,8 @@ impl Settings {
         .with_flex_child(input.expand_width(), 1.)
         .with_child(
           Button::new("Browse...").on_click(|ctx, _, _| {
-            ctx.submit_command(Selector::new("druid.builtin.textbox-cancel-editing"));
-            ctx.submit_notification(Settings::SELECTOR.with(SettingsCommand::SelectInstallDir))
+            ctx.submit_command(Selector::new("druid.builtin.textbox-cancel-editing").to(Target::Global));
+            ctx.submit_command(Settings::SELECTOR.with(SettingsCommand::SelectInstallDir).to(Target::Global))
           })
         )
     )

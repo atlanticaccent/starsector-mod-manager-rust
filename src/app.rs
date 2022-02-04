@@ -33,6 +33,7 @@ impl App {
   const SELECTOR: Selector<AppCommands> = Selector::new("app.update.commands");
   const OPEN_FILE: Selector<Option<Vec<FileHandle>>> = Selector::new("app.open.multiple");
   const OPEN_FOLDER: Selector<Option<FileHandle>> = Selector::new("app.open.folder");
+  const ENABLE: Selector<()> = Selector::new("app.enable");
   
   pub fn new(handle: Handle) -> Self {
     App {
@@ -300,8 +301,8 @@ struct AppController;
 
 impl<W: Widget<App>> Controller<App, W> for AppController {
   fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut App, env: &Env) {
-    if let Event::Notification(notif) = event {
-      if let Some(settings::SettingsCommand::SelectInstallDir) = notif.get(Settings::SELECTOR) {
+    if let Event::Command(cmd) = event {
+      if let Some(settings::SettingsCommand::SelectInstallDir) = cmd.get(Settings::SELECTOR) {
         let ext_ctx = ctx.get_external_handle().clone();
         ctx.set_disabled(true);
         data.runtime.spawn(async move {
@@ -310,12 +311,13 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
             .await;
 
           if let Some(handle) = res {
-            ext_ctx.submit_command(Settings::SELECTOR, SettingsCommand::UpdateInstallDir(handle.path().to_path_buf()), Target::Auto);
+            ext_ctx.submit_command(Settings::SELECTOR, SettingsCommand::UpdateInstallDir(handle.path().to_path_buf()), Target::Auto)
+          } else {
+            ext_ctx.submit_command(App::ENABLE, (), Target::Auto)
           }
         });
       }
-    } else if let Event::Command(cmd) = event {
-      if let Some(_) = cmd.get(ModList::SUBMIT_ENTRY) {
+      if cmd.is(ModList::SUBMIT_ENTRY) || cmd.is(App::ENABLE) {
         if ctx.is_disabled() {
           ctx.set_disabled(false);
         }
