@@ -129,8 +129,8 @@ impl ModEntry {
         },
         |status, _, _| {
           match status {
-            UpdateStatus::Error => Box::new(Label::new("Unsupported")),
-            UpdateStatus::UpToDate => Box::new(Label::new("No update available")),
+            UpdateStatus::Error => Box::new(Label::wrapped("Unsupported")),
+            UpdateStatus::UpToDate => Box::new(Label::wrapped("No update available")),
             _ => {
               Box::new(Button::from_label(Label::wrapped("Update available!")).on_click(|ctx: &mut druid::EventCtx, data: &mut Arc<ModEntry>, _| {
                 ctx.submit_notification(ModEntry::AUTO_UPDATE.with(data.clone()))
