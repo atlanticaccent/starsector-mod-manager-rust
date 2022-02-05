@@ -1,10 +1,13 @@
 use std::sync::Arc;
 
 use druid::{
-  commands, lens, platform_menus,
+  commands,
+  keyboard_types::Key,
+  lens, platform_menus,
   widget::{Axis, Button, Controller, Flex, Label, TextBox, ViewSwitcher},
-  AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Event, EventCtx, Handled, Lens,
-  LensExt, Menu, MenuItem, Selector, Target, Widget, WidgetExt, WindowDesc, WindowId,
+  AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Event, EventCtx, Handled, KeyEvent,
+  Lens, LensExt, Menu, MenuItem, Selector, Target, Widget, WidgetExt, WidgetId, WindowDesc,
+  WindowId,
 };
 use druid_widget_nursery::WidgetExt as WidgetExtNursery;
 use rfd::{AsyncFileDialog, FileHandle};
@@ -37,6 +40,8 @@ pub struct App {
   #[data(ignore)]
   runtime: Handle,
   search_text: String,
+  #[data(ignore)]
+  widget_id: WidgetId,
 }
 
 impl App {
@@ -44,6 +49,7 @@ impl App {
   const OPEN_FILE: Selector<Option<Vec<FileHandle>>> = Selector::new("app.open.multiple");
   const OPEN_FOLDER: Selector<Option<FileHandle>> = Selector::new("app.open.folder");
   const ENABLE: Selector<()> = Selector::new("app.enable");
+  const DUMB_UNIVERSAL_ESCAPE: Selector<()> = Selector::new("app.universal_escape");
 
   pub fn new(handle: Handle) -> Self {
     App {
@@ -65,6 +71,7 @@ impl App {
       active: None,
       runtime: handle,
       search_text: String::from(""),
+      widget_id: WidgetId::reserved(0),
     }
   }
 
@@ -167,6 +174,7 @@ impl App {
       .with_flex_child(mod_description, 1.0)
       .must_fill_main_axis(true)
       .controller(AppController)
+      .with_id(WidgetId::reserved(0))
   }
 }
 
@@ -286,6 +294,11 @@ impl Delegate<App> for AppDelegate {
           )));
         }
       }
+    } else if let Event::KeyDown(KeyEvent {
+      key: Key::Escape, ..
+    }) = event
+    {
+      ctx.submit_command(App::DUMB_UNIVERSAL_ESCAPE)
     }
 
     Some(event)
@@ -405,6 +418,9 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
             ext_ctx.submit_command(App::ENABLE, (), Target::Auto)
           }
         });
+      } else if let Some(()) = cmd.get(App::DUMB_UNIVERSAL_ESCAPE) {
+        ctx.set_focus(data.widget_id);
+        ctx.resign_focus();
       }
       if cmd.is(ModList::SUBMIT_ENTRY) || cmd.is(App::ENABLE) {
         if ctx.is_disabled() {
