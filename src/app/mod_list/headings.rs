@@ -8,6 +8,7 @@ pub const RATIOS: [f64; 5] = [
   1. / 3.,
   1. / 2.
 ];
+pub const ENABLED_RATIO: f64 = 1. / 12.;
 
 #[derive(Clone, Data, Lens)]
 pub struct Headings {
@@ -72,7 +73,7 @@ impl Headings {
         .fix_height(40.)
         .padding((0., 5., 0., 5.)),
       recursive_split(0, &Headings::TITLES)
-    ).split_point(1. / 7.).controller(ResizeController::new(0))
+    ).split_point(ENABLED_RATIO).controller(ResizeController::new(0))
   }
 }
 

@@ -162,7 +162,7 @@ impl ModEntry {
         ctx.submit_command(ModEntry::REPLACE.with(data.clone()))
       }),
       recursive_split(0, children, &headings::RATIOS)
-    ).split_point(1. / 7.).on_click(|ctx: &mut druid::EventCtx, data: &mut Arc<ModEntry>, _env: &druid::Env| {
+    ).split_point(headings::ENABLED_RATIO).on_click(|ctx: &mut druid::EventCtx, data: &mut Arc<ModEntry>, _env: &druid::Env| {
       ctx.submit_command(App::SELECTOR.with(AppCommands::UpdateModDescription(data.clone())))
     })
   }

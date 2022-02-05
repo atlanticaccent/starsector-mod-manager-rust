@@ -62,7 +62,7 @@ impl ModList {
                 if let Some(local) = &entry.version_checker {
                   let update_status = UpdateStatus::from((local, &entry.remote_version));
 
-                  let enabled_shift = (1. / 7.) * rect.width();
+                  let enabled_shift = (headings::ENABLED_RATIO) * rect.width();
                   let mut row_origin = rect.origin();
                   row_origin.x += enabled_shift + 3.;
                   let row_rect = rect.with_origin(row_origin).intersect(rect);
