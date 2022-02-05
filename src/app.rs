@@ -221,11 +221,6 @@ impl Delegate<App> for AppDelegate {
               }),
           )
           .window_size((800., 400.))
-          .menu(|_, _, _| {
-            Menu::empty()
-              .entry(platform_menus::common::copy())
-              .entry(platform_menus::common::paste())
-          })
           .show_titlebar(false);
 
           self.settings_id = Some(settings_window.id);
