@@ -16,7 +16,7 @@ mod app;
 
 fn main() {
   let main_window = WindowDesc::new(app::App::ui_builder())
-    .window_size((900., 800.));
+    .window_size((1280., 1024.));
 
   let runtime = Builder::new_multi_thread()
     .enable_all()

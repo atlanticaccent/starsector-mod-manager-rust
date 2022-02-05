@@ -6,7 +6,7 @@ use druid::{
   theme,
   widget::{
     Button, Checkbox, Controller, Flex, Label, SizedBox, TextBox, TextBoxEvent, ValidationDelegate,
-    ViewSwitcher, WidgetExt,
+    ViewSwitcher, WidgetExt, Axis,
   },
   Data, Event, EventCtx, Lens, LensExt, Menu, MenuItem, Point, Selector, Target, Widget,
 };
@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use self::vmparams::{Unit, VMParams, Value};
 
-use super::util::{make_description_row, LabelExt, LoadError, SaveError};
+use super::util::{make_description_row, LabelExt, LoadError, SaveError, make_flex_pair};
 
 pub mod vmparams;
 
@@ -57,7 +57,7 @@ impl Settings {
       )
       .with_flex_child(
         Flex::column()
-          .with_child(Self::install_dir_browser_builder().padding(TRAILING_PADDING))
+          .with_child(Self::install_dir_browser_builder(Axis::Horizontal).padding(TRAILING_PADDING))
           .with_child(
             make_description_row(
               Label::wrapped("Warn when overwriting '.git' folders:"),
@@ -213,26 +213,49 @@ impl Settings {
       .expand_height()
   }
 
-  pub fn install_dir_browser_builder() -> impl Widget<Self> {
-    let input = TextBox::new()
+  pub fn install_dir_browser_builder(axis: Axis) -> Flex<Self> {
+    let input = TextBox::multiline()
+      .with_line_wrapping(true)
       .with_formatter(ParseFormatter::new())
       .delegate(InstallDirDelegate {})
       .lens(lens!(Settings, install_dir_buf));
 
-    make_description_row(
+    let input_combo = match axis {
+      Axis::Horizontal => {
+        Flex::for_axis(axis)
+          .with_flex_child(input.expand_width(), 1.)
+          .with_child(Button::new("Browse...").on_click(|ctx, _, _| {
+            ctx.submit_command(
+              Selector::new("druid.builtin.textbox-cancel-editing").to(Target::Global),
+            );
+            ctx.submit_command(
+              Settings::SELECTOR
+                .with(SettingsCommand::SelectInstallDir)
+                .to(Target::Global),
+            )
+          }))
+      },
+      Axis::Vertical => {
+        Flex::for_axis(axis)
+          .with_child(input.expand_width())
+          .with_child(Button::new("Browse...").on_click(|ctx, _, _| {
+            ctx.submit_command(
+              Selector::new("druid.builtin.textbox-cancel-editing").to(Target::Global),
+            );
+            ctx.submit_command(
+              Settings::SELECTOR
+                .with(SettingsCommand::SelectInstallDir)
+                .to(Target::Global),
+            )
+          }))
+          .cross_axis_alignment(druid::widget::CrossAxisAlignment::End)
+      }
+    };
+
+    make_flex_pair(
       Label::wrapped("Starsector Install Directory:"),
-      Flex::row()
-        .with_flex_child(input.expand_width(), 1.)
-        .with_child(Button::new("Browse...").on_click(|ctx, _, _| {
-          ctx.submit_command(
-            Selector::new("druid.builtin.textbox-cancel-editing").to(Target::Global),
-          );
-          ctx.submit_command(
-            Settings::SELECTOR
-              .with(SettingsCommand::SelectInstallDir)
-              .to(Target::Global),
-          )
-        })),
+      input_combo,
+      axis
     )
   }
 

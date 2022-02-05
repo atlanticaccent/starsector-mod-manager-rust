@@ -1,6 +1,6 @@
 use std::{io::Read, sync::Arc};
 
-use druid::{widget::{Label, LensWrap, Flex}, Data, Lens, WidgetExt, Widget, ExtEventSink, Selector, Target};
+use druid::{widget::{Label, LensWrap, Flex, Axis}, Data, Lens, WidgetExt, Widget, ExtEventSink, Selector, Target};
 use if_chain::if_chain;
 use json_comments::strip_comments;
 
@@ -55,10 +55,14 @@ pub trait LabelExt<T: Data> {
 
 impl<T: Data> LabelExt<T> for Label<T> {}
 
-pub fn make_description_row<T: Data>(label: impl Widget<T> + 'static, val: impl Widget<T> + 'static) -> impl Widget<T> {
-  Flex::row()
+pub fn make_flex_pair<T: Data>(label: impl Widget<T> + 'static, val: impl Widget<T> + 'static, axis: Axis) -> Flex<T> {
+  Flex::for_axis(axis)
     .with_flex_child(label.expand_width(), 1.)
     .with_flex_child(val.expand_width(), 1.5)
+}
+
+pub fn make_description_row<T: Data>(label: impl Widget<T> + 'static, val: impl Widget<T> + 'static) -> impl Widget<T> {
+  make_flex_pair(label, val, Axis::Horizontal)
 }
 
 pub const MASTER_VERSION_RECEIVED: Selector<(String, Result<ModVersionMeta, String>)> = Selector::new("remote_version_received");

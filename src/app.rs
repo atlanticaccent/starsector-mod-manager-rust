@@ -2,13 +2,15 @@ use std::sync::Arc;
 
 use druid::{
   commands, lens, platform_menus,
-  widget::{Button, Controller, CrossAxisAlignment, Flex, FlexParams, ViewSwitcher},
+  widget::{Axis, Button, Controller, Flex, ViewSwitcher},
   AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Event, EventCtx, Handled, Lens,
   LensExt, Menu, MenuItem, Selector, Target, Widget, WidgetExt, WindowDesc, WindowId,
 };
 use druid_widget_nursery::WidgetExt as WidgetExtNursery;
 use rfd::{AsyncFileDialog, FileHandle};
 use tokio::runtime::Handle;
+
+use crate::patch::split::Split;
 
 use self::{
   mod_description::ModDescription,
@@ -69,7 +71,8 @@ impl App {
         event_ctx.submit_command(App::SELECTOR.with(AppCommands::OpenSettings))
       }))
       .expand_width();
-    let install_dir_browser = Settings::install_dir_browser_builder()
+    let install_dir_browser = Settings::install_dir_browser_builder(Axis::Vertical)
+      .main_axis_alignment(druid::widget::MainAxisAlignment::Center)
       .lens(App::settings)
       .expand_width()
       .padding(2.);
@@ -136,20 +139,17 @@ impl App {
     Flex::column()
       .with_child(
         Flex::row()
-          .with_flex_child(settings, FlexParams::new(1., CrossAxisAlignment::Start))
-          .with_flex_child(
-            install_dir_browser,
-            FlexParams::new(2., CrossAxisAlignment::Center),
-          )
-          .expand_width(),
-      )
-      .with_child(
-        Flex::row()
-          .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
+          .with_child(settings)
           .with_child(install_mod_button)
           .expand_width(),
       )
-      .with_flex_child(mod_list, 2.0)
+      .with_flex_child(
+        Split::columns(mod_list, install_dir_browser)
+          .split_point(0.8)
+          .draggable(true)
+          .expand_height(),
+        2.0,
+      )
       .with_flex_child(mod_description, 1.0)
       .must_fill_main_axis(true)
       .controller(AppController)
