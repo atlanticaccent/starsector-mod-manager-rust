@@ -220,43 +220,49 @@ impl Settings {
       .delegate(InstallDirDelegate {})
       .lens(lens!(Settings, install_dir_buf));
 
-    let input_combo = match axis {
+    match axis {
       Axis::Horizontal => {
-        Flex::for_axis(axis)
-          .with_flex_child(input.expand_width(), 1.)
-          .with_child(Button::new("Browse...").on_click(|ctx, _, _| {
-            ctx.submit_command(
-              Selector::new("druid.builtin.textbox-cancel-editing").to(Target::Global),
-            );
-            ctx.submit_command(
-              Settings::SELECTOR
-                .with(SettingsCommand::SelectInstallDir)
-                .to(Target::Global),
-            )
-          }))
+        make_flex_pair(
+          Label::wrapped("Starsector Install Directory:"),
+          1.,
+          Flex::for_axis(axis)
+            .with_flex_child(input.expand_width(), 1.)
+            .with_child(Button::new("Browse...").on_click(|ctx, _, _| {
+              ctx.submit_command(
+                Selector::new("druid.builtin.textbox-cancel-editing").to(Target::Global),
+              );
+              ctx.submit_command(
+                Settings::SELECTOR
+                  .with(SettingsCommand::SelectInstallDir)
+                  .to(Target::Global),
+              )
+            })),
+          1.5,
+          axis
+        )
       },
       Axis::Vertical => {
-        Flex::for_axis(axis)
-          .with_child(input.expand_width())
-          .with_child(Button::new("Browse...").on_click(|ctx, _, _| {
-            ctx.submit_command(
-              Selector::new("druid.builtin.textbox-cancel-editing").to(Target::Global),
-            );
-            ctx.submit_command(
-              Settings::SELECTOR
-                .with(SettingsCommand::SelectInstallDir)
-                .to(Target::Global),
-            )
-          }))
-          .cross_axis_alignment(druid::widget::CrossAxisAlignment::End)
+        make_flex_pair(
+          Label::wrapped("Starsector Install Directory:"),
+          1.,
+          Flex::for_axis(axis)
+            .with_child(input.expand_width())
+            .with_child(Button::new("Browse...").on_click(|ctx, _, _| {
+              ctx.submit_command(
+                Selector::new("druid.builtin.textbox-cancel-editing").to(Target::Global),
+              );
+              ctx.submit_command(
+                Settings::SELECTOR
+                  .with(SettingsCommand::SelectInstallDir)
+                  .to(Target::Global),
+              )
+            }))
+            .cross_axis_alignment(druid::widget::CrossAxisAlignment::End),
+          1.,
+          axis
+        )
       }
-    };
-
-    make_flex_pair(
-      Label::wrapped("Starsector Install Directory:"),
-      input_combo,
-      axis
-    )
+    }
   }
 
   pub fn path(try_make: bool) -> PathBuf {

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use druid::{
   commands, lens, platform_menus,
-  widget::{Axis, Button, Controller, Flex, ViewSwitcher},
+  widget::{Axis, Button, Controller, Flex, Label, TextBox, ViewSwitcher},
   AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Event, EventCtx, Handled, Lens,
   LensExt, Menu, MenuItem, Selector, Target, Widget, WidgetExt, WindowDesc, WindowId,
 };
@@ -17,6 +17,7 @@ use self::{
   mod_entry::ModEntry,
   mod_list::{EnabledMods, ModList},
   settings::{Settings, SettingsCommand},
+  util::{make_column_pair, LabelExt},
 };
 
 mod installer;
@@ -35,6 +36,7 @@ pub struct App {
   active: Option<Arc<ModEntry>>,
   #[data(ignore)]
   runtime: Handle,
+  search_text: String,
 }
 
 impl App {
@@ -62,6 +64,7 @@ impl App {
       mod_list: mod_list::ModList::new(),
       active: None,
       runtime: handle,
+      search_text: String::from(""),
     }
   }
 
@@ -72,9 +75,7 @@ impl App {
       }))
       .expand_width();
     let install_dir_browser = Settings::install_dir_browser_builder(Axis::Vertical)
-      .main_axis_alignment(druid::widget::MainAxisAlignment::Center)
       .lens(App::settings)
-      .expand_width()
       .padding(2.);
     let install_mod_button = Button::new("Install Mod")
       .controller(InstallController)
@@ -135,6 +136,19 @@ impl App {
       },
     )
     .lens(App::active);
+    let tool_panel = Flex::column()
+      .with_flex_spacer(1.)
+      .with_flex_child(install_dir_browser, 1.)
+      .with_flex_child(
+        make_column_pair(
+          Label::wrapped("Search:"),
+          TextBox::new().lens(App::search_text),
+        ),
+        1.,
+      )
+      .with_flex_spacer(1.)
+      .main_axis_alignment(druid::widget::MainAxisAlignment::Center)
+      .expand();
 
     Flex::column()
       .with_child(
@@ -144,7 +158,7 @@ impl App {
           .expand_width(),
       )
       .with_flex_child(
-        Split::columns(mod_list, install_dir_browser)
+        Split::columns(mod_list, tool_panel)
           .split_point(0.8)
           .draggable(true)
           .expand_height(),
