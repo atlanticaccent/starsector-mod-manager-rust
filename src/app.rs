@@ -39,7 +39,6 @@ pub struct App {
   active: Option<Arc<ModEntry>>,
   #[data(ignore)]
   runtime: Handle,
-  search_text: String,
   #[data(ignore)]
   widget_id: WidgetId,
 }
@@ -70,7 +69,6 @@ impl App {
       mod_list: mod_list::ModList::new(),
       active: None,
       runtime: handle,
-      search_text: String::from(""),
       widget_id: WidgetId::reserved(0),
     }
   }
@@ -149,7 +147,9 @@ impl App {
       .with_flex_child(
         make_column_pair(
           Label::wrapped("Search:"),
-          TextBox::new().lens(App::search_text),
+          TextBox::new().on_change(|ctx, _, _, _| {
+            ctx.submit_command(ModList::SEARCH_UPDATE);
+          }).lens(App::mod_list.then(ModList::search_text)),
         ),
         1.,
       )

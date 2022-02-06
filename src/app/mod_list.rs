@@ -4,6 +4,7 @@ use druid::{Widget, widget::{Scroll, List, ListIter, Painter, Flex, Either, Labe
 use druid_widget_nursery::WidgetExt as WidgetExtNursery;
 use if_chain::if_chain;
 use serde::{Serialize, Deserialize};
+use sublime_fuzzy::best_match;
 
 use super::{mod_entry::{ModEntry, UpdateStatus}, util::{SaveError, self}, installer::{self, ChannelMessage, StringOrPath, HybridPath}};
 
@@ -14,18 +15,23 @@ use self::headings::Headings;
 pub struct ModList {
   #[data(same_fn="PartialEq::eq")]
   pub mods: BTreeMap<String, Arc<ModEntry>>,
-  headings: Headings
+  headings: Headings,
+  search_text: String,
+  sort_by: (ModEntryComp, bool),
 }
 
 impl ModList {
   pub const SUBMIT_ENTRY: Selector<Arc<ModEntry>> = Selector::new("mod_list.submit_entry");
   pub const OVERWRITE: Selector<(PathBuf, HybridPath, Arc<ModEntry>)> = Selector::new("mod_list.install.overwrite");
   pub const AUTO_UPDATE: Selector<Arc<ModEntry>> = Selector::new("mod_list.install.auto_update");
+  pub const SEARCH_UPDATE: Selector<()> = Selector::new("mod_list.filter.search.update");
 
   pub fn new() -> Self {
     Self {
       mods: BTreeMap::new(),
-      headings: Headings::new(&headings::RATIOS)
+      headings: Headings::new(&headings::RATIOS),
+      search_text: String::new(),
+      sort_by: (ModEntryComp::Name, false)
     }
   }
 
@@ -74,10 +80,17 @@ impl ModList {
                   ctx.fill(cell_0_rect, &update_status.into() as &Color)
                 }
               }))
-            }).lens(lens::Identity).background(theme::BACKGROUND_LIGHT).on_command(ModEntry::REPLACE, |ctx, payload, data: &mut ModList| {
+            }).lens(lens::Identity)
+            .background(theme::BACKGROUND_LIGHT)
+            .on_command(ModEntry::REPLACE, |ctx, payload, data: &mut ModList| {
               data.mods.insert(payload.id.clone(), payload.clone());
               ctx.children_changed();
-            }).controller(InstallController)
+            })
+            .on_command(ModList::SEARCH_UPDATE, |ctx, _, data| {
+              data.sort_by = (ModEntryComp::Score, true);
+              ctx.children_changed()
+            })
+            .controller(InstallController)
           ).vertical(),
           Label::new("No mods").expand().background(theme::BACKGROUND_LIGHT)
         ),
@@ -171,14 +184,94 @@ impl ModList {
 impl ListIter<(Arc<ModEntry>, usize, Rc<[f64; 5]>)> for ModList {
   fn for_each(&self, mut cb: impl FnMut(&(Arc<ModEntry>, usize, Rc<[f64; 5]>), usize)) {
     let rc = Rc::new(self.headings.ratios.clone());
-    for (i, item) in self.mods.values().cloned().enumerate() {
+
+    let mut values: Vec<_> = self.mods.values().cloned().filter(|entry| {
+      if let ModEntryComp::Score = self.sort_by.0 {
+        if self.search_text.len() > 0 {
+          let id_score = best_match(&self.search_text, &entry.id).map(|m| m.score());
+          let name_score = best_match(&self.search_text, &entry.name).map(|m| m.score());
+          let author_score = best_match(&self.search_text, &entry.author).map(|m| m.score());
+  
+          return id_score.is_some() || name_score.is_some() || author_score.is_some();
+        }
+      }
+
+      true
+    })
+    .collect();
+    values.sort_unstable_by(|a, b| {
+      let ord = match self.sort_by.0 {
+        ModEntryComp::ID => a.author.cmp(&b.author),
+        ModEntryComp::Name => a.name.cmp(&b.name),
+        ModEntryComp::Author => a.author.cmp(&b.author),
+        ModEntryComp::GameVersion => a.game_version.cmp(&b.game_version),
+        ModEntryComp::Enabled => a.enabled.cmp(&b.enabled),
+        ModEntryComp::Version => a.version.cmp(&b.version),
+        ModEntryComp::Score => {
+          let scoring = |entry: &Arc<ModEntry>| -> Option<isize> {
+            let id_score = best_match(&self.search_text, &entry.id).map(|m| m.score());
+            let name_score = best_match(&self.search_text, &entry.name).map(|m| m.score());
+            let author_score = best_match(&self.search_text, &entry.author).map(|m| m.score());
+
+            std::cmp::max(std::cmp::max(id_score, name_score), author_score)
+          };
+
+          scoring(a).cmp(&scoring(b))
+        },
+        ModEntryComp::AutoUpdateSupport => {
+          a.remote_version.as_ref().and_then(|r| r.direct_download_url.as_ref()).is_some()
+            .cmp(&b.remote_version.as_ref().and_then(|r| r.direct_download_url.as_ref()).is_some())
+        },
+      };
+
+      if self.sort_by.1 {
+        ord.reverse()
+      } else {
+        ord
+      }
+    });
+
+    for (i, item) in values.into_iter().enumerate() {
       cb(&(item, i, rc.clone()), i);
     }
   }
   
   fn for_each_mut(&mut self, mut cb: impl FnMut(&mut (Arc<ModEntry>, usize, Rc<[f64; 5]>), usize)) {
     let rc = Rc::new(self.headings.ratios.clone());
-    for (i, item) in self.mods.values_mut().enumerate() {
+
+    let mut values: Vec<_> = self.mods.values().cloned().filter(|entry| {
+      if let ModEntryComp::Score = self.sort_by.0 {
+        if self.search_text.len() > 0 {
+          return entry.search_score.is_some()
+        }
+      }
+
+      true
+    })
+    .collect();
+    values.sort_unstable_by(|a, b| {
+      let ord = match self.sort_by.0 {
+        ModEntryComp::ID => a.author.cmp(&b.author),
+        ModEntryComp::Name => a.name.cmp(&b.name),
+        ModEntryComp::Author => a.author.cmp(&b.author),
+        ModEntryComp::GameVersion => a.game_version.cmp(&b.game_version),
+        ModEntryComp::Enabled => a.enabled.cmp(&b.enabled),
+        ModEntryComp::Version => a.version.cmp(&b.version),
+        ModEntryComp::Score => a.search_score.cmp(&b.search_score),
+        ModEntryComp::AutoUpdateSupport => {
+          a.remote_version.as_ref().and_then(|r| r.direct_download_url.as_ref()).is_some()
+            .cmp(&b.remote_version.as_ref().and_then(|r| r.direct_download_url.as_ref()).is_some())
+        },
+      };
+
+      if self.sort_by.1 {
+        ord.reverse()
+      } else {
+        ord
+      }
+    });
+
+    for (i, item) in values.iter_mut().enumerate() {
       cb(&mut (item.clone(), i, rc.clone()), i);
     }
   }
@@ -302,4 +395,16 @@ impl From<Vec<Arc<ModEntry>>> for EnabledMods {
       enabled_mods: from.iter().into_iter().map(|v| v.id.clone()).collect()
     }
   }
+}
+
+#[derive(Debug, Clone, Data, PartialEq, Eq)]
+pub enum ModEntryComp {
+  ID,
+  Name,
+  Author,
+  GameVersion,
+  Enabled,
+  Version,
+  Score,
+  AutoUpdateSupport
 }

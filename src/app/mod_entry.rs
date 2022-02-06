@@ -32,13 +32,13 @@ pub struct ModEntry {
   pub id: String,
   pub name: String,
   #[serde(default)]
-  author: String,
+  pub author: String,
   pub version: VersionUnion,
   description: String,
   #[serde(alias = "gameVersion")]
   raw_game_version: String,
   #[serde(skip)]
-  game_version: GameVersion,
+  pub game_version: GameVersion,
   #[serde(skip)]
   pub enabled: bool,
   #[serde(skip)]
@@ -56,7 +56,7 @@ pub struct ModEntry {
   #[serde(default = "ModEntry::def_true")]
   display: bool,
   #[serde(skip)]
-  search_score: Option<isize>,
+  pub search_score: Option<isize>,
 }
 
 impl ModEntry {
@@ -244,7 +244,7 @@ fn parse_game_version(text: &str) -> (Option<String>, Option<String>, Option<Str
   }
 }
 
-#[derive(Debug, Clone, Deserialize, Data, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Data, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(untagged)]
 pub enum VersionUnion {
   String(String),
