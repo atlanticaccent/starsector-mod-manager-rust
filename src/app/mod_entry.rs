@@ -48,15 +48,13 @@ pub struct ModEntry {
   #[serde(skip)]
   pub remote_version: Option<ModVersionMeta>,
   #[serde(skip)]
-  update_status: Option<UpdateStatus>,
+  pub update_status: Option<UpdateStatus>,
   #[serde(skip)]
   #[data(same_fn="PartialEq::eq")]
   pub path: PathBuf,
   #[serde(skip)]
   #[serde(default = "ModEntry::def_true")]
   display: bool,
-  #[serde(skip)]
-  pub search_score: Option<isize>,
 }
 
 impl ModEntry {
@@ -335,11 +333,11 @@ impl Display for Version {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Data)]
 pub enum UpdateStatus {
   Error,
-  Major(Version),
-  Minor(Version),
-  Patch(Version),
   UpToDate,
   Discrepancy(Version),
+  Patch(Version),
+  Minor(Version),
+  Major(Version),
 }
 
 impl Display for UpdateStatus {
