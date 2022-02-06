@@ -472,7 +472,7 @@ checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
 [[package]]
 name = "druid"
 version = "0.7.0"
-source = "git+https://github.com/linebender/druid?rev=2f5beb8faba648c170a485b8d6a00d0d991a1737#2f5beb8faba648c170a485b8d6a00d0d991a1737"
+source = "git+https://github.com/linebender/druid?rev=fc05e965c85fced8720c655685e02478e0530e94#fc05e965c85fced8720c655685e02478e0530e94"
 dependencies = [
  "console_error_panic_hook",
  "druid-derive",
@@ -494,7 +494,7 @@ dependencies = [
 [[package]]
 name = "druid-derive"
 version = "0.4.0"
-source = "git+https://github.com/linebender/druid?rev=2f5beb8faba648c170a485b8d6a00d0d991a1737#2f5beb8faba648c170a485b8d6a00d0d991a1737"
+source = "git+https://github.com/linebender/druid?rev=fc05e965c85fced8720c655685e02478e0530e94#fc05e965c85fced8720c655685e02478e0530e94"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -502,9 +502,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "druid-material-icons"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48c94e0073836b76d859f227a9cb762ee03cb1d398071e32089cbdefa4695c5f"
+dependencies = [
+ "kurbo",
+]
+
+[[package]]
 name = "druid-shell"
 version = "0.7.0"
-source = "git+https://github.com/linebender/druid?rev=2f5beb8faba648c170a485b8d6a00d0d991a1737#2f5beb8faba648c170a485b8d6a00d0d991a1737"
+source = "git+https://github.com/linebender/druid?rev=fc05e965c85fced8720c655685e02478e0530e94#fc05e965c85fced8720c655685e02478e0530e94"
 dependencies = [
  "anyhow",
  "bitflags",
@@ -537,22 +546,12 @@ dependencies = [
 [[package]]
 name = "druid-widget-nursery"
 version = "0.1.0"
-source = "git+https://github.com/linebender/druid-widget-nursery#6d5dfc548603a45f307cfc1fde9b9d5f49863b49"
+source = "git+https://github.com/linebender/druid-widget-nursery?rev=f302b2d668dac7801af7b1e4e6f22e1b3accce42#f302b2d668dac7801af7b1e4e6f22e1b3accce42"
 dependencies = [
  "druid",
- "druid-widget-nursery-derive",
+ "druid-material-icons",
  "log",
  "tracing",
-]
-
-[[package]]
-name = "druid-widget-nursery-derive"
-version = "0.1.0"
-source = "git+https://github.com/linebender/druid-widget-nursery#6d5dfc548603a45f307cfc1fde9b9d5f49863b49"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
