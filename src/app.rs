@@ -3,7 +3,7 @@ use std::sync::Arc;
 use druid::{
   commands,
   keyboard_types::Key,
-  lens, platform_menus,
+  lens,
   widget::{Axis, Button, Controller, Flex, Label, TextBox, ViewSwitcher},
   AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Event, EventCtx, Handled, KeyEvent,
   Lens, LensExt, Menu, MenuItem, Selector, Target, Widget, WidgetExt, WidgetId, WindowDesc,

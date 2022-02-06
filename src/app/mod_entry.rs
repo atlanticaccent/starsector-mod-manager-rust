@@ -13,7 +13,6 @@ use json5;
 use handwritten_json;
 use if_chain::if_chain;
 use serde_aux::prelude::*;
-use sublime_fuzzy::best_match;
 use lazy_static::lazy_static;
 use regex::Regex;
 
