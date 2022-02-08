@@ -6,6 +6,7 @@
 #![feature(btree_drain_filter)]
 #![feature(array_zip)]
 #![feature(result_option_inspect)]
+#![feature(is_some_with)]
 
 use druid::{AppLauncher, WindowDesc, theme};
 use tokio::runtime::Builder;

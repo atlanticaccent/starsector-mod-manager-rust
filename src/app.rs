@@ -4,23 +4,27 @@ use druid::{
   commands,
   keyboard_types::Key,
   lens,
-  widget::{Axis, Button, Controller, Flex, Label, TextBox, ViewSwitcher},
+  widget::{
+    Axis, Button, Checkbox, Controller, Flex, Label, Scope, ScopeTransfer, TextBox, ViewSwitcher, Tabs, TabsPolicy,
+  },
   AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Event, EventCtx, Handled, KeyEvent,
   Lens, LensExt, Menu, MenuItem, Selector, Target, Widget, WidgetExt, WidgetId, WindowDesc,
   WindowId,
 };
 use druid_widget_nursery::WidgetExt as WidgetExtNursery;
 use rfd::{AsyncFileDialog, FileHandle};
+use strum::IntoEnumIterator;
+use tap::Tap;
 use tokio::runtime::Handle;
 
-use crate::patch::split::Split;
+use crate::patch::{split::Split, tabs_policy::{StaticTabsForked, InitialTab}};
 
 use self::{
   mod_description::ModDescription,
   mod_entry::ModEntry,
-  mod_list::{EnabledMods, ModList},
+  mod_list::{EnabledMods, ModList, Filters},
   settings::{Settings, SettingsCommand},
-  util::{make_column_pair, LabelExt},
+  util::{LabelExt, h1, h3, h2},
 };
 
 mod installer;
@@ -142,20 +146,94 @@ impl App {
     )
     .lens(App::active);
     let tool_panel = Flex::column()
-      .with_flex_spacer(1.)
-      .with_flex_child(install_dir_browser, 1.)
-      .with_flex_child(
-        make_column_pair(
-          Label::wrapped("Search:"),
-          TextBox::new().on_change(|ctx, _, _, _| {
+      .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+      .with_child(h1("Tools & Filters"))
+      .with_spacer(20.)
+      .with_child(h2("Search"))
+      .with_child(
+        TextBox::new()
+          .on_change(|ctx, _, _, _| {
             ctx.submit_command(ModList::SEARCH_UPDATE);
-          }).lens(App::mod_list.then(ModList::search_text)),
-        ),
-        1.,
+          })
+          .lens(App::mod_list.then(ModList::search_text))
+          .expand_width()
       )
-      .with_flex_spacer(1.)
+      .with_child(h2("Toggles"))
+      .with_child(
+        Button::new("Enable All")
+          .disabled_if(|data: &App, _| data.mod_list.mods.values().all(|e| e.enabled))
+          .on_click(|_, data: &mut App, _| {
+            if let Some(install_dir) = data.settings.install_dir.as_ref() {
+              let mut enabled: Vec<String> = Vec::new();
+              data.mod_list.mods = data
+                .mod_list
+                .mods
+                .drain_filter(|_, _| true)
+                .map(|(id, mut entry)| {
+                  (Arc::make_mut(&mut entry)).enabled = true;
+                  enabled.push(id.clone());
+                  (id, entry)
+                })
+                .collect();
+              if let Err(err) = EnabledMods::from(enabled).save(install_dir) {
+                eprintln!("{:?}", err)
+              }
+            }
+          }),
+      )
+      .with_child(
+        Button::new("Disable All")
+          .disabled_if(|data: &App, _| data.mod_list.mods.values().all(|e| !e.enabled))
+          .on_click(|_, data: &mut App, _| {
+            if let Some(install_dir) = data.settings.install_dir.as_ref() {
+              data.mod_list.mods = data
+                .mod_list
+                .mods
+                .drain_filter(|_, _| true)
+                .map(|(id, mut entry)| {
+                  (Arc::make_mut(&mut entry)).enabled = false;
+                  (id, entry)
+                })
+                .collect();
+              if let Err(err) = EnabledMods::empty().save(install_dir) {
+                eprintln!("{:?}", err)
+              }
+            }
+          }),
+      )
+      .with_child(h2("Filters"))
+      .tap_mut(|panel| {
+        for filter in Filters::iter() {
+          match filter {
+            Filters::Enabled => panel.add_child(h3("Status")),
+            Filters::Unimplemented => panel.add_child(h3("Version Checker")),
+            Filters::AutoUpdateAvailable => panel.add_child(h3("Auto Update Support")),
+            _ => {}
+          };
+          panel.add_child(Scope::from_function(
+            |state: bool| state,
+            IndyToggleState { state: true },
+            Checkbox::from_label(Label::wrapped(&filter.to_string())).on_change(move |ctx, _, new, _| {
+              ctx.submit_command(ModList::FILTER_UPDATE.with((filter, !*new)))
+            }),
+          ).lens(lens::Constant(true)))
+        }
+      })
+      .padding(20.);
+    let launch_panel = Flex::column()
+      // .with_flex_spacer(1.)
+      .with_child(install_dir_browser)
+      // .with_flex_spacer(1.)
       .main_axis_alignment(druid::widget::MainAxisAlignment::Center)
       .expand();
+    let side_panel = Flex::column()
+      .with_spacer(20.)
+      .with_child(
+        Tabs::for_policy(StaticTabsForked::build(vec![
+          InitialTab::new("Launch", launch_panel),
+          InitialTab::new("Tools & Filters", tool_panel)
+        ]).set_label_height(20.0.into()))
+      );
 
     Flex::column()
       .with_child(
@@ -165,7 +243,7 @@ impl App {
           .expand_width(),
       )
       .with_flex_child(
-        Split::columns(mod_list, tool_panel)
+        Split::columns(mod_list, side_panel)
           .split_point(0.8)
           .draggable(true)
           .expand_height(),
@@ -426,4 +504,18 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
 
     child.event(ctx, event, data, env)
   }
+}
+
+#[derive(Clone, Data, Lens)]
+struct IndyToggleState {
+  state: bool,
+}
+
+impl ScopeTransfer for IndyToggleState {
+  type In = bool;
+  type State = bool;
+
+  fn read_input(&self, _: &mut Self::State, _: &Self::In) {}
+
+  fn write_back_input(&self, _: &Self::State, _: &mut Self::In) {}
 }

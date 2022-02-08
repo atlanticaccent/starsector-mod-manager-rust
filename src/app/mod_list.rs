@@ -1,9 +1,10 @@
-use std::{collections::BTreeMap, path::PathBuf, sync::Arc, rc::Rc};
+use std::{collections::{BTreeMap, HashSet}, path::PathBuf, sync::Arc, rc::Rc, string::ToString};
 
 use druid::{Widget, widget::{Scroll, List, ListIter, Painter, Flex, Either, Label, Button, Controller}, lens, WidgetExt, Data, Lens, RenderContext, theme, Selector, ExtEventSink, Target, LensExt, WindowConfig, Env, commands, Color, Rect};
 use druid_widget_nursery::WidgetExt as WidgetExtNursery;
 use if_chain::if_chain;
 use serde::{Serialize, Deserialize};
+use strum_macros::{EnumIter, Display};
 use sublime_fuzzy::best_match;
 
 use super::{mod_entry::{ModEntry, UpdateStatus}, util::{SaveError, self}, installer::{self, ChannelMessage, StringOrPath, HybridPath}};
@@ -17,6 +18,8 @@ pub struct ModList {
   pub mods: BTreeMap<String, Arc<ModEntry>>,
   headings: Headings,
   search_text: String,
+  #[data(same_fn="PartialEq::eq")]
+  active_filters: HashSet<Filters>
 }
 
 impl ModList {
@@ -24,12 +27,14 @@ impl ModList {
   pub const OVERWRITE: Selector<(PathBuf, HybridPath, Arc<ModEntry>)> = Selector::new("mod_list.install.overwrite");
   pub const AUTO_UPDATE: Selector<Arc<ModEntry>> = Selector::new("mod_list.install.auto_update");
   pub const SEARCH_UPDATE: Selector<()> = Selector::new("mod_list.filter.search.update");
+  pub const FILTER_UPDATE: Selector<(Filters, bool)> = Selector::new("mod_list.filter.update");
 
   pub fn new() -> Self {
     Self {
       mods: BTreeMap::new(),
       headings: Headings::new(&headings::RATIOS),
       search_text: String::new(),
+      active_filters: HashSet::new()
     }
   }
 
@@ -88,6 +93,14 @@ impl ModList {
               data.headings.sort_by = (Sorting::Score, true);
               ctx.children_changed()
             })
+            .on_command(ModList::FILTER_UPDATE, |ctx, (filter, insert), data| {
+              if *insert {
+                data.active_filters.insert(*filter)
+              } else {
+                data.active_filters.remove(filter)
+              };
+              ctx.children_changed()
+            })
             .controller(InstallController)
           ).vertical(),
           Label::new("No mods").expand().background(theme::BACKGROUND_LIGHT)
@@ -106,16 +119,15 @@ impl ModList {
         ctx.children_changed()
       })
       .on_command(util::MASTER_VERSION_RECEIVED, |_ctx, payload, data| {
-        if let Ok(meta) = payload.1.clone() {
-          if let Some(mut entry) = data.mods.get(&payload.0).cloned() {
-            ModEntry::remote_version.in_arc().put(&mut entry, Some(meta.clone()));
-            if let Some(version_checker) = &entry.version_checker {
-              let status = UpdateStatus::from((version_checker, &Some(meta)));
-              ModEntry::update_status.in_arc().put(&mut entry, Some(status));
-            }
-            data.mods.insert(entry.id.clone(), entry);
-          };
-        }
+        if let Some(mut entry) = data.mods.get(&payload.0).cloned() {
+          let remote = payload.1.as_ref().ok().cloned();
+          ModEntry::remote_version.in_arc().put(&mut entry, remote.clone());
+          if let Some(version_checker) = &entry.version_checker {
+            let status = UpdateStatus::from((version_checker, &remote));
+            ModEntry::update_status.in_arc().put(&mut entry, Some(status));
+          }
+          data.mods.insert(entry.id.clone(), entry);
+        };
       })
   }
 
@@ -175,7 +187,7 @@ impl ModList {
   }
   
   fn sorted_vals(&self) -> Vec<Arc<ModEntry>> {
-    let mut values: Vec<_> = self.mods.values().cloned().filter(|entry| {
+    let mut values_iter: Box<dyn Iterator<Item = Arc<ModEntry>>> = Box::new(self.mods.values().cloned().filter(|entry| {
       if let Sorting::Score = self.headings.sort_by.0 {
         if self.search_text.len() > 0 {
           let id_score = best_match(&self.search_text, &entry.id).map(|m| m.score());
@@ -187,8 +199,12 @@ impl ModList {
       }
       
       true
-    })
-    .collect();
+    }));
+    for filter in self.active_filters.iter() {
+      values_iter = Box::new(values_iter.filter(filter.as_fn()))
+    }
+
+    let mut values: Vec<_> = values_iter.collect();
     values.sort_unstable_by(|a, b| {
       let ord = match self.headings.sort_by.0 {
         Sorting::ID => a.id.cmp(&b.id),
@@ -343,6 +359,12 @@ pub struct EnabledMods {
 }
 
 impl EnabledMods {
+  pub fn empty() -> Self {
+    Self {
+      enabled_mods: Vec::new()
+    }
+  }
+
   pub fn save(self, path: &PathBuf) -> Result<(), SaveError> {
     use std::fs;
     use std::io::Write;
@@ -362,6 +384,14 @@ impl From<Vec<Arc<ModEntry>>> for EnabledMods {
   fn from(from: Vec<Arc<ModEntry>>) -> Self {
     Self {
       enabled_mods: from.iter().into_iter().map(|v| v.id.clone()).collect()
+    }
+  }
+}
+
+impl From<Vec<String>> for EnabledMods {
+  fn from(enabled_mods: Vec<String>) -> Self {
+    Self {
+      enabled_mods
     }
   }
 }
@@ -389,6 +419,47 @@ impl From<Sorting> for &str {
       Sorting::Version => "Version",
       Sorting::Score => "score",
       Sorting::AutoUpdateSupport => "Auto-Update Supported",
+    }
+  }
+}
+
+#[derive(Clone, Copy, Eq, PartialEq, Hash, Data, EnumIter, Display)]
+pub enum Filters {
+  Enabled,
+  Disabled,
+  Unimplemented,
+  Error,
+  Discrepancy,
+  #[strum(to_string = "Up To Date")]
+  UpToDate,
+  Patch,
+  Minor,
+  Major,
+  #[strum(to_string = "Auto Update Available")]
+  AutoUpdateAvailable,
+  #[strum(to_string = "Auto Update Unsupported")]
+  AutoUpdateUnsupported
+}
+
+impl Filters {
+  fn as_fn(&self) -> impl FnMut(&Arc<ModEntry>) -> bool {
+    match self {
+      Filters::Enabled => |entry: &Arc<ModEntry>| !entry.enabled,
+      Filters::Disabled => |entry: &Arc<ModEntry>| entry.enabled,
+      Filters::Unimplemented => |entry: &Arc<ModEntry>| !entry.version_checker.is_none(),
+      Filters::Error => |entry: &Arc<ModEntry>| !entry.update_status.is_some_with(|s| s == &UpdateStatus::Error),
+      Filters::UpToDate => |entry: &Arc<ModEntry>| !entry.update_status.is_some_with(|s| s == &UpdateStatus::UpToDate),
+      Filters::Discrepancy => |entry: &Arc<ModEntry>| !entry.update_status.is_some_with(|s| matches!(s, &UpdateStatus::Discrepancy(_))),
+      Filters::Patch => |entry: &Arc<ModEntry>| !entry.update_status.is_some_with(|s| matches!(s, &UpdateStatus::Patch(_))),
+      Filters::Minor => |entry: &Arc<ModEntry>| !entry.update_status.is_some_with(|s| matches!(s, &UpdateStatus::Minor(_))),
+      Filters::Major => |entry: &Arc<ModEntry>| !entry.update_status.is_some_with(|s| matches!(s, &UpdateStatus::Major(_))),
+      Filters::AutoUpdateAvailable => |entry: &Arc<ModEntry>| !(
+        entry.update_status.is_some_with(|s| matches!(s, UpdateStatus::Patch(_) | UpdateStatus::Minor(_) | UpdateStatus::Major(_)))
+          && entry.remote_version.as_ref().and_then(|r| r.direct_download_url.as_ref()).is_some()
+      ),
+      Filters::AutoUpdateUnsupported => |entry: &Arc<ModEntry>| !entry.remote_version.as_ref()
+        .and_then(|r| r.direct_download_url.as_ref())
+        .is_none(),
     }
   }
 }

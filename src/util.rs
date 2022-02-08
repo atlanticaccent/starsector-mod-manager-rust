@@ -1,8 +1,9 @@
 use std::{io::Read, sync::Arc};
 
-use druid::{widget::{Label, LensWrap, Flex, Axis}, Data, Lens, WidgetExt, Widget, ExtEventSink, Selector, Target};
+use druid::{widget::{Label, LensWrap, Flex, Axis, RawLabel}, Data, Lens, WidgetExt, Widget, ExtEventSink, Selector, Target, lens, text::{RichText, AttributeSpans, Attribute}, FontWeight};
 use if_chain::if_chain;
 use json_comments::strip_comments;
+use tap::Tap;
 
 use super::mod_entry::ModVersionMeta;
 
@@ -111,4 +112,26 @@ async fn send_request(url: String) -> Result<String, String>{
     .text()
     .await
     .map_err(|e| format!("{:?}", e))
+}
+
+pub fn bold_header<T: Data>(text: &str, size: f64, weight: FontWeight) -> impl Widget<T> {
+  RawLabel::new().lens(lens::Constant(RichText::new_with_attributes(
+    text.into(),
+    AttributeSpans::new().tap_mut(|s| {
+      s.add(0..text.len(), Attribute::Weight(weight));
+      s.add(0..text.len(), Attribute::FontSize(size.into()))
+    })
+  )))
+}
+
+pub fn h1<T: Data>(text: &str) -> impl Widget<T> {
+  bold_header(text, 24., FontWeight::BOLD)
+}
+
+pub fn h2<T: Data>(text: &str) -> impl Widget<T> {
+  bold_header(text, 20., FontWeight::SEMI_BOLD)
+}
+
+pub fn h3<T: Data>(text: &str) -> impl Widget<T> {
+  bold_header(text, 18., FontWeight::MEDIUM)
 }
