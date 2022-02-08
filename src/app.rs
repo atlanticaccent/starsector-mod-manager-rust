@@ -5,7 +5,8 @@ use druid::{
   keyboard_types::Key,
   lens,
   widget::{
-    Axis, Button, Checkbox, Controller, Flex, Label, Scope, ScopeTransfer, TextBox, ViewSwitcher, Tabs, TabsPolicy,
+    Axis, Button, Checkbox, Controller, Flex, Label, Scope, ScopeTransfer, Tabs, TabsPolicy,
+    TextBox, ViewSwitcher,
   },
   AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Event, EventCtx, Handled, KeyEvent,
   Lens, LensExt, Menu, MenuItem, Selector, Target, Widget, WidgetExt, WidgetId, WindowDesc,
@@ -17,14 +18,17 @@ use strum::IntoEnumIterator;
 use tap::Tap;
 use tokio::runtime::Handle;
 
-use crate::patch::{split::Split, tabs_policy::{StaticTabsForked, InitialTab}};
+use crate::patch::{
+  split::Split,
+  tabs_policy::{InitialTab, StaticTabsForked},
+};
 
 use self::{
   mod_description::ModDescription,
   mod_entry::ModEntry,
-  mod_list::{EnabledMods, ModList, Filters},
+  mod_list::{EnabledMods, Filters, ModList},
   settings::{Settings, SettingsCommand},
-  util::{LabelExt, h1, h3, h2},
+  util::{h1, h2, h3, LabelExt},
 };
 
 mod installer;
@@ -156,7 +160,7 @@ impl App {
             ctx.submit_command(ModList::SEARCH_UPDATE);
           })
           .lens(App::mod_list.then(ModList::search_text))
-          .expand_width()
+          .expand_width(),
       )
       .with_child(h2("Toggles"))
       .with_child(
@@ -210,13 +214,18 @@ impl App {
             Filters::AutoUpdateAvailable => panel.add_child(h3("Auto Update Support")),
             _ => {}
           };
-          panel.add_child(Scope::from_function(
-            |state: bool| state,
-            IndyToggleState { state: true },
-            Checkbox::from_label(Label::wrapped(&filter.to_string())).on_change(move |ctx, _, new, _| {
-              ctx.submit_command(ModList::FILTER_UPDATE.with((filter, !*new)))
-            }),
-          ).lens(lens::Constant(true)))
+          panel.add_child(
+            Scope::from_function(
+              |state: bool| state,
+              IndyToggleState { state: true },
+              Checkbox::from_label(Label::wrapped(&filter.to_string())).on_change(
+                move |ctx, _, new, _| {
+                  ctx.submit_command(ModList::FILTER_UPDATE.with((filter, !*new)))
+                },
+              ),
+            )
+            .lens(lens::Constant(true)),
+          )
         }
       })
       .padding(20.);
@@ -226,14 +235,13 @@ impl App {
       // .with_flex_spacer(1.)
       .main_axis_alignment(druid::widget::MainAxisAlignment::Center)
       .expand();
-    let side_panel = Flex::column()
-      .with_spacer(20.)
-      .with_child(
-        Tabs::for_policy(StaticTabsForked::build(vec![
-          InitialTab::new("Launch", launch_panel),
-          InitialTab::new("Tools & Filters", tool_panel)
-        ]).set_label_height(20.0.into()))
-      );
+    let side_panel = Flex::column().with_spacer(20.).with_child(Tabs::for_policy(
+      StaticTabsForked::build(vec![
+        InitialTab::new("Launch", launch_panel),
+        InitialTab::new("Tools & Filters", tool_panel),
+      ])
+      .set_label_height(20.0.into()),
+    ));
 
     Flex::column()
       .with_child(
@@ -400,26 +408,24 @@ impl<W: Widget<App>> Controller<App, W> for InstallController {
         if ctx.is_active() && mouse_event.button == druid::MouseButton::Left {
           ctx.set_active(false);
           if ctx.is_hot() {
+            let ext_ctx = ctx.get_external_handle().clone();
             let menu: Menu<App> = Menu::empty()
-              .entry(MenuItem::new("From Archive(s)").on_activate({
-                let ext_ctx = ctx.get_external_handle().clone();
+              .entry(MenuItem::new("From Archive(s)").on_activate(
                 move |_ctx, data: &mut App, _| {
-                  data.runtime.spawn({
-                    let ext_ctx = ext_ctx.clone();
-                    async move {
-                      let res = AsyncFileDialog::new()
-                        .add_filter(
-                          "Archives",
-                          &["zip", "7z", "7zip", "rar", "rar4", "rar5", "tar"],
-                        )
-                        .pick_files()
-                        .await;
+                  let ext_ctx = ext_ctx.clone();
+                  data.runtime.spawn(async move {
+                    let res = AsyncFileDialog::new()
+                      .add_filter(
+                        "Archives",
+                        &["zip", "7z", "7zip", "rar", "rar4", "rar5", "tar"],
+                      )
+                      .pick_files()
+                      .await;
 
-                      ext_ctx.submit_command(App::OPEN_FILE, res, Target::Auto)
-                    }
+                    ext_ctx.submit_command(App::OPEN_FILE, res, Target::Auto)
                   });
-                }
-              }))
+                },
+              ))
               .entry(MenuItem::new("From Folder").on_activate({
                 let ext_ctx = ctx.get_external_handle().clone();
                 move |_ctx, data: &mut App, _| {
