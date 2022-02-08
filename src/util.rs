@@ -115,7 +115,9 @@ async fn send_request(url: String) -> Result<String, String>{
 }
 
 pub fn bold_header<T: Data>(text: &str, size: f64, weight: FontWeight) -> impl Widget<T> {
-  RawLabel::new().lens(lens::Constant(RichText::new_with_attributes(
+  RawLabel::new()
+    .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
+    .lens(lens::Constant(RichText::new_with_attributes(
     text.into(),
     AttributeSpans::new().tap_mut(|s| {
       s.add(0..text.len(), Attribute::Weight(weight));

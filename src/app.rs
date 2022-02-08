@@ -88,8 +88,7 @@ impl App {
       }))
       .expand_width();
     let install_dir_browser = Settings::install_dir_browser_builder(Axis::Vertical)
-      .lens(App::settings)
-      .padding(2.);
+      .lens(App::settings);
     let install_mod_button = Button::new("Install Mod")
       .controller(InstallController)
       .on_command(App::OPEN_FILE, |ctx, payload, data| {
@@ -230,18 +229,17 @@ impl App {
       })
       .padding(20.);
     let launch_panel = Flex::column()
-      // .with_flex_spacer(1.)
       .with_child(install_dir_browser)
-      // .with_flex_spacer(1.)
       .main_axis_alignment(druid::widget::MainAxisAlignment::Center)
-      .expand();
-    let side_panel = Flex::column().with_spacer(20.).with_child(Tabs::for_policy(
+      .expand()
+      .padding(20.);
+    let side_panel = Tabs::for_policy(
       StaticTabsForked::build(vec![
-        InitialTab::new("Launch", launch_panel),
         InitialTab::new("Tools & Filters", tool_panel),
+        InitialTab::new("Launch", launch_panel),
       ])
-      .set_label_height(20.0.into()),
-    ));
+      .set_label_height(40.0.into()),
+    );
 
     Flex::column()
       .with_child(

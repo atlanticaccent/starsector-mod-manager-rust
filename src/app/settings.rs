@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use self::vmparams::{Unit, VMParams, Value};
 
-use super::util::{make_description_row, LabelExt, LoadError, SaveError, make_flex_pair};
+use super::util::{make_description_row, LabelExt, LoadError, SaveError, make_flex_pair, h2};
 
 pub mod vmparams;
 
@@ -243,7 +243,7 @@ impl Settings {
       },
       Axis::Vertical => {
         make_flex_pair(
-          Label::wrapped("Starsector Install Directory:"),
+          h2("Starsector Install Directory:"),
           1.,
           Flex::for_axis(axis)
             .with_child(input.expand_width())

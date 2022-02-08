@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use druid::{widget::{TabInfo, TabsPolicy, LabelText, SizedBox}, Data, SingleUse, Widget, WidgetExt, KeyOrValue, theme};
+use druid::{widget::{TabInfo, TabsPolicy, LabelText, SizedBox}, Data, SingleUse, Widget, WidgetExt, KeyOrValue, theme, UnitPoint};
 
 
 /// A TabsPolicy that allows the app developer to provide static tabs up front when building the
@@ -89,7 +89,7 @@ impl<T: Data> TabsPolicy for StaticTabsForked<T> {
     info: TabInfo<Self::Input>,
     _data: &Self::Input,
   ) -> Self::LabelWidget {
-    Self::default_make_label(info).with_text_size(self.text_size.clone()).fix_height(self.label_height)
+    Self::default_make_label(info).with_text_size(self.text_size.clone()).align_vertical(UnitPoint::CENTER).fix_height(self.label_height)
   }
   
   fn build(build: Self::Build) -> Self {
