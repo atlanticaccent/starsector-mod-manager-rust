@@ -1,11 +1,22 @@
 use std::{io::Read, sync::Arc};
 
-use druid::{widget::{Label, LensWrap, Flex, Axis, RawLabel}, Data, Lens, WidgetExt, Widget, ExtEventSink, Selector, Target, lens, text::{RichText, AttributeSpans, Attribute}, FontWeight};
+use druid::{widget::{Label, LensWrap, Flex, Axis, RawLabel}, Data, Lens, WidgetExt, Widget, ExtEventSink, Selector, Target, lens, text::{RichText, AttributeSpans, Attribute}, FontWeight, Key, Color};
 use if_chain::if_chain;
 use json_comments::strip_comments;
 use tap::Tap;
 
 use super::mod_entry::ModVersionMeta;
+
+pub const ORANGE_KEY: Key<Color> = Key::new("util.colour.orange");
+pub const BLUE_KEY: Key<Color> = Key::new("util.colour.blue");
+pub const GREEN_KEY: Key<Color> = Key::new("util.colour.green");
+pub const RED_KEY: Key<Color> = Key::new("util.colour.red");
+pub const YELLOW_KEY: Key<Color> = Key::new("util.colour.yellow");
+pub const ON_GREEN_KEY: Key<Color> = Key::new("util.colour.on_green");
+pub const ON_RED_KEY: Key<Color> = Key::new("util.colour.on_red");
+pub const ON_YELLOW_KEY: Key<Color> = Key::new("util.colour.on_yellow");
+pub const ON_BLUE_KEY: Key<Color> = Key::new("util.colour.on_blue");
+pub const ON_ORANGE_KEY: Key<Color> = Key::new("util.colour.on_orange");
 
 #[derive(Debug, Clone)]
 pub enum LoadError {

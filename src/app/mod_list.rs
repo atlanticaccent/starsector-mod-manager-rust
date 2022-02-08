@@ -1,6 +1,6 @@
 use std::{collections::{BTreeMap, HashSet}, path::PathBuf, sync::Arc, rc::Rc, string::ToString};
 
-use druid::{Widget, widget::{Scroll, List, ListIter, Painter, Flex, Either, Label, Button, Controller}, lens, WidgetExt, Data, Lens, RenderContext, theme, Selector, ExtEventSink, Target, LensExt, WindowConfig, Env, commands, Color, Rect};
+use druid::{Widget, widget::{Scroll, List, ListIter, Painter, Flex, Either, Label, Button, Controller}, lens, WidgetExt, Data, Lens, RenderContext, theme, Selector, ExtEventSink, Target, LensExt, WindowConfig, Env, commands, Color, Rect, KeyOrValue};
 use druid_widget_nursery::WidgetExt as WidgetExtNursery;
 use if_chain::if_chain;
 use serde::{Serialize, Deserialize};
@@ -80,7 +80,11 @@ impl ModList {
                   let cell_right = calc_pos(4, &ratios, row_rect.width());
                   let cell_0_rect = Rect::from_points((row_rect.origin().x + cell_left, row_rect.origin().y), (row_rect.origin().x + cell_right, row_rect.height()));
 
-                  ctx.fill(cell_0_rect, &update_status.into() as &Color)
+                  let color = match <KeyOrValue<Color>>::from(update_status) {
+                    KeyOrValue::Concrete(col) => col,
+                    KeyOrValue::Key(key) => env.get(key),
+                };
+                  ctx.fill(cell_0_rect, &color)
                 }
               }))
             }).lens(lens::Identity)

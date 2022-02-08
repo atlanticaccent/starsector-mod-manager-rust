@@ -28,7 +28,7 @@ use self::{
   mod_entry::ModEntry,
   mod_list::{EnabledMods, Filters, ModList},
   settings::{Settings, SettingsCommand},
-  util::{h1, h2, h3, LabelExt},
+  util::{h2, h3, LabelExt},
 };
 
 mod installer;
@@ -37,7 +37,7 @@ mod mod_entry;
 mod mod_list;
 mod settings;
 #[path = "./util.rs"]
-mod util;
+pub mod util;
 
 #[derive(Clone, Data, Lens)]
 pub struct App {

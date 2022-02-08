@@ -5,7 +5,7 @@ use std::{
   fmt::Display, collections::VecDeque, iter::FromIterator, sync::Arc
 };
 
-use druid::{widget::{Checkbox, Label, LineBreaking, SizedBox, Controller, ControllerHost, ViewSwitcher, Button}, WidgetExt, Lens, Data, Widget, Selector, LensExt, Color};
+use druid::{widget::{Checkbox, Label, LineBreaking, SizedBox, Controller, ControllerHost, ViewSwitcher, Button}, WidgetExt, Lens, Data, Widget, Selector, LensExt, Color, KeyOrValue};
 use druid_widget_nursery::WidgetExt as WidgetExtNursery;
 use serde::Deserialize;
 use json_comments::strip_comments;
@@ -18,7 +18,7 @@ use regex::Regex;
 
 use crate::{app::{App, AppCommands, util::LabelExt}, patch::split::Split};
 
-use super::{util, mod_list::headings};
+use super::{util::{self, GREEN_KEY, RED_KEY, YELLOW_KEY, BLUE_KEY, ON_BLUE_KEY, ON_YELLOW_KEY, ON_RED_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ORANGE_KEY}, mod_list::headings};
 
 lazy_static! {
   static ref VERSION_REGEX: Regex = Regex::new(r"\.|a-RC|A-RC|a-rc|a").unwrap();
@@ -111,7 +111,12 @@ impl ModEntry {
       Label::dynamic(|text: &String, _| text.to_string()).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::name.in_arc()).padding(5.).expand_width(),
       Label::dynamic(|text: &String, _| text.to_string()).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::id.in_arc()).padding(5.).expand_width(),
       Label::dynamic(|text: &String, _| text.to_string()).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::author.in_arc()).padding(5.).expand_width(),
-      Label::dynamic(|version: &VersionUnion, _| version.to_string()).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::version.in_arc()).padding(5.).expand_width(),
+      ViewSwitcher::new(
+        |entry: &Arc<ModEntry>, _| entry.update_status.as_ref().and_then(|s| Some(s.as_text_colour())).unwrap_or(<KeyOrValue<Color>>::from(druid::theme::TEXT_COLOR)),
+        |change, data, _| {
+          Box::new(Label::new(data.version.to_string()).with_line_break_mode(LineBreaking::WordWrap).with_text_color(change.clone()))
+        }
+      ).padding(5.).expand_width(),
       ViewSwitcher::new(
         |entry: &Arc<ModEntry>, _| {
           if entry.version_checker.is_some() {
@@ -375,15 +380,28 @@ impl From<(&ModVersionMeta, &Option<ModVersionMeta>)> for UpdateStatus {
   }
 }
 
-impl From<UpdateStatus> for Color {
+impl From<UpdateStatus> for KeyOrValue<Color> {
   fn from(status: UpdateStatus) -> Self {
     match status {
-      UpdateStatus::Major(_) => Color::NAVY,
-      UpdateStatus::Minor(_) => Color::rgb8(255, 117, 0),
-      UpdateStatus::Patch(_) => Color::OLIVE,
-      UpdateStatus::Discrepancy(_) => Color::PURPLE,
-      UpdateStatus::Error => Color::MAROON,
-      UpdateStatus::UpToDate => Color::GREEN
+      UpdateStatus::Major(_) => ORANGE_KEY.into(),
+      UpdateStatus::Minor(_) => YELLOW_KEY.into(),
+      UpdateStatus::Patch(_) => BLUE_KEY.into(),
+      UpdateStatus::Discrepancy(_) => Color::from_hex_str("810181").unwrap().into(),
+      UpdateStatus::Error => RED_KEY.into(),
+      UpdateStatus::UpToDate => GREEN_KEY.into()
+    }
+  }
+}
+
+impl UpdateStatus {
+  fn as_text_colour(&self) -> KeyOrValue<Color> {
+    match self {
+      UpdateStatus::Major(_) => ON_ORANGE_KEY.into(),
+      UpdateStatus::Minor(_) => ON_YELLOW_KEY.into(),
+      UpdateStatus::Patch(_) => ON_BLUE_KEY.into(),
+      UpdateStatus::Discrepancy(_) => Color::from_hex_str("ffd6f7").unwrap().into(),
+      UpdateStatus::Error => ON_RED_KEY.into(),
+      UpdateStatus::UpToDate => ON_GREEN_KEY.into()
     }
   }
 }
