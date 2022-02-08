@@ -150,8 +150,6 @@ impl App {
     .lens(App::active);
     let tool_panel = Flex::column()
       .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-      .with_child(h1("Tools & Filters"))
-      .with_spacer(20.)
       .with_child(h2("Search"))
       .with_child(
         TextBox::new()

@@ -30,8 +30,9 @@ fn main() {
   // start the application
   AppLauncher::with_window(main_window)
     .configure_env(|env, _| {
-      env.set(theme::BUTTON_BORDER_RADIUS, 0.);
+      env.set(theme::BUTTON_BORDER_RADIUS, 2.);
       env.set(theme::BUTTON_BORDER_WIDTH, 2.);
+      env.set(theme::BUTTON_LIGHT, env.get(theme::BUTTON_DARK))
     })
     .delegate(app::AppDelegate::default())
     .launch(initial_state)
