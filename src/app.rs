@@ -6,13 +6,13 @@ use druid::{
   lens,
   widget::{
     Axis, Button, Checkbox, Controller, Flex, Label, Scope, ScopeTransfer, Tabs, TabsPolicy,
-    TextBox, ViewSwitcher,
+    TextBox, ViewSwitcher, Painter,
   },
   AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Event, EventCtx, Handled, KeyEvent,
   Lens, LensExt, Menu, MenuItem, Selector, Target, Widget, WidgetExt, WidgetId, WindowDesc,
-  WindowId,
+  WindowId, RenderContext, theme,
 };
-use druid_widget_nursery::WidgetExt as WidgetExtNursery;
+use druid_widget_nursery::{WidgetExt as WidgetExtNursery, material_icons::Icon};
 use rfd::{AsyncFileDialog, FileHandle};
 use strum::IntoEnumIterator;
 use tap::Tap;
@@ -28,7 +28,7 @@ use self::{
   mod_entry::ModEntry,
   mod_list::{EnabledMods, Filters, ModList},
   settings::{Settings, SettingsCommand},
-  util::{h2, h3, LabelExt},
+  util::{h2, h3, LabelExt, icons::*},
 };
 
 mod installer;
@@ -82,14 +82,56 @@ impl App {
   }
 
   pub fn ui_builder() -> impl Widget<Self> {
+    let button_painter = || Painter::new(|ctx, _, env| {
+      let is_active = ctx.is_active() && !ctx.is_disabled();
+      let is_hot = ctx.is_hot();
+      let size = ctx.size();
+      let stroke_width = env.get(theme::BUTTON_BORDER_WIDTH);
+      
+      let rounded_rect = size
+      .to_rect()
+      .inset(-stroke_width / 2.0)
+      .to_rounded_rect(env.get(theme::BUTTON_BORDER_RADIUS));
+      
+      let bg_gradient = if ctx.is_disabled() {
+        env.get(theme::DISABLED_BUTTON_DARK)
+      } else if is_active {
+        env.get(theme::BUTTON_DARK)
+      } else {
+        env.get(theme::BUTTON_LIGHT)
+      };
+      
+      let border_color = if is_hot && !ctx.is_disabled() {
+        env.get(theme::BORDER_LIGHT)
+      } else {
+        env.get(theme::BORDER_DARK)
+      };
+      
+      ctx.stroke(rounded_rect, &border_color, stroke_width);
+
+      ctx.fill(rounded_rect, &bg_gradient);
+    });
     let settings = Flex::row()
-      .with_child(Button::new("Settings").on_click(|event_ctx, _, _| {
-        event_ctx.submit_command(App::SELECTOR.with(AppCommands::OpenSettings))
-      }))
+      .with_child(Flex::row()
+        .with_child(Label::new("Settings").with_text_size(18.))
+        .with_spacer(5.)
+        .with_child(Icon::new(SETTINGS))
+        .padding((8., 4.))
+        .background(button_painter())
+        .on_click(|event_ctx, _, _| {
+          event_ctx.submit_command(App::SELECTOR.with(AppCommands::OpenSettings))
+        }
+      ))
       .expand_width();
     let install_dir_browser = Settings::install_dir_browser_builder(Axis::Vertical)
       .lens(App::settings);
-    let install_mod_button = Button::new("Install Mod")
+    let install_mod_button = Flex::row()
+      .with_child(Label::new("Install Mod(s)").with_text_size(18.))
+      .with_spacer(5.)
+      .with_child(Icon::new(INSTALL_DESKTOP))
+      .padding((8., 4.))
+      .background(button_painter())
+      .on_click(|_, _, _| {})
       .controller(InstallController)
       .on_command(App::OPEN_FILE, |ctx, payload, data| {
         if let Some(targets) = payload {
@@ -243,9 +285,12 @@ impl App {
       .with_child(
         Flex::row()
           .with_child(settings)
+          .with_spacer(10.)
           .with_child(install_mod_button)
+          .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
           .expand_width(),
       )
+      .with_spacer(20.)
       .with_flex_child(
         Split::columns(mod_list, side_panel)
           .split_point(0.8)
@@ -253,6 +298,7 @@ impl App {
           .expand_height(),
         2.0,
       )
+      .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
       .with_flex_child(mod_description, 1.0)
       .must_fill_main_axis(true)
       .controller(AppController)
