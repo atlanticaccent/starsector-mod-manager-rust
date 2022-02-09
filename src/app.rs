@@ -57,6 +57,7 @@ impl App {
   const OPEN_FOLDER: Selector<Option<FileHandle>> = Selector::new("app.open.folder");
   const ENABLE: Selector<()> = Selector::new("app.enable");
   const DUMB_UNIVERSAL_ESCAPE: Selector<()> = Selector::new("app.universal_escape");
+  const REFRESH: Selector<()> = Selector::new("app.mod_list.refresh");
 
   pub fn new(handle: Handle) -> Self {
     App {
@@ -120,6 +121,18 @@ impl App {
         .background(button_painter())
         .on_click(|event_ctx, _, _| {
           event_ctx.submit_command(App::SELECTOR.with(AppCommands::OpenSettings))
+        }
+      ))
+      .expand_width();
+    let refresh = Flex::row()
+      .with_child(Flex::row()
+        .with_child(Label::new("Refresh").with_text_size(18.))
+        .with_spacer(5.)
+        .with_child(Icon::new(SYNC))
+        .padding((8., 4.))
+        .background(button_painter())
+        .on_click(|event_ctx, _, _| {
+          event_ctx.submit_command(App::REFRESH)
         }
       ))
       .expand_width();
@@ -287,6 +300,8 @@ impl App {
           .with_child(settings)
           .with_spacer(10.)
           .with_child(install_mod_button)
+          .with_spacer(10.)
+          .with_child(refresh)
           .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
           .expand_width(),
       )
@@ -387,6 +402,13 @@ impl Delegate<App> for AppDelegate {
           data.settings.install_dir.clone().unwrap(),
           data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
         ));
+    } else if let Some(()) = cmd.get(App::REFRESH) {
+      if let Some(install_dir) = data.settings.install_dir.as_ref() {
+        data.runtime.spawn(ModList::parse_mod_folder(
+          ctx.get_external_handle(),
+          Some(install_dir.clone()),
+        ));
+      }
     }
 
     Handled::No
