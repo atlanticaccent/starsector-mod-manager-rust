@@ -6,6 +6,7 @@ use if_chain::if_chain;
 use serde::{Serialize, Deserialize};
 use strum_macros::{EnumIter, Display};
 use sublime_fuzzy::best_match;
+use rayon::prelude::*;
 
 use super::{mod_entry::{ModEntry, UpdateStatus}, util::{SaveError, self}, installer::{self, ChannelMessage, StringOrPath, HybridPath}};
 
@@ -112,7 +113,9 @@ impl ModList {
         1.
       )
       .on_command(ModList::SUBMIT_ENTRY, |_ctx, payload, data| {
-        data.mods.insert(payload.id.clone(), payload.clone());
+        if data.mods.get(&payload.id) != Some(payload) {
+          data.mods.insert(payload.id.clone(), payload.clone());
+        }
       })
       .on_command(Headings::SORT_CHANGED, |ctx, payload, data| {
         if data.headings.sort_by.0 == *payload {
@@ -136,6 +139,8 @@ impl ModList {
   }
 
   pub async fn parse_mod_folder(event_sink: ExtEventSink, root_dir: Option<PathBuf>) {
+    let handle = tokio::runtime::Handle::current();
+
     if let Some(root_dir) = root_dir {
       let mod_dir = root_dir.join("mods");
       let enabled_mods_filename = mod_dir.join("enabled_mods.json");
@@ -155,9 +160,10 @@ impl ModList {
       };
 
       if let Ok(dir_iter) = std::fs::read_dir(mod_dir) {
-        let enabled_mods_iter = enabled_mods.iter();
+        let enabled_mods_iter = enabled_mods.par_iter();
 
         dir_iter
+          .par_bridge()
           .filter_map(|entry| entry.ok())
           .filter(|entry| {
             if let Ok(file_type) = entry.file_type() {
@@ -168,7 +174,7 @@ impl ModList {
           })
           .filter_map(|entry| {
             if let Ok(mut mod_info) = ModEntry::from_file(&entry.path()) {
-              mod_info.set_enabled(enabled_mods_iter.clone().find(|id| mod_info.id.clone().eq(*id)).is_some());
+              mod_info.set_enabled(enabled_mods_iter.clone().find_any(|id| mod_info.id.clone().eq(*id)).is_some());
               Some((
                 Arc::new(mod_info.clone()),
                 mod_info.version_checker.clone()
@@ -183,7 +189,7 @@ impl ModList {
               eprintln!("Failed to submit found mod {}", err);
             };
             if let Some(version) = version {
-              tokio::spawn(util::get_master_version(event_sink.clone(), version));
+              handle.spawn(util::get_master_version(event_sink.clone(), version));
             }
           });
       }
@@ -191,25 +197,29 @@ impl ModList {
   }
   
   fn sorted_vals(&self) -> Vec<Arc<ModEntry>> {
-    let mut values_iter: Box<dyn Iterator<Item = Arc<ModEntry>>> = Box::new(self.mods.values().cloned().filter(|entry| {
-      if let Sorting::Score = self.headings.sort_by.0 {
+    let values_iter = self.mods.par_iter().filter_map(|(_, entry)| {
+      let search = if let Sorting::Score = self.headings.sort_by.0 {
         if self.search_text.len() > 0 {
           let id_score = best_match(&self.search_text, &entry.id).map(|m| m.score());
           let name_score = best_match(&self.search_text, &entry.name).map(|m| m.score());
           let author_score = best_match(&self.search_text, &entry.author).map(|m| m.score());
           
-          return id_score.is_some() || name_score.is_some() || author_score.is_some();
+          id_score.is_some() || name_score.is_some() || author_score.is_some()
+        } else {
+          true
         }
-      }
+      } else {
+        true
+      };
+      let filters = self.active_filters.par_iter().all(|f| {
+        f.as_fn()(entry)
+      });
       
-      true
-    }));
-    for filter in self.active_filters.iter() {
-      values_iter = Box::new(values_iter.filter(filter.as_fn()))
-    }
+      (search && filters).then(|| entry.clone())
+    });
 
-    let mut values: Vec<_> = values_iter.collect();
-    values.sort_unstable_by(|a, b| {
+    let mut values: Vec<Arc<ModEntry>> = values_iter.collect();
+    values.par_sort_unstable_by(|a, b| {
       let ord = match self.headings.sort_by.0 {
         Sorting::ID => a.id.cmp(&b.id),
         Sorting::Name => a.name.cmp(&b.name),

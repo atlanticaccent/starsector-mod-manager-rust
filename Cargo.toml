@@ -36,6 +36,7 @@ rfd = "0.6.3"
 strum = "0.23"
 strum_macros = "0.23"
 tap = "1.0.1"
+rayon = "1.5"
 
 [package.metadata.bundle]
 name = "Starsector Mod Manager"
