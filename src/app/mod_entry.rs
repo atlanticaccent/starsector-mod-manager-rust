@@ -9,8 +9,8 @@ use druid::{widget::{Checkbox, Label, LineBreaking, SizedBox, Controller, Contro
 use druid_widget_nursery::{WidgetExt as WidgetExtNursery, material_icons::Icon};
 use serde::Deserialize;
 use json_comments::strip_comments;
-use json5;
-use handwritten_json;
+
+
 use if_chain::if_chain;
 use serde_aux::prelude::*;
 use lazy_static::lazy_static;
@@ -113,7 +113,7 @@ impl ModEntry {
       Label::dynamic(|text: &String, _| text.to_string()).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::id.in_arc()).padding(5.).expand_width(),
       Label::dynamic(|text: &String, _| text.to_string()).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::author.in_arc()).padding(5.).expand_width(),
       ViewSwitcher::new(
-        |entry: &Arc<ModEntry>, _| entry.update_status.as_ref().and_then(|s| Some(s.as_text_colour())).unwrap_or(<KeyOrValue<Color>>::from(druid::theme::TEXT_COLOR)),
+        |entry: &Arc<ModEntry>, _| entry.update_status.as_ref().map(|s| s.as_text_colour()).unwrap_or(<KeyOrValue<Color>>::from(druid::theme::TEXT_COLOR)),
         |change, data, _| {
           Box::new(
             Flex::row()
@@ -142,11 +142,9 @@ impl ModEntry {
       ).padding(5.).expand_width(),
       ViewSwitcher::new(
         |entry: &Arc<ModEntry>, _| {
-          if entry.version_checker.is_some() {
-            if entry.remote_version.as_ref().and_then(|r| r.direct_download_url.as_ref()).is_some() {
-              if let Some(status) = &entry.update_status {
-                return status.clone()
-              }
+          if entry.version_checker.is_some() && entry.remote_version.as_ref().and_then(|r| r.direct_download_url.as_ref()).is_some() {
+            if let Some(status) = &entry.update_status {
+              return status.clone()
             }
           }
   
@@ -349,7 +347,7 @@ pub struct Version {
 
 impl Display for Version {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-    if self.patch.len() > 0 {
+    if !self.patch.is_empty() {
       write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
     } else {
       write!(f, "{}.{}", self.major, self.minor)

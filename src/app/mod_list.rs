@@ -44,7 +44,7 @@ impl ModList {
       .with_child(headings::Headings::ui_builder().lens(ModList::headings))
       .with_flex_child(
         Either::new(
-          |data: &ModList, _| data.mods.len() > 0,
+          |data: &ModList, _| !data.mods.is_empty(),
           Scroll::new(
             List::new(|| {
               ModEntry::ui_builder().expand_width().lens(lens!((Arc<ModEntry>, usize, Rc<[f64; 5]>), 0)).background(Painter::new(|ctx, (entry, i, ratios): &(Arc<ModEntry>, usize, Rc<[f64; 5]>), env| {
@@ -54,7 +54,7 @@ impl ModList {
                 // implement update status parser
                 // calculate cell widths using ratios and paint appropriately
                 fn calc_pos(idx: usize, ratios: &Rc<[f64; 5]>, width: f64) -> f64 {
-                  return if idx == 0 {
+                  if idx == 0 {
                     0.
                   } else if idx == 1 {
                     (ratios[idx - 1] * width) + 3.
@@ -77,8 +77,8 @@ impl ModList {
                   row_origin.x += enabled_shift + 3.;
                   let row_rect = rect.with_origin(row_origin).intersect(rect);
 
-                  let cell_left = calc_pos(3, &ratios, row_rect.width());
-                  let cell_right = calc_pos(4, &ratios, row_rect.width());
+                  let cell_left = calc_pos(3, ratios, row_rect.width());
+                  let cell_right = calc_pos(4, ratios, row_rect.width());
                   let cell_0_rect = Rect::from_points((row_rect.origin().x + cell_left, row_rect.origin().y), (row_rect.origin().x + cell_right, row_rect.height()));
 
                   let color = match <KeyOrValue<Color>>::from(update_status) {
@@ -199,7 +199,7 @@ impl ModList {
   fn sorted_vals(&self) -> Vec<Arc<ModEntry>> {
     let values_iter = self.mods.par_iter().filter_map(|(_, entry)| {
       let search = if let Sorting::Score = self.headings.sort_by.0 {
-        if self.search_text.len() > 0 {
+        if !self.search_text.is_empty() {
           let id_score = best_match(&self.search_text, &entry.id).map(|m| m.score());
           let name_score = best_match(&self.search_text, &entry.name).map(|m| m.score());
           let author_score = best_match(&self.search_text, &entry.author).map(|m| m.score());
@@ -260,7 +260,7 @@ impl ModList {
 
 impl ListIter<(Arc<ModEntry>, usize, Rc<[f64; 5]>)> for ModList {
   fn for_each(&self, mut cb: impl FnMut(&(Arc<ModEntry>, usize, Rc<[f64; 5]>), usize)) {
-    let rc = Rc::new(self.headings.ratios.clone());
+    let rc = Rc::new(self.headings.ratios);
 
     for (i, item) in self.sorted_vals().into_iter().enumerate() {
       cb(&(item, i, rc.clone()), i);
@@ -268,7 +268,7 @@ impl ListIter<(Arc<ModEntry>, usize, Rc<[f64; 5]>)> for ModList {
   }
   
   fn for_each_mut(&mut self, mut cb: impl FnMut(&mut (Arc<ModEntry>, usize, Rc<[f64; 5]>), usize)) {
-    let rc = Rc::new(self.headings.ratios.clone());
+    let rc = Rc::new(self.headings.ratios);
 
     for (i, item) in self.sorted_vals().iter_mut().enumerate() {
       cb(&mut (item.clone(), i, rc.clone()), i);
@@ -337,7 +337,7 @@ impl<W: Widget<ModList>> Controller<ModList, W> for InstallController {
         let widget = Flex::column()
           .with_child(Label::new(format!("Would you like to automatically update {}?", entry.name)))
           .with_child(Label::new(format!("Installed version: {}", entry.version)))
-          .with_child(Label::new(format!("New version: {}", entry.remote_version.as_ref().and_then(|v| Some(v.version.to_string())).unwrap_or(String::from("Error: failed to retrieve version, this shouldn't be possible.")))))
+          .with_child(Label::new(format!("New version: {}", entry.remote_version.as_ref().map(|v| v.version.to_string()).unwrap_or(String::from("Error: failed to retrieve version, this shouldn't be possible.")))))
           .with_default_spacer()
           .with_child(
             Flex::row()
@@ -460,7 +460,7 @@ impl Filters {
     match self {
       Filters::Enabled => |entry: &Arc<ModEntry>| !entry.enabled,
       Filters::Disabled => |entry: &Arc<ModEntry>| entry.enabled,
-      Filters::Unimplemented => |entry: &Arc<ModEntry>| !entry.version_checker.is_none(),
+      Filters::Unimplemented => |entry: &Arc<ModEntry>| entry.version_checker.is_some(),
       Filters::Error => |entry: &Arc<ModEntry>| !entry.update_status.is_some_with(|s| s == &UpdateStatus::Error),
       Filters::UpToDate => |entry: &Arc<ModEntry>| !entry.update_status.is_some_with(|s| s == &UpdateStatus::UpToDate),
       Filters::Discrepancy => |entry: &Arc<ModEntry>| !entry.update_status.is_some_with(|s| matches!(s, &UpdateStatus::Discrepancy(_))),
@@ -471,9 +471,8 @@ impl Filters {
         entry.update_status.is_some_with(|s| matches!(s, UpdateStatus::Patch(_) | UpdateStatus::Minor(_) | UpdateStatus::Major(_)))
           && entry.remote_version.as_ref().and_then(|r| r.direct_download_url.as_ref()).is_some()
       ),
-      Filters::AutoUpdateUnsupported => |entry: &Arc<ModEntry>| !entry.remote_version.as_ref()
-        .and_then(|r| r.direct_download_url.as_ref())
-        .is_none(),
+      Filters::AutoUpdateUnsupported => |entry: &Arc<ModEntry>| entry.remote_version.as_ref()
+        .and_then(|r| r.direct_download_url.as_ref()).is_some(),
     }
   }
 }

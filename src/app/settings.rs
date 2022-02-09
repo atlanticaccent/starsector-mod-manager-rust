@@ -76,7 +76,7 @@ impl Settings {
                   .install_dir
                   .clone()
                   .ok_or(LoadError::NoSuchFile)
-                  .and_then(|p| vmparams::VMParams::load(p))
+                  .and_then(vmparams::VMParams::load)
                   .ok()
               }
             })
@@ -292,9 +292,9 @@ impl Settings {
 
     serde_json::from_str::<Settings>(&config_string)
       .map_err(|_| LoadError::FormatError)
-      .and_then(|mut settings| {
+      .map(|mut settings| {
         settings.dirty = true;
-        Ok(settings)
+        settings
       })
   }
 

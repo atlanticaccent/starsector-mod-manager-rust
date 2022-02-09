@@ -35,7 +35,7 @@ impl Headings {
 
   pub fn new(ratios: &[f64; 5]) -> Self {
     Self {
-      ratios: ratios.clone(),
+      ratios: *ratios,
       sort_by: (Sorting::Name, false),
     }
   }
@@ -79,7 +79,7 @@ fn heading_builder(title: Sorting) -> impl Widget<Headings> {
       .with_child(Label::wrapped(<&str>::from(title)))
       .with_child(
         ViewSwitcher::new(
-          |data: &(Sorting, bool), _| data.clone(),
+          |data: &(Sorting, bool), _| *data,
           move |_, new, _| {
             if new.0 == title {
               if new.1 {

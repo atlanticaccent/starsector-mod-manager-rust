@@ -45,7 +45,7 @@ impl ModDescription {
                         }
                       })
                     )
-                  }).lens(ModVersionMeta::fractal_id.map(|id| if id.len() > 0 {
+                  }).lens(ModVersionMeta::fractal_id.map(|id| if !id.is_empty() {
                     Some(id.clone())
                   } else {
                     None
@@ -62,7 +62,7 @@ impl ModDescription {
                         }
                       })
                     )
-                  }).lens(ModVersionMeta::nexus_id.map(|id| if id.len() > 0 {
+                  }).lens(ModVersionMeta::nexus_id.map(|id| if !id.is_empty() {
                     Some(id.clone())
                   } else {
                     None

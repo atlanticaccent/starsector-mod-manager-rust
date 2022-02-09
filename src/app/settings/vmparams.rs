@@ -192,7 +192,7 @@ impl VMParams {
     let mut count = 0;
     while let Some(ch) = iter.peek() {
       if ch.is_numeric() {
-        count = count + 1;
+        count += 1;
         iter.next();
       } else {
         break;

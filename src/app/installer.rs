@@ -35,7 +35,7 @@ impl Payload {
         });
       },
       Payload::Download(entry) => {
-        task::spawn(handle_auto(ext_ctx.clone(), entry));
+        task::spawn(handle_auto(ext_ctx, entry));
       }
     }
   }
@@ -84,7 +84,7 @@ async fn handle_path(ext_ctx: ExtEventSink, path: PathBuf, mods_dir: Arc<PathBuf
         ext_ctx.submit_command(INSTALL, ChannelMessage::Duplicate(mod_path.into(), mod_folder, Arc::new(mod_info)), Target::Auto).expect("Send query over async channel");
       }
     } else {
-      ext_ctx.submit_command(INSTALL, ChannelMessage::Error(format!("Could not find mod folder or parse mod_info file.")), Target::Auto).expect("Send error over async channel");
+      ext_ctx.submit_command(INSTALL, ChannelMessage::Error("Could not find mod folder or parse mod_info file.".to_string()), Target::Auto).expect("Send error over async channel");
     }
   }
 }
@@ -125,10 +125,8 @@ fn find_nested_mod(dest: &PathBuf) -> std::io::Result<Option<PathBuf>> {
       if res.is_some() {
         return Ok(res);
       }
-    } else if entry.file_type()?.is_file() {
-      if entry.file_name() == "mod_info.json" {
-        return Ok(Some(dest.to_path_buf()));
-      }
+    } else if entry.file_type()?.is_file() && entry.file_name() == "mod_info.json" {
+      return Ok(Some(dest.to_path_buf()));
     }
   }
 
@@ -195,12 +193,12 @@ async fn handle_auto(ext_ctx: ExtEventSink, entry: Arc<ModEntry>) {
                 unreachable!()
               };
               if &mod_info.version_checker.as_ref().unwrap().version != target_version {
-                ext_ctx.submit_command(INSTALL, ChannelMessage::Error(format!("Downloaded version does not match expected version")), Target::Auto).expect("Send error over async channel");
+                ext_ctx.submit_command(INSTALL, ChannelMessage::Error("Downloaded version does not match expected version".to_string()), Target::Auto).expect("Send error over async channel");
               } else {
                 handle_delete(ext_ctx, Arc::new(mod_info), hybrid, entry.path.clone()).await;
               }
             } else {
-              ext_ctx.submit_command(INSTALL, ChannelMessage::Error(format!("Some kind of unpack error")), Target::Auto).expect("Send error over async channel");
+              ext_ctx.submit_command(INSTALL, ChannelMessage::Error("Some kind of unpack error".to_string()), Target::Auto).expect("Send error over async channel");
             }
           }
         },
@@ -208,7 +206,7 @@ async fn handle_auto(ext_ctx: ExtEventSink, entry: Arc<ModEntry>) {
           println!("{:?}", err);
           ext_ctx.submit_command(INSTALL, ChannelMessage::Error(err.to_string()), Target::Auto).expect("Send error over async channel");
 
-          return;
+          
         }
       };
     },

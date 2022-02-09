@@ -63,7 +63,7 @@ impl App {
     App {
       init: false,
       settings: settings::Settings::load()
-        .and_then(|mut settings| {
+        .map(|mut settings| {
           if settings.vmparams_enabled {
             if let Some(path) = settings.install_dir.clone() {
               settings.vmparams = settings::vmparams::VMParams::load(path).ok();
@@ -72,7 +72,7 @@ impl App {
           if let Some(install_dir) = settings.install_dir.clone() {
             settings.install_dir_buf = install_dir.to_string_lossy().to_string()
           }
-          Ok(settings)
+          settings
         })
         .unwrap_or_else(|_| settings::Settings::default()),
       mod_list: mod_list::ModList::new(),
@@ -151,7 +151,7 @@ impl App {
           data.runtime.spawn(
             installer::Payload::Initial(
               targets
-                .into_iter()
+                .iter()
                 .map(|f| f.path().to_path_buf())
                 .collect(),
             )
@@ -291,7 +291,7 @@ impl App {
         InitialTab::new("Tools & Filters", tool_panel),
         InitialTab::new("Launch", launch_panel),
       ])
-      .set_label_height(40.0.into()),
+      .set_label_height(40.0),
     );
 
     Flex::column()
@@ -472,7 +472,7 @@ impl<W: Widget<App>> Controller<App, W> for InstallController {
         if ctx.is_active() && mouse_event.button == druid::MouseButton::Left {
           ctx.set_active(false);
           if ctx.is_hot() {
-            let ext_ctx = ctx.get_external_handle().clone();
+            let ext_ctx = ctx.get_external_handle();
             let menu: Menu<App> = Menu::empty()
               .entry(MenuItem::new("From Archive(s)").on_activate(
                 move |_ctx, data: &mut App, _| {
@@ -491,7 +491,7 @@ impl<W: Widget<App>> Controller<App, W> for InstallController {
                 },
               ))
               .entry(MenuItem::new("From Folder").on_activate({
-                let ext_ctx = ctx.get_external_handle().clone();
+                let ext_ctx = ctx.get_external_handle();
                 move |_ctx, data: &mut App, _| {
                   data.runtime.spawn({
                     let ext_ctx = ext_ctx.clone();
@@ -546,7 +546,7 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
   fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut App, env: &Env) {
     if let Event::Command(cmd) = event {
       if let Some(settings::SettingsCommand::SelectInstallDir) = cmd.get(Settings::SELECTOR) {
-        let ext_ctx = ctx.get_external_handle().clone();
+        let ext_ctx = ctx.get_external_handle();
         ctx.set_disabled(true);
         data.runtime.spawn(async move {
           let res = AsyncFileDialog::new().pick_folder().await;
@@ -565,10 +565,8 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
         ctx.set_focus(data.widget_id);
         ctx.resign_focus();
       }
-      if cmd.is(ModList::SUBMIT_ENTRY) || cmd.is(App::ENABLE) {
-        if ctx.is_disabled() {
-          ctx.set_disabled(false);
-        }
+      if (cmd.is(ModList::SUBMIT_ENTRY) || cmd.is(App::ENABLE)) && ctx.is_disabled() {
+        ctx.set_disabled(false);
       }
     }
 
