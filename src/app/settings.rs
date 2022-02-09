@@ -301,13 +301,13 @@ impl Settings {
   pub fn save(&self) -> Result<(), SaveError> {
     use std::{fs, io::Write};
 
-    let json = serde_json::to_string_pretty(&self).map_err(|_| SaveError::FormatError)?;
+    let json = serde_json::to_string_pretty(&self).map_err(|_| SaveError::Format)?;
 
-    let mut file = fs::File::create(Settings::path(true)).map_err(|_| SaveError::FileError)?;
+    let mut file = fs::File::create(Settings::path(true)).map_err(|_| SaveError::File)?;
 
     file
       .write_all(json.as_bytes())
-      .map_err(|_| SaveError::WriteError)
+      .map_err(|_| SaveError::Write)
   }
 }
 

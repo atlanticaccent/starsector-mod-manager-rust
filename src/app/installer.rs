@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc, fs::{copy, create_dir_all, read_dir}, io::{self, Write}};
+use std::{path::{PathBuf, Path}, sync::Arc, fs::{copy, create_dir_all, read_dir}, io::{self, Write}};
 
 use druid::{ExtEventSink, Selector, Target};
 use snafu::{Snafu, ResultExt, OptionExt};
@@ -59,8 +59,7 @@ async fn handle_path(ext_ctx: ExtEventSink, path: PathBuf, mods_dir: Arc<PathBuf
 
   let dir = mod_folder.get_path_copy();
   if_chain! {
-    if let Ok(maybe_path) = task::spawn_blocking(move || find_nested_mod(&dir)).await.expect("Find mod in given folder");
-    if let Some(mod_path) = maybe_path;
+    if let Ok(Some(mod_path)) = task::spawn_blocking(move || find_nested_mod(&dir)).await.expect("Find mod in given folder");
     if let Ok(mut mod_info) = ModEntry::from_file(&mod_path);
     then {
       if !mods_dir.join(mod_info.id.clone()).exists() {
@@ -137,14 +136,14 @@ async fn move_or_copy(from: PathBuf, to: PathBuf) {
   // let mount_from = find_mountpoint(&from).expect("Find origin mount point");
   // let mount_to = find_mountpoint(&to).expect("Find destination mount point");
 
-  if let Err(_) = rename(from.clone(), to.clone()).await {
+  if rename(from.clone(), to.clone()).await.is_err() {
     task::spawn_blocking(move || copy_dir_recursive(&to, &from)).await
       .expect("Run blocking dir copy")
       .expect("Copy dir to new destination");
   }
 }
 
-fn copy_dir_recursive(to: &PathBuf, from: &PathBuf) -> io::Result<()> {
+fn copy_dir_recursive(to: &Path, from: &Path) -> io::Result<()> {
   if !to.exists() {
     create_dir_all(to)?;
   }

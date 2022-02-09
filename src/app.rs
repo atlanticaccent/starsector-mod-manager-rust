@@ -385,7 +385,9 @@ impl Delegate<App> for AppDelegate {
         data.settings.install_dir_buf = new_install_dir.to_string_lossy().to_string();
         data.settings.install_dir = Some(new_install_dir.clone());
 
-        data.settings.save();
+        if data.settings.save().is_err() {
+          eprintln!("Failed to save settings")
+        };
 
         data.mod_list.mods.clear();
         data.runtime.spawn(ModList::parse_mod_folder(

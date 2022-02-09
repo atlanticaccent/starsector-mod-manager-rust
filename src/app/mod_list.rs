@@ -1,4 +1,4 @@
-use std::{collections::{BTreeMap, HashSet}, path::PathBuf, sync::Arc, rc::Rc, string::ToString};
+use std::{collections::{BTreeMap, HashSet}, path::{PathBuf, Path}, sync::Arc, rc::Rc, string::ToString};
 
 use druid::{Widget, widget::{Scroll, List, ListIter, Painter, Flex, Either, Label, Button, Controller}, lens, WidgetExt, Data, Lens, RenderContext, theme, Selector, ExtEventSink, Target, LensExt, WindowConfig, Env, commands, Color, Rect, KeyOrValue};
 use druid_widget_nursery::WidgetExt as WidgetExtNursery;
@@ -337,7 +337,7 @@ impl<W: Widget<ModList>> Controller<ModList, W> for InstallController {
         let widget = Flex::column()
           .with_child(Label::new(format!("Would you like to automatically update {}?", entry.name)))
           .with_child(Label::new(format!("Installed version: {}", entry.version)))
-          .with_child(Label::new(format!("New version: {}", entry.remote_version.as_ref().map(|v| v.version.to_string()).unwrap_or(String::from("Error: failed to retrieve version, this shouldn't be possible.")))))
+          .with_child(Label::new(format!("New version: {}", entry.remote_version.as_ref().map(|v| v.version.to_string()).unwrap_or_else(|| String::from("Error: failed to retrieve version, this shouldn't be possible.")))))
           .with_default_spacer()
           .with_child(
             Flex::row()
@@ -379,18 +379,18 @@ impl EnabledMods {
     }
   }
 
-  pub fn save(self, path: &PathBuf) -> Result<(), SaveError> {
+  pub fn save(self, path: &Path) -> Result<(), SaveError> {
     use std::fs;
     use std::io::Write;
 
     let json = serde_json::to_string_pretty(&self)
-      .map_err(|_| SaveError::FormatError)?;
+      .map_err(|_| SaveError::Format)?;
 
     let mut file = fs::File::create(path.join("mods").join("enabled_mods.json"))
-      .map_err(|_| SaveError::FileError)?;
+      .map_err(|_| SaveError::File)?;
 
     file.write_all(json.as_bytes())
-      .map_err(|_| SaveError::WriteError)
+      .map_err(|_| SaveError::Write)
   }
 }
 

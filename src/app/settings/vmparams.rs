@@ -20,12 +20,9 @@ pub struct Value {
   pub unit: Unit
 }
 
-impl Value {
-  pub fn to_string(&self) -> String {
-    let mut output = self.amount.to_string();
-    output.push(self.unit.to_char());
-
-    output
+impl Display for Value {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.write_fmt(format_args!("{}{}", self.amount, self.unit))
   }
 }
 
@@ -43,7 +40,7 @@ impl Unit {
     Unit::Giga,
   ];
 
-  pub fn to_char(&self) -> char {
+  pub fn to_char(self) -> char {
     match self {
       Unit::Giga => 'g',
       Unit::Mega => 'm',
@@ -133,11 +130,11 @@ impl VMParams {
     use std::io::{Read, Write};
 
     let mut params_file = fs::File::open(install_dir.join(VMParams::path()))
-      .map_err(|_| SaveError::FormatError)?;
+      .map_err(|_| SaveError::Format)?;
 
     let mut params_string = String::new();
     params_file.read_to_string(&mut params_string)
-      .map_err(|_| SaveError::FormatError)?;
+      .map_err(|_| SaveError::Format)?;
 
     let mut output = String::new();
     let mut input_iter = params_string.chars().peekable();
@@ -175,10 +172,10 @@ impl VMParams {
     };
 
     let mut file = fs::File::create(install_dir.join(VMParams::path()))
-      .map_err(|_| SaveError::FileError)?;
+      .map_err(|_| SaveError::File)?;
 
     file.write_all(output.as_bytes())
-      .map_err(|_| SaveError::WriteError)
+      .map_err(|_| SaveError::Write)
   }
 
   /**
@@ -207,7 +204,7 @@ impl VMParams {
       then {
         Ok(())
       } else {
-        Err(SaveError::FormatError)
+        Err(SaveError::Format)
       }
     }
   }

@@ -1,6 +1,6 @@
 use std::{
   io::{Read, BufReader, BufRead},
-  path::PathBuf,
+  path::{PathBuf, Path},
   fs::File,
   fmt::Display, collections::VecDeque, iter::FromIterator, sync::Arc
 };
@@ -62,7 +62,7 @@ impl ModEntry {
   pub const REPLACE: Selector<Arc<ModEntry>> = Selector::new("MOD_ENTRY_REPLACE");
   pub const AUTO_UPDATE: Selector<Arc<ModEntry>> = Selector::new("mod_list.update.auto");
 
-  pub fn from_file(path: &PathBuf) -> Result<ModEntry, ModEntryError> {
+  pub fn from_file(path: &Path) -> Result<ModEntry, ModEntryError> {
     if let Ok(mod_info_file) = std::fs::read_to_string(path.join("mod_info.json")) {
       if_chain! {
         let mut stripped = String::new();
@@ -70,7 +70,7 @@ impl ModEntry {
         if let Ok(mut mod_info) = json5::from_str::<ModEntry>(&stripped);
         then {
           mod_info.version_checker = ModEntry::parse_version_checker(path, &mod_info.id);
-          mod_info.path = path.clone();
+          mod_info.path = path.to_path_buf();
           mod_info.game_version = parse_game_version(&mod_info.raw_game_version);
           Ok(mod_info)
         } else {
@@ -82,18 +82,18 @@ impl ModEntry {
     }
   }
 
-  fn parse_version_checker(path: &PathBuf, id: &String) -> Option<ModVersionMeta> {
+  fn parse_version_checker(path: &Path, id: &str) -> Option<ModVersionMeta> {
     if_chain! {
       if let Ok(version_loc_file) = File::open(path.join("data").join("config").join("version").join("version_files.csv"));
-      let lines = BufReader::new(version_loc_file).lines();
-      if let Some(Ok(version_filename)) = lines.skip(1).next();
+      let mut lines = BufReader::new(version_loc_file).lines();
+      if let Some(Ok(version_filename)) = lines.nth(1);
       if let Ok(version_data) = std::fs::read_to_string(path.join(version_filename));
       let mut no_comments = String::new();
       if strip_comments(version_data.as_bytes()).read_to_string(&mut no_comments).is_ok();
       if let Ok(normalized) = handwritten_json::normalize(&no_comments);
       if let Ok(mut version) = json5::from_str::<ModVersionMeta>(&normalized);
       then {
-        version.id = id.clone();
+        version.id = id.to_string();
         Some(version)
       } else {
         None
@@ -113,7 +113,7 @@ impl ModEntry {
       Label::dynamic(|text: &String, _| text.to_string()).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::id.in_arc()).padding(5.).expand_width(),
       Label::dynamic(|text: &String, _| text.to_string()).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::author.in_arc()).padding(5.).expand_width(),
       ViewSwitcher::new(
-        |entry: &Arc<ModEntry>, _| entry.update_status.as_ref().map(|s| s.as_text_colour()).unwrap_or(<KeyOrValue<Color>>::from(druid::theme::TEXT_COLOR)),
+        |entry: &Arc<ModEntry>, _| entry.update_status.as_ref().map(|s| s.as_text_colour()).unwrap_or_else(|| <KeyOrValue<Color>>::from(druid::theme::TEXT_COLOR)),
         |change, data, _| {
           Box::new(
             Flex::row()
@@ -162,7 +162,7 @@ impl ModEntry {
           }
         }
       ).padding(5.).expand_width(),
-      Label::dynamic(|version: &GameVersion, _| util::get_game_version(version).unwrap_or("".to_string())).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::game_version.in_arc()).padding(5.).expand_width()
+      Label::dynamic(|version: &GameVersion, _| util::get_game_version(version).unwrap_or_else(|| "".to_string())).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::game_version.in_arc()).padding(5.).expand_width()
     ]);
     
     fn recursive_split(idx: usize, mut widgets: VecDeque<SizedBox<Arc<ModEntry>>>, ratios: &[f64]) -> ControllerHost<Split<Arc<ModEntry>>, RowController> {
@@ -301,7 +301,7 @@ pub enum ModEntryError {
   FileError
 }
 
-#[derive(Debug, Clone, Deserialize, Eq, Ord, Data, Lens)]
+#[derive(Debug, Clone, Deserialize, Eq, Data, Lens)]
 pub struct ModVersionMeta {
   #[serde(alias="masterVersionFile")]
   pub remote_url: String,
@@ -331,6 +331,12 @@ impl PartialEq for ModVersionMeta {
 impl PartialOrd for ModVersionMeta {
   fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
     self.version.partial_cmp(&other.version)
+  }
+}
+
+impl Ord for ModVersionMeta {
+  fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    self.partial_cmp(other).unwrap()
   }
 }
 

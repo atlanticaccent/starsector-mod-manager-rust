@@ -31,9 +31,9 @@ pub enum LoadError {
 
 #[derive(Debug, Clone)]
 pub enum SaveError {
-  FileError,
-  WriteError,
-  FormatError,
+  File,
+  Write,
+  Format,
 }
 
 pub fn get_game_version(starsector_version: &(Option<String>, Option<String>, Option<String>, Option<String>)) -> Option<String> {
@@ -42,8 +42,8 @@ pub fn get_game_version(starsector_version: &(Option<String>, Option<String>, Op
     (major, minor, patch, rc) => {
       Some(format!(
         "{}.{}{}{}",
-        major.clone().unwrap_or("0".to_string()),
-        minor.clone().unwrap_or("".to_string()),
+        major.clone().unwrap_or_else(|| "0".to_string()),
+        minor.clone().unwrap_or_else(|| "".to_string()),
         patch.clone().map_or_else(|| "".to_string(), |p| format!(".{}", p)),
         rc.clone().map_or_else(|| "".to_string(), |rc| format!("a-RC{}", rc))
       ))
