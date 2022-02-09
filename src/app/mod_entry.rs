@@ -5,8 +5,8 @@ use std::{
   fmt::Display, collections::VecDeque, iter::FromIterator, sync::Arc
 };
 
-use druid::{widget::{Checkbox, Label, LineBreaking, SizedBox, Controller, ControllerHost, ViewSwitcher, Button}, WidgetExt, Lens, Data, Widget, Selector, LensExt, Color, KeyOrValue};
-use druid_widget_nursery::WidgetExt as WidgetExtNursery;
+use druid::{widget::{Checkbox, Label, LineBreaking, SizedBox, Controller, ControllerHost, ViewSwitcher, Button, Flex}, WidgetExt, Lens, Data, Widget, Selector, LensExt, Color, KeyOrValue};
+use druid_widget_nursery::{WidgetExt as WidgetExtNursery, material_icons::Icon};
 use serde::Deserialize;
 use json_comments::strip_comments;
 use json5;
@@ -15,10 +15,11 @@ use if_chain::if_chain;
 use serde_aux::prelude::*;
 use lazy_static::lazy_static;
 use regex::Regex;
+use tap::Tap;
 
 use crate::{app::{App, AppCommands, util::LabelExt}, patch::split::Split};
 
-use super::{util::{self, GREEN_KEY, RED_KEY, YELLOW_KEY, BLUE_KEY, ON_BLUE_KEY, ON_YELLOW_KEY, ON_RED_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ORANGE_KEY}, mod_list::headings};
+use super::{util::{self, GREEN_KEY, RED_KEY, YELLOW_KEY, BLUE_KEY, ON_BLUE_KEY, ON_YELLOW_KEY, ON_RED_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ORANGE_KEY, icons::*}, mod_list::headings};
 
 lazy_static! {
   static ref VERSION_REGEX: Regex = Regex::new(r"\.|a-RC|A-RC|a-rc|a").unwrap();
@@ -114,7 +115,29 @@ impl ModEntry {
       ViewSwitcher::new(
         |entry: &Arc<ModEntry>, _| entry.update_status.as_ref().and_then(|s| Some(s.as_text_colour())).unwrap_or(<KeyOrValue<Color>>::from(druid::theme::TEXT_COLOR)),
         |change, data, _| {
-          Box::new(Label::new(data.version.to_string()).with_line_break_mode(LineBreaking::WordWrap).with_text_color(change.clone()))
+          Box::new(
+            Flex::row()
+              .with_child(Label::new(data.version.to_string()).with_line_break_mode(LineBreaking::WordWrap).with_text_color(change.clone()))
+              .tap_mut(|row| {
+                let iter = match data.update_status.as_ref() {
+                  Some(UpdateStatus::Major(_)) => 3,
+                  Some(UpdateStatus::Minor(_)) => 2,
+                  Some(UpdateStatus::Patch(_)) => 1,
+                  _ => 0
+                };
+
+                row.add_flex_spacer(1.);
+                for _ in 0..iter {
+                  row.add_child(Icon::new(NEW_RELEASES))
+                }
+                match data.update_status.as_ref() {
+                  Some(UpdateStatus::Error) => row.add_child(Icon::new(REPORT)),
+                  Some(UpdateStatus::Discrepancy(_)) => row.add_child(Icon::new(HELP)),
+                  Some(UpdateStatus::UpToDate) => row.add_child(Icon::new(VERIFIED)),
+                  _ => {}
+                };
+              })
+          )
         }
       ).padding(5.).expand_width(),
       ViewSwitcher::new(

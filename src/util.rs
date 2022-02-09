@@ -7,6 +7,10 @@ use tap::Tap;
 
 use super::mod_entry::ModVersionMeta;
 
+pub(crate) mod icons;
+
+pub use icons::*;
+
 pub const ORANGE_KEY: Key<Color> = Key::new("util.colour.orange");
 pub const BLUE_KEY: Key<Color> = Key::new("util.colour.blue");
 pub const GREEN_KEY: Key<Color> = Key::new("util.colour.green");

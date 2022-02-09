@@ -6,12 +6,10 @@ use druid::{
   widget::{ClipBox, Controller, ControllerHost, Flex, Label, Painter, ViewSwitcher},
   Data, Lens, RenderContext, Selector, UnitPoint, Widget, WidgetExt,
 };
-use druid_widget_nursery::material_icons::{
-  normal::navigation::{ARROW_DROP_DOWN, ARROW_DROP_UP, UNFOLD_MORE},
-  Icon,
-};
+use druid_widget_nursery::material_icons::Icon;
 
 use super::Sorting;
+use super::util::icons::*;
 
 pub const RATIOS: [f64; 5] = [1. / 6., 1. / 5., 1. / 4., 1. / 3., 1. / 2.];
 pub const ENABLED_RATIO: f64 = 1. / 12.;
