@@ -74,14 +74,7 @@ impl ModList {
                   0
                 ))
                 .background(Painter::new(
-                  |ctx,
-                   (entry, i, ratios, game_version): &(
-                    Arc<ModEntry>,
-                    usize,
-                    Rc<[f64; 5]>,
-                    Rc<Option<GameVersion>>,
-                  ),
-                   env| {
+                  |ctx, (entry, i, ratios, game_version): &EntryAlias, env| {
                     let rect = ctx.size().to_rect();
                     // manually paint cells here to indicate version info
                     // set ratios in ModList through a command listener on this widget
@@ -333,11 +326,10 @@ impl ModList {
   }
 }
 
-impl ListIter<(Arc<ModEntry>, usize, Rc<[f64; 5]>, Rc<Option<GameVersion>>)> for ModList {
-  fn for_each(
-    &self,
-    mut cb: impl FnMut(&(Arc<ModEntry>, usize, Rc<[f64; 5]>, Rc<Option<GameVersion>>), usize),
-  ) {
+type EntryAlias = (Arc<ModEntry>, usize, Rc<[f64; 5]>, Rc<Option<GameVersion>>);
+
+impl ListIter<EntryAlias> for ModList {
+  fn for_each(&self, mut cb: impl FnMut(&EntryAlias, usize)) {
     let ratios = Rc::new(self.headings.ratios);
     let game_version = Rc::new(self.starsector_version.clone());
 
@@ -346,10 +338,7 @@ impl ListIter<(Arc<ModEntry>, usize, Rc<[f64; 5]>, Rc<Option<GameVersion>>)> for
     }
   }
 
-  fn for_each_mut(
-    &mut self,
-    mut cb: impl FnMut(&mut (Arc<ModEntry>, usize, Rc<[f64; 5]>, Rc<Option<GameVersion>>), usize),
-  ) {
+  fn for_each_mut(&mut self, mut cb: impl FnMut(&mut EntryAlias, usize)) {
     let ratios = Rc::new(self.headings.ratios);
     let game_version = Rc::new(self.starsector_version.clone());
 
