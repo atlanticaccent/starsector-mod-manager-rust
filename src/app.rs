@@ -28,7 +28,7 @@ use self::{
   mod_entry::ModEntry,
   mod_list::{EnabledMods, Filters, ModList},
   settings::{Settings, SettingsCommand},
-  util::{h2, h3, LabelExt, icons::*},
+  util::{h2, h3, LabelExt, icons::*, GET_INSTALLED_STARSECTOR, get_starsector_version},
 };
 
 mod installer;
@@ -49,6 +49,7 @@ pub struct App {
   runtime: Handle,
   #[data(ignore)]
   widget_id: WidgetId,
+  starsector_version: Option<String>
 }
 
 impl App {
@@ -79,6 +80,7 @@ impl App {
       active: None,
       runtime: handle,
       widget_id: WidgetId::reserved(0),
+      starsector_version: None,
     }
   }
 
@@ -390,6 +392,7 @@ impl Delegate<App> for AppDelegate {
         };
 
         data.mod_list.mods.clear();
+        data.runtime.spawn(get_starsector_version(ctx.get_external_handle(), new_install_dir.clone()));
         data.runtime.spawn(ModList::parse_mod_folder(
           ctx.get_external_handle(),
           Some(new_install_dir.clone()),
@@ -411,6 +414,8 @@ impl Delegate<App> for AppDelegate {
           Some(install_dir.clone()),
         ));
       }
+    } else if let Some(res) = cmd.get(GET_INSTALLED_STARSECTOR) {
+      App::mod_list.then(ModList::starsector_version).put(data, res.as_ref().ok().cloned());
     }
 
     Handled::No

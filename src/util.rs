@@ -1,11 +1,13 @@
-use std::{io::Read, sync::Arc};
+use std::{io::Read, sync::Arc, path::PathBuf};
 
-use druid::{widget::{Label, LensWrap, Flex, Axis, RawLabel}, Data, Lens, WidgetExt, Widget, ExtEventSink, Selector, Target, lens, text::{RichText, AttributeSpans, Attribute}, FontWeight, Key, Color};
+use druid::{widget::{Label, LensWrap, Flex, Axis, RawLabel}, Data, Lens, WidgetExt, Widget, ExtEventSink, Selector, Target, lens, text::{RichText, AttributeSpans, Attribute}, FontWeight, Key, Color, KeyOrValue};
 use if_chain::if_chain;
 use json_comments::strip_comments;
 use tap::Tap;
+use lazy_static::lazy_static;
+use regex::Regex;
 
-use super::mod_entry::ModVersionMeta;
+use super::mod_entry::{ModVersionMeta, GameVersion};
 
 pub(crate) mod icons;
 
@@ -36,7 +38,7 @@ pub enum SaveError {
   Format,
 }
 
-pub fn get_game_version(starsector_version: &(Option<String>, Option<String>, Option<String>, Option<String>)) -> Option<String> {
+pub fn get_quoted_version(starsector_version: &(Option<String>, Option<String>, Option<String>, Option<String>)) -> Option<String> {
   match starsector_version {
     (None, None, None, None) => None,
     (major, minor, patch, rc) => {
@@ -151,4 +153,158 @@ pub fn h2<T: Data>(text: &str) -> impl Widget<T> {
 
 pub fn h3<T: Data>(text: &str) -> impl Widget<T> {
   bold_header(text, 18., FontWeight::MEDIUM)
+}
+
+pub const GET_INSTALLED_STARSECTOR: Selector<Result<GameVersion, LoadError>> = Selector::new("util.starsector_version.get");
+
+pub async fn get_starsector_version(ext_ctx: ExtEventSink, install_dir: PathBuf) {
+  use classfile_parser::class_parser;
+  use tokio::{task, fs};
+  use regex::bytes::Regex;
+
+  let install_dir_clone = install_dir.clone();
+  let mut res = task::spawn_blocking(move || {
+    let mut zip = zip::ZipArchive::new(std::fs::File::open(install_dir_clone.join("starsector-core").join("starfarer_obf.jar")).unwrap()).unwrap();
+
+    // println!("{:?}", zip.file_names().collect::<Vec<&str>>());
+    
+    let mut version_class = zip.by_name("com/fs/starfarer/Version.class").map_err(|_| LoadError::NoSuchFile)?;
+
+    let mut buf: Vec<u8> = Vec::new();
+    version_class.read_to_end(&mut buf)
+      .map_err(|_| LoadError::ReadError)
+      .and_then(|_| {
+        class_parser(&buf).map_err(|_| LoadError::FormatError).map(|(_, class_file)| class_file)
+      })
+      .and_then(|class_file| {
+        class_file.fields.iter().find_map(|f| {
+          if_chain! {
+            if let classfile_parser::constant_info::ConstantInfo::Utf8(name) =  &class_file.const_pool[(f.name_index - 1) as usize];
+            if name.utf8_string == "versionOnly";
+            if let Ok((_, attr)) = classfile_parser::attribute_info::constant_value_attribute_parser(&f.attributes.first().unwrap().info);
+            if let classfile_parser::constant_info::ConstantInfo::Utf8(utf_const) = &class_file.const_pool[attr.constant_value_index as usize];
+            then {
+              Some(utf_const.utf8_string.clone())
+            } else {
+              None
+            }
+          }
+        }).ok_or(LoadError::FormatError)
+      })
+  }).await
+  .map_err(|_| LoadError::ReadError)
+  .flatten();
+
+  if res.is_err() {
+    lazy_static! {
+      static ref RE: Regex = Regex::new(r"Starting Starsector (.*) launcher").unwrap();
+    }
+    res = fs::read(install_dir.join("starsector-core").join("starsector.log")).await
+      .map_err(|_| LoadError::ReadError)
+      .and_then(|file| {
+        RE.captures(&file)
+          .and_then(|captures| captures.get(1))
+          .ok_or(LoadError::FormatError)
+          .and_then(|m| String::from_utf8(m.as_bytes().to_vec()).map_err(|_| LoadError::FormatError))
+      })
+  };
+
+  let parsed = res.map(|text| parse_game_version(&text));
+
+  if ext_ctx.submit_command(GET_INSTALLED_STARSECTOR, parsed, Target::Auto).is_err() {
+    eprintln!("Failed to submit starsector version back to main thread")
+  };
+}
+
+/**
+ * Parses a given version into a four-tuple of the assumed components.
+ * Assumptions:
+ * - The first component is always EITHER 0 and thus the major component OR it has been omitted and the first component is the minor component
+ * - If there are two components it is either the major and minor components OR minor and patch OR minor and RC (release candidate)
+ * - If there are three components it is either the major, minor and patch OR major, minor and RC OR minor, patch and RC
+ * - If there are four components then the first components MUST be 0 and MUST be the major component, and the following components 
+      are the minor, patch and RC components
+  */
+pub fn parse_game_version(text: &str) -> (Option<String>, Option<String>, Option<String>, Option<String>) {
+  lazy_static! {
+    static ref VERSION_REGEX: Regex = Regex::new(r"\.|a-RC|A-RC|a-rc|a").unwrap();
+  }
+  let components: Vec<&str> = VERSION_REGEX.split(text).filter(|c| !c.is_empty()).collect();
+
+  match components.as_slice() {
+    [major, minor] if major == &"0" => {
+      // text = format!("{}.{}a", major, minor);
+      (Some(major.to_string()), Some(minor.to_string()), None, None)
+    }
+    [minor, patch_rc] => {
+      // text = format!("0.{}a-RC{}", minor, rc);
+      if text.contains("a-RC") {
+        (Some("0".to_string()), Some(minor.to_string()), None, Some(patch_rc.to_string()))
+      } else {
+        (Some("0".to_string()), Some(minor.to_string()), Some(patch_rc.to_string()), None)
+      }
+    }
+    [major, minor, patch_rc] if major == &"0" => {
+      // text = format!("{}.{}a-RC{}", major, minor, rc);
+      if text.contains("a-RC") {
+        (Some(major.to_string()), Some(minor.to_string()), None, Some(patch_rc.to_string()))
+      } else {
+        (Some(major.to_string()), Some(minor.to_string()), Some(patch_rc.to_string()), None)
+      }
+    }
+    [minor, patch, rc] => {
+      // text = format!("0.{}.{}a-RC{}", minor, patch, rc);
+      (Some("0".to_string()), Some(minor.to_string()), Some(patch.to_string()), Some(rc.to_string()))
+    }
+    [major, minor, patch, rc] if major == &"0" => {
+      // text = format!("{}.{}.{}a-RC{}", major, minor, patch, rc);
+      (Some(major.to_string()), Some(minor.to_string()), Some(patch.to_string()), Some(rc.to_string()))
+    }
+    _ => {
+      dbg!("Failed to normalise mod's quoted game version");
+      (None, None, None, None)
+    }
+  }
+}
+
+pub enum StarsectorVersionDiff {
+  Major,
+  Minor,
+  Patch,
+  RC,
+  None
+}
+
+impl From<(&GameVersion, &GameVersion)> for StarsectorVersionDiff {
+  fn from(vals: (&GameVersion, &GameVersion)) -> Self {
+    match vals {
+      ((mod_major, ..), (game_major, ..)) if mod_major != game_major => {
+        StarsectorVersionDiff::Major
+      },
+      ((_, mod_minor, ..), (_, game_minor, ..)) if mod_minor != game_minor => {
+        StarsectorVersionDiff::Minor
+      },
+      ((.., mod_patch, _), (.., game_patch, _)) if mod_patch != game_patch => {
+        StarsectorVersionDiff::Patch
+      },
+      ((.., mod_rc), (.., game_rc)) if mod_rc != game_rc => {
+        StarsectorVersionDiff::RC
+      },
+      _ => {
+        StarsectorVersionDiff::None
+      }
+    }
+  }
+}
+
+impl From<StarsectorVersionDiff> for KeyOrValue<Color> {
+  fn from(status: StarsectorVersionDiff) -> Self {
+    match status {
+      StarsectorVersionDiff::Major => RED_KEY.into(),
+      StarsectorVersionDiff::Minor => ORANGE_KEY.into(),
+      StarsectorVersionDiff::Patch => YELLOW_KEY.into(),
+      StarsectorVersionDiff::RC => BLUE_KEY.into(),
+      StarsectorVersionDiff::None => GREEN_KEY.into()
+    }
+  }
 }

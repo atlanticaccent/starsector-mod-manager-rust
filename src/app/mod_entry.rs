@@ -13,19 +13,13 @@ use json_comments::strip_comments;
 
 use if_chain::if_chain;
 use serde_aux::prelude::*;
-use lazy_static::lazy_static;
-use regex::Regex;
 use tap::Tap;
 
-use crate::{app::{App, AppCommands, util::LabelExt}, patch::split::Split};
+use crate::{app::{App, AppCommands, util::{LabelExt, parse_game_version}}, patch::split::Split};
 
 use super::{util::{self, GREEN_KEY, RED_KEY, YELLOW_KEY, BLUE_KEY, ON_BLUE_KEY, ON_YELLOW_KEY, ON_RED_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ORANGE_KEY, icons::*}, mod_list::headings};
 
-lazy_static! {
-  static ref VERSION_REGEX: Regex = Regex::new(r"\.|a-RC|A-RC|a-rc|a").unwrap();
-}
-
-type GameVersion = (Option<String>, Option<String>, Option<String>, Option<String>);
+pub type GameVersion = (Option<String>, Option<String>, Option<String>, Option<String>);
 
 #[derive(Debug, Clone, Deserialize, Data, Lens, PartialEq, Default)]
 pub struct ModEntry {
@@ -162,7 +156,7 @@ impl ModEntry {
           }
         }
       ).padding(5.).expand_width(),
-      Label::dynamic(|version: &GameVersion, _| util::get_game_version(version).unwrap_or_else(|| "".to_string())).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::game_version.in_arc()).padding(5.).expand_width()
+      Label::dynamic(|version: &GameVersion, _| util::get_quoted_version(version).unwrap_or_else(|| "".to_string())).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::game_version.in_arc()).padding(5.).expand_width()
     ]);
     
     fn recursive_split(idx: usize, mut widgets: VecDeque<SizedBox<Arc<ModEntry>>>, ratios: &[f64]) -> ControllerHost<Split<Arc<ModEntry>>, RowController> {
@@ -216,54 +210,6 @@ impl Controller<Arc<ModEntry>, Split<Arc<ModEntry>>> for RowController {
     }
 
     child.event(ctx, event, data, env)
-  }
-}
-
-  /**
-   * Parses a given version into a four-tuple of the assumed components.
-   * Assumptions:
-   * - The first component is always EITHER 0 and thus the major component OR it has been omitted and the first component is the minor component
-   * - If there are two components it is either the major and minor components OR minor and patch OR minor and RC (release candidate)
-   * - If there are three components it is either the major, minor and patch OR major, minor and RC OR minor, patch and RC
-   * - If there are four components then the first components MUST be 0 and MUST be the major component, and the following components 
-        are the minor, patch and RC components
-   */
-fn parse_game_version(text: &str) -> (Option<String>, Option<String>, Option<String>, Option<String>) {
-  let components: Vec<&str> = VERSION_REGEX.split(text).filter(|c| !c.is_empty()).collect();
-
-  match components.as_slice() {
-    [major, minor] if major == &"0" => {
-      // text = format!("{}.{}a", major, minor);
-      (Some(major.to_string()), Some(minor.to_string()), None, None)
-    }
-    [minor, patch_rc] => {
-      // text = format!("0.{}a-RC{}", minor, rc);
-      if text.contains("a-RC") {
-        (Some("0".to_string()), Some(minor.to_string()), None, Some(patch_rc.to_string()))
-      } else {
-        (Some("0".to_string()), Some(minor.to_string()), Some(patch_rc.to_string()), None)
-      }
-    }
-    [major, minor, patch_rc] if major == &"0" => {
-      // text = format!("{}.{}a-RC{}", major, minor, rc);
-      if text.contains("a-RC") {
-        (Some(major.to_string()), Some(minor.to_string()), None, Some(patch_rc.to_string()))
-      } else {
-        (Some(major.to_string()), Some(minor.to_string()), Some(patch_rc.to_string()), None)
-      }
-    }
-    [minor, patch, rc] => {
-      // text = format!("0.{}.{}a-RC{}", minor, patch, rc);
-      (Some("0".to_string()), Some(minor.to_string()), Some(patch.to_string()), Some(rc.to_string()))
-    }
-    [major, minor, patch, rc] if major == &"0" => {
-      // text = format!("{}.{}.{}a-RC{}", major, minor, patch, rc);
-      (Some(major.to_string()), Some(minor.to_string()), Some(patch.to_string()), Some(rc.to_string()))
-    }
-    _ => {
-      dbg!("Failed to normalise mod's quoted game version");
-      (None, None, None, None)
-    }
   }
 }
 
