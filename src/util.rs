@@ -79,12 +79,26 @@ pub fn make_flex_pair<T: Data>(label: impl Widget<T> + 'static, ratio_1: f64, va
     .with_flex_child(val.expand_width(), ratio_2)
 }
 
-pub fn make_description_row<T: Data>(label: impl Widget<T> + 'static, val: impl Widget<T> + 'static) -> impl Widget<T> {
+pub fn make_flex_description_row<T: Data>(label: impl Widget<T> + 'static, val: impl Widget<T> + 'static) -> Flex<T> {
   make_flex_pair(label, 1., val, 1.5, Axis::Horizontal)
 }
 
-pub fn make_column_pair<T: Data>(label: impl Widget<T> + 'static, val: impl Widget<T> + 'static) -> impl Widget<T> {
+pub fn make_flex_column_pair<T: Data>(label: impl Widget<T> + 'static, val: impl Widget<T> + 'static) -> Flex<T> {
   make_flex_pair(label, 1., val, 1., Axis::Vertical)
+}
+
+pub fn make_pair<T: Data>(label: impl Widget<T> + 'static, val: impl Widget<T> + 'static, axis: Axis) -> Flex<T> {
+  Flex::for_axis(axis)
+    .with_child(label.expand_width())
+    .with_child(val.expand_width())
+}
+
+pub fn make_description_row<T: Data>(label: impl Widget<T> + 'static, val: impl Widget<T> + 'static) -> Flex<T> {
+  make_pair(label, val, Axis::Horizontal)
+}
+
+pub fn make_column_pair<T: Data>(label: impl Widget<T> + 'static, val: impl Widget<T> + 'static) -> Flex<T> {
+  make_pair(label, val, Axis::Vertical)
 }
 
 pub const MASTER_VERSION_RECEIVED: Selector<(String, Result<ModVersionMeta, String>)> = Selector::new("remote_version_received");

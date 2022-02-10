@@ -4,7 +4,7 @@ use druid::{Widget, widget::{Label, Flex, Scroll, Button, Maybe}, WidgetExt, Len
 
 use super::{ModEntry, mod_entry::ModVersionMeta};
 
-use super::util::{LabelExt, make_description_row};
+use super::util::{LabelExt, make_flex_description_row};
 
 #[derive(Default)]
 pub struct ModDescription {}
@@ -19,25 +19,25 @@ impl ModDescription {
         Flex::row()
           .with_flex_child(
             Flex::column()
-              .with_child(make_description_row(
+              .with_child(make_flex_description_row(
                 Label::wrapped("Name:"),
                 Label::wrapped_lens(ModEntry::name.in_arc())
-              )).with_child(make_description_row(
+              )).with_child(make_flex_description_row(
                 Label::wrapped("ID:"),
                 Label::wrapped_lens(ModEntry::id.in_arc())
-              )).with_child(make_description_row(
+              )).with_child(make_flex_description_row(
                 Label::wrapped("Author(s):"),
                 Label::wrapped_lens(ModEntry::author.in_arc())
-              )).with_child(make_description_row(
+              )).with_child(make_flex_description_row(
                 Label::wrapped("Enabled:"),
                 Label::wrapped_lens(ModEntry::enabled.in_arc().map(|e| e.to_string(), |_, _| {}))
-              )).with_child(make_description_row(
+              )).with_child(make_flex_description_row(
                 Label::wrapped("Version:"),
                 Label::wrapped_lens(ModEntry::version.in_arc().map(|v| v.to_string(), |_, _| {}))
               )).with_child(
                 Maybe::or_empty(|| {
                   Maybe::or_empty(|| {
-                    make_description_row(
+                    make_flex_description_row(
                       Label::wrapped("Fractal link:"),
                       Button::from_label(Label::wrapped_func(|data: &String, _: &druid::Env| format!("{}{}", ModDescription::FRACTAL_URL, data.clone()))).on_click(|_, data, _| {
                         if let Err(err) = opener::open(format!("{}{}", ModDescription::FRACTAL_URL, data)) {
@@ -54,7 +54,7 @@ impl ModDescription {
               ).with_child(
                 Maybe::or_empty(|| {
                   Maybe::or_empty(|| {
-                    make_description_row(
+                    make_flex_description_row(
                       Label::wrapped("Nexus link:"),
                       Button::from_label(Label::wrapped_func(|data: &String, _: &druid::Env| format!("{}{}", ModDescription::NEXUS_URL, data.clone()))).on_click(|_, data, _| {
                         if let Err(err) = opener::open(format!("{}{}", ModDescription::NEXUS_URL, data)) {

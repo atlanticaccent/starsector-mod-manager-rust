@@ -6,7 +6,7 @@ use druid::{
   lens,
   widget::{
     Axis, Button, Checkbox, Controller, Flex, Label, Scope, ScopeTransfer, Tabs, TabsPolicy,
-    TextBox, ViewSwitcher, Painter,
+    TextBox, ViewSwitcher, Painter, Maybe,
   },
   AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Event, EventCtx, Handled, KeyEvent,
   Lens, LensExt, Menu, MenuItem, Selector, Target, Widget, WidgetExt, WidgetId, WindowDesc,
@@ -28,7 +28,7 @@ use self::{
   mod_entry::ModEntry,
   mod_list::{EnabledMods, Filters, ModList},
   settings::{Settings, SettingsCommand},
-  util::{h2, h3, LabelExt, icons::*, GET_INSTALLED_STARSECTOR, get_starsector_version},
+  util::{h2, h3, LabelExt, icons::*, GET_INSTALLED_STARSECTOR, get_starsector_version, make_flex_column_pair, get_quoted_version, make_column_pair},
 };
 
 mod installer;
@@ -284,8 +284,18 @@ impl App {
       })
       .padding(20.);
     let launch_panel = Flex::column()
+      .with_child(make_column_pair(
+        h2("Starsector Version:"),
+        Maybe::new(
+          || Label::wrapped_func(|v: &String, _| v.clone()),
+          || Label::new("Unknown")
+        ).lens(App::mod_list.then(ModList::starsector_version).map(
+          |v| v.as_ref().and_then(|v| get_quoted_version(v)),
+          |_, _| {}
+        ))
+      ))
       .with_child(install_dir_browser)
-      .main_axis_alignment(druid::widget::MainAxisAlignment::Center)
+      .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
       .expand()
       .padding(20.);
     let side_panel = Tabs::for_policy(

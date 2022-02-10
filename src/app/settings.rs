@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use self::vmparams::{Unit, VMParams, Value};
 
-use super::util::{make_description_row, LabelExt, LoadError, SaveError, make_flex_pair, h2};
+use super::util::{make_flex_description_row, LabelExt, LoadError, SaveError, make_flex_pair, h2, make_column_pair};
 
 pub mod vmparams;
 
@@ -59,14 +59,14 @@ impl Settings {
         Flex::column()
           .with_child(Self::install_dir_browser_builder(Axis::Horizontal).padding(TRAILING_PADDING))
           .with_child(
-            make_description_row(
+            make_flex_description_row(
               Label::wrapped("Warn when overwriting '.git' folders:"),
               Checkbox::new("").lens(Settings::git_warn),
             )
             .padding(TRAILING_PADDING),
           )
           .with_child(
-            make_description_row(
+            make_flex_description_row(
               Label::wrapped("Enable vmparams editing:"),
               Checkbox::new("").lens(Settings::vmparams_enabled),
             )
@@ -153,7 +153,7 @@ impl Settings {
             .padding(TRAILING_PADDING),
           )
           .with_child(
-            make_description_row(
+            make_flex_description_row(
               Label::wrapped("Enable experimental direct launch:"),
               Checkbox::new("").lens(Settings::experimental_launch),
             )
@@ -166,7 +166,7 @@ impl Settings {
                 if *enabled {
                   let res_lens = lens::Identity.then(Settings::experimental_resolution);
 
-                  return Box::new(make_description_row(
+                  return Box::new(make_flex_description_row(
                     SizedBox::empty(),
                     Flex::column()
                       .with_child(
@@ -242,9 +242,8 @@ impl Settings {
         )
       },
       Axis::Vertical => {
-        make_flex_pair(
+        make_column_pair(
           h2("Starsector Install Directory:"),
-          1.,
           Flex::for_axis(axis)
             .with_child(input.expand_width())
             .with_child(Button::new("Browse...").on_click(|ctx, _, _| {
@@ -257,9 +256,7 @@ impl Settings {
                   .to(Target::Global),
               )
             }))
-            .cross_axis_alignment(druid::widget::CrossAxisAlignment::End),
-          1.,
-          axis
+            .cross_axis_alignment(druid::widget::CrossAxisAlignment::End)
         )
       }
     }
