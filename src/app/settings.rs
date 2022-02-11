@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use self::vmparams::{Unit, VMParams, Value};
 
-use super::util::{make_flex_description_row, LabelExt, LoadError, SaveError, make_flex_pair, h2, make_column_pair};
+use super::util::{make_flex_description_row, LabelExt, LoadError, SaveError, make_flex_pair, h2, make_column_pair, h3};
 
 pub mod vmparams;
 
@@ -46,9 +46,7 @@ impl Settings {
   pub fn ui_builder() -> impl Widget<Self> {
     Flex::column()
       .with_child(
-        Label::new("Settings")
-          .with_text_size(theme::TEXT_SIZE_LARGE)
-          .with_font(theme::UI_FONT_BOLD)
+        h3("Settings")
           .center()
           .padding(2.)
           .expand_width()
@@ -96,8 +94,8 @@ impl Settings {
                     Flex::column()
                       .with_child(
                         Flex::row()
-                          .with_flex_child(SizedBox::empty().expand_width(), 2.25)
-                          .with_flex_child(Label::new("Minimum RAM:").expand_width(), 1.)
+                          .with_flex_child(Label::new("Minimum RAM:").align_right().expand_width(), 3.25)
+                          .with_spacer(5.)
                           .with_flex_child(
                             TextBox::new()
                               .with_formatter(ParseFormatter::new())
@@ -117,8 +115,8 @@ impl Settings {
                       )
                       .with_child(
                         Flex::row()
-                          .with_flex_child(SizedBox::empty().expand_width(), 2.25)
-                          .with_flex_child(Label::new("Maximum RAM:").expand_width(), 1.)
+                          .with_flex_child(Label::new("Maximum RAM:").align_right().expand_width(), 3.25)
+                          .with_spacer(5.)
                           .with_flex_child(
                             TextBox::new()
                               .with_formatter(ParseFormatter::new())
@@ -166,30 +164,33 @@ impl Settings {
                 if *enabled {
                   let res_lens = lens::Identity.then(Settings::experimental_resolution);
 
-                  return Box::new(make_flex_description_row(
-                    SizedBox::empty(),
+                  return Box::new(
                     Flex::column()
                       .with_child(
                         Flex::row()
-                          .with_flex_child(Label::new("Horizontal Resolution:"), 1.)
+                          .with_flex_child(Label::new("Horizontal Resolution:").align_right().expand_width(), 3.25)
+                          .with_spacer(5.)
                           .with_flex_child(
                             TextBox::new()
                               .with_formatter(ParseFormatter::new())
-                              .lens(res_lens.clone().then(lens!((u32, u32), 0))),
-                            1.,
+                              .lens(res_lens.clone().then(lens!((u32, u32), 0)))
+                              .expand_width(),
+                            3.5,
                           ),
                       )
                       .with_child(
                         Flex::row()
-                          .with_flex_child(Label::new("Vertical Resolution:"), 1.)
+                          .with_flex_child(Label::new("Vertical Resolution:").align_right().expand_width(), 3.25)
+                          .with_spacer(5.)
                           .with_flex_child(
                             TextBox::new()
                               .with_formatter(ParseFormatter::new())
-                              .lens(res_lens.then(lens!((u32, u32), 1))),
-                            1.,
+                              .lens(res_lens.then(lens!((u32, u32), 1)))
+                              .expand_width(),
+                            3.5,
                           ),
                       ),
-                  ));
+                  );
                 }
                 Box::new(SizedBox::empty())
               },
