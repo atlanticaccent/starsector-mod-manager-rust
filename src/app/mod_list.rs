@@ -110,10 +110,7 @@ impl ModList {
                         (row_rect.origin().x + cell_right, row_rect.height()),
                       );
 
-                      let color = match <KeyOrValue<Color>>::from(update_status) {
-                        KeyOrValue::Concrete(col) => col,
-                        KeyOrValue::Key(key) => env.get(key),
-                      };
+                      let color = <KeyOrValue<Color>>::from(update_status).resolve(env);
                       ctx.fill(cell_0_rect, &color)
                     }
                     if let Some(game_version) = game_version.as_ref() {
@@ -129,10 +126,7 @@ impl ModList {
                         (row_rect.max_x(), row_rect.height()),
                       );
 
-                      let color = match <KeyOrValue<Color>>::from(diff) {
-                        KeyOrValue::Concrete(col) => col,
-                        KeyOrValue::Key(key) => env.get(key),
-                      };
+                      let color = <KeyOrValue<Color>>::from(diff).resolve(env);
                       ctx.fill(cell_0_rect, &color)
                     }
                   },
