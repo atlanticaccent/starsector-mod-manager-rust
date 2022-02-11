@@ -11,7 +11,7 @@ description = "A mod manager for the game Starsector"
 druid = { git = "https://github.com/linebender/druid", rev = "fc05e965c85fced8720c655685e02478e0530e94" }
 druid-widget-nursery = { git = "https://github.com/linebender/druid-widget-nursery", rev = "f302b2d668dac7801af7b1e4e6f22e1b3accce42", features = ["material-icons"] }
 infer = "0.3.4"
-tokio = { version = "1.6.0", features = ["fs", "io-util", "rt-multi-thread"] }
+tokio = { version = "1.6.0", features = ["fs", "io-util", "rt-multi-thread", "process"] }
 serde = { version = "1.0.126", features = ["derive"] }
 serde_json = "1.0"
 json5 = "0.3.0"
