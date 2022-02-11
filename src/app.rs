@@ -352,6 +352,22 @@ impl App {
           .with_child(install_mod_button)
           .with_spacer(10.)
           .with_child(refresh)
+          .with_spacer(10.)
+          .with_child(ViewSwitcher::new(
+            |len: &usize, _| *len,
+            |len, _, _| Box::new(h3(&format!("Installed: {}", len)))
+          ).lens(App::mod_list.then(ModList::mods).map(
+            |data| data.len(),
+            |_, _| {}
+          )))
+          .with_spacer(10.)
+          .with_child(ViewSwitcher::new(
+            |len: &usize, _| *len,
+            |len, _, _| Box::new(h3(&format!("Active: {}", len)))
+          ).lens(App::mod_list.then(ModList::mods).map(
+            |data| data.values().filter(|e| e.enabled).count(),
+            |_, _| {}
+          )))
           .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
           .expand_width(),
       )
