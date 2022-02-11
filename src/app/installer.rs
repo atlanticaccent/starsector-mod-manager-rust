@@ -67,20 +67,16 @@ async fn handle_path(ext_ctx: ExtEventSink, path: PathBuf, mods_dir: Arc<PathBuf
 
         mod_info.set_path(mods_dir.join(&mod_info.id));
         ext_ctx.submit_command(INSTALL, ChannelMessage::Success(Arc::new(mod_info)), Target::Auto).expect("Send success over async channel");
-      } else if let Some(id) = installed.iter().find(|existing| **existing == mod_info.id) {
-        mod_folder = match mod_folder {
-          HybridPath::PathBuf(_) => HybridPath::PathBuf(mod_path.clone()),
-          HybridPath::Temp(temp, _) => HybridPath::Temp(temp, Some(mod_path.clone()))
-        };
-
-        ext_ctx.submit_command(INSTALL, ChannelMessage::Duplicate(id.clone().into(), mod_folder, Arc::new(mod_info)), Target::Auto).expect("Send query over async channel");
       } else {
         mod_folder = match mod_folder {
           HybridPath::PathBuf(_) => HybridPath::PathBuf(mod_path.clone()),
           HybridPath::Temp(temp, _) => HybridPath::Temp(temp, Some(mod_path.clone()))
         };
-
-        ext_ctx.submit_command(INSTALL, ChannelMessage::Duplicate(mod_path.into(), mod_folder, Arc::new(mod_info)), Target::Auto).expect("Send query over async channel");
+        if let Some(id) = installed.iter().find(|existing| **existing == mod_info.id) {
+          ext_ctx.submit_command(INSTALL, ChannelMessage::Duplicate(id.clone().into(), mod_folder, Arc::new(mod_info)), Target::Auto).expect("Send query over async channel");
+        } else {
+          ext_ctx.submit_command(INSTALL, ChannelMessage::Duplicate(mod_path.into(), mod_folder, Arc::new(mod_info)), Target::Auto).expect("Send query over async channel");
+        }
       }
     } else {
       ext_ctx.submit_command(INSTALL, ChannelMessage::Error("Could not find mod folder or parse mod_info file.".to_string()), Target::Auto).expect("Send error over async channel");

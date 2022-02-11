@@ -2,15 +2,14 @@ use std::{
   collections::{BTreeMap, HashSet},
   path::{Path, PathBuf},
   rc::Rc,
-  string::ToString,
   sync::Arc,
 };
 
 use druid::{
-  commands, lens, theme,
-  widget::{Button, Controller, Either, Flex, Label, List, ListIter, Painter, Scroll},
-  Color, Data, Env, ExtEventSink, KeyOrValue, Lens, LensExt, Rect, RenderContext, Selector, Target,
-  Widget, WidgetExt, WindowConfig,
+  lens, theme,
+  widget::{Either, Flex, Label, List, ListIter, Painter, Scroll},
+  Color, Data, ExtEventSink, KeyOrValue, Lens, LensExt, Rect, RenderContext, Selector, Target,
+  Widget, WidgetExt,
 };
 use druid_widget_nursery::WidgetExt as WidgetExtNursery;
 use if_chain::if_chain;
@@ -22,7 +21,7 @@ use sublime_fuzzy::best_match;
 use crate::app::util::StarsectorVersionDiff;
 
 use super::{
-  installer::{self, ChannelMessage, HybridPath, StringOrPath},
+  installer::HybridPath,
   mod_entry::{GameVersion, ModEntry, UpdateStatus},
   util::{self, SaveError},
 };
@@ -156,8 +155,7 @@ impl ModList {
                 data.active_filters.remove(filter)
               };
               ctx.children_changed()
-            })
-            .controller(InstallController),
+            }),
           )
           .vertical(),
           Label::new("No mods")
@@ -352,136 +350,6 @@ impl ListIter<EntryAlias> for ModList {
 
   fn data_len(&self) -> usize {
     self.mods.len()
-  }
-}
-
-struct InstallController;
-
-impl<W: Widget<ModList>> Controller<ModList, W> for InstallController {
-  fn event(
-    &mut self,
-    child: &mut W,
-    ctx: &mut druid::EventCtx,
-    event: &druid::Event,
-    mod_list: &mut ModList,
-    env: &Env,
-  ) {
-    if let druid::Event::Command(cmd) = event {
-      if let Some(payload) = cmd.get(installer::INSTALL) {
-        match payload {
-          ChannelMessage::Success(entry) => {
-            mod_list.mods.insert(entry.id.clone(), entry.clone());
-            ctx.children_changed();
-            println!("Successfully installed {}", entry.id.clone())
-          }
-          ChannelMessage::Duplicate(conflict, to_install, entry) => {
-            let widget = Flex::column()
-              .with_child(Label::new(format!(
-                "Encountered conflict when trying to install {}",
-                entry.id
-              )))
-              .with_child(Label::new(match conflict {
-                StringOrPath::String(id) => format!("A mod with ID {} alread exists.", id),
-                StringOrPath::Path(path) => format!(
-                  "A folder already exists at the path {}.",
-                  path.to_string_lossy()
-                ),
-              }))
-              .with_child(Label::new(format!(
-                "Would you like to replace the existing {}?",
-                if let StringOrPath::String(_) = conflict {
-                  "mod"
-                } else {
-                  "folder"
-                }
-              )))
-              .with_default_spacer()
-              .with_child(
-                Flex::row()
-                  .with_child(Button::new("Overwrite").on_click({
-                    let conflict = match conflict {
-                      StringOrPath::String(id) => mod_list.mods.get(id).unwrap().path.clone(),
-                      StringOrPath::Path(path) => path.clone(),
-                    };
-                    let to_install = to_install.clone();
-                    let entry = entry.clone();
-                    move |ctx, _, _| {
-                      ctx.submit_command(commands::CLOSE_WINDOW);
-                      ctx.submit_command(
-                        ModList::OVERWRITE
-                          .with((conflict.clone(), to_install.clone(), entry.clone()))
-                          .to(Target::Global),
-                      )
-                    }
-                  }))
-                  .with_child(
-                    Button::new("Cancel")
-                      .on_click(|ctx, _, _| ctx.submit_command(commands::CLOSE_WINDOW)),
-                  ),
-              )
-              .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start);
-
-            ctx.new_sub_window(
-              WindowConfig::default()
-                .resizable(true)
-                .window_size((500.0, 200.0)),
-              widget,
-              mod_list.clone(),
-              env.clone(),
-            );
-          }
-          ChannelMessage::Error(err) => {
-            eprintln!("Failed to install {}", err);
-          }
-        }
-      }
-    } else if let druid::Event::Notification(notif) = event {
-      if let Some(entry) = notif.get(ModEntry::AUTO_UPDATE) {
-        let widget = Flex::column()
-          .with_child(Label::new(format!(
-            "Would you like to automatically update {}?",
-            entry.name
-          )))
-          .with_child(Label::new(format!("Installed version: {}", entry.version)))
-          .with_child(Label::new(format!(
-            "New version: {}",
-            entry
-              .remote_version
-              .as_ref()
-              .map(|v| v.version.to_string())
-              .unwrap_or_else(|| String::from(
-                "Error: failed to retrieve version, this shouldn't be possible."
-              ))
-          )))
-          .with_default_spacer()
-          .with_child(
-            Flex::row()
-              .with_child(Button::new("Update").on_click({
-                let entry = entry.clone();
-                move |ctx, _, _| {
-                  ctx.submit_command(commands::CLOSE_WINDOW);
-                  ctx.submit_command(ModList::AUTO_UPDATE.with(entry.clone()).to(Target::Global))
-                }
-              }))
-              .with_child(
-                Button::new("Cancel")
-                  .on_click(|ctx, _, _| ctx.submit_command(commands::CLOSE_WINDOW)),
-              ),
-          )
-          .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start);
-
-        ctx.new_sub_window(
-          WindowConfig::default()
-            .resizable(true)
-            .window_size((500.0, 200.0)),
-          widget,
-          mod_list.clone(),
-          env.clone(),
-        );
-      }
-    }
-
-    child.event(ctx, event, mod_list, env)
   }
 }
 

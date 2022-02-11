@@ -1,6 +1,6 @@
 use std::{io::Read, sync::Arc, path::PathBuf};
 
-use druid::{widget::{Label, LensWrap, Flex, Axis, RawLabel}, Data, Lens, WidgetExt, Widget, ExtEventSink, Selector, Target, lens, text::{RichText, AttributeSpans, Attribute}, FontWeight, Key, Color, KeyOrValue};
+use druid::{widget::{Label, LensWrap, Flex, Axis, RawLabel, Controller}, Data, Lens, WidgetExt, Widget, ExtEventSink, Selector, Target, lens, text::{RichText, AttributeSpans, Attribute}, FontWeight, Key, Color, KeyOrValue, Point, EventCtx, Event};
 use if_chain::if_chain;
 use json_comments::strip_comments;
 use tap::Tap;
@@ -320,5 +320,43 @@ impl From<StarsectorVersionDiff> for KeyOrValue<Color> {
       StarsectorVersionDiff::RC => BLUE_KEY.into(),
       StarsectorVersionDiff::None => GREEN_KEY.into()
     }
+  }
+}
+
+#[derive(Default)]
+pub struct DragWindowController {
+  init_pos: Option<Point>,
+  //dragging: bool
+}
+
+impl<T, W: Widget<T>> Controller<T, W> for DragWindowController {
+  fn event(
+    &mut self,
+    child: &mut W,
+    ctx: &mut EventCtx,
+    event: &Event,
+    data: &mut T,
+    env: &druid::Env,
+  ) {
+    match event {
+      Event::MouseDown(me) if me.buttons.has_left() => {
+        ctx.set_active(true);
+        self.init_pos = Some(me.window_pos)
+      }
+      Event::MouseMove(me) if ctx.is_active() && me.buttons.has_left() => {
+        if let Some(init_pos) = self.init_pos {
+          let within_window_change = me.window_pos.to_vec2() - init_pos.to_vec2();
+          let old_pos = ctx.window().get_position();
+          let new_pos = old_pos + within_window_change;
+          ctx.window().set_position(new_pos)
+        }
+      }
+      Event::MouseUp(_me) if ctx.is_active() => {
+        self.init_pos = None;
+        ctx.set_active(false)
+      }
+      _ => (),
+    }
+    child.event(ctx, event, data, env)
   }
 }

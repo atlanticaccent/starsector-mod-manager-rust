@@ -10,7 +10,7 @@ use druid::{
   },
   AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Event, EventCtx, Handled, KeyEvent,
   Lens, LensExt, Menu, MenuItem, Selector, Target, Widget, WidgetExt, WidgetId, WindowDesc,
-  WindowId, RenderContext, theme,
+  WindowId, RenderContext, theme, WindowConfig,
 };
 use druid_widget_nursery::{WidgetExt as WidgetExtNursery, material_icons::Icon};
 use rfd::{AsyncFileDialog, FileHandle};
@@ -29,7 +29,7 @@ use self::{
   mod_entry::ModEntry,
   mod_list::{EnabledMods, Filters, ModList},
   settings::{Settings, SettingsCommand},
-  util::{h2, h3, LabelExt, icons::*, GET_INSTALLED_STARSECTOR, get_starsector_version, get_quoted_version, make_column_pair},
+  util::{h2, h3, LabelExt, icons::*, GET_INSTALLED_STARSECTOR, get_starsector_version, get_quoted_version, make_column_pair, DragWindowController}, installer::{ChannelMessage, StringOrPath},
 };
 
 mod installer;
@@ -618,6 +618,160 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
           );
         }
         ctx.is_handled();
+      } else if let Some(payload) = cmd.get(installer::INSTALL) {
+        match payload {
+          ChannelMessage::Success(entry) => {
+            data.mod_list.mods.insert(entry.id.clone(), entry.clone());
+            ctx.children_changed();
+            println!("Successfully installed {}", entry.id.clone())
+          }
+          ChannelMessage::Duplicate(conflict, to_install, entry) => {
+            let widget = Flex::column()
+              .with_child(
+                h3("Overwrite existing?")
+                  .center()
+                  .padding(2.)
+                  .expand_width()
+                  .background(theme::BACKGROUND_LIGHT)
+                  .controller(DragWindowController::default()),
+              )
+              .with_child(Label::new(format!(
+                "Encountered conflict when trying to install {}",
+                entry.id
+              )))
+              .with_child(Label::new(match conflict {
+                StringOrPath::String(id) => format!("A mod with ID {} alread exists.", id),
+                StringOrPath::Path(path) => format!(
+                  "A folder already exists at the path {}.",
+                  path.to_string_lossy()
+                ),
+              }))
+              .with_child(Maybe::or_empty(
+                || Label::wrapped("NOTE: A .git directory has been detected in the target directory. Are you sure this isn't being used for development?")
+              ).lens(lens::Constant(data.settings.git_warn.then(|| {
+                let maybe_path = match conflict {
+                  StringOrPath::String(id) => data.mod_list.mods.get(id).and_then(|e| Some(&e.path)),
+                  StringOrPath::Path(path) => Some(path),
+                };
+
+                maybe_path.and_then(|p| {
+                  if p.join(".git").exists() {
+                    Some(())
+                  } else {
+                    None
+                  }
+                })
+              }).flatten())))
+              .with_child(Label::new(format!(
+                "Would you like to replace the existing {}?",
+                if let StringOrPath::String(_) = conflict {
+                  "mod"
+                } else {
+                  "folder"
+                }
+              )))
+              .with_flex_spacer(1.)
+              .with_child(
+                Flex::row()
+                  .with_flex_spacer(1.)
+                  .with_child(Button::new("Overwrite").on_click({
+                    let conflict = match conflict {
+                      StringOrPath::String(id) => data.mod_list.mods.get(id).unwrap().path.clone(),
+                      StringOrPath::Path(path) => path.clone(),
+                    };
+                    let to_install = to_install.clone();
+                    let entry = entry.clone();
+                    move |ctx, _, _| {
+                      ctx.submit_command(commands::CLOSE_WINDOW);
+                      ctx.submit_command(
+                        ModList::OVERWRITE
+                          .with((conflict.clone(), to_install.clone(), entry.clone()))
+                          .to(Target::Global),
+                      )
+                    }
+                  }))
+                  .with_child(
+                    Button::new("Cancel")
+                      .on_click(|ctx, _, _| ctx.submit_command(commands::CLOSE_WINDOW)),
+                  ),
+              )
+              .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start);
+  
+            ctx.new_sub_window(
+              WindowConfig::default().show_titlebar(false)
+                .resizable(true)
+                .window_size((500.0, 200.0)),
+              widget,
+              data.mod_list.clone(),
+              env.clone(),
+            );
+          }
+          ChannelMessage::Error(err) => {
+            eprintln!("Failed to install {}", err);
+          }
+        }
+      }
+    } else if let Event::Notification(notif) = event {
+      if let Some(entry) = notif.get(ModEntry::AUTO_UPDATE) {
+        let widget = Flex::column()
+          .with_child(
+            h3("Auto-update?")
+              .center()
+              .padding(2.)
+              .expand_width()
+              .background(theme::BACKGROUND_LIGHT)
+              .controller(DragWindowController::default()),
+          )
+          .with_child(Label::new(format!(
+            "Would you like to automatically update {}?",
+            entry.name
+          )))
+          .with_child(Label::new(format!("Installed version: {}", entry.version)))
+          .with_child(Label::new(format!(
+            "New version: {}",
+            entry
+              .remote_version
+              .as_ref()
+              .map(|v| v.version.to_string())
+              .unwrap_or_else(|| String::from(
+                "Error: failed to retrieve version, this shouldn't be possible."
+              ))
+          )))
+          .with_child(Maybe::or_empty(
+            || Label::wrapped("NOTE: A .git directory has been detected in the target directory. Are you sure this isn't being used for development?")
+          ).lens(lens::Constant(data.settings.git_warn.then(|| {
+            if entry.path.join(".git").exists() {
+              Some(())
+            } else {
+              None
+            }
+          }).flatten())))
+          .with_flex_spacer(1.)
+          .with_child(
+            Flex::row()
+              .with_flex_spacer(1.)
+              .with_child(Button::new("Update").on_click({
+                let entry = entry.clone();
+                move |ctx, _, _| {
+                  ctx.submit_command(commands::CLOSE_WINDOW);
+                  ctx.submit_command(ModList::AUTO_UPDATE.with(entry.clone()).to(Target::Global))
+                }
+              }))
+              .with_child(
+                Button::new("Cancel")
+                  .on_click(|ctx, _, _| ctx.submit_command(commands::CLOSE_WINDOW)),
+              ),
+          )
+          .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start);
+
+        ctx.new_sub_window(
+          WindowConfig::default().show_titlebar(false)
+            .resizable(true)
+            .window_size((500.0, 200.0)),
+          widget,
+          data.mod_list.clone(),
+          env.clone(),
+        );
       }
     }
 

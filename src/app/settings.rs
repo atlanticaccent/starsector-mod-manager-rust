@@ -8,7 +8,7 @@ use druid::{
     Button, Checkbox, Controller, Flex, Label, SizedBox, TextBox, TextBoxEvent, ValidationDelegate,
     ViewSwitcher, WidgetExt, Axis,
   },
-  Data, Event, EventCtx, Lens, LensExt, Menu, MenuItem, Point, Selector, Target, Widget,
+  Data, Event, EventCtx, Lens, LensExt, Menu, MenuItem, Selector, Target, Widget,
 };
 use druid_widget_nursery::{DynLens, WidgetExt as WidgetExtNursery};
 use if_chain::if_chain;
@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use self::vmparams::{Unit, VMParams, Value};
 
-use super::util::{make_flex_description_row, LabelExt, LoadError, SaveError, make_flex_pair, h2, make_column_pair, h3};
+use super::util::{make_flex_description_row, LabelExt, LoadError, SaveError, make_flex_pair, h2, make_column_pair, h3, DragWindowController};
 
 pub mod vmparams;
 
@@ -328,44 +328,6 @@ impl ValidationDelegate for InstallDirDelegate {
     if let TextBoxEvent::Invalid(_) = event {
       ctx.submit_command(Selector::new("druid.builtin.textbox-cancel-editing"))
     }
-  }
-}
-
-#[derive(Default)]
-struct DragWindowController {
-  init_pos: Option<Point>,
-  //dragging: bool
-}
-
-impl<T, W: Widget<T>> Controller<T, W> for DragWindowController {
-  fn event(
-    &mut self,
-    child: &mut W,
-    ctx: &mut EventCtx,
-    event: &Event,
-    data: &mut T,
-    env: &druid::Env,
-  ) {
-    match event {
-      Event::MouseDown(me) if me.buttons.has_left() => {
-        ctx.set_active(true);
-        self.init_pos = Some(me.window_pos)
-      }
-      Event::MouseMove(me) if ctx.is_active() && me.buttons.has_left() => {
-        if let Some(init_pos) = self.init_pos {
-          let within_window_change = me.window_pos.to_vec2() - init_pos.to_vec2();
-          let old_pos = ctx.window().get_position();
-          let new_pos = old_pos + within_window_change;
-          ctx.window().set_position(new_pos)
-        }
-      }
-      Event::MouseUp(_me) if ctx.is_active() => {
-        self.init_pos = None;
-        ctx.set_active(false)
-      }
-      _ => (),
-    }
-    child.event(ctx, event, data, env)
   }
 }
 

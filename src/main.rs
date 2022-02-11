@@ -7,6 +7,7 @@
 #![feature(array_zip)]
 #![feature(result_option_inspect)]
 #![feature(is_some_with)]
+#![feature(bool_to_option)]
 
 use druid::{AppLauncher, WindowDesc, theme, Color};
 use tokio::runtime::Builder;
