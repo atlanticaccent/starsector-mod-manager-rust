@@ -7,6 +7,7 @@ pub fn support_self_update() -> bool {
   true
 }
 
+#[cfg(not(target_os = "macos"))]
 pub fn self_update() -> Result<(), SelfUpdateError> {
   Update::configure()
     .repo_owner("atlanticaccent")
@@ -37,6 +38,10 @@ pub fn self_update() -> Result<(), SelfUpdateError> {
     .update()?;
 
   Ok(())
+}
+#[cfg(target_os = "macos")]
+pub fn self_update() -> Result<(), SelfUpdateError> {
+  Err(SelfUpdateError::Io(std::io::ErrorKind::Other.into()))
 }
 
 pub fn open_in_browser() {
