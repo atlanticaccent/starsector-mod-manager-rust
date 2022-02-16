@@ -1,8 +1,9 @@
-use std::{io::Read, sync::Arc, path::PathBuf};
+use std::{io::Read, sync::Arc, path::PathBuf, collections::VecDeque};
 
 use druid::{widget::{Label, LensWrap, Flex, Axis, RawLabel, Controller}, Data, Lens, WidgetExt, Widget, ExtEventSink, Selector, Target, lens, text::{RichText, AttributeSpans, Attribute}, FontWeight, Key, Color, KeyOrValue, Point, EventCtx, Event};
 use if_chain::if_chain;
 use json_comments::strip_comments;
+use serde::Deserialize;
 use tap::Tap;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -358,5 +359,39 @@ impl<T, W: Widget<T>> Controller<T, W> for DragWindowController {
       _ => (),
     }
     child.event(ctx, event, data, env)
+  }
+}
+
+#[derive(Deserialize, Clone)]
+pub struct Release {
+  pub name: String,
+  pub tag_name: String,
+  pub assets: Vec<Asset>
+}
+
+#[derive(Deserialize, Clone)]
+pub struct Asset {
+  pub name: String,
+  pub browser_download_url: String
+}
+
+pub async fn get_latest_manager() -> Result<Release, String> {
+  let client = reqwest::Client::builder()
+    .user_agent("StarsectorModManager")
+    .build()
+    .map_err(|e| e.to_string())?;
+
+  let mut res = client.get("https://api.github.com/repos/atlanticaccent/starsector-mod-manager-rust/releases")
+    .send()
+    .await
+    .map_err(|e| e.to_string())?
+    .json::<VecDeque<Release>>()
+    .await
+    .map_err(|e| e.to_string())?;
+
+  if let Some(release) = res.pop_front() {
+    Ok(release)
+  } else {
+    Err(String::from("Could not find any releases."))
   }
 }

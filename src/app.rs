@@ -1,23 +1,23 @@
-use std::{sync::Arc, path::PathBuf};
+use std::{path::PathBuf, sync::Arc, process};
 
 use druid::{
   commands,
   keyboard_types::Key,
-  lens,
+  lens, theme,
   widget::{
-    Axis, Button, Checkbox, Controller, Flex, Label, Scope, ScopeTransfer, Tabs, TabsPolicy,
-    TextBox, ViewSwitcher, Painter, Maybe, SizedBox,
+    Axis, Button, Checkbox, Controller, Flex, Label, Maybe, Painter, Scope, ScopeTransfer,
+    SizedBox, Tabs, TabsPolicy, TextBox, ViewSwitcher,
   },
   AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Event, EventCtx, Handled, KeyEvent,
-  Lens, LensExt, Menu, MenuItem, Selector, Target, Widget, WidgetExt, WidgetId, WindowDesc,
-  WindowId, RenderContext, theme, WindowConfig,
+  Lens, LensExt, Menu, MenuItem, RenderContext, Selector, Target, Widget, WidgetExt, WidgetId,
+  WindowConfig, WindowDesc, WindowId,
 };
-use druid_widget_nursery::{WidgetExt as WidgetExtNursery, material_icons::Icon};
+use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
+use lazy_static::lazy_static;
 use rfd::{AsyncFileDialog, FileHandle};
 use strum::IntoEnumIterator;
 use tap::Tap;
 use tokio::runtime::Handle;
-use lazy_static::lazy_static;
 
 use crate::patch::{
   split::Split,
@@ -25,13 +25,19 @@ use crate::patch::{
 };
 
 use self::{
+  installer::{ChannelMessage, StringOrPath},
   mod_description::ModDescription,
   mod_entry::ModEntry,
   mod_list::{EnabledMods, Filters, ModList},
   settings::{Settings, SettingsCommand},
-  util::{h2, h3, LabelExt, icons::*, GET_INSTALLED_STARSECTOR, get_starsector_version, get_quoted_version, make_column_pair, DragWindowController}, installer::{ChannelMessage, StringOrPath},
+  util::{
+    get_latest_manager, get_quoted_version, get_starsector_version, h2, h3, icons::*,
+    make_column_pair, DragWindowController, LabelExt, Release, GET_INSTALLED_STARSECTOR,
+  },
+  updater::{support_self_update, self_update, open_in_browser},
 };
 
+mod updater;
 mod installer;
 mod mod_description;
 mod mod_entry;
@@ -39,6 +45,8 @@ mod mod_list;
 mod settings;
 #[path = "./util.rs"]
 pub mod util;
+
+const TAG: &'static str = env!("CARGO_PKG_VERSION");
 
 #[derive(Clone, Data, Lens)]
 pub struct App {
@@ -60,6 +68,9 @@ impl App {
   const DUMB_UNIVERSAL_ESCAPE: Selector<()> = Selector::new("app.universal_escape");
   const REFRESH: Selector<()> = Selector::new("app.mod_list.refresh");
   const DISABLE: Selector<()> = Selector::new("app.disable");
+  const UPDATE_AVAILABLE: Selector<Result<Release, String>> = Selector::new("app.update.available");
+  const SELF_UPDATE: Selector<()> = Selector::new("app.update.perform");
+  const RESTART: Selector<PathBuf> = Selector::new("app.update.restart");
 
   pub fn new(handle: Handle) -> Self {
     App {
@@ -85,61 +96,63 @@ impl App {
   }
 
   pub fn ui_builder() -> impl Widget<Self> {
-    let button_painter = || Painter::new(|ctx, _, env| {
-      let is_active = ctx.is_active() && !ctx.is_disabled();
-      let is_hot = ctx.is_hot();
-      let size = ctx.size();
-      let stroke_width = env.get(theme::BUTTON_BORDER_WIDTH);
-      
-      let rounded_rect = size
-      .to_rect()
-      .inset(-stroke_width / 2.0)
-      .to_rounded_rect(env.get(theme::BUTTON_BORDER_RADIUS));
-      
-      let bg_gradient = if ctx.is_disabled() {
-        env.get(theme::DISABLED_BUTTON_DARK)
-      } else if is_active {
-        env.get(theme::BUTTON_DARK)
-      } else {
-        env.get(theme::BUTTON_LIGHT)
-      };
-      
-      let border_color = if is_hot && !ctx.is_disabled() {
-        env.get(theme::BORDER_LIGHT)
-      } else {
-        env.get(theme::BORDER_DARK)
-      };
-      
-      ctx.stroke(rounded_rect, &border_color, stroke_width);
+    let button_painter = || {
+      Painter::new(|ctx, _, env| {
+        let is_active = ctx.is_active() && !ctx.is_disabled();
+        let is_hot = ctx.is_hot();
+        let size = ctx.size();
+        let stroke_width = env.get(theme::BUTTON_BORDER_WIDTH);
 
-      ctx.fill(rounded_rect, &bg_gradient);
-    });
+        let rounded_rect = size
+          .to_rect()
+          .inset(-stroke_width / 2.0)
+          .to_rounded_rect(env.get(theme::BUTTON_BORDER_RADIUS));
+
+        let bg_gradient = if ctx.is_disabled() {
+          env.get(theme::DISABLED_BUTTON_DARK)
+        } else if is_active {
+          env.get(theme::BUTTON_DARK)
+        } else {
+          env.get(theme::BUTTON_LIGHT)
+        };
+
+        let border_color = if is_hot && !ctx.is_disabled() {
+          env.get(theme::BORDER_LIGHT)
+        } else {
+          env.get(theme::BORDER_DARK)
+        };
+
+        ctx.stroke(rounded_rect, &border_color, stroke_width);
+
+        ctx.fill(rounded_rect, &bg_gradient);
+      })
+    };
     let settings = Flex::row()
-      .with_child(Flex::row()
-        .with_child(Label::new("Settings").with_text_size(18.))
-        .with_spacer(5.)
-        .with_child(Icon::new(SETTINGS))
-        .padding((8., 4.))
-        .background(button_painter())
-        .on_click(|event_ctx, _, _| {
-          event_ctx.submit_command(App::SELECTOR.with(AppCommands::OpenSettings))
-        }
-      ))
+      .with_child(
+        Flex::row()
+          .with_child(Label::new("Settings").with_text_size(18.))
+          .with_spacer(5.)
+          .with_child(Icon::new(SETTINGS))
+          .padding((8., 4.))
+          .background(button_painter())
+          .on_click(|event_ctx, _, _| {
+            event_ctx.submit_command(App::SELECTOR.with(AppCommands::OpenSettings))
+          }),
+      )
       .expand_width();
     let refresh = Flex::row()
-      .with_child(Flex::row()
-        .with_child(Label::new("Refresh").with_text_size(18.))
-        .with_spacer(5.)
-        .with_child(Icon::new(SYNC))
-        .padding((8., 4.))
-        .background(button_painter())
-        .on_click(|event_ctx, _, _| {
-          event_ctx.submit_command(App::REFRESH)
-        }
-      ))
+      .with_child(
+        Flex::row()
+          .with_child(Label::new("Refresh").with_text_size(18.))
+          .with_spacer(5.)
+          .with_child(Icon::new(SYNC))
+          .padding((8., 4.))
+          .background(button_painter())
+          .on_click(|event_ctx, _, _| event_ctx.submit_command(App::REFRESH)),
+      )
       .expand_width();
-    let install_dir_browser = Settings::install_dir_browser_builder(Axis::Vertical)
-      .lens(App::settings);
+    let install_dir_browser =
+      Settings::install_dir_browser_builder(Axis::Vertical).lens(App::settings);
     let install_mod_button = Flex::row()
       .with_child(Label::new("Install Mod(s)").with_text_size(18.))
       .with_spacer(5.)
@@ -151,17 +164,12 @@ impl App {
       .on_command(App::OPEN_FILE, |ctx, payload, data| {
         if let Some(targets) = payload {
           data.runtime.spawn(
-            installer::Payload::Initial(
-              targets
-                .iter()
-                .map(|f| f.path().to_path_buf())
-                .collect(),
-            )
-            .install(
-              ctx.get_external_handle(),
-              data.settings.install_dir.clone().unwrap(),
-              data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
-            ),
+            installer::Payload::Initial(targets.iter().map(|f| f.path().to_path_buf()).collect())
+              .install(
+                ctx.get_external_handle(),
+                data.settings.install_dir.clone().unwrap(),
+                data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
+              ),
           );
         }
       })
@@ -247,6 +255,8 @@ impl App {
           .disabled_if(|data: &App, _| data.mod_list.mods.values().all(|e| !e.enabled))
           .on_click(|_, data: &mut App, _| {
             if let Some(install_dir) = data.settings.install_dir.as_ref() {
+              let id = data.active.as_ref().map(|e| e.id.clone());
+              data.active = None;
               data.mod_list.mods = data
                 .mod_list
                 .mods
@@ -256,6 +266,7 @@ impl App {
                   (id, entry)
                 })
                 .collect();
+              data.active = id.as_ref().and_then(|id| data.mod_list.mods.get(id).cloned());
               if let Err(err) = EnabledMods::empty().save(install_dir) {
                 eprintln!("{:?}", err)
               }
@@ -293,11 +304,12 @@ impl App {
         h2("Starsector Version:"),
         Maybe::new(
           || Label::wrapped_func(|v: &String, _| v.clone()),
-          || Label::new("Unknown")
-        ).lens(App::mod_list.then(ModList::starsector_version).map(
+          || Label::new("Unknown"),
+        )
+        .lens(App::mod_list.then(ModList::starsector_version).map(
           |v| v.as_ref().and_then(|v| get_quoted_version(v)),
-          |_, _| {}
-        ))
+          |_, _| {},
+        )),
       ))
       .with_default_spacer()
       .with_child(install_dir_browser)
@@ -319,19 +331,21 @@ impl App {
                     let experimental_launch = data.settings.experimental_launch;
                     let resolution = data.settings.experimental_resolution;
                     data.runtime.spawn(async move {
-                      if let Err(err) = App::launch_starsector(install_dir, experimental_launch, resolution).await {
+                      if let Err(err) =
+                        App::launch_starsector(install_dir, experimental_launch, resolution).await
+                      {
                         dbg!(err);
                       };
                       ext_ctx.submit_command(App::ENABLE, (), Target::Auto)
                     });
                   }
                 })
-                .expand_width()
+                .expand_width(),
             )
           } else {
             Box::new(SizedBox::empty())
           }
-        }
+        },
       ))
       .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
       .expand()
@@ -353,21 +367,28 @@ impl App {
           .with_spacer(10.)
           .with_child(refresh)
           .with_spacer(10.)
-          .with_child(ViewSwitcher::new(
-            |len: &usize, _| *len,
-            |len, _, _| Box::new(h3(&format!("Installed: {}", len)))
-          ).lens(App::mod_list.then(ModList::mods).map(
-            |data| data.len(),
-            |_, _| {}
-          )))
+          .with_child(
+            ViewSwitcher::new(
+              |len: &usize, _| *len,
+              |len, _, _| Box::new(h3(&format!("Installed: {}", len))),
+            )
+            .lens(
+              App::mod_list
+                .then(ModList::mods)
+                .map(|data| data.len(), |_, _| {}),
+            ),
+          )
           .with_spacer(10.)
-          .with_child(ViewSwitcher::new(
-            |len: &usize, _| *len,
-            |len, _, _| Box::new(h3(&format!("Active: {}", len)))
-          ).lens(App::mod_list.then(ModList::mods).map(
-            |data| data.values().filter(|e| e.enabled).count(),
-            |_, _| {}
-          )))
+          .with_child(
+            ViewSwitcher::new(
+              |len: &usize, _| *len,
+              |len, _, _| Box::new(h3(&format!("Active: {}", len))),
+            )
+            .lens(App::mod_list.then(ModList::mods).map(
+              |data| data.values().filter(|e| e.enabled).count(),
+              |_, _| {},
+            )),
+          )
           .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
           .expand_width(),
       )
@@ -386,9 +407,13 @@ impl App {
       .with_id(WidgetId::reserved(0))
   }
 
-  async fn launch_starsector(install_dir: PathBuf, experimental_launch: bool, resolution: (u32, u32)) -> Result<(), String> {
-    use tokio::process::Command;
+  async fn launch_starsector(
+    install_dir: PathBuf,
+    experimental_launch: bool,
+    resolution: (u32, u32),
+  ) -> Result<(), String> {
     use tokio::fs::read_to_string;
+    use tokio::process::Command;
 
     lazy_static! {
       static ref JAVA_REGEX: regex::Regex = regex::Regex::new(r"java\.exe").expect("compile regex");
@@ -396,13 +421,20 @@ impl App {
 
     let child = if experimental_launch {
       // let mut args_raw = String::from(r"java.exe -XX:CompilerThreadPriority=1 -XX:+CompilerThreadHintNoPreempt -XX:+DisableExplicitGC -XX:+UnlockExperimentalVMOptions -XX:+AggressiveOpts -XX:+TieredCompilation -XX:+UseG1GC -XX:InitialHeapSize=2048m -XX:MaxMetaspaceSize=2048m -XX:MaxNewSize=2048m -XX:+ParallelRefProcEnabled -XX:G1NewSizePercent=5 -XX:G1MaxNewSizePercent=10 -XX:G1ReservePercent=5 -XX:G1MixedGCLiveThresholdPercent=70 -XX:InitiatingHeapOccupancyPercent=90 -XX:G1HeapWastePercent=5 -XX:MaxGCPauseMillis=50 -XX:G1HeapRegionSize=2M -XX:+UseStringDeduplication -Djava.library.path=native\windows -Xms1536m -Xmx1536m -Xss2048k -classpath janino.jar;commons-compiler.jar;commons-compiler-jdk.jar;starfarer.api.jar;starfarer_obf.jar;jogg-0.0.7.jar;jorbis-0.0.15.jar;json.jar;lwjgl.jar;jinput.jar;log4j-1.2.9.jar;lwjgl_util.jar;fs.sound_obf.jar;fs.common_obf.jar;xstream-1.4.10.jar -Dcom.fs.starfarer.settings.paths.saves=..\\saves -Dcom.fs.starfarer.settings.paths.screenshots=..\\screenshots -Dcom.fs.starfarer.settings.paths.mods=..\\mods -Dcom.fs.starfarer.settings.paths.logs=. com.fs.starfarer.StarfarerLauncher");
-      let mut args_raw = read_to_string(install_dir.join("vmparams")).await.map_err(|err| err.to_string())?;
+      let mut args_raw = read_to_string(install_dir.join("vmparams"))
+        .await
+        .map_err(|err| err.to_string())?;
       args_raw = JAVA_REGEX.replace(&args_raw, "").to_string();
       let args: Vec<&str> = args_raw.split_ascii_whitespace().collect();
 
       Command::new(install_dir.join("jre").join("bin").join("java.exe"))
         .current_dir(install_dir.join("starsector-core"))
-        .args(["-DlaunchDirect=true", &format!("-DstartRes={}x{}", resolution.0, resolution.1), "-DstartFS=false", "-DstartSound=true"])
+        .args([
+          "-DlaunchDirect=true",
+          &format!("-DstartRes={}x{}", resolution.0, resolution.1),
+          "-DstartFS=false",
+          "-DstartSound=true",
+        ])
         .args(args)
         .spawn()
         .expect("Execute Starsector")
@@ -413,7 +445,10 @@ impl App {
         .expect("Execute Starsector")
     };
 
-    child.wait_with_output().await.map_or_else(|err| Err(err.to_string()), |_| Ok(()))
+    child
+      .wait_with_output()
+      .await
+      .map_or_else(|err| Err(err.to_string()), |_| Ok(()))
   }
 }
 
@@ -486,7 +521,10 @@ impl Delegate<App> for AppDelegate {
         };
 
         data.mod_list.mods.clear();
-        data.runtime.spawn(get_starsector_version(ctx.get_external_handle(), new_install_dir.clone()));
+        data.runtime.spawn(get_starsector_version(
+          ctx.get_external_handle(),
+          new_install_dir.clone(),
+        ));
         data.runtime.spawn(ModList::parse_mod_folder(
           ctx.get_external_handle(),
           Some(new_install_dir.clone()),
@@ -509,7 +547,9 @@ impl Delegate<App> for AppDelegate {
         ));
       }
     } else if let Some(res) = cmd.get(GET_INSTALLED_STARSECTOR) {
-      App::mod_list.then(ModList::starsector_version).put(data, res.as_ref().ok().cloned());
+      App::mod_list
+        .then(ModList::starsector_version)
+        .put(data, res.as_ref().ok().cloned());
     }
 
     Handled::No
@@ -539,6 +579,11 @@ impl Delegate<App> for AppDelegate {
             data.settings.install_dir.clone().unwrap_or_default(),
           )));
         }
+        let ext_ctx = ctx.get_external_handle();
+        data.runtime.spawn(async move {
+          let release = get_latest_manager().await;
+          ext_ctx.submit_command(App::UPDATE_AVAILABLE, release, Target::Auto)
+        });
       }
     } else if let Event::KeyDown(KeyEvent {
       key: Key::Escape, ..
@@ -712,9 +757,10 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
                   ),
               )
               .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start);
-  
+
             ctx.new_sub_window(
-              WindowConfig::default().show_titlebar(false)
+              WindowConfig::default()
+                .show_titlebar(false)
                 .resizable(true)
                 .window_size((500.0, 200.0)),
               widget,
@@ -781,7 +827,8 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
           .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start);
 
         ctx.new_sub_window(
-          WindowConfig::default().show_titlebar(false)
+          WindowConfig::default()
+            .show_titlebar(false)
             .resizable(true)
             .window_size((500.0, 200.0)),
           widget,
@@ -819,6 +866,140 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
       } else if let Some(()) = cmd.get(App::DUMB_UNIVERSAL_ESCAPE) {
         ctx.set_focus(data.widget_id);
         ctx.resign_focus();
+      } else if let Some(()) = cmd.get(App::SELF_UPDATE) {
+        let original_exe = std::env::current_exe();
+        if dbg!(support_self_update()) && original_exe.is_ok() {
+          let widget = if dbg!(self_update()).is_ok() {
+            Flex::column()
+              .with_child(
+                h3("Restart?")
+                  .center()
+                  .padding(2.)
+                  .expand_width()
+                  .background(theme::BACKGROUND_LIGHT)
+                  .controller(DragWindowController::default()),
+              )
+              .with_child(Label::wrapped("Update complete."))
+              .with_child(Label::wrapped("Would you like to restart?"))
+              .with_flex_spacer(1.)
+              .with_child(
+                Flex::row()
+                  .with_flex_spacer(1.)
+                  .with_child(Button::new("Restart").on_click(move |ctx, _, _| {
+                    ctx.submit_command(commands::CLOSE_WINDOW);
+                    ctx.submit_command(App::RESTART.with(original_exe.as_ref().unwrap().clone()).to(Target::Global));
+                  }))
+                  .with_child(Button::new("Cancel").on_click(|ctx, _, _|
+                    ctx.submit_command(commands::CLOSE_WINDOW)
+                  )),
+              )
+              .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+          } else {
+            Flex::column()
+              .with_child(
+                h3("Error")
+                  .center()
+                  .padding(2.)
+                  .expand_width()
+                  .background(theme::BACKGROUND_LIGHT)
+                  .controller(DragWindowController::default()),
+              )
+              .with_child(Label::wrapped("Failed to update Mod Manager."))
+              .with_child(Label::wrapped("It is recommended that you restart and check that the Manager has not been corrupted."))
+              .with_flex_spacer(1.)
+              .with_child(Button::new("Close").on_click(|ctx, _, _|
+                ctx.submit_command(commands::CLOSE_WINDOW)
+              ))
+              .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+          };
+
+          ctx.new_sub_window(
+            WindowConfig::default()
+              .show_titlebar(false)
+              .resizable(true)
+              .window_size((500.0, 200.0)),
+            widget,
+            data.mod_list.clone(),
+            env.clone(),
+          );
+        } else {
+          open_in_browser();
+        }
+      } else if let Some(payload) = cmd.get(App::UPDATE_AVAILABLE) {
+        let widget = if let Ok(release) = payload {
+          if release.tag_name.as_str() > TAG {
+            Flex::column()
+              .with_child(
+                h3("Update Mod Manager?")
+                  .center()
+                  .padding(2.)
+                  .expand_width()
+                  .background(theme::BACKGROUND_LIGHT)
+                  .controller(DragWindowController::default()),
+              )
+              .with_child(Label::wrapped("A new version of Starsector Mod Manager is available."))
+              .with_child(Label::wrapped(&format!("Current version: {}", TAG)))
+              .with_child(Label::wrapped(&format!("New version: {}", release.tag_name.as_str())))
+              .with_child({
+                #[cfg(not(target_os = "macos"))]
+                let label = Label::wrapped("Would you like to update now?");
+                #[cfg(target_os = "macos")]
+                let label = Label::wrapped("Would you like to open the update in your browser?");
+
+                label
+              })
+              .with_flex_spacer(1.)
+              .with_child(
+                Flex::row()
+                  .with_flex_spacer(1.)
+                  .with_child(Button::new("Update").on_click(move |ctx, _, _| {
+                    ctx.submit_command(commands::CLOSE_WINDOW);
+                    ctx.submit_command(App::SELF_UPDATE.to(Target::Global));
+                  }))
+                  .with_child(
+                    Button::new("Cancel")
+                      .on_click(|ctx, _, _| ctx.submit_command(commands::CLOSE_WINDOW)),
+                  ),
+              )
+              .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+          } else {
+            return
+          }
+        } else {
+          Flex::column()
+            .with_child(
+              h3("Error")
+                .center()
+                .padding(2.)
+                .expand_width()
+                .background(theme::BACKGROUND_LIGHT)
+                .controller(DragWindowController::default()),
+            )
+            .with_child(Label::wrapped("Failed to retrieve Mod Manager update status."))
+            .with_child(Label::wrapped("There may or may not be an update available."))
+            .with_flex_spacer(1.)
+            .with_child(Button::new("Close").on_click(|ctx, _, _|
+              ctx.submit_command(commands::CLOSE_WINDOW)
+            ))
+            .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+        };
+
+        ctx.new_sub_window(
+          WindowConfig::default()
+            .show_titlebar(false)
+            .resizable(true)
+            .window_size((500.0, 200.0)),
+          widget,
+          data.mod_list.clone(),
+          env.clone(),
+        );
+      } else if let Some(original_exe) = cmd.get(App::RESTART) {
+        if process::Command::new(original_exe).spawn().is_ok() {
+          ctx.submit_command(commands::QUIT_APP)
+        } else {
+          eprintln!("Failed to restart")
+        };
+        
       }
       if (cmd.is(ModList::SUBMIT_ENTRY) || cmd.is(App::ENABLE)) && ctx.is_disabled() {
         ctx.set_disabled(false);

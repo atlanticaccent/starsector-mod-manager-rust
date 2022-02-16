@@ -37,6 +37,7 @@ strum = "0.23"
 strum_macros = "0.23"
 tap = "1.0.1"
 rayon = "1.5"
+self_update = { version = "0.28.0", features = ["rustls", "archive-tar"] }
 
 [package.metadata.bundle]
 name = "Starsector Mod Manager"
