@@ -20,7 +20,7 @@ jobs:
           toolchain: nightly
           override: true
       - name: Install libarchive
-        uses: lukka/run-vcpkg@v7.4
+        uses: lukka/run-vcpkg@v10.1
         with:
           vcpkgArguments: libarchive
           vcpkgTriplet: x64-windows-static
