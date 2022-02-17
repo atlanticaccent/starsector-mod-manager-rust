@@ -19,6 +19,7 @@ mod app;
 
 fn main() {
   let main_window = WindowDesc::new(app::App::ui_builder())
+    .title("MOSS | Mod Organizer for StarSector")
     .window_size((1280., 1024.));
 
   let runtime = Builder::new_multi_thread()
