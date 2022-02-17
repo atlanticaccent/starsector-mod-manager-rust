@@ -24,7 +24,8 @@ jobs:
         with:
           vcpkgArguments: libarchive
           vcpkgTriplet: x64-windows-static
-          vcpkgGitCommitId: 0bf3923f9fab4001c00f0f429682a0853b5749e0
+          vcpkgGitCommitId: 7dbc05515b44bf54d2a42b4da9d1e1f910868b86 # master
+          useShell: true
       - name: Check cache
         uses: actions/cache@v2
         with:
