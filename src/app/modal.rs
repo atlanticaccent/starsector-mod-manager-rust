@@ -40,17 +40,18 @@ impl<'a, T: Data> Modal<'a, T> {
     self
   }
 
-  pub fn with_close(mut self, label: Option<&str>) -> Self {
-    self.buttons.insert(
-      String::from(if let Some(label) = label {
-        label
-      } else {
-        "Close"
-      }),
-      Vec::new()
-    );
+  fn close(mut self, label: &str) -> Self {
+    self.buttons.insert(String::from(label),Vec::new());
 
     self
+  }
+
+  pub fn with_close(self) -> Self {
+    self.close("Close")
+  }
+
+  pub fn with_close_label(self, label: &str) -> Self {
+    self.close(label)
   }
 
   pub fn build(mut self) -> impl Widget<T> {
@@ -98,11 +99,15 @@ impl<'a, T: Data> Modal<'a, T> {
   }
 
   pub fn show(self, ctx: &mut (impl AnyCtx + RequestCtx), env: &Env, data: &T) {
+    self.show_with_size(ctx, env, data, (500.0, 200.0))
+  }
+
+  pub fn show_with_size(self, ctx: &mut (impl AnyCtx + RequestCtx), env: &Env, data: &T, size: (f64, f64)) {
     ctx.new_sub_window(
       WindowConfig::default()
         .show_titlebar(false)
         .resizable(true)
-        .window_size((500.0, 200.0)),
+        .window_size(size),
       self.build(),
       data.clone(),
       env.clone(),

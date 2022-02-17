@@ -771,8 +771,8 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
             .boxed()
           )
           .with_button("Update", ModList::AUTO_UPDATE.with(entry.clone()))
-          .with_close(Some("Cancel"))
-          .show(ctx, env, &());
+          .with_close_label("Cancel")
+          .show_with_size(ctx, env, &(), (600., 300.));
       }
     }
 
@@ -812,12 +812,12 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
               .with_content("Update complete.")
               .with_content("Would you like to restart?")
               .with_button("Restart", App::RESTART.with(original_exe.as_ref().unwrap().clone()).to(Target::Global))
-              .with_close(Some("Cancel"))
+              .with_close_label("Cancel")
           } else {
             Modal::new("Error")
               .with_content("Failed to update Mod Manager.")
               .with_content("It is recommended that you restart and check that the Manager has not been corrupted.")
-              .with_close(None)
+              .with_close()
           };
 
           widget.show(ctx, env, &())
@@ -840,7 +840,7 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
                 label
               })
               .with_button("Update", App::SELF_UPDATE)
-              .with_close(Some("Cancel"))
+              .with_close_label("Cancel")
           } else {
             return
           }
@@ -848,7 +848,7 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
           Modal::new("Error")
             .with_content("Failed to retrieve Mod Manager update status.")
             .with_content("There may or may not be an update available.")
-            .with_close(None)
+            .with_close()
         };
 
         widget.show(ctx, env, &());
