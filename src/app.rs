@@ -1,4 +1,4 @@
-use std::{path::PathBuf, process, sync::Arc};
+use std::{path::PathBuf, process, sync::Arc, time::Duration};
 
 use druid::{
   commands,
@@ -10,7 +10,7 @@ use druid::{
   },
   AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Event, EventCtx, Handled, KeyEvent,
   Lens, LensExt, Menu, MenuItem, RenderContext, Selector, Target, Widget, WidgetExt, WidgetId,
-  WindowDesc, WindowId,
+  WindowDesc, WindowId, TimerToken,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
 use lazy_static::lazy_static;
@@ -61,6 +61,10 @@ pub struct App {
   runtime: Handle,
   #[data(ignore)]
   widget_id: WidgetId,
+  #[data(ignore)]
+  debounce_id: Option<TimerToken>,
+  #[data(ignore)]
+  pending_notifs: Vec<String>
 }
 
 impl App {
@@ -95,6 +99,8 @@ impl App {
       active: None,
       runtime: handle,
       widget_id: WidgetId::reserved(0),
+      debounce_id: None,
+      pending_notifs: Vec::new(),
     }
   }
 
@@ -691,7 +697,8 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
           ChannelMessage::Success(entry) => {
             data.mod_list.mods.insert(entry.id.clone(), entry.clone());
             ctx.children_changed();
-            println!("Successfully installed {}", entry.id.clone())
+            data.debounce_id = Some(ctx.request_timer(Duration::from_millis(10)));
+            data.pending_notifs.push(entry.name.clone());
           }
           ChannelMessage::Duplicate(conflict, to_install, entry) => {
             Modal::new("Overwrite existing?")
@@ -794,6 +801,18 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
           .with_button("Update", ModList::AUTO_UPDATE.with(entry.clone()))
           .with_close_label("Cancel")
           .show_with_size(ctx, env, &(), (600., 300.));
+      }
+    } else if let Event::Timer(token) = event {
+      if data.debounce_id.take() == Some(*token) {
+        let mut modal = Modal::new("Installation successful!")
+          .with_content("Successfully installed the following:");
+
+        for name in data.pending_notifs.drain(..) {
+          modal = modal.with_content(name)
+        }
+
+        modal.with_close()
+          .show(ctx, env, &())
       }
     }
 
