@@ -10,7 +10,7 @@ use druid::{
   },
   AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Event, EventCtx, Handled, KeyEvent,
   Lens, LensExt, Menu, MenuItem, RenderContext, Selector, Target, Widget, WidgetExt, WidgetId,
-  WindowConfig, WindowDesc, WindowId,
+  WindowDesc, WindowId,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
 use lazy_static::lazy_static;
@@ -32,9 +32,9 @@ use self::{
   settings::{Settings, SettingsCommand},
   util::{
     get_latest_manager, get_quoted_version, get_starsector_version, h2, h3, icons::*,
-    make_column_pair, DragWindowController, LabelExt, Release, GET_INSTALLED_STARSECTOR,
+    make_column_pair, LabelExt, Release, GET_INSTALLED_STARSECTOR,
   },
-  updater::{support_self_update, self_update, open_in_browser},
+  updater::{support_self_update, self_update, open_in_browser}, modal::Modal,
 };
 
 mod updater;
@@ -45,6 +45,7 @@ mod mod_list;
 mod settings;
 #[path = "./util.rs"]
 pub mod util;
+pub mod modal;
 
 const TAG: &'static str = env!("CARGO_PKG_VERSION");
 
@@ -687,86 +688,51 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
             println!("Successfully installed {}", entry.id.clone())
           }
           ChannelMessage::Duplicate(conflict, to_install, entry) => {
-            let widget = Flex::column()
-              .with_child(
-                h3("Overwrite existing?")
-                  .center()
-                  .padding(2.)
-                  .expand_width()
-                  .background(theme::BACKGROUND_LIGHT)
-                  .controller(DragWindowController::default()),
-              )
-              .with_child(Label::new(format!(
+            Modal::new("Overwrite existing?")
+              .with_content(format!(
                 "Encountered conflict when trying to install {}",
                 entry.id
-              )))
-              .with_child(Label::new(match conflict {
+              ))
+              .with_content(match conflict {
                 StringOrPath::String(id) => format!("A mod with ID {} alread exists.", id),
                 StringOrPath::Path(path) => format!(
                   "A folder already exists at the path {}.",
                   path.to_string_lossy()
                 ),
-              }))
-              .with_child(Maybe::or_empty(
-                || Label::wrapped("NOTE: A .git directory has been detected in the target directory. Are you sure this isn't being used for development?")
-              ).lens(lens::Constant(data.settings.git_warn.then(|| {
-                let maybe_path = match conflict {
-                  StringOrPath::String(id) => data.mod_list.mods.get(id).and_then(|e| Some(&e.path)),
-                  StringOrPath::Path(path) => Some(path),
-                };
-
-                maybe_path.and_then(|p| {
-                  if p.join(".git").exists() {
-                    Some(())
-                  } else {
-                    None
-                  }
-                })
-              }).flatten())))
-              .with_child(Label::new(format!(
+              })
+              .with_content(
+                Maybe::or_empty(|| Label::wrapped("\
+                  NOTE: A .git directory has been detected in the target directory. \
+                  Are you sure this isn't being used for development?\
+                "))
+                .lens(
+                  lens::Constant(data.settings.git_warn.then(|| {
+                    if entry.path.join(".git").exists() {
+                      Some(())
+                    } else {
+                      None
+                    }
+                  }).flatten())
+                )
+                .boxed()
+              )
+              .with_content(format!(
                 "Would you like to replace the existing {}?",
                 if let StringOrPath::String(_) = conflict {
                   "mod"
                 } else {
                   "folder"
                 }
+              ))
+              .with_button("Overwrite", ModList::OVERWRITE.with((
+                match conflict {
+                  StringOrPath::String(id) => data.mod_list.mods.get(id).unwrap().path.clone(),
+                  StringOrPath::Path(path) => path.clone(),
+                },
+                to_install.clone(),
+                entry.clone()
               )))
-              .with_flex_spacer(1.)
-              .with_child(
-                Flex::row()
-                  .with_flex_spacer(1.)
-                  .with_child(Button::new("Overwrite").on_click({
-                    let conflict = match conflict {
-                      StringOrPath::String(id) => data.mod_list.mods.get(id).unwrap().path.clone(),
-                      StringOrPath::Path(path) => path.clone(),
-                    };
-                    let to_install = to_install.clone();
-                    let entry = entry.clone();
-                    move |ctx, _, _| {
-                      ctx.submit_command(commands::CLOSE_WINDOW);
-                      ctx.submit_command(
-                        ModList::OVERWRITE
-                          .with((conflict.clone(), to_install.clone(), entry.clone()))
-                          .to(Target::Global),
-                      )
-                    }
-                  }))
-                  .with_child(
-                    Button::new("Cancel")
-                      .on_click(|ctx, _, _| ctx.submit_command(commands::CLOSE_WINDOW)),
-                  ),
-              )
-              .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start);
-
-            ctx.new_sub_window(
-              WindowConfig::default()
-                .show_titlebar(false)
-                .resizable(true)
-                .window_size((500.0, 200.0)),
-              widget,
-              data.mod_list.clone(),
-              env.clone(),
-            );
+              .show(ctx, env, &());
           }
           ChannelMessage::Error(err) => {
             eprintln!("Failed to install {}", err);
@@ -775,21 +741,10 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
       }
     } else if let Event::Notification(notif) = event {
       if let Some(entry) = notif.get(ModEntry::AUTO_UPDATE) {
-        let widget = Flex::column()
-          .with_child(
-            h3("Auto-update?")
-              .center()
-              .padding(2.)
-              .expand_width()
-              .background(theme::BACKGROUND_LIGHT)
-              .controller(DragWindowController::default()),
-          )
-          .with_child(Label::new(format!(
-            "Would you like to automatically update {}?",
-            entry.name
-          )))
-          .with_child(Label::new(format!("Installed version: {}", entry.version)))
-          .with_child(Label::new(format!(
+        Modal::new("Auto-update?")
+          .with_content(format!("Would you like to automatically update {}?", entry.name))
+          .with_content(format!("Installed version: {}", entry.version))
+          .with_content(format!(
             "New version: {}",
             entry
               .remote_version
@@ -798,43 +753,26 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
               .unwrap_or_else(|| String::from(
                 "Error: failed to retrieve version, this shouldn't be possible."
               ))
-          )))
-          .with_child(Maybe::or_empty(
-            || Label::wrapped("NOTE: A .git directory has been detected in the target directory. Are you sure this isn't being used for development?")
-          ).lens(lens::Constant(data.settings.git_warn.then(|| {
-            if entry.path.join(".git").exists() {
-              Some(())
-            } else {
-              None
-            }
-          }).flatten())))
-          .with_flex_spacer(1.)
-          .with_child(
-            Flex::row()
-              .with_flex_spacer(1.)
-              .with_child(Button::new("Update").on_click({
-                let entry = entry.clone();
-                move |ctx, _, _| {
-                  ctx.submit_command(commands::CLOSE_WINDOW);
-                  ctx.submit_command(ModList::AUTO_UPDATE.with(entry.clone()).to(Target::Global))
+          ))
+          .with_content(
+            Maybe::or_empty(|| Label::wrapped("\
+              NOTE: A .git directory has been detected in the target directory. \
+              Are you sure this isn't being used for development?\
+            "))
+            .lens(
+              lens::Constant(data.settings.git_warn.then(|| {
+                if entry.path.join(".git").exists() {
+                  Some(())
+                } else {
+                  None
                 }
-              }))
-              .with_child(
-                Button::new("Cancel")
-                  .on_click(|ctx, _, _| ctx.submit_command(commands::CLOSE_WINDOW)),
-              ),
+              }).flatten())
+            )
+            .boxed()
           )
-          .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start);
-
-        ctx.new_sub_window(
-          WindowConfig::default()
-            .show_titlebar(false)
-            .resizable(true)
-            .window_size((500.0, 200.0)),
-          widget,
-          data.mod_list.clone(),
-          env.clone(),
-        );
+          .with_button("Update", ModList::AUTO_UPDATE.with(entry.clone()))
+          .with_close(Some("Cancel"))
+          .show(ctx, env, &());
       }
     }
 
@@ -870,129 +808,50 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
         let original_exe = std::env::current_exe();
         if dbg!(support_self_update()) && original_exe.is_ok() {
           let widget = if dbg!(self_update()).is_ok() {
-            Flex::column()
-              .with_child(
-                h3("Restart?")
-                  .center()
-                  .padding(2.)
-                  .expand_width()
-                  .background(theme::BACKGROUND_LIGHT)
-                  .controller(DragWindowController::default()),
-              )
-              .with_child(Label::wrapped("Update complete."))
-              .with_child(Label::wrapped("Would you like to restart?"))
-              .with_flex_spacer(1.)
-              .with_child(
-                Flex::row()
-                  .with_flex_spacer(1.)
-                  .with_child(Button::new("Restart").on_click(move |ctx, _, _| {
-                    ctx.submit_command(commands::CLOSE_WINDOW);
-                    ctx.submit_command(App::RESTART.with(original_exe.as_ref().unwrap().clone()).to(Target::Global));
-                  }))
-                  .with_child(Button::new("Cancel").on_click(|ctx, _, _|
-                    ctx.submit_command(commands::CLOSE_WINDOW)
-                  )),
-              )
-              .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+            Modal::new("Restart?")
+              .with_content("Update complete.")
+              .with_content("Would you like to restart?")
+              .with_button("Restart", App::RESTART.with(original_exe.as_ref().unwrap().clone()).to(Target::Global))
+              .with_close(Some("Cancel"))
           } else {
-            Flex::column()
-              .with_child(
-                h3("Error")
-                  .center()
-                  .padding(2.)
-                  .expand_width()
-                  .background(theme::BACKGROUND_LIGHT)
-                  .controller(DragWindowController::default()),
-              )
-              .with_child(Label::wrapped("Failed to update Mod Manager."))
-              .with_child(Label::wrapped("It is recommended that you restart and check that the Manager has not been corrupted."))
-              .with_flex_spacer(1.)
-              .with_child(Button::new("Close").on_click(|ctx, _, _|
-                ctx.submit_command(commands::CLOSE_WINDOW)
-              ))
-              .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+            Modal::new("Error")
+              .with_content("Failed to update Mod Manager.")
+              .with_content("It is recommended that you restart and check that the Manager has not been corrupted.")
+              .with_close(None)
           };
 
-          ctx.new_sub_window(
-            WindowConfig::default()
-              .show_titlebar(false)
-              .resizable(true)
-              .window_size((500.0, 200.0)),
-            widget,
-            data.mod_list.clone(),
-            env.clone(),
-          );
+          widget.show(ctx, env, &())
         } else {
           open_in_browser();
         }
       } else if let Some(payload) = cmd.get(App::UPDATE_AVAILABLE) {
         let widget = if let Ok(release) = payload {
           if release.tag_name.as_str() > TAG {
-            Flex::column()
-              .with_child(
-                h3("Update Mod Manager?")
-                  .center()
-                  .padding(2.)
-                  .expand_width()
-                  .background(theme::BACKGROUND_LIGHT)
-                  .controller(DragWindowController::default()),
-              )
-              .with_child(Label::wrapped("A new version of Starsector Mod Manager is available."))
-              .with_child(Label::wrapped(&format!("Current version: {}", TAG)))
-              .with_child(Label::wrapped(&format!("New version: {}", release.tag_name.as_str())))
-              .with_child({
+            Modal::new("Update Mod Manager?")
+              .with_content("A new version of Starsector Mod Manager is available.")
+              .with_content(format!("Current version: {}", TAG))
+              .with_content(format!("New version: {}", release.tag_name))
+              .with_content({
                 #[cfg(not(target_os = "macos"))]
-                let label = Label::wrapped("Would you like to update now?");
+                let label = "Would you like to update now?";
                 #[cfg(target_os = "macos")]
-                let label = Label::wrapped("Would you like to open the update in your browser?");
+                let label = "Would you like to open the update in your browser?";
 
                 label
               })
-              .with_flex_spacer(1.)
-              .with_child(
-                Flex::row()
-                  .with_flex_spacer(1.)
-                  .with_child(Button::new("Update").on_click(move |ctx, _, _| {
-                    ctx.submit_command(commands::CLOSE_WINDOW);
-                    ctx.submit_command(App::SELF_UPDATE.to(Target::Global));
-                  }))
-                  .with_child(
-                    Button::new("Cancel")
-                      .on_click(|ctx, _, _| ctx.submit_command(commands::CLOSE_WINDOW)),
-                  ),
-              )
-              .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+              .with_button("Update", App::SELF_UPDATE)
+              .with_close(Some("Cancel"))
           } else {
             return
           }
         } else {
-          Flex::column()
-            .with_child(
-              h3("Error")
-                .center()
-                .padding(2.)
-                .expand_width()
-                .background(theme::BACKGROUND_LIGHT)
-                .controller(DragWindowController::default()),
-            )
-            .with_child(Label::wrapped("Failed to retrieve Mod Manager update status."))
-            .with_child(Label::wrapped("There may or may not be an update available."))
-            .with_flex_spacer(1.)
-            .with_child(Button::new("Close").on_click(|ctx, _, _|
-              ctx.submit_command(commands::CLOSE_WINDOW)
-            ))
-            .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+          Modal::new("Error")
+            .with_content("Failed to retrieve Mod Manager update status.")
+            .with_content("There may or may not be an update available.")
+            .with_close(None)
         };
 
-        ctx.new_sub_window(
-          WindowConfig::default()
-            .show_titlebar(false)
-            .resizable(true)
-            .window_size((500.0, 200.0)),
-          widget,
-          data.mod_list.clone(),
-          env.clone(),
-        );
+        widget.show(ctx, env, &());
       } else if let Some(original_exe) = cmd.get(App::RESTART) {
         if process::Command::new(original_exe).spawn().is_ok() {
           ctx.submit_command(commands::QUIT_APP)
