@@ -13,6 +13,7 @@ use druid::{
 use druid_widget_nursery::{DynLens, WidgetExt as WidgetExtNursery};
 use if_chain::if_chain;
 use serde::{Deserialize, Serialize};
+use strum::IntoEnumIterator;
 
 use self::vmparams::{Unit, VMParams, Value};
 
@@ -379,7 +380,7 @@ impl<W: Widget<VMParams>> Controller<VMParams, W> for UnitController<VMParams, U
           ctx.set_active(false);
           if ctx.is_hot() {
             let mut menu: Menu<super::App> = Menu::empty();
-            for unit in Unit::ALL {
+            for unit in Unit::iter() {
               menu = menu.entry(
                 MenuItem::new(unit.to_string())
                   .on_activate({

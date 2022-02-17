@@ -1,5 +1,6 @@
 use druid::{Data, Lens};
 use if_chain::if_chain;
+use strum_macros::EnumIter;
 use std::fmt::Display;
 use std::iter::Peekable;
 use std::path::PathBuf;
@@ -26,15 +27,11 @@ impl Display for Value {
   }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Data)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Data, EnumIter)]
 pub enum Unit {
   Giga,
   Mega,
   Kilo,
-}
-
-impl Unit {
-  pub const ALL: [Unit; 3] = [Unit::Kilo, Unit::Mega, Unit::Giga];
 }
 
 impl Default for Unit {
