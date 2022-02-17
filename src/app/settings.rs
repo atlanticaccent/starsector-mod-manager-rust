@@ -5,8 +5,8 @@ use druid::{
   text::ParseFormatter,
   theme,
   widget::{
-    Button, Checkbox, Controller, Flex, Label, SizedBox, TextBox, TextBoxEvent, ValidationDelegate,
-    ViewSwitcher, WidgetExt, Axis,
+    Axis, Button, Checkbox, Controller, Flex, Label, SizedBox, TextBox, TextBoxEvent,
+    ValidationDelegate, ViewSwitcher, WidgetExt,
   },
   Data, Event, EventCtx, Lens, LensExt, Menu, MenuItem, Selector, Target, Widget,
 };
@@ -16,7 +16,10 @@ use serde::{Deserialize, Serialize};
 
 use self::vmparams::{Unit, VMParams, Value};
 
-use super::util::{make_flex_description_row, LabelExt, LoadError, SaveError, make_flex_pair, h2, make_column_pair, h3, DragWindowController};
+use super::util::{
+  h2, h3, make_column_pair, make_flex_description_row, make_flex_pair, DragWindowController,
+  LabelExt, LoadError, SaveError,
+};
 
 pub mod vmparams;
 
@@ -94,7 +97,10 @@ impl Settings {
                     Flex::column()
                       .with_child(
                         Flex::row()
-                          .with_flex_child(Label::new("Minimum RAM:").align_right().expand_width(), 3.25)
+                          .with_flex_child(
+                            Label::new("Minimum RAM:").align_right().expand_width(),
+                            3.25,
+                          )
                           .with_spacer(5.)
                           .with_flex_child(
                             TextBox::new()
@@ -115,7 +121,10 @@ impl Settings {
                       )
                       .with_child(
                         Flex::row()
-                          .with_flex_child(Label::new("Maximum RAM:").align_right().expand_width(), 3.25)
+                          .with_flex_child(
+                            Label::new("Maximum RAM:").align_right().expand_width(),
+                            3.25,
+                          )
                           .with_spacer(5.)
                           .with_flex_child(
                             TextBox::new()
@@ -168,7 +177,12 @@ impl Settings {
                     Flex::column()
                       .with_child(
                         Flex::row()
-                          .with_flex_child(Label::new("Horizontal Resolution:").align_right().expand_width(), 3.25)
+                          .with_flex_child(
+                            Label::new("Horizontal Resolution:")
+                              .align_right()
+                              .expand_width(),
+                            3.25,
+                          )
                           .with_spacer(5.)
                           .with_flex_child(
                             TextBox::new()
@@ -180,7 +194,12 @@ impl Settings {
                       )
                       .with_child(
                         Flex::row()
-                          .with_flex_child(Label::new("Vertical Resolution:").align_right().expand_width(), 3.25)
+                          .with_flex_child(
+                            Label::new("Vertical Resolution:")
+                              .align_right()
+                              .expand_width(),
+                            3.25,
+                          )
                           .with_spacer(5.)
                           .with_flex_child(
                             TextBox::new()
@@ -222,44 +241,40 @@ impl Settings {
       .lens(lens!(Settings, install_dir_buf));
 
     match axis {
-      Axis::Horizontal => {
-        make_flex_pair(
-          Label::wrapped("Starsector Install Directory:"),
-          1.,
-          Flex::for_axis(axis)
-            .with_flex_child(input.expand_width(), 1.)
-            .with_child(Button::new("Browse...").on_click(|ctx, _, _| {
-              ctx.submit_command(
-                Selector::new("druid.builtin.textbox-cancel-editing").to(Target::Global),
-              );
-              ctx.submit_command(
-                Settings::SELECTOR
-                  .with(SettingsCommand::SelectInstallDir)
-                  .to(Target::Global),
-              )
-            })),
-          1.5,
-          axis
-        )
-      },
-      Axis::Vertical => {
-        make_column_pair(
-          h2("Starsector Install Directory:"),
-          Flex::for_axis(axis)
-            .with_child(input.expand_width())
-            .with_child(Button::new("Browse...").on_click(|ctx, _, _| {
-              ctx.submit_command(
-                Selector::new("druid.builtin.textbox-cancel-editing").to(Target::Global),
-              );
-              ctx.submit_command(
-                Settings::SELECTOR
-                  .with(SettingsCommand::SelectInstallDir)
-                  .to(Target::Global),
-              )
-            }))
-            .cross_axis_alignment(druid::widget::CrossAxisAlignment::End)
-        )
-      }
+      Axis::Horizontal => make_flex_pair(
+        Label::wrapped("Starsector Install Directory:"),
+        1.,
+        Flex::for_axis(axis)
+          .with_flex_child(input.expand_width(), 1.)
+          .with_child(Button::new("Browse...").on_click(|ctx, _, _| {
+            ctx.submit_command(
+              Selector::new("druid.builtin.textbox-cancel-editing").to(Target::Global),
+            );
+            ctx.submit_command(
+              Settings::SELECTOR
+                .with(SettingsCommand::SelectInstallDir)
+                .to(Target::Global),
+            )
+          })),
+        1.5,
+        axis,
+      ),
+      Axis::Vertical => make_column_pair(
+        h2("Starsector Install Directory:"),
+        Flex::for_axis(axis)
+          .with_child(input.expand_width())
+          .with_child(Button::new("Browse...").on_click(|ctx, _, _| {
+            ctx.submit_command(
+              Selector::new("druid.builtin.textbox-cancel-editing").to(Target::Global),
+            );
+            ctx.submit_command(
+              Settings::SELECTOR
+                .with(SettingsCommand::SelectInstallDir)
+                .to(Target::Global),
+            )
+          }))
+          .cross_axis_alignment(druid::widget::CrossAxisAlignment::End),
+      ),
     }
   }
 

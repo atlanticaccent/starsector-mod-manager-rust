@@ -1,4 +1,6 @@
-use self_update::{backends::github::Update, errors::Error as SelfUpdateError, cargo_crate_version};
+use self_update::{
+  backends::github::Update, cargo_crate_version, errors::Error as SelfUpdateError,
+};
 
 pub fn support_self_update() -> bool {
   #[cfg(target_os = "macos")]
@@ -45,7 +47,7 @@ pub fn self_update() -> Result<(), SelfUpdateError> {
 }
 
 pub fn open_in_browser() {
-  if let Err(_) = opener::open("https://github.com/atlanticaccent/starsector-mod-manager-rust/releases") {
+  if opener::open("https://github.com/atlanticaccent/starsector-mod-manager-rust/releases").is_err() {
     eprintln!("Failed to open GitHub");
   }
 }

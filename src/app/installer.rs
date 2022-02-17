@@ -1,11 +1,16 @@
-use std::{path::{PathBuf, Path}, sync::Arc, fs::{copy, create_dir_all, read_dir}, io::{self, Write}};
+use std::{
+  fs::{copy, create_dir_all, read_dir},
+  io::{self, Write},
+  path::{Path, PathBuf},
+  sync::Arc,
+};
 
 use druid::{ExtEventSink, Selector, Target};
-use snafu::{Snafu, ResultExt, OptionExt};
-use tempfile::{TempDir, tempdir};
-use tokio::{task, fs::rename};
 use if_chain::if_chain;
 use remove_dir_all::remove_dir_all;
+use snafu::{OptionExt, ResultExt, Snafu};
+use tempfile::{tempdir, TempDir};
+use tokio::{fs::rename, task};
 
 use crate::app::mod_entry::ModEntry;
 
@@ -13,7 +18,7 @@ use crate::app::mod_entry::ModEntry;
 pub enum Payload {
   Initial(Vec<PathBuf>),
   Resumed(Arc<ModEntry>, HybridPath, PathBuf),
-  Download(Arc<ModEntry>)
+  Download(Arc<ModEntry>),
 }
 
 pub const INSTALL: Selector<ChannelMessage> = Selector::new("install.message");
@@ -26,14 +31,17 @@ impl Payload {
         let mods_dir = Arc::new(mods_dir);
         let installed = Arc::new(installed);
         for target in targets {
-          task::spawn(handle_path(ext_ctx.clone(), target, mods_dir.clone(), installed.clone()));
+          task::spawn(handle_path(
+            ext_ctx.clone(),
+            target,
+            mods_dir.clone(),
+            installed.clone(),
+          ));
         }
-      },
+      }
       Payload::Resumed(entry, path, existing) => {
-        task::spawn(async move {
-          handle_delete(ext_ctx.clone(), entry, path, existing).await
-        });
-      },
+        task::spawn(async move { handle_delete(ext_ctx.clone(), entry, path, existing).await });
+      }
       Payload::Download(entry) => {
         task::spawn(handle_auto(ext_ctx, entry));
       }
@@ -41,14 +49,27 @@ impl Payload {
   }
 }
 
-async fn handle_path(ext_ctx: ExtEventSink, path: PathBuf, mods_dir: Arc<PathBuf>, installed: Arc<Vec<String>>) {
+async fn handle_path(
+  ext_ctx: ExtEventSink,
+  path: PathBuf,
+  mods_dir: Arc<PathBuf>,
+  installed: Arc<Vec<String>>,
+) {
   let mut mod_folder = if path.is_file() {
-    let decompress = task::spawn_blocking(move || decompress(path)).await.expect("Run decompression");
+    let decompress = task::spawn_blocking(move || decompress(path))
+      .await
+      .expect("Run decompression");
     match decompress {
       Ok(temp) => HybridPath::Temp(Arc::new(temp), None),
       Err(err) => {
         println!("{:?}", err);
-        ext_ctx.submit_command(INSTALL, ChannelMessage::Error(err.to_string()), Target::Auto).expect("Send error over async channel");
+        ext_ctx
+          .submit_command(
+            INSTALL,
+            ChannelMessage::Error(err.to_string()),
+            Target::Auto,
+          )
+          .expect("Send error over async channel");
 
         return;
       }
@@ -89,24 +110,40 @@ fn decompress(path: PathBuf) -> Result<TempDir, InstallError> {
   let temp_dir = tempdir().context(Io {})?;
   let mime_type = infer::get_from_path(&path)
     .context(Io {})?
-    .context(Mime { detail: "Failed to get mime type"})?
+    .context(Mime {
+      detail: "Failed to get mime type",
+    })?
     .mime_type();
 
   match mime_type {
     "application/vnd.rar" | "application/x-rar-compressed" => {
-      #[cfg(not(target_env="musl"))]
+      #[cfg(not(target_env = "musl"))]
       unrar::Archive::new(path.to_string_lossy().to_string())
         .extract_to(temp_dir.path().to_string_lossy().to_string())
-        .ok().context(Unrar { detail: "Opaque Unrar error. Assume there's been an error unpacking your rar archive." })?
+        .ok()
+        .context(Unrar {
+          detail: "Opaque Unrar error. Assume there's been an error unpacking your rar archive.",
+        })?
         .process()
-        .ok().context(Unrar { detail: "Opaque Unrar error. Assume there's been an error unpacking your rar archive." })?;
-        // trust me I tried to de-dupe this and it's buggered
-      #[cfg(target_env="musl")]
-      compress_tools::uncompress_archive(source, temp_dir.path(), compress_tools::Ownership::Preserve).context(CompressTools {})?
+        .ok()
+        .context(Unrar {
+          detail: "Opaque Unrar error. Assume there's been an error unpacking your rar archive.",
+        })?;
+      // trust me I tried to de-dupe this and it's buggered
+      #[cfg(target_env = "musl")]
+      compress_tools::uncompress_archive(
+        source,
+        temp_dir.path(),
+        compress_tools::Ownership::Preserve,
+      )
+      .context(CompressTools {})?
     }
-    _ => {
-      compress_tools::uncompress_archive(source, temp_dir.path(), compress_tools::Ownership::Preserve).context(CompressTools {})?
-    }
+    _ => compress_tools::uncompress_archive(
+      source,
+      temp_dir.path(),
+      compress_tools::Ownership::Preserve,
+    )
+    .context(CompressTools {})?,
   }
 
   Ok(temp_dir)
@@ -133,7 +170,8 @@ async fn move_or_copy(from: PathBuf, to: PathBuf) {
   // let mount_to = find_mountpoint(&to).expect("Find destination mount point");
 
   if rename(from.clone(), to.clone()).await.is_err() {
-    task::spawn_blocking(move || copy_dir_recursive(&to, &from)).await
+    task::spawn_blocking(move || copy_dir_recursive(&to, &from))
+      .await
       .expect("Run blocking dir copy")
       .expect("Copy dir to new destination");
   }
@@ -156,7 +194,12 @@ fn copy_dir_recursive(to: &Path, from: &Path) -> io::Result<()> {
   Ok(())
 }
 
-async fn handle_delete(ext_ctx: ExtEventSink, mut entry: Arc<ModEntry>, new_path: HybridPath, old_path: PathBuf) {
+async fn handle_delete(
+  ext_ctx: ExtEventSink,
+  mut entry: Arc<ModEntry>,
+  new_path: HybridPath,
+  old_path: PathBuf,
+) {
   let destination = old_path.canonicalize().expect("Canonicalize destination");
   remove_dir_all(destination).expect("Remove old mod");
 
@@ -164,16 +207,26 @@ async fn handle_delete(ext_ctx: ExtEventSink, mut entry: Arc<ModEntry>, new_path
   move_or_copy(origin, old_path.clone()).await;
   (*Arc::make_mut(&mut entry)).set_path(old_path);
 
-  ext_ctx.submit_command(INSTALL, ChannelMessage::Success(entry), Target::Auto).expect("Send success over async channel");
+  ext_ctx
+    .submit_command(INSTALL, ChannelMessage::Success(entry), Target::Auto)
+    .expect("Send success over async channel");
 }
 
 async fn handle_auto(ext_ctx: ExtEventSink, entry: Arc<ModEntry>) {
-  let url = entry.remote_version.as_ref().unwrap().direct_download_url.as_ref().unwrap();
+  let url = entry
+    .remote_version
+    .as_ref()
+    .unwrap()
+    .direct_download_url
+    .as_ref()
+    .unwrap();
   let target_version = &entry.remote_version.as_ref().unwrap().version;
   match download(url.clone()).await {
     Ok(file) => {
       let path = file.path().to_path_buf();
-      let decompress = task::spawn_blocking(move || decompress(path)).await.expect("Run decompression");
+      let decompress = task::spawn_blocking(move || decompress(path))
+        .await
+        .expect("Run decompression");
       match decompress {
         Ok(temp) => {
           let hybrid = HybridPath::Temp(Arc::new(temp), None);
@@ -196,17 +249,27 @@ async fn handle_auto(ext_ctx: ExtEventSink, entry: Arc<ModEntry>) {
               ext_ctx.submit_command(INSTALL, ChannelMessage::Error("Some kind of unpack error".to_string()), Target::Auto).expect("Send error over async channel");
             }
           }
-        },
+        }
         Err(err) => {
           println!("{:?}", err);
-          ext_ctx.submit_command(INSTALL, ChannelMessage::Error(err.to_string()), Target::Auto).expect("Send error over async channel");
-
-          
+          ext_ctx
+            .submit_command(
+              INSTALL,
+              ChannelMessage::Error(err.to_string()),
+              Target::Auto,
+            )
+            .expect("Send error over async channel");
         }
       };
-    },
+    }
     Err(err) => {
-      ext_ctx.submit_command(INSTALL, ChannelMessage::Error(err.to_string()), Target::Auto).expect("Send error over async channel");
+      ext_ctx
+        .submit_command(
+          INSTALL,
+          ChannelMessage::Error(err.to_string()),
+          Target::Auto,
+        )
+        .expect("Send error over async channel");
     }
   }
 }
@@ -217,7 +280,7 @@ async fn download(url: String) -> Result<tempfile::NamedTempFile, InstallError> 
 
   while let Some(chunk) = res.chunk().await.context(Network {})? {
     file.write(&chunk).context(Io {})?;
-  };
+  }
 
   Ok(file)
 }
@@ -233,7 +296,7 @@ impl HybridPath {
     match self {
       HybridPath::PathBuf(ref path) => path.clone(),
       HybridPath::Temp(_, Some(ref path)) => path.clone(),
-      HybridPath::Temp(ref arc, None) => arc.path().to_path_buf()
+      HybridPath::Temp(ref arc, None) => arc.path().to_path_buf(),
     }
   }
 }
@@ -245,7 +308,7 @@ enum InstallError {
   CompressTools { source: compress_tools::Error },
   Unrar { detail: String },
   Network { source: reqwest::Error },
-  Any { detail: String }
+  Any { detail: String },
 }
 
 #[derive(Debug, Clone)]
@@ -254,13 +317,13 @@ pub enum ChannelMessage {
   Success(Arc<ModEntry>),
   /// ID, Conflicting ID or Path, Path to new, New Mod Entry
   Duplicate(StringOrPath, HybridPath, Arc<ModEntry>),
-  Error(String)
+  Error(String),
 }
 
 #[derive(Debug, Clone)]
 pub enum StringOrPath {
   String(String),
-  Path(PathBuf)
+  Path(PathBuf),
 }
 
 impl From<String> for StringOrPath {

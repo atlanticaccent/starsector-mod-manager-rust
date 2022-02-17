@@ -8,8 +8,8 @@ use druid::{
 };
 use druid_widget_nursery::material_icons::Icon;
 
-use super::Sorting;
 use super::util::icons::*;
+use super::Sorting;
 
 pub const RATIOS: [f64; 5] = [1. / 6., 1. / 5., 1. / 4., 1. / 3., 1. / 2.];
 pub const ENABLED_RATIO: f64 = 1. / 12.;

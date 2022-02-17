@@ -1,7 +1,10 @@
 use std::rc::Rc;
 
-use druid::{widget::{TabInfo, TabsPolicy, LabelText, SizedBox}, Data, SingleUse, Widget, WidgetExt, KeyOrValue, theme, UnitPoint};
-
+use druid::{
+  theme,
+  widget::{LabelText, SizedBox, TabInfo, TabsPolicy},
+  Data, KeyOrValue, SingleUse, UnitPoint, Widget, WidgetExt,
+};
 
 /// A TabsPolicy that allows the app developer to provide static tabs up front when building the
 /// widget.
@@ -20,7 +23,7 @@ impl<T> StaticTabsForked<T> {
     self.text_size = text_size;
     self
   }
-  
+
   /// Set the static tabs forked's label height.
   pub fn set_label_height(mut self, label_height: f64) -> Self {
     self.label_height = label_height;
@@ -33,7 +36,7 @@ impl<T> Default for StaticTabsForked<T> {
     StaticTabsForked {
       tabs: Rc::new([]),
       text_size: theme::TEXT_SIZE_NORMAL.into(),
-      label_height: 18.
+      label_height: 18.,
     }
   }
 }
@@ -51,47 +54,51 @@ impl<T: Data> TabsPolicy for StaticTabsForked<T> {
   type BodyWidget = Box<dyn Widget<T>>;
   type LabelWidget = SizedBox<T>;
   type Build = Vec<InitialTab<T>>;
-  
+
   fn tabs_changed(&self, _old_data: &T, _data: &T) -> bool {
     false
   }
-  
+
   fn tabs(&self, _data: &T) -> Vec<Self::Key> {
     (0..self.tabs.len()).collect()
   }
-  
+
   fn tab_info(&self, key: Self::Key, _data: &T) -> TabInfo<Self::Input> {
     // This only allows a static tabs label to be retrieved once,
     // but as we never indicate that the tabs have changed,
     // it should only be called once per key.
     TabInfo::new(
       self.tabs[key]
-      .name
-      .take()
-      .expect("StaticTabs LabelText can only be retrieved once"),
+        .name
+        .take()
+        .expect("StaticTabs LabelText can only be retrieved once"),
       false,
     )
   }
-  
+
   fn tab_body(&self, key: Self::Key, _data: &T) -> Self::BodyWidget {
     // This only allows a static tab to be retrieved once,
     // but as we never indicate that the tabs have changed,
     // it should only be called once per key.
-    self.tabs
-    .get(key)
-    .and_then(|initial_tab| initial_tab.child.take())
-    .expect("StaticTabs body widget can only be retrieved once")
+    self
+      .tabs
+      .get(key)
+      .and_then(|initial_tab| initial_tab.child.take())
+      .expect("StaticTabs body widget can only be retrieved once")
   }
-  
+
   fn tab_label(
     &self,
     _key: Self::Key,
     info: TabInfo<Self::Input>,
     _data: &Self::Input,
   ) -> Self::LabelWidget {
-    Self::default_make_label(info).with_text_size(self.text_size.clone()).align_vertical(UnitPoint::CENTER).fix_height(self.label_height)
+    Self::default_make_label(info)
+      .with_text_size(self.text_size.clone())
+      .align_vertical(UnitPoint::CENTER)
+      .fix_height(self.label_height)
   }
-  
+
   fn build(build: Self::Build) -> Self {
     StaticTabsForked {
       tabs: build.into(),

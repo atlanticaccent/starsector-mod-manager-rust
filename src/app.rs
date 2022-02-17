@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc, process};
+use std::{path::PathBuf, process, sync::Arc};
 
 use druid::{
   commands,
@@ -29,25 +29,26 @@ use self::{
   mod_description::ModDescription,
   mod_entry::ModEntry,
   mod_list::{EnabledMods, Filters, ModList},
+  modal::Modal,
   settings::{Settings, SettingsCommand},
+  updater::{open_in_browser, self_update, support_self_update},
   util::{
     get_latest_manager, get_quoted_version, get_starsector_version, h2, h3, icons::*,
     make_column_pair, LabelExt, Release, GET_INSTALLED_STARSECTOR,
   },
-  updater::{support_self_update, self_update, open_in_browser}, modal::Modal,
 };
 
-mod updater;
 mod installer;
 mod mod_description;
 mod mod_entry;
 mod mod_list;
+pub mod modal;
 mod settings;
+mod updater;
 #[path = "./util.rs"]
 pub mod util;
-pub mod modal;
 
-const TAG: &'static str = env!("CARGO_PKG_VERSION");
+const TAG: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Clone, Data, Lens)]
 pub struct App {
@@ -267,7 +268,9 @@ impl App {
                   (id, entry)
                 })
                 .collect();
-              data.active = id.as_ref().and_then(|id| data.mod_list.mods.get(id).cloned());
+              data.active = id
+                .as_ref()
+                .and_then(|id| data.mod_list.mods.get(id).cloned());
               if let Err(err) = EnabledMods::empty().save(install_dir) {
                 eprintln!("{:?}", err)
               }
@@ -307,10 +310,11 @@ impl App {
           || Label::wrapped_func(|v: &String, _| v.clone()),
           || Label::new("Unknown"),
         )
-        .lens(App::mod_list.then(ModList::starsector_version).map(
-          |v| v.as_ref().and_then(|v| get_quoted_version(v)),
-          |_, _| {},
-        )),
+        .lens(
+          App::mod_list
+            .then(ModList::starsector_version)
+            .map(|v| v.as_ref().and_then(get_quoted_version), |_, _| {}),
+        ),
       ))
       .with_default_spacer()
       .with_child(install_dir_browser)
@@ -701,20 +705,28 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
                 ),
               })
               .with_content(
-                Maybe::or_empty(|| Label::wrapped("\
+                Maybe::or_empty(|| {
+                  Label::wrapped(
+                    "\
                   NOTE: A .git directory has been detected in the target directory. \
                   Are you sure this isn't being used for development?\
-                "))
-                .lens(
-                  lens::Constant(data.settings.git_warn.then(|| {
-                    if entry.path.join(".git").exists() {
-                      Some(())
-                    } else {
-                      None
-                    }
-                  }).flatten())
-                )
-                .boxed()
+                ",
+                  )
+                })
+                .lens(lens::Constant(
+                  data
+                    .settings
+                    .git_warn
+                    .then(|| {
+                      if entry.path.join(".git").exists() {
+                        Some(())
+                      } else {
+                        None
+                      }
+                    })
+                    .flatten(),
+                ))
+                .boxed(),
               )
               .with_content(format!(
                 "Would you like to replace the existing {}?",
@@ -724,14 +736,17 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
                   "folder"
                 }
               ))
-              .with_button("Overwrite", ModList::OVERWRITE.with((
-                match conflict {
-                  StringOrPath::String(id) => data.mod_list.mods.get(id).unwrap().path.clone(),
-                  StringOrPath::Path(path) => path.clone(),
-                },
-                to_install.clone(),
-                entry.clone()
-              )))
+              .with_button(
+                "Overwrite",
+                ModList::OVERWRITE.with((
+                  match conflict {
+                    StringOrPath::String(id) => data.mod_list.mods.get(id).unwrap().path.clone(),
+                    StringOrPath::Path(path) => path.clone(),
+                  },
+                  to_install.clone(),
+                  entry.clone(),
+                )),
+              )
               .show(ctx, env, &());
           }
           ChannelMessage::Error(err) => {
@@ -815,7 +830,12 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
             Modal::new("Restart?")
               .with_content("Update complete.")
               .with_content("Would you like to restart?")
-              .with_button("Restart", App::RESTART.with(original_exe.as_ref().unwrap().clone()).to(Target::Global))
+              .with_button(
+                "Restart",
+                App::RESTART
+                  .with(original_exe.as_ref().unwrap().clone())
+                  .to(Target::Global),
+              )
               .with_close_label("Cancel")
           } else {
             Modal::new("Error")
@@ -846,7 +866,7 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
               .with_button("Update", App::SELF_UPDATE)
               .with_close_label("Cancel")
           } else {
-            return
+            return;
           }
         } else {
           Modal::new("Error")
@@ -862,7 +882,6 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
         } else {
           eprintln!("Failed to restart")
         };
-        
       }
       if (cmd.is(ModList::SUBMIT_ENTRY) || cmd.is(App::ENABLE)) && ctx.is_disabled() {
         ctx.set_disabled(false);

@@ -1,25 +1,49 @@
 use std::{
-  io::{Read, BufReader, BufRead},
-  path::{PathBuf, Path},
+  collections::VecDeque,
+  fmt::Display,
   fs::File,
-  fmt::Display, collections::VecDeque, iter::FromIterator, sync::Arc
+  io::{BufRead, BufReader, Read},
+  iter::FromIterator,
+  path::{Path, PathBuf},
+  sync::Arc,
 };
 
-use druid::{widget::{Checkbox, Label, LineBreaking, SizedBox, Controller, ControllerHost, ViewSwitcher, Button, Flex}, WidgetExt, Lens, Data, Widget, Selector, LensExt, Color, KeyOrValue};
-use druid_widget_nursery::{WidgetExt as WidgetExtNursery, material_icons::Icon};
-use serde::Deserialize;
+use druid::{
+  widget::{
+    Button, Checkbox, Controller, ControllerHost, Flex, Label, LineBreaking, SizedBox, ViewSwitcher,
+  },
+  Color, Data, KeyOrValue, Lens, LensExt, Selector, Widget, WidgetExt,
+};
+use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
 use json_comments::strip_comments;
-
+use serde::Deserialize;
 
 use if_chain::if_chain;
 use serde_aux::prelude::*;
 use tap::Tap;
 
-use crate::{app::{App, AppCommands, util::{LabelExt, parse_game_version}}, patch::split::Split};
+use crate::{
+  app::{
+    util::{parse_game_version, LabelExt},
+    App, AppCommands,
+  },
+  patch::split::Split,
+};
 
-use super::{util::{self, GREEN_KEY, RED_KEY, YELLOW_KEY, BLUE_KEY, ON_BLUE_KEY, ON_YELLOW_KEY, ON_RED_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ORANGE_KEY, icons::*}, mod_list::headings};
+use super::{
+  mod_list::headings,
+  util::{
+    self, icons::*, BLUE_KEY, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ON_RED_KEY,
+    ON_YELLOW_KEY, ORANGE_KEY, RED_KEY, YELLOW_KEY,
+  },
+};
 
-pub type GameVersion = (Option<String>, Option<String>, Option<String>, Option<String>);
+pub type GameVersion = (
+  Option<String>,
+  Option<String>,
+  Option<String>,
+  Option<String>,
+);
 
 #[derive(Debug, Clone, Deserialize, Data, Lens, PartialEq, Default)]
 pub struct ModEntry {
@@ -44,7 +68,7 @@ pub struct ModEntry {
   #[serde(skip)]
   pub update_status: Option<UpdateStatus>,
   #[serde(skip)]
-  #[data(same_fn="PartialEq::eq")]
+  #[data(same_fn = "PartialEq::eq")]
   pub path: PathBuf,
   #[serde(skip)]
   #[serde(default = "ModEntry::def_true")]
@@ -95,7 +119,9 @@ impl ModEntry {
     }
   }
 
-  fn def_true() -> bool { true }
+  fn def_true() -> bool {
+    true
+  }
 
   pub fn set_enabled(&mut self, enabled: bool) {
     self.enabled = enabled;
@@ -103,21 +129,43 @@ impl ModEntry {
 
   pub fn ui_builder() -> impl Widget<Arc<Self>> {
     let children: VecDeque<SizedBox<Arc<ModEntry>>> = VecDeque::from_iter(vec![
-      Label::dynamic(|text: &String, _| text.to_string()).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::name.in_arc()).padding(5.).expand_width(),
-      Label::dynamic(|text: &String, _| text.to_string()).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::id.in_arc()).padding(5.).expand_width(),
-      Label::dynamic(|text: &String, _| text.to_string()).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::author.in_arc()).padding(5.).expand_width(),
+      Label::dynamic(|text: &String, _| text.to_string())
+        .with_line_break_mode(LineBreaking::WordWrap)
+        .lens(ModEntry::name.in_arc())
+        .padding(5.)
+        .expand_width(),
+      Label::dynamic(|text: &String, _| text.to_string())
+        .with_line_break_mode(LineBreaking::WordWrap)
+        .lens(ModEntry::id.in_arc())
+        .padding(5.)
+        .expand_width(),
+      Label::dynamic(|text: &String, _| text.to_string())
+        .with_line_break_mode(LineBreaking::WordWrap)
+        .lens(ModEntry::author.in_arc())
+        .padding(5.)
+        .expand_width(),
       ViewSwitcher::new(
-        |entry: &Arc<ModEntry>, _| entry.update_status.as_ref().map(|s| s.as_text_colour()).unwrap_or_else(|| <KeyOrValue<Color>>::from(druid::theme::TEXT_COLOR)),
+        |entry: &Arc<ModEntry>, _| {
+          entry
+            .update_status
+            .as_ref()
+            .map(|s| s.as_text_colour())
+            .unwrap_or_else(|| <KeyOrValue<Color>>::from(druid::theme::TEXT_COLOR))
+        },
         |change, data, _| {
           Box::new(
             Flex::row()
-              .with_child(Label::new(data.version.to_string()).with_line_break_mode(LineBreaking::WordWrap).with_text_color(change.clone()))
+              .with_child(
+                Label::new(data.version.to_string())
+                  .with_line_break_mode(LineBreaking::WordWrap)
+                  .with_text_color(change.clone()),
+              )
               .tap_mut(|row| {
                 let iter = match data.update_status.as_ref() {
                   Some(UpdateStatus::Major(_)) => 3,
                   Some(UpdateStatus::Minor(_)) => 2,
                   Some(UpdateStatus::Patch(_)) => 1,
-                  _ => 0
+                  _ => 0,
                 };
 
                 row.add_flex_spacer(1.);
@@ -130,58 +178,96 @@ impl ModEntry {
                   Some(UpdateStatus::UpToDate) => row.add_child(Icon::new(VERIFIED)),
                   _ => {}
                 };
-              })
+              }),
           )
-        }
-      ).padding(5.).expand_width(),
+        },
+      )
+      .padding(5.)
+      .expand_width(),
       ViewSwitcher::new(
         |entry: &Arc<ModEntry>, _| {
-          if entry.version_checker.is_some() && entry.remote_version.as_ref().and_then(|r| r.direct_download_url.as_ref()).is_some() {
+          if entry.version_checker.is_some()
+            && entry
+              .remote_version
+              .as_ref()
+              .and_then(|r| r.direct_download_url.as_ref())
+              .is_some()
+          {
             if let Some(status) = &entry.update_status {
-              return status.clone()
+              return status.clone();
             }
           }
-  
+
           UpdateStatus::Error
         },
-        |status, _, _| {
-          match status {
-            UpdateStatus::Error => Box::new(Label::wrapped("Unsupported")),
-            UpdateStatus::UpToDate => Box::new(Label::wrapped("No update available")),
-            _ => {
-              Box::new(Button::from_label(Label::wrapped("Update available!")).on_click(|ctx: &mut druid::EventCtx, data: &mut Arc<ModEntry>, _| {
+        |status, _, _| match status {
+          UpdateStatus::Error => Box::new(Label::wrapped("Unsupported")),
+          UpdateStatus::UpToDate => Box::new(Label::wrapped("No update available")),
+          _ => Box::new(
+            Button::from_label(Label::wrapped("Update available!")).on_click(
+              |ctx: &mut druid::EventCtx, data: &mut Arc<ModEntry>, _| {
                 ctx.submit_notification(ModEntry::AUTO_UPDATE.with(data.clone()))
-              }))
-            }
-          }
-        }
-      ).padding(5.).expand_width(),
-      Label::dynamic(|version: &GameVersion, _| util::get_quoted_version(version).unwrap_or_else(|| "".to_string())).with_line_break_mode(LineBreaking::WordWrap).lens(ModEntry::game_version.in_arc()).padding(5.).expand_width()
+              },
+            ),
+          ),
+        },
+      )
+      .padding(5.)
+      .expand_width(),
+      Label::dynamic(|version: &GameVersion, _| {
+        util::get_quoted_version(version).unwrap_or_else(|| "".to_string())
+      })
+      .with_line_break_mode(LineBreaking::WordWrap)
+      .lens(ModEntry::game_version.in_arc())
+      .padding(5.)
+      .expand_width(),
     ]);
-    
-    fn recursive_split(idx: usize, mut widgets: VecDeque<SizedBox<Arc<ModEntry>>>, ratios: &[f64]) -> ControllerHost<Split<Arc<ModEntry>>, RowController> {
+
+    fn recursive_split(
+      idx: usize,
+      mut widgets: VecDeque<SizedBox<Arc<ModEntry>>>,
+      ratios: &[f64],
+    ) -> ControllerHost<Split<Arc<ModEntry>>, RowController> {
       if widgets.len() > 2 {
         Split::columns(
-          widgets.pop_front().expect("This better work..").padding((0., 5., 0., 5.)),
-          recursive_split(idx + 1, widgets, ratios)
+          widgets
+            .pop_front()
+            .expect("This better work..")
+            .padding((0., 5., 0., 5.)),
+          recursive_split(idx + 1, widgets, ratios),
         )
       } else {
         Split::columns(
-          widgets.pop_front().expect("This better work").padding((0., 5., 0., 5.)),
-          widgets.pop_front().expect("This better work").padding((0., 5., 0., 5.))
+          widgets
+            .pop_front()
+            .expect("This better work")
+            .padding((0., 5., 0., 5.)),
+          widgets
+            .pop_front()
+            .expect("This better work")
+            .padding((0., 5., 0., 5.)),
         )
       }
-      .split_point(ratios[idx]).bar_size(0.).controller(RowController::new(idx))
+      .split_point(ratios[idx])
+      .bar_size(0.)
+      .controller(RowController::new(idx))
     }
-    
+
     Split::columns(
-      Checkbox::new("").lens(ModEntry::enabled.in_arc()).center().padding(5.).expand_width().on_change(|ctx, _old, data, _| {
-        ctx.submit_command(ModEntry::REPLACE.with(data.clone()))
-      }),
-      recursive_split(0, children, &headings::RATIOS)
-    ).split_point(headings::ENABLED_RATIO).on_click(|ctx: &mut druid::EventCtx, data: &mut Arc<ModEntry>, _env: &druid::Env| {
-      ctx.submit_command(App::SELECTOR.with(AppCommands::UpdateModDescription(data.clone())))
-    })
+      Checkbox::new("")
+        .lens(ModEntry::enabled.in_arc())
+        .center()
+        .padding(5.)
+        .expand_width()
+        .on_change(|ctx, _old, data, _| ctx.submit_command(ModEntry::REPLACE.with(data.clone()))),
+      recursive_split(0, children, &headings::RATIOS),
+    )
+    .split_point(headings::ENABLED_RATIO)
+    .on_click(
+      |ctx: &mut druid::EventCtx, data: &mut Arc<ModEntry>, _env: &druid::Env| {
+        ctx.submit_command(App::SELECTOR.with(AppCommands::UpdateModDescription(data.clone())))
+      },
+    )
   }
 
   /// Set the mod entry's path.
@@ -191,15 +277,24 @@ impl ModEntry {
 }
 
 struct RowController {
-  id: usize
+  id: usize,
 }
 
 impl RowController {
-  fn new(id: usize) -> Self { Self { id } }
+  fn new(id: usize) -> Self {
+    Self { id }
+  }
 }
 
 impl Controller<Arc<ModEntry>, Split<Arc<ModEntry>>> for RowController {
-  fn event(&mut self, child: &mut Split<Arc<ModEntry>>, ctx: &mut druid::EventCtx, event: &druid::Event, data: &mut Arc<ModEntry>, env: &druid::Env) {
+  fn event(
+    &mut self,
+    child: &mut Split<Arc<ModEntry>>,
+    ctx: &mut druid::EventCtx,
+    event: &druid::Event,
+    data: &mut Arc<ModEntry>,
+    env: &druid::Env,
+  ) {
     if let druid::Event::Command(cmd) = event {
       if let Some((idx, ratio)) = cmd.get(ModEntry::UPDATE_RATIOS) {
         if self.id == *idx {
@@ -217,14 +312,14 @@ impl Controller<Arc<ModEntry>, Split<Arc<ModEntry>>> for RowController {
 #[serde(untagged)]
 pub enum VersionUnion {
   String(String),
-  Object(Version)
+  Object(Version),
 }
 
 impl Display for VersionUnion {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
     let output: String = match self {
       VersionUnion::String(s) => s.to_string(),
-      VersionUnion::Object(o) => o.to_string()
+      VersionUnion::Object(o) => o.to_string(),
     };
     write!(f, "{}", output)
   }
@@ -244,28 +339,28 @@ impl Default for VersionUnion {
 
 pub enum ModEntryError {
   ParseError,
-  FileError
+  FileError,
 }
 
 #[derive(Debug, Clone, Deserialize, Eq, Data, Lens)]
 pub struct ModVersionMeta {
-  #[serde(alias="masterVersionFile")]
+  #[serde(alias = "masterVersionFile")]
   pub remote_url: String,
-  #[serde(alias="directDownloadURL")]
+  #[serde(alias = "directDownloadURL")]
   #[serde(default)]
   pub direct_download_url: Option<String>,
-  #[serde(alias="modName")]
+  #[serde(alias = "modName")]
   pub id: String,
-  #[serde(alias="modThreadId")]
-  #[serde(deserialize_with="deserialize_string_from_number")]
+  #[serde(alias = "modThreadId")]
+  #[serde(deserialize_with = "deserialize_string_from_number")]
   #[serde(default)]
   fractal_id: String,
-  #[serde(alias="modNexusId")]
-  #[serde(deserialize_with="deserialize_string_from_number")]
+  #[serde(alias = "modNexusId")]
+  #[serde(deserialize_with = "deserialize_string_from_number")]
   #[serde(default)]
   nexus_id: String,
-  #[serde(alias="modVersion")]
-  pub version: Version
+  #[serde(alias = "modVersion")]
+  pub version: Version,
 }
 
 impl PartialEq for ModVersionMeta {
@@ -288,13 +383,13 @@ impl Ord for ModVersionMeta {
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, PartialOrd, Ord, Data, Lens)]
 pub struct Version {
-  #[serde(deserialize_with="deserialize_number_from_string")]
+  #[serde(deserialize_with = "deserialize_number_from_string")]
   pub major: i32,
-  #[serde(deserialize_with="deserialize_number_from_string")]
+  #[serde(deserialize_with = "deserialize_number_from_string")]
   pub minor: i32,
   #[serde(default)]
-  #[serde(deserialize_with="deserialize_string_from_number")]
-  pub patch: String
+  #[serde(deserialize_with = "deserialize_string_from_number")]
+  pub patch: String,
 }
 
 impl Display for Version {
@@ -335,7 +430,7 @@ impl From<(&ModVersionMeta, &Option<ModVersionMeta>)> for UpdateStatus {
     if let Some(remote) = remote {
       let local = &local.version;
       let remote = remote.version.clone();
-  
+
       if remote == *local {
         UpdateStatus::UpToDate
       } else if remote < *local {
@@ -361,7 +456,7 @@ impl From<UpdateStatus> for KeyOrValue<Color> {
       UpdateStatus::Patch(_) => BLUE_KEY.into(),
       UpdateStatus::Discrepancy(_) => Color::from_hex_str("810181").unwrap().into(),
       UpdateStatus::Error => RED_KEY.into(),
-      UpdateStatus::UpToDate => GREEN_KEY.into()
+      UpdateStatus::UpToDate => GREEN_KEY.into(),
     }
   }
 }
@@ -374,7 +469,7 @@ impl UpdateStatus {
       UpdateStatus::Patch(_) => ON_BLUE_KEY.into(),
       UpdateStatus::Discrepancy(_) => Color::from_hex_str("ffd6f7").unwrap().into(),
       UpdateStatus::Error => ON_RED_KEY.into(),
-      UpdateStatus::UpToDate => ON_GREEN_KEY.into()
+      UpdateStatus::UpToDate => ON_GREEN_KEY.into(),
     }
   }
 }
