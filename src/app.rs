@@ -770,6 +770,10 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
             )
             .boxed()
           )
+          .with_content("WARNING:")
+          .with_content("Save compatibility is not guaranteed when updating a mod. Your save may no longer load if you apply this update.")
+          .with_content("Bug reports about saves broken by using this feature will be ignored.")
+          .with_content("YOU HAVE BEEN WARNED")
           .with_button("Update", ModList::AUTO_UPDATE.with(entry.clone()))
           .with_close_label("Cancel")
           .show_with_size(ctx, env, &(), (600., 300.));
