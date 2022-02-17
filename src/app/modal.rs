@@ -1,7 +1,6 @@
-use std::collections::HashMap;
-
 use druid::{widget::{Button, Flex, Label}, Env, Widget, Data, WindowConfig, theme, WidgetExt, commands, Command, Target};
 use druid_widget_nursery::{AnyCtx, RequestCtx};
+use indexmap::IndexMap;
 use tap::Tap;
 
 use super::util::{DragWindowController, h3, LabelExt};
@@ -9,7 +8,7 @@ use super::util::{DragWindowController, h3, LabelExt};
 pub struct Modal<'a, T: Data> {
   title: String,
   contents: Vec<StringOrWidget<'a, T>>,
-  buttons: HashMap<String, Vec<Command>>
+  buttons: IndexMap<String, Vec<Command>>
 }
 
 impl<'a, T: Data> Modal<'a, T> {
@@ -17,7 +16,7 @@ impl<'a, T: Data> Modal<'a, T> {
     Self {
       title: String::from(title),
       contents: Vec::new(),
-      buttons: HashMap::new()
+      buttons: IndexMap::new()
     }
   }
 

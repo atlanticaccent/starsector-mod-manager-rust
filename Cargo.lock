@@ -2304,6 +2304,7 @@ dependencies = [
  "druid-widget-nursery",
  "handwritten-json",
  "if_chain",
+ "indexmap",
  "infer",
  "json5",
  "json_comments",
