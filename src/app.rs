@@ -18,6 +18,7 @@ use rfd::{AsyncFileDialog, FileHandle};
 use strum::IntoEnumIterator;
 use tap::Tap;
 use tokio::runtime::Handle;
+use self_update::version::bump_is_greater;
 
 use crate::patch::{
   split::Split,
@@ -850,7 +851,9 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
         }
       } else if let Some(payload) = cmd.get(App::UPDATE_AVAILABLE) {
         let widget = if let Ok(release) = payload {
-          if release.tag_name.as_str() > TAG {
+          let local_tag = TAG.strip_prefix('v').unwrap_or(TAG);
+          let release_tag = release.tag_name.strip_prefix('v').unwrap_or(&release.tag_name);
+          if bump_is_greater(local_tag, release_tag).is_ok_with(|b| *b) {
             Modal::new("Update Mod Manager?")
               .with_content("A new version of Starsector Mod Manager is available.")
               .with_content(format!("Current version: {}", TAG))
