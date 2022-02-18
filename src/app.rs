@@ -240,6 +240,8 @@ impl App {
           .disabled_if(|data: &App, _| data.mod_list.mods.values().all(|e| e.enabled))
           .on_click(|_, data: &mut App, _| {
             if let Some(install_dir) = data.settings.install_dir.as_ref() {
+              let id = data.active.as_ref().map(|e| e.id.clone());
+              data.active = None;
               let mut enabled: Vec<String> = Vec::new();
               data.mod_list.mods = data
                 .mod_list
@@ -251,6 +253,9 @@ impl App {
                   (id, entry)
                 })
                 .collect();
+              data.active = id
+                .as_ref()
+                .and_then(|id| data.mod_list.mods.get(id).cloned());
               if let Err(err) = EnabledMods::from(enabled).save(install_dir) {
                 eprintln!("{:?}", err)
               }
@@ -563,6 +568,10 @@ impl Delegate<App> for AppDelegate {
       App::mod_list
         .then(ModList::starsector_version)
         .put(data, res.as_ref().ok().cloned());
+    } else if let Some(entry) = cmd.get(ModEntry::REPLACE).or(cmd.get(ModList::SUBMIT_ENTRY)) {
+      if Some(&entry.id) == data.active.as_ref().map(|e| &e.id) {
+        data.active = Some(entry.clone())
+      }
     }
 
     Handled::No
