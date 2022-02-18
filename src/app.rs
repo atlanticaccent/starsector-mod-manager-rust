@@ -369,8 +369,8 @@ impl App {
       .padding(20.);
     let side_panel = Tabs::for_policy(
       StaticTabsForked::build(vec![
-        InitialTab::new("Tools & Filters", tool_panel),
         InitialTab::new("Launch", launch_panel),
+        InitialTab::new("Tools & Filters", tool_panel),
       ])
       .set_label_height(40.0),
     );
