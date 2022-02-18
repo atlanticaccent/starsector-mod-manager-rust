@@ -55,6 +55,10 @@ async fn handle_path(
   mods_dir: Arc<PathBuf>,
   installed: Arc<Vec<String>>,
 ) {
+  let file_name = path.file_name()
+    .map(|f| f.to_string_lossy().to_string())
+    .unwrap_or_else(|| String::from("unknown"));
+
   let mut mod_folder = if path.is_file() {
     let decompress = task::spawn_blocking(move || decompress(path))
       .await
@@ -66,7 +70,7 @@ async fn handle_path(
         ext_ctx
           .submit_command(
             INSTALL,
-            ChannelMessage::Error(None, err.to_string()),
+            ChannelMessage::Error(file_name, err.to_string()),
             Target::Auto,
           )
           .expect("Send error over async channel");
@@ -100,7 +104,7 @@ async fn handle_path(
         }
       }
     } else {
-      ext_ctx.submit_command(INSTALL, ChannelMessage::Error(None, "Could not find mod folder or parse mod_info file.".to_string()), Target::Auto).expect("Send error over async channel");
+      ext_ctx.submit_command(INSTALL, ChannelMessage::Error(file_name, "Could not find mod folder or parse mod_info file.".to_string()), Target::Auto).expect("Send error over async channel");
     }
   }
 }
@@ -241,12 +245,12 @@ async fn handle_auto(ext_ctx: ExtEventSink, entry: Arc<ModEntry>) {
                 unreachable!()
               };
               if &mod_info.version_checker.as_ref().unwrap().version != target_version {
-                ext_ctx.submit_command(INSTALL, ChannelMessage::Error(Some(mod_info.name.clone()), "Downloaded version does not match expected version".to_string()), Target::Auto).expect("Send error over async channel");
+                ext_ctx.submit_command(INSTALL, ChannelMessage::Error(mod_info.name.clone(), "Downloaded version does not match expected version".to_string()), Target::Auto).expect("Send error over async channel");
               } else {
                 handle_delete(ext_ctx, Arc::new(mod_info), hybrid, entry.path.clone()).await;
               }
             } else {
-              ext_ctx.submit_command(INSTALL, ChannelMessage::Error(None, "Some kind of unpack error".to_string()), Target::Auto).expect("Send error over async channel");
+              ext_ctx.submit_command(INSTALL, ChannelMessage::Error(entry.id.clone(), "Some kind of unpack error".to_string()), Target::Auto).expect("Send error over async channel");
             }
           }
         }
@@ -255,7 +259,7 @@ async fn handle_auto(ext_ctx: ExtEventSink, entry: Arc<ModEntry>) {
           ext_ctx
             .submit_command(
               INSTALL,
-              ChannelMessage::Error(None, err.to_string()),
+              ChannelMessage::Error(entry.id.clone(), err.to_string()),
               Target::Auto,
             )
             .expect("Send error over async channel");
@@ -266,7 +270,7 @@ async fn handle_auto(ext_ctx: ExtEventSink, entry: Arc<ModEntry>) {
       ext_ctx
         .submit_command(
           INSTALL,
-          ChannelMessage::Error(None, err.to_string()),
+          ChannelMessage::Error(entry.id.clone(), err.to_string()),
           Target::Auto,
         )
         .expect("Send error over async channel");
@@ -317,7 +321,7 @@ pub enum ChannelMessage {
   Success(Arc<ModEntry>),
   /// ID, Conflicting ID or Path, Path to new, New Mod Entry
   Duplicate(StringOrPath, HybridPath, Arc<ModEntry>),
-  Error(Option<String>, String),
+  Error(String, String),
 }
 
 #[derive(Debug, Clone)]

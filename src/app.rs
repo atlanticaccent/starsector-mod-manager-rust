@@ -19,6 +19,7 @@ use self_update::version::bump_is_greater;
 use strum::IntoEnumIterator;
 use tap::Tap;
 use tokio::runtime::Handle;
+use chrono::Local;
 
 use crate::patch::{
   split::Split,
@@ -62,9 +63,7 @@ pub struct App {
   #[data(ignore)]
   widget_id: WidgetId,
   #[data(same_fn = "PartialEq::eq")]
-  newly_installed: Vec<String>,
-  #[data(same_fn = "PartialEq::eq")]
-  recently_failed: Vec<(Option<String>, String)>,
+  log: Vec<String>,
 }
 
 impl App {
@@ -78,10 +77,10 @@ impl App {
   const UPDATE_AVAILABLE: Selector<Result<Release, String>> = Selector::new("app.update.available");
   const SELF_UPDATE: Selector<()> = Selector::new("app.update.perform");
   const RESTART: Selector<PathBuf> = Selector::new("app.update.restart");
-  const ADD_SUCCESS: Selector<String> = Selector::new("app.mod.install.success");
-  const CLEAR_NEWLY_INSTALLED: Selector = Selector::new("app.clear_newly_installed");
-  const ADD_FAIL: Selector<(Option<String>, String)> = Selector::new("app.mod.install.fail");
-  const CLEAR_RECENTLY_FAILED: Selector = Selector::new("app.clear_recently_failed");
+  const LOG_SUCCESS: Selector<String> = Selector::new("app.mod.install.success");
+  const CLEAR_LOG: Selector = Selector::new("app.install.clear_log");
+  const LOG_ERROR: Selector<(String, String)> = Selector::new("app.mod.install.fail");
+  const LOG_MESSAGE: Selector<String> = Selector::new("app.mod.install.start");
 
   pub fn new(handle: Handle) -> Self {
     App {
@@ -103,8 +102,7 @@ impl App {
       active: None,
       runtime: handle,
       widget_id: WidgetId::reserved(0),
-      newly_installed: Vec::new(),
-      recently_failed: Vec::new(),
+      log: Vec::new(),
     }
   }
 
@@ -176,8 +174,20 @@ impl App {
       .controller(InstallController)
       .on_command(App::OPEN_FILE, |ctx, payload, data| {
         if let Some(targets) = payload {
+          ctx.submit_command(App::LOG_MESSAGE.with(format!("Installing {}",
+              targets
+                .iter()
+                .map(|t| {
+                  t.file_name().map_or_else(
+                    || String::from("unknown"),
+                    |f| f.to_string_lossy().into_owned(),
+                  )
+                })
+                .collect::<Vec<String>>()
+                .join(", "),
+            )));
           data.runtime.spawn(
-            installer::Payload::Initial(targets.iter().map(|f| f.path().to_path_buf()).collect())
+            installer::Payload::Initial(targets.iter().map(|f| f.to_path_buf()).collect())
               .install(
                 ctx.get_external_handle(),
                 data.settings.install_dir.clone().unwrap(),
@@ -188,8 +198,15 @@ impl App {
       })
       .on_command(App::OPEN_FOLDER, |ctx, payload, data| {
         if let Some(target) = payload {
+          ctx.submit_command(App::LOG_MESSAGE.with(format!(
+            "Installing {}",
+            target.file_name().map_or_else(
+              || String::from("unknown"),
+              |f| f.to_string_lossy().into_owned(),
+            )
+          )));
           data.runtime.spawn(
-            installer::Payload::Initial(vec![target.path().to_path_buf()]).install(
+            installer::Payload::Initial(vec![target.clone()]).install(
               ctx.get_external_handle(),
               data.settings.install_dir.clone().unwrap(),
               data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
@@ -471,6 +488,10 @@ impl App {
       .await
       .map_or_else(|err| Err(err.to_string()), |_| Ok(()))
   }
+
+  fn log_message(&mut self, message: &str) {
+    self.log.push(format!("[{}] {}", Local::now().format("%H:%M:%S"), message))
+  }
 }
 
 enum AppCommands {
@@ -555,6 +576,7 @@ impl Delegate<App> for AppDelegate {
       }
       return Handled::Yes;
     } else if let Some(entry) = cmd.get(ModList::AUTO_UPDATE) {
+      ctx.submit_command(App::LOG_MESSAGE.with(format!("Begin auto-update of {}", entry.name)));
       data
         .runtime
         .spawn(installer::Payload::Download(entry.clone()).install(
@@ -581,85 +603,23 @@ impl Delegate<App> for AppDelegate {
       if Some(&entry.id) == data.active.as_ref().map(|e| &e.id) {
         data.active = Some(entry.clone())
       }
-    } else if let Some(name) = cmd.get(App::ADD_SUCCESS) {
-      data.newly_installed.push(name.clone());
-      if self.log_window.is_none() {
-        let modal = Modal::new("Success!")
-          .with_content("Successfully installed the following:")
-          .with_content(
-            Scroll::new(ViewSwitcher::new(
-              |data: &App, _| data.newly_installed.len(),
-              |_, data: &App, _| {
-                Flex::column()
-                  .tap_mut(|flex| {
-                    for name in data.newly_installed.iter() {
-                      flex.add_child(Label::wrapped(name))
-                    }
-                  })
-                  .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-                  .boxed()
-              },
-            ))
-            .boxed(),
-          )
-          .with_button("Close", App::CLEAR_NEWLY_INSTALLED)
-          .build();
-
-        let log_window = WindowDesc::new(modal)
-          .window_size((200., 500.))
-          .show_titlebar(false);
-
-        self.log_window = Some(log_window.id);
-
-        ctx.new_window(log_window);
-      }
+    } else if let Some(name) = cmd.get(App::LOG_SUCCESS) {
+      data.log_message(&format!("Successfully installed {}", name));
+      self.display_log_if_closed(ctx);
 
       return Handled::Yes;
-    } else if let Some(()) = cmd.get(App::CLEAR_NEWLY_INSTALLED) {
-      data.newly_installed.clear();
+    } else if let Some(()) = cmd.get(App::CLEAR_LOG) {
+      data.log.clear();
 
       return Handled::Yes;
-    } else if let Some(name) = cmd.get(App::ADD_FAIL) {
-      data.recently_failed.push(name.clone());
-      if self.fail_window.is_none() {
-        let modal = Modal::new("Error")
-          .with_content("Failed to install the following:")
-          .with_content(
-            Scroll::new(ViewSwitcher::new(
-              |data: &App, _| data.recently_failed.len(),
-              |_, data: &App, _| {
-                Flex::column()
-                  .tap_mut(|flex| {
-                    for (name, err) in data.recently_failed.iter() {
-                      let val = if let Some(name) = name {
-                        format!("{}, error: {}", name, err)
-                      } else {
-                        format!("Error: {}", err)
-                      };
-                      flex.add_child(Label::wrapped(&val))
-                    }
-                  })
-                  .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-                  .boxed()
-              },
-            ))
-            .boxed(),
-          )
-          .with_button("Close", App::CLEAR_RECENTLY_FAILED)
-          .build();
-
-        let fail_window = WindowDesc::new(modal)
-          .window_size((200., 500.))
-          .show_titlebar(false);
-
-        self.fail_window = Some(fail_window.id);
-
-        ctx.new_window(fail_window);
-      }
+    } else if let Some((name, err)) = cmd.get(App::LOG_ERROR) {
+      data.log_message(&format!("Failed to install {}. Error: {}", name, err));
+      self.display_log_if_closed(ctx);
 
       return Handled::Yes;
-    } else if let Some(()) = cmd.get(App::CLEAR_RECENTLY_FAILED) {
-      data.recently_failed.clear();
+    } else if let Some(message) = cmd.get(App::LOG_MESSAGE) {
+      data.log_message(message);
+      self.display_log_if_closed(ctx);
 
       return Handled::Yes;
     }
@@ -710,6 +670,45 @@ impl Delegate<App> for AppDelegate {
   }
 }
 
+impl AppDelegate {
+  fn build_log_window() -> impl Widget<App> {
+    Modal::new("Log")
+      .with_content("")
+      .with_content(
+        Scroll::new(ViewSwitcher::new(
+          |data: &App, _| data.log.len(),
+          |_, data: &App, _| {
+            Flex::column()
+              .tap_mut(|flex| {
+                for val in data.log.iter() {
+                  flex.add_child(Label::wrapped(val))
+                }
+              })
+              .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+              .boxed()
+          },
+        ))
+        .vertical()
+        .boxed(),
+      )
+      .with_button("Close", App::CLEAR_LOG)
+      .build()
+  }
+
+  fn display_log_if_closed(&mut self, ctx: &mut DelegateCtx) {
+    if self.log_window.is_none() {
+      let modal = AppDelegate::build_log_window();
+
+      let log_window = WindowDesc::new(modal)
+        .window_size((500., 400.))
+        .show_titlebar(false);
+
+      self.log_window = Some(log_window.id);
+
+      ctx.new_window(log_window);
+    }
+  }
+}
 struct InstallController;
 
 impl<W: Widget<App>> Controller<App, W> for InstallController {
@@ -782,6 +781,7 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
     if let Event::Command(cmd) = event {
       if let Some((conflict, install_to, entry)) = cmd.get(ModList::OVERWRITE) {
         if let Some(install_dir) = &data.settings.install_dir {
+          ctx.submit_command(App::LOG_MESSAGE.with(format!("Resuming install for {}", entry.name)));
           data.runtime.spawn(
             installer::Payload::Resumed(entry.clone(), install_to.clone(), conflict.clone())
               .install(
@@ -809,7 +809,7 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
             }
             data.mod_list.mods.insert(entry.id.clone(), entry.clone());
             ctx.children_changed();
-            ctx.submit_command(App::ADD_SUCCESS.with(entry.name.clone()));
+            ctx.submit_command(App::LOG_SUCCESS.with(entry.name.clone()));
           }
           ChannelMessage::Duplicate(conflict, to_install, entry) => {
             Modal::new("Overwrite existing?")
@@ -870,7 +870,7 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
               .show(ctx, env, &());
           }
           ChannelMessage::Error(name, err) => {
-            data.recently_failed.push((name.clone(), err.clone()));
+            ctx.submit_command(App::LOG_ERROR.with((name.clone(), err.clone())));
             eprintln!("Failed to install {}", err);
           }
         }
