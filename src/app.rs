@@ -617,7 +617,6 @@ impl Delegate<App> for AppDelegate {
       return Handled::Yes;
     } else if let Some(()) = cmd.get(App::CLEAR_NEWLY_INSTALLED) {
       data.newly_installed.clear();
-      self.log_window = None;
 
       return Handled::Yes;
     } else if let Some(name) = cmd.get(App::ADD_FAIL) {
@@ -661,7 +660,6 @@ impl Delegate<App> for AppDelegate {
       return Handled::Yes;
     } else if let Some(()) = cmd.get(App::CLEAR_RECENTLY_FAILED) {
       data.recently_failed.clear();
-      self.fail_window = None;
 
       return Handled::Yes;
     }
@@ -670,10 +668,12 @@ impl Delegate<App> for AppDelegate {
   }
 
   fn window_removed(&mut self, id: WindowId, _data: &mut App, _env: &Env, ctx: &mut DelegateCtx) {
-    if Some(id) == self.settings_id {
-      self.settings_id = None;
-    } else if Some(id) == self.root_id {
-      ctx.submit_command(commands::QUIT_APP)
+    match Some(id) {
+      a @ _ if a == self.settings_id => self.settings_id = None,
+      a @ _ if a == self.log_window => self.log_window = None,
+      a @ _ if a == self.fail_window => self.fail_window = None,
+      a @ _ if a == self.root_id => ctx.submit_command(commands::QUIT_APP),
+      _ => {}
     }
   }
 
