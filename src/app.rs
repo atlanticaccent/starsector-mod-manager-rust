@@ -63,6 +63,8 @@ pub struct App {
   widget_id: WidgetId,
   #[data(same_fn = "PartialEq::eq")]
   newly_installed: Vec<String>,
+  #[data(same_fn = "PartialEq::eq")]
+  recently_failed: Vec<(Option<String>, String)>,
 }
 
 impl App {
@@ -78,6 +80,8 @@ impl App {
   const RESTART: Selector<PathBuf> = Selector::new("app.update.restart");
   const ADD_SUCCESS: Selector<String> = Selector::new("app.mod.install.success");
   const CLEAR_NEWLY_INSTALLED: Selector = Selector::new("app.clear_newly_installed");
+  const ADD_FAIL: Selector<(Option<String>, String)> = Selector::new("app.mod.install.fail");
+  const CLEAR_RECENTLY_FAILED: Selector = Selector::new("app.clear_recently_failed");
 
   pub fn new(handle: Handle) -> Self {
     App {
@@ -100,6 +104,7 @@ impl App {
       runtime: handle,
       widget_id: WidgetId::reserved(0),
       newly_installed: Vec::new(),
+      recently_failed: Vec::new(),
     }
   }
 
@@ -478,6 +483,7 @@ pub struct AppDelegate {
   settings_id: Option<WindowId>,
   root_id: Option<WindowId>,
   log_window: Option<WindowId>,
+  fail_window: Option<WindowId>,
 }
 
 impl Delegate<App> for AppDelegate {
@@ -612,6 +618,50 @@ impl Delegate<App> for AppDelegate {
     } else if let Some(()) = cmd.get(App::CLEAR_NEWLY_INSTALLED) {
       data.newly_installed.clear();
       self.log_window = None;
+
+      return Handled::Yes;
+    } else if let Some(name) = cmd.get(App::ADD_FAIL) {
+      data.recently_failed.push(name.clone());
+      if self.fail_window.is_none() {
+        let modal = Modal::new("Error")
+          .with_content("Failed to install the following:")
+          .with_content(
+            Scroll::new(ViewSwitcher::new(
+              |data: &App, _| data.recently_failed.len(),
+              |_, data: &App, _| {
+                Flex::column()
+                  .tap_mut(|flex| {
+                    for (name, err) in data.recently_failed.iter() {
+                      let val = if let Some(name) = name {
+                        format!("{}, error: {}", name, err)
+                      } else {
+                        format!("Error: {}", err)
+                      };
+                      flex.add_child(Label::wrapped(&val))
+                    }
+                  })
+                  .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+                  .boxed()
+              },
+            ))
+            .boxed(),
+          )
+          .with_button("Close", App::CLEAR_RECENTLY_FAILED)
+          .build();
+
+        let fail_window = WindowDesc::new(modal)
+          .window_size((200., 500.))
+          .show_titlebar(false);
+
+        self.fail_window = Some(fail_window.id);
+
+        ctx.new_window(fail_window);
+      }
+
+      return Handled::Yes;
+    } else if let Some(()) = cmd.get(App::CLEAR_RECENTLY_FAILED) {
+      data.recently_failed.clear();
+      self.fail_window = None;
 
       return Handled::Yes;
     }
@@ -820,7 +870,8 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
               )
               .show(ctx, env, &());
           }
-          ChannelMessage::Error(err) => {
+          ChannelMessage::Error(name, err) => {
+            data.recently_failed.push((name.clone(), err.clone()));
             eprintln!("Failed to install {}", err);
           }
         }
