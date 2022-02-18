@@ -1,24 +1,24 @@
-use std::{path::PathBuf, process, sync::Arc, time::Duration};
+use std::{path::PathBuf, process, sync::Arc};
 
 use druid::{
   commands,
   keyboard_types::Key,
   lens, theme,
   widget::{
-    Axis, Button, Checkbox, Controller, Flex, Label, Maybe, Painter, Scope, ScopeTransfer,
+    Axis, Button, Checkbox, Controller, Flex, Label, Maybe, Painter, Scope, ScopeTransfer, Scroll,
     SizedBox, Tabs, TabsPolicy, TextBox, ViewSwitcher,
   },
   AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Event, EventCtx, Handled, KeyEvent,
   Lens, LensExt, Menu, MenuItem, RenderContext, Selector, Target, Widget, WidgetExt, WidgetId,
-  WindowDesc, WindowId, TimerToken,
+  WindowDesc, WindowId,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
 use lazy_static::lazy_static;
 use rfd::{AsyncFileDialog, FileHandle};
+use self_update::version::bump_is_greater;
 use strum::IntoEnumIterator;
 use tap::Tap;
 use tokio::runtime::Handle;
-use self_update::version::bump_is_greater;
 
 use crate::patch::{
   split::Split,
@@ -34,8 +34,8 @@ use self::{
   settings::{Settings, SettingsCommand},
   updater::{open_in_browser, self_update, support_self_update},
   util::{
-    get_latest_manager, get_quoted_version, get_starsector_version, h2, h3, icons::*,
-    make_column_pair, LabelExt, Release, GET_INSTALLED_STARSECTOR, get_master_version,
+    get_latest_manager, get_master_version, get_quoted_version, get_starsector_version, h2, h3,
+    icons::*, make_column_pair, LabelExt, Release, GET_INSTALLED_STARSECTOR,
   },
 };
 
@@ -61,10 +61,8 @@ pub struct App {
   runtime: Handle,
   #[data(ignore)]
   widget_id: WidgetId,
-  #[data(ignore)]
-  debounce_id: Option<TimerToken>,
-  #[data(ignore)]
-  pending_notifs: Vec<String>
+  #[data(same_fn = "PartialEq::eq")]
+  newly_installed: Vec<String>,
 }
 
 impl App {
@@ -78,6 +76,8 @@ impl App {
   const UPDATE_AVAILABLE: Selector<Result<Release, String>> = Selector::new("app.update.available");
   const SELF_UPDATE: Selector<()> = Selector::new("app.update.perform");
   const RESTART: Selector<PathBuf> = Selector::new("app.update.restart");
+  const ADD_SUCCESS: Selector<String> = Selector::new("app.mod.install.success");
+  const CLEAR_NEWLY_INSTALLED: Selector = Selector::new("app.clear_newly_installed");
 
   pub fn new(handle: Handle) -> Self {
     App {
@@ -99,8 +99,7 @@ impl App {
       active: None,
       runtime: handle,
       widget_id: WidgetId::reserved(0),
-      debounce_id: None,
-      pending_notifs: Vec::new(),
+      newly_installed: Vec::new(),
     }
   }
 
@@ -478,6 +477,7 @@ enum AppCommands {
 pub struct AppDelegate {
   settings_id: Option<WindowId>,
   root_id: Option<WindowId>,
+  log_window: Option<WindowId>,
 }
 
 impl Delegate<App> for AppDelegate {
@@ -568,10 +568,52 @@ impl Delegate<App> for AppDelegate {
       App::mod_list
         .then(ModList::starsector_version)
         .put(data, res.as_ref().ok().cloned());
-    } else if let Some(entry) = cmd.get(ModEntry::REPLACE).or(cmd.get(ModList::SUBMIT_ENTRY)) {
+    } else if let Some(entry) = cmd
+      .get(ModEntry::REPLACE)
+      .or_else(|| cmd.get(ModList::SUBMIT_ENTRY))
+    {
       if Some(&entry.id) == data.active.as_ref().map(|e| &e.id) {
         data.active = Some(entry.clone())
       }
+    } else if let Some(name) = cmd.get(App::ADD_SUCCESS) {
+      data.newly_installed.push(name.clone());
+      if self.log_window.is_none() {
+        let modal = Modal::new("Success!")
+          .with_content("Successfully installed the following:")
+          .with_content(
+            Scroll::new(ViewSwitcher::new(
+              |data: &App, _| data.newly_installed.len(),
+              |_, data: &App, _| {
+                Flex::column()
+                  .tap_mut(|flex| {
+                    for name in data.newly_installed.iter() {
+                      flex.add_child(Label::wrapped(name))
+                    }
+                  })
+                  .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+                  .boxed()
+              },
+            ))
+            .boxed(),
+          )
+          .with_button("Close", App::CLEAR_NEWLY_INSTALLED)
+          .build();
+
+        let log_window = WindowDesc::new(modal)
+          .window_size((200., 500.))
+          .show_titlebar(false);
+
+        self.log_window = Some(log_window.id);
+
+        ctx.new_window(log_window);
+      }
+
+      return Handled::Yes;
+    } else if let Some(()) = cmd.get(App::CLEAR_NEWLY_INSTALLED) {
+      data.newly_installed.clear();
+      self.log_window = None;
+
+      return Handled::Yes;
     }
 
     Handled::No
@@ -711,12 +753,14 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
               mut_entry.remote_version = Some(remote_version_checker);
               mut_entry.update_status = existing.and_then(|e| e.update_status.clone());
             } else if let Some(version_checker) = entry.version_checker.clone() {
-              data.runtime.spawn(get_master_version(ctx.get_external_handle(), version_checker));
+              data.runtime.spawn(get_master_version(
+                ctx.get_external_handle(),
+                version_checker,
+              ));
             }
             data.mod_list.mods.insert(entry.id.clone(), entry.clone());
             ctx.children_changed();
-            data.debounce_id = Some(ctx.request_timer(Duration::from_millis(10)));
-            data.pending_notifs.push(entry.name.clone());
+            ctx.submit_command(App::ADD_SUCCESS.with(entry.name.clone()));
           }
           ChannelMessage::Duplicate(conflict, to_install, entry) => {
             Modal::new("Overwrite existing?")
@@ -820,18 +864,6 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
           .with_close_label("Cancel")
           .show_with_size(ctx, env, &(), (600., 300.));
       }
-    } else if let Event::Timer(token) = event {
-      if data.debounce_id.take() == Some(*token) {
-        let mut modal = Modal::new("Installation successful!")
-          .with_content("Successfully installed the following:");
-
-        for name in data.pending_notifs.drain(..) {
-          modal = modal.with_content(name)
-        }
-
-        modal.with_close()
-          .show(ctx, env, &())
-      }
     }
 
     child.event(ctx, event, data, env)
@@ -883,14 +915,17 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
               .with_close()
           };
 
-          widget.show(ctx, env, &())
+          widget.show(ctx, env, &());
         } else {
           open_in_browser();
         }
       } else if let Some(payload) = cmd.get(App::UPDATE_AVAILABLE) {
         let widget = if let Ok(release) = payload {
           let local_tag = TAG.strip_prefix('v').unwrap_or(TAG);
-          let release_tag = release.tag_name.strip_prefix('v').unwrap_or(&release.tag_name);
+          let release_tag = release
+            .tag_name
+            .strip_prefix('v')
+            .unwrap_or(&release.tag_name);
           if bump_is_greater(local_tag, release_tag).is_ok_with(|b| *b) {
             Modal::new("Update Mod Manager?")
               .with_content("A new version of Starsector Mod Manager is available.")
