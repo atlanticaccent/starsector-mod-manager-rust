@@ -104,7 +104,7 @@ pub fn make_column_pair<T: Data>(label: impl Widget<T> + 'static, val: impl Widg
 
 pub const MASTER_VERSION_RECEIVED: Selector<(String, Result<ModVersionMeta, String>)> = Selector::new("remote_version_received");
 
-pub async fn get_master_version(ext_sink: ExtEventSink, local: &ModVersionMeta) {
+pub async fn get_master_version(ext_sink: ExtEventSink, local: ModVersionMeta) {
   let res = send_request(local.remote_url.clone()).await;
 
   let payload = match res {

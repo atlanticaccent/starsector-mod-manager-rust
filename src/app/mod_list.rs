@@ -159,11 +159,7 @@ impl ModList {
         1.,
       )
       .on_command(ModList::SUBMIT_ENTRY, |_ctx, payload, data| {
-        let mut payload = payload.clone();
-        if let Some(version_checker) = data.mods.get(&payload.id).and_then(|e| e.version_checker.clone()) {
-          (*Arc::make_mut(&mut payload)).version_checker = Some(version_checker);
-        }
-        data.mods.insert(payload.id.clone(), payload);
+        data.mods.insert(payload.id.clone(), payload.clone());
       })
       .on_command(Headings::SORT_CHANGED, |ctx, payload, data| {
         if data.headings.sort_by.0 == *payload {
@@ -243,11 +239,8 @@ impl ModList {
             {
               eprintln!("Failed to submit found mod {}", err);
             };
-            if entry.version_checker.is_some() {
-              let event_sink = event_sink.clone();
-              handle.spawn(async move {
-                util::get_master_version(event_sink, entry.version_checker.as_ref().unwrap()).await;
-              });
+            if let Some(version) = entry.version_checker.clone() {
+              handle.spawn(util::get_master_version(event_sink.clone(), version));
             }
           });
       }

@@ -35,7 +35,7 @@ use self::{
   updater::{open_in_browser, self_update, support_self_update},
   util::{
     get_latest_manager, get_quoted_version, get_starsector_version, h2, h3, icons::*,
-    make_column_pair, LabelExt, Release, GET_INSTALLED_STARSECTOR,
+    make_column_pair, LabelExt, Release, GET_INSTALLED_STARSECTOR, get_master_version,
   },
 };
 
@@ -704,6 +704,15 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
       } else if let Some(payload) = cmd.get(installer::INSTALL) {
         match payload {
           ChannelMessage::Success(entry) => {
+            let mut entry = entry.clone();
+            let existing = data.mod_list.mods.get(&entry.id);
+            if let Some(remote_version_checker) = existing.and_then(|e| e.remote_version.clone()) {
+              let mut mut_entry = Arc::make_mut(&mut entry);
+              mut_entry.remote_version = Some(remote_version_checker);
+              mut_entry.update_status = existing.and_then(|e| e.update_status.clone());
+            } else if let Some(version_checker) = entry.version_checker.clone() {
+              data.runtime.spawn(get_master_version(ctx.get_external_handle(), version_checker));
+            }
             data.mod_list.mods.insert(entry.id.clone(), entry.clone());
             ctx.children_changed();
             data.debounce_id = Some(ctx.request_timer(Duration::from_millis(10)));
