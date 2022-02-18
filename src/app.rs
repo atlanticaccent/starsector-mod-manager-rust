@@ -14,7 +14,7 @@ use druid::{
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
 use lazy_static::lazy_static;
-use rfd::{AsyncFileDialog, FileHandle};
+use rfd::FileDialog;
 use self_update::version::bump_is_greater;
 use strum::IntoEnumIterator;
 use tap::Tap;
@@ -69,8 +69,8 @@ pub struct App {
 
 impl App {
   const SELECTOR: Selector<AppCommands> = Selector::new("app.update.commands");
-  const OPEN_FILE: Selector<Option<Vec<FileHandle>>> = Selector::new("app.open.multiple");
-  const OPEN_FOLDER: Selector<Option<FileHandle>> = Selector::new("app.open.folder");
+  const OPEN_FILE: Selector<Option<Vec<PathBuf>>> = Selector::new("app.open.multiple");
+  const OPEN_FOLDER: Selector<Option<PathBuf>> = Selector::new("app.open.folder");
   const ENABLE: Selector<()> = Selector::new("app.enable");
   const DUMB_UNIVERSAL_ESCAPE: Selector<()> = Selector::new("app.universal_escape");
   const REFRESH: Selector<()> = Selector::new("app.mod_list.refresh");
@@ -737,14 +737,13 @@ impl<W: Widget<App>> Controller<App, W> for InstallController {
               .entry(MenuItem::new("From Archive(s)").on_activate(
                 move |_ctx, data: &mut App, _| {
                   let ext_ctx = ext_ctx.clone();
-                  data.runtime.spawn(async move {
-                    let res = AsyncFileDialog::new()
+                  data.runtime.spawn_blocking(move || {
+                    let res = FileDialog::new()
                       .add_filter(
                         "Archives",
                         &["zip", "7z", "7zip", "rar", "rar4", "rar5", "tar"],
                       )
-                      .pick_files()
-                      .await;
+                      .pick_files();
 
                     ext_ctx.submit_command(App::OPEN_FILE, res, Target::Auto)
                   });
@@ -753,10 +752,10 @@ impl<W: Widget<App>> Controller<App, W> for InstallController {
               .entry(MenuItem::new("From Folder").on_activate({
                 let ext_ctx = ctx.get_external_handle();
                 move |_ctx, data: &mut App, _| {
-                  data.runtime.spawn({
+                  data.runtime.spawn_blocking({
                     let ext_ctx = ext_ctx.clone();
-                    async move {
-                      let res = AsyncFileDialog::new().pick_folder().await;
+                    move || {
+                      let res = FileDialog::new().pick_folder();
 
                       ext_ctx.submit_command(App::OPEN_FOLDER, res, Target::Auto)
                     }
@@ -929,13 +928,13 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
       if let Some(settings::SettingsCommand::SelectInstallDir) = cmd.get(Settings::SELECTOR) {
         let ext_ctx = ctx.get_external_handle();
         ctx.set_disabled(true);
-        data.runtime.spawn(async move {
-          let res = AsyncFileDialog::new().pick_folder().await;
+        data.runtime.spawn_blocking(move || {
+          let res = FileDialog::new().pick_folder();
 
           if let Some(handle) = res {
             ext_ctx.submit_command(
               Settings::SELECTOR,
-              SettingsCommand::UpdateInstallDir(handle.path().to_path_buf()),
+              SettingsCommand::UpdateInstallDir(handle.clone()),
               Target::Auto,
             )
           } else {
