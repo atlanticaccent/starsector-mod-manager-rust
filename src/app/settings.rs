@@ -339,11 +339,14 @@ struct InstallDirDelegate {}
 impl ValidationDelegate for InstallDirDelegate {
   fn event(&mut self, ctx: &mut druid::EventCtx, event: TextBoxEvent, current_text: &str) {
     if let TextBoxEvent::Complete | TextBoxEvent::Changed = event {
-      ctx.submit_command(
-        Settings::SELECTOR.with(SettingsCommand::UpdateInstallDir(PathBuf::from(
-          current_text,
-        ))),
-      )
+      let path = PathBuf::from(current_text);
+      if path.exists() {
+        ctx.submit_command(
+          Settings::SELECTOR.with(SettingsCommand::UpdateInstallDir(PathBuf::from(
+            current_text,
+          ))),
+        )
+      }
     }
     if let TextBoxEvent::Invalid(_) = event {
       ctx.submit_command(Selector::new("druid.builtin.textbox-cancel-editing"))
