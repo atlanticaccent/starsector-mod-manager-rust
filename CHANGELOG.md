@@ -23,6 +23,9 @@
     - The default (and only) theming is now dark
     - Light theme is not currently a priority
     - Your retinas can thank me later
+  - (Dormant) App self updating
+    - MOSS (aka: this app) will be able to update itself whenever a new version is release.
+    - Only available on Windows and Linux, aka: *not supported on macOS*
 - **Fix**
   - VMParams editing is now only available on Windows
     - It never worked on other platforms *anyway*
