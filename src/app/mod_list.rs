@@ -159,9 +159,11 @@ impl ModList {
         1.,
       )
       .on_command(ModList::SUBMIT_ENTRY, |_ctx, payload, data| {
-        if data.mods.get(&payload.id) != Some(payload) {
-          data.mods.insert(payload.id.clone(), payload.clone());
+        let mut payload = payload.clone();
+        if let Some(version_checker) = data.mods.get(&payload.id).and_then(|e| e.version_checker.clone()) {
+          (*Arc::make_mut(&mut payload)).version_checker = Some(version_checker);
         }
+        data.mods.insert(payload.id.clone(), payload);
       })
       .on_command(Headings::SORT_CHANGED, |ctx, payload, data| {
         if data.headings.sort_by.0 == *payload {
@@ -230,19 +232,22 @@ impl ModList {
                   .find_any(|id| mod_info.id.clone().eq(*id))
                   .is_some(),
               );
-              Some((Arc::new(mod_info.clone()), mod_info.version_checker.clone()))
+              Some(Arc::new(mod_info))
             } else {
               dbg!(entry.path());
               None
             }
           })
-          .for_each(|(entry, version)| {
-            if let Err(err) = event_sink.submit_command(ModList::SUBMIT_ENTRY, entry, Target::Auto)
+          .for_each(|entry| {
+            if let Err(err) = event_sink.submit_command(ModList::SUBMIT_ENTRY, entry.clone(), Target::Auto)
             {
               eprintln!("Failed to submit found mod {}", err);
             };
-            if let Some(version) = version {
-              handle.spawn(util::get_master_version(event_sink.clone(), version));
+            if entry.version_checker.is_some() {
+              let event_sink = event_sink.clone();
+              handle.spawn(async move {
+                util::get_master_version(event_sink, entry.version_checker.as_ref().unwrap()).await;
+              });
             }
           });
       }
