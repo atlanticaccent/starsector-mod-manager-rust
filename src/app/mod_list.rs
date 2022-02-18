@@ -245,6 +245,10 @@ impl ModList {
           });
       }
     }
+
+    if event_sink.submit_command(super::App::ENABLE, (), Target::Auto).is_err() {
+      event_sink.submit_command(super::App::ENABLE, (), Target::Auto).unwrap();
+    };
   }
 
   fn sorted_vals(&self) -> Vec<Arc<ModEntry>> {
