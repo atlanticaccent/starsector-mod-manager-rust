@@ -1,6 +1,6 @@
 [package]
 name = "starsector_mod_manager"
-version = "0.5.2"
+version = "0.6.0"
 authors = ["ikl"]
 edition = "2018"
 description = "A mod manager for the game Starsector"
@@ -8,14 +8,10 @@ description = "A mod manager for the game Starsector"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+druid = { git = "https://github.com/linebender/druid", rev = "fc05e965c85fced8720c655685e02478e0530e94" }
+druid-widget-nursery = { git = "https://github.com/linebender/druid-widget-nursery", rev = "f302b2d668dac7801af7b1e4e6f22e1b3accce42", features = ["material-icons"] }
 infer = "0.3.4"
-tokio = { version = "1.6.0", features = ["fs", "io-util", "rt"] }
-iced = { version = "0.3.0", features = ["glow", "tokio"] }
-iced_native = "0.4"
-iced_aw = { git = "https://github.com/iced-rs/iced_aw", branch = "main", default-features = false, features = ["modal", "card"] }
-tinyfiledialogs = "^3.8.3"
-native-dialog = "0.5.5"
-iced_futures = "0.3"
+tokio = { version = "1.6.0", features = ["fs", "io-util", "rt-multi-thread", "process"] }
 serde = { version = "1.0.126", features = ["derive"] }
 serde_json = "1.0"
 json5 = "0.3.0"
@@ -36,6 +32,14 @@ classfile-parser = "~0.3"
 zip = "^0.5"
 regex = "1.5"
 lazy_static = "1.4"
+rfd = "0.6.3"
+strum = "0.23"
+strum_macros = "0.23"
+tap = "1.0.1"
+rayon = "1.5"
+self_update = { version = "0.28.0", default-features = false, features = ["rustls"] }
+indexmap = "1.8.0"
+chrono = "0.4.19"
 
 [package.metadata.bundle]
 name = "Starsector Mod Manager"
