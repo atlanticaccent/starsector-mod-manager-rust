@@ -1,5 +1,6 @@
 use std::{path::PathBuf, process, sync::Arc};
 
+use chrono::Local;
 use druid::{
   commands,
   keyboard_types::Key,
@@ -19,7 +20,6 @@ use self_update::version::bump_is_greater;
 use strum::IntoEnumIterator;
 use tap::Tap;
 use tokio::runtime::Handle;
-use chrono::Local;
 
 use crate::patch::{
   split::Split,
@@ -29,7 +29,7 @@ use crate::patch::{
 use self::{
   installer::{ChannelMessage, StringOrPath},
   mod_description::ModDescription,
-  mod_entry::ModEntry,
+  mod_entry::{ModEntry, UpdateStatus},
   mod_list::{EnabledMods, Filters, ModList},
   modal::Modal,
   settings::{Settings, SettingsCommand},
@@ -187,12 +187,11 @@ impl App {
                 .join(", "),
             )));
           data.runtime.spawn(
-            installer::Payload::Initial(targets.iter().map(|f| f.to_path_buf()).collect())
-              .install(
-                ctx.get_external_handle(),
-                data.settings.install_dir.clone().unwrap(),
-                data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
-              ),
+            installer::Payload::Initial(targets.iter().map(|f| f.to_path_buf()).collect()).install(
+              ctx.get_external_handle(),
+              data.settings.install_dir.clone().unwrap(),
+              data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
+            ),
           );
         }
       })
@@ -205,13 +204,13 @@ impl App {
               |f| f.to_string_lossy().into_owned(),
             )
           )));
-          data.runtime.spawn(
-            installer::Payload::Initial(vec![target.clone()]).install(
+          data
+            .runtime
+            .spawn(installer::Payload::Initial(vec![target.clone()]).install(
               ctx.get_external_handle(),
               data.settings.install_dir.clone().unwrap(),
               data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
-            ),
-          );
+            ));
         }
       });
     let mod_list = mod_list::ModList::ui_builder()
@@ -490,7 +489,9 @@ impl App {
   }
 
   fn log_message(&mut self, message: &str) {
-    self.log.push(format!("[{}] {}", Local::now().format("%H:%M:%S"), message))
+    self
+      .log
+      .push(format!("[{}] {}", Local::now().format("%H:%M:%S"), message))
   }
 }
 
@@ -599,6 +600,15 @@ impl Delegate<App> for AppDelegate {
     } else if let Some(entry) = cmd
       .get(ModEntry::REPLACE)
       .or_else(|| cmd.get(ModList::SUBMIT_ENTRY))
+      .or_else(|| {
+        cmd.get(installer::INSTALL).and_then(|m| {
+          if let ChannelMessage::Success(e) = m {
+            Some(e)
+          } else {
+            None
+          }
+        })
+      })
     {
       if Some(&entry.id) == data.active.as_ref().map(|e| &e.id) {
         data.active = Some(entry.clone())
@@ -799,8 +809,11 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
             let existing = data.mod_list.mods.get(&entry.id);
             if let Some(remote_version_checker) = existing.and_then(|e| e.remote_version.clone()) {
               let mut mut_entry = Arc::make_mut(&mut entry);
-              mut_entry.remote_version = Some(remote_version_checker);
-              mut_entry.update_status = existing.and_then(|e| e.update_status.clone());
+              mut_entry.remote_version = Some(remote_version_checker.clone());
+              mut_entry.update_status = Some(UpdateStatus::from((
+                mut_entry.version_checker.as_ref().unwrap(),
+                &Some(remote_version_checker),
+              )));
             } else if let Some(version_checker) = entry.version_checker.clone() {
               data.runtime.spawn(get_master_version(
                 ctx.get_external_handle(),
