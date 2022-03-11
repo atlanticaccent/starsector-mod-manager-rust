@@ -325,7 +325,7 @@ pub enum ChannelMessage {
   Error(String, String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum StringOrPath {
   String(String),
   Path(PathBuf),
