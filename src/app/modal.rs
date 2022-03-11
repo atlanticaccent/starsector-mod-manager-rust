@@ -66,7 +66,7 @@ impl<'a, T: Data> Modal<'a, T> {
           .background(theme::BACKGROUND_LIGHT)
           .controller(DragWindowController::default()),
       )
-      .with_child(
+      .with_flex_child(
         Flex::column()
           .tap_mut(|flex| {
             for content in self.contents.drain(..) {
@@ -78,24 +78,33 @@ impl<'a, T: Data> Modal<'a, T> {
             }
           })
           .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-          .expand_width()
-          .padding(20.),
+          .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
+          .padding(20.)
+          .scroll()
+          .vertical()
+          .expand(),
+          1.
       )
-      .with_flex_spacer(1.)
-      .with_child(Flex::row().with_flex_spacer(1.).tap_mut(|flex| {
-        for (label, commands) in self.buttons {
-          flex.add_child(Button::new(label).on_click({
-            let commands = commands.clone();
-            move |ctx, _, _| {
-              for command in &commands {
-                ctx.submit_command(command.clone().to(Target::Global))
-              }
-              ctx.submit_command(commands::CLOSE_WINDOW)
+      .with_child(
+        Flex::row()
+          .with_flex_spacer(1.)
+          .tap_mut(|flex| {
+            for (label, commands) in self.buttons {
+              flex.add_child(Button::new(label).on_click({
+                let commands = commands.clone();
+                move |ctx, _, _| {
+                  for command in &commands {
+                    ctx.submit_command(command.clone().to(Target::Global))
+                  }
+                  ctx.submit_command(commands::CLOSE_WINDOW)
+                }
+              }))
             }
-          }))
-        }
-      }))
+          }),
+      )
       .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+      .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
+      .expand()
   }
 
   pub fn show(self, ctx: &mut (impl AnyCtx + RequestCtx), env: &Env, data: &T) -> WindowId {
