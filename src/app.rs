@@ -961,19 +961,21 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
         match payload {
           ChannelMessage::Success(entry) => {
             let mut entry = entry.clone();
-            let existing = data.mod_list.mods.get(&entry.id);
-            if let Some(remote_version_checker) = existing.and_then(|e| e.remote_version.clone()) {
+            if let Some(existing) = data.mod_list.mods.get(&entry.id) {
               let mut mut_entry = Arc::make_mut(&mut entry);
-              mut_entry.remote_version = Some(remote_version_checker.clone());
-              mut_entry.update_status = Some(UpdateStatus::from((
-                mut_entry.version_checker.as_ref().unwrap(),
-                &Some(remote_version_checker),
-              )));
-            } else if let Some(version_checker) = entry.version_checker.clone() {
-              data.runtime.spawn(get_master_version(
-                ctx.get_external_handle(),
-                version_checker,
-              ));
+              mut_entry.enabled = existing.enabled;
+              if let Some(remote_version_checker) = existing.remote_version.clone() {
+                mut_entry.remote_version = Some(remote_version_checker.clone());
+                mut_entry.update_status = Some(UpdateStatus::from((
+                  mut_entry.version_checker.as_ref().unwrap(),
+                  &Some(remote_version_checker),
+                )));
+              } else if let Some(version_checker) = entry.version_checker.clone() {
+                data.runtime.spawn(get_master_version(
+                  ctx.get_external_handle(),
+                  version_checker,
+                ));
+              }
             }
             data.mod_list.mods.insert(entry.id.clone(), entry.clone());
             ctx.children_changed();
