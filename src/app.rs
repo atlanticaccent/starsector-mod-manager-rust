@@ -977,9 +977,9 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
                 ));
               }
             }
-            data.mod_list.mods.insert(entry.id.clone(), entry.clone());
-            ctx.children_changed();
             ctx.submit_command(App::LOG_SUCCESS.with(entry.name.clone()));
+            data.mod_list.mods.insert(entry.id.clone(), entry);
+            ctx.children_changed();
           }
           ChannelMessage::Duplicate(conflict, to_install, entry) => ctx.submit_command(
             App::LOG_OVERWRITE.with((conflict.clone(), to_install.clone(), entry.clone())),
