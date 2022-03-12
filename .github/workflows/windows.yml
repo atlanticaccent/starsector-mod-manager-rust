@@ -13,8 +13,8 @@ jobs:
   build:
     name: Rust project
     runs-on: windows-latest
-    # env:
-    #   VCPKG_DEFAULT_TRIPLET: x64-windows-static
+    env:
+      VCPKG_DEFAULT_TRIPLET: x64-windows-static
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
