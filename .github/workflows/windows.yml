@@ -24,6 +24,7 @@ jobs:
       - name: Install libarchive
         uses: lukka/run-vcpkg@v10.1
         with:
+          vcpkgDirectory: '${{ runner.workspace }}/b/vcpkg'
           vcpkgGitCommitId: af2287382b1991dbdcb7e5112d236f3323b9dd7a
           runVcpkgInstall: true
       - name: Check cache
