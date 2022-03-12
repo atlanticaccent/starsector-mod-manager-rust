@@ -24,7 +24,6 @@ jobs:
           minimal: true
       - name: Install libarchive
         uses: lukka/run-vcpkg@v10.1
-        id: runvcpkg
         with:
           vcpkgArguments: libarchive
           vcpkgTriplet: x64-windows-static
