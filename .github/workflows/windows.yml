@@ -24,8 +24,8 @@ jobs:
       - name: Install libarchive
         uses: lukka/run-vcpkg@v10.1
         with:
+          vcpkgGitCommitId: af2287382b1991dbdcb7e5112d236f3323b9dd7a
           runVcpkgInstall: true
-          runVcpkgFormatString: "['install', 'libarchive:x64-windows-static']"
       - name: Check cache
         uses: actions/cache@v2
         with:
