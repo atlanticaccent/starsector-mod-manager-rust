@@ -26,7 +26,7 @@ jobs:
         id: runvcpkg
         with:
           runVcpkgInstall: true
-          runVcpkgFormatString: ["install", "libarchive:x64-windows-static"]
+          runVcpkgFormatString: "["install", "libarchive:x64-windows-static"]"
       - name: Check cache
         uses: actions/cache@v2
         with:
