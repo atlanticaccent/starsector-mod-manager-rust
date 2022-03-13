@@ -1091,7 +1091,7 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
             .tag_name
             .strip_prefix('v')
             .unwrap_or(&release.tag_name);
-          if bump_is_greater(local_tag, release_tag).is_ok_with(|b| *b) {
+          if bump_is_greater(local_tag, release_tag).is_ok_and(|b| *b) {
             Modal::new("Update Mod Manager?")
               .with_content("A new version of Starsector Mod Manager is available.")
               .with_content(format!("Current version: {}", TAG))
