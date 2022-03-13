@@ -1,6 +1,6 @@
-use std::{path::PathBuf, process, rc::Rc, sync::Arc};
+use std::{path::PathBuf, process, rc::Rc, sync::Arc, fs::metadata};
 
-use chrono::Local;
+use chrono::{Local, DateTime};
 use druid::{
   commands,
   im::Vector,
@@ -16,10 +16,11 @@ use druid::{
 };
 use druid_widget_nursery::{material_icons::Icon, Separator, WidgetExt as WidgetExtNursery};
 use lazy_static::lazy_static;
+use remove_dir_all::remove_dir_all;
 use rfd::FileDialog;
 use self_update::version::bump_is_greater;
 use strum::IntoEnumIterator;
-use tap::Tap;
+use tap::{Tap, Pipe};
 use tokio::runtime::Handle;
 
 use crate::patch::{
@@ -66,6 +67,7 @@ pub struct App {
   #[data(same_fn = "PartialEq::eq")]
   log: Vec<String>,
   overwrite_log: Vector<Rc<(StringOrPath, HybridPath, Arc<ModEntry>)>>,
+  duplicate_log: Vector<(Arc<ModEntry>, Arc<ModEntry>)>,
 }
 
 impl App {
@@ -88,6 +90,9 @@ impl App {
   const CLEAR_OVERWRITE_LOG: Selector<bool> = Selector::new("app.install.clear_overwrite_log");
   const REMOVE_OVERWRITE_LOG_ENTRY: Selector<StringOrPath> =
     Selector::new("app.install.overwrite.decline");
+  const DELETE_AND_SUMBIT: Selector<(PathBuf, Arc<ModEntry>)> = Selector::new("app.mod.duplicate.resolve");
+  const REMOVE_DUPLICATE_LOG_ENTRY: Selector<String> = Selector::new("app.mod.duplicate.remove_log");
+  const CLEAR_DUPLICATE_LOG: Selector = Selector::new("app.mod.duplicate.ignore_all");
 
   pub fn new(handle: Handle) -> Self {
     App {
@@ -111,6 +116,7 @@ impl App {
       widget_id: WidgetId::reserved(0),
       log: Vec::new(),
       overwrite_log: Vector::new(),
+      duplicate_log: Vector::new(),
     }
   }
 
@@ -507,6 +513,10 @@ impl App {
       self.overwrite_log.push_back(Rc::new(message))
     }
   }
+
+  fn push_duplicate(&mut self, duplicates: &(Arc<ModEntry>, Arc<ModEntry>)) {
+    self.duplicate_log.push_back(duplicates.clone())
+  }
 }
 
 enum AppCommands {
@@ -521,6 +531,7 @@ pub struct AppDelegate {
   log_window: Option<WindowId>,
   fail_window: Option<WindowId>,
   overwrite_window: Option<WindowId>,
+  duplicate_window: Option<WindowId>,
 }
 
 impl Delegate<App> for AppDelegate {
@@ -678,6 +689,46 @@ impl Delegate<App> for AppDelegate {
       }
 
       return Handled::Yes;
+    } else if let Some(duplicates) = cmd.get(ModList::DUPLICATE) {
+      data.push_duplicate(duplicates);
+      self.display_duplicate_if_closed(ctx);
+
+      return Handled::Yes
+    } else if let Some((delete_path, keep_entry)) = cmd.get(App::DELETE_AND_SUMBIT) {
+      let ext_ctx = ctx.get_external_handle();
+      let delete_path = delete_path.clone();
+      let keep_entry = keep_entry.clone();
+      data.runtime.spawn(async move {
+        if remove_dir_all(delete_path).is_ok() {
+          let remote_version = keep_entry.version_checker.clone();
+          if ext_ctx.submit_command(ModEntry::REPLACE, keep_entry, Target::Auto).is_err() {
+            eprintln!("Failed to submit new entry")
+          };
+          if let Some(version_meta) = remote_version {
+            util::get_master_version(ext_ctx, version_meta).await;
+          }
+        } else {
+          eprintln!("Failed to delete duplicate mod");
+        }
+      });
+
+      return Handled::Yes
+    } else if let Some(id) = cmd.get(App::REMOVE_DUPLICATE_LOG_ENTRY) {
+      data.duplicate_log.retain(|entry| entry.0.id != *id);
+      if data.duplicate_log.len() == 0 {
+        if let Some(id) = self.duplicate_window.take() {
+          ctx.submit_command(commands::CLOSE_WINDOW.to(id))
+        }
+      }
+
+      return Handled::Yes
+    } else if let Some(()) = cmd.get(App::CLEAR_DUPLICATE_LOG) {
+      data.duplicate_log.clear();
+      if let Some(id) = self.duplicate_window.take() {
+        ctx.submit_command(commands::CLOSE_WINDOW.to(id))
+      }
+
+      return Handled::Yes
     }
 
     Handled::No
@@ -873,7 +924,98 @@ impl AppDelegate {
       ctx.new_window(overwrite_window);
     }
   }
+
+  fn build_duplicate_window() -> impl Widget<App> {
+    ViewSwitcher::new(
+      |app: &App, _| app.duplicate_log.len(),
+      |_, app, _| {
+        Modal::new("Duplicate detected")
+          .pipe(|mut modal| {
+            for (dupe_a, dupe_b) in &app.duplicate_log {
+              modal = modal
+                .with_content(format!("Detected duplicate installs of mod with ID {}.", dupe_a.id))
+                .with_content(
+                  Flex::row()
+                    .with_flex_child(
+                      Self::make_dupe_col(dupe_a, dupe_b),
+                      1.
+                    )
+                    .with_flex_child(
+                      Self::make_dupe_col(dupe_b, dupe_a),
+                      1.
+                    )
+                    .boxed()
+                )
+                .with_content(
+                  Flex::row()
+                    .with_flex_spacer(1.)
+                    .with_child(Button::new("Ignore").on_click({
+                      let id = dupe_a.id.clone();
+                      move |ctx, _, _| {
+                        ctx.submit_command(App::REMOVE_DUPLICATE_LOG_ENTRY.with(id.clone()))
+                      }
+                    }))
+                    .boxed()
+                )
+                .with_content(Separator::new().padding((0., 0., 0., 10.)).boxed())
+            }
+            modal
+          })
+          .with_button("Ignore All", App::CLEAR_DUPLICATE_LOG)
+          .build()
+          .boxed()
+      }
+    )
+  }
+
+  fn display_duplicate_if_closed(&mut self, ctx: &mut DelegateCtx) {
+    if self.duplicate_window.is_none() {
+      let modal = Self::build_duplicate_window();
+
+      let duplicate_window = WindowDesc::new(modal)
+        .window_size((500., 400.))
+        .show_titlebar(false);
+
+      self.duplicate_window = Some(duplicate_window.id);
+
+      ctx.new_window(duplicate_window);
+    }
+  }
+
+  fn make_dupe_col(dupe_a: &Arc<ModEntry>, dupe_b: &Arc<ModEntry>) -> Flex<App> {
+    let meta = metadata(&dupe_a.path);
+    Flex::column()
+      .with_child(Label::wrapped(&format!("Version: {}", dupe_a.version.to_string())))
+      .with_child(Label::wrapped(&format!("Path: {}", dupe_a.path.to_string_lossy())))
+      .with_child(Label::wrapped(
+        &format!("Last modified: {}", if let Ok(Ok(time)) = meta.as_ref().map(|meta| meta.modified()) {
+          DateTime::<Local>::from(time).format("%F:%R").to_string()
+        } else {
+          "Failed to retrieve last modified".to_string()
+        })
+      ))
+      .with_child(Label::wrapped(
+        &format!("Created at: {}", meta.and_then(|meta| meta.created()).map_or_else(
+          |_| "Failed to retrieve creation time".to_string(),
+          |time| {
+            DateTime::<Local>::from(time).format("%F:%R").to_string()
+          }
+        ))
+      ))
+      .with_child(Button::new("Keep").on_click({
+        let id = dupe_a.id.clone();
+        let path = dupe_b.path.clone();
+        let dupe_a = dupe_a.clone();
+        move |ctx, _, _| {
+          ctx.submit_command(App::REMOVE_DUPLICATE_LOG_ENTRY.with(id.clone()));
+          ctx.submit_command(App::DELETE_AND_SUMBIT.with((path.clone(), dupe_a.clone())))
+        }
+      }))
+      .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+      .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
+  }
 }
+
 struct InstallController;
 
 impl<W: Widget<App>> Controller<App, W> for InstallController {
