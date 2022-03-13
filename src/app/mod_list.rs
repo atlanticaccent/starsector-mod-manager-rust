@@ -445,35 +445,35 @@ impl Filters {
       Filters::Error => |entry: &Arc<ModEntry>| {
         !entry
           .update_status
-          .is_some_with(|s| s == &UpdateStatus::Error)
+          .is_some_and(|s| s == &UpdateStatus::Error)
       },
       Filters::UpToDate => |entry: &Arc<ModEntry>| {
         !entry
           .update_status
-          .is_some_with(|s| s == &UpdateStatus::UpToDate)
+          .is_some_and(|s| s == &UpdateStatus::UpToDate)
       },
       Filters::Discrepancy => |entry: &Arc<ModEntry>| {
         !entry
           .update_status
-          .is_some_with(|s| matches!(s, &UpdateStatus::Discrepancy(_)))
+          .is_some_and(|s| matches!(s, &UpdateStatus::Discrepancy(_)))
       },
       Filters::Patch => |entry: &Arc<ModEntry>| {
         !entry
           .update_status
-          .is_some_with(|s| matches!(s, &UpdateStatus::Patch(_)))
+          .is_some_and(|s| matches!(s, &UpdateStatus::Patch(_)))
       },
       Filters::Minor => |entry: &Arc<ModEntry>| {
         !entry
           .update_status
-          .is_some_with(|s| matches!(s, &UpdateStatus::Minor(_)))
+          .is_some_and(|s| matches!(s, &UpdateStatus::Minor(_)))
       },
       Filters::Major => |entry: &Arc<ModEntry>| {
         !entry
           .update_status
-          .is_some_with(|s| matches!(s, &UpdateStatus::Major(_)))
+          .is_some_and(|s| matches!(s, &UpdateStatus::Major(_)))
       },
       Filters::AutoUpdateAvailable => |entry: &Arc<ModEntry>| {
-        !(entry.update_status.is_some_with(|s| {
+        !(entry.update_status.is_some_and(|s| {
           matches!(
             s,
             UpdateStatus::Patch(_) | UpdateStatus::Minor(_) | UpdateStatus::Major(_)
