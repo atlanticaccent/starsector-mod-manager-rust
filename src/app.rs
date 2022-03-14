@@ -1,24 +1,26 @@
-use std::{path::PathBuf, process, sync::Arc};
+use std::{path::PathBuf, process, rc::Rc, sync::Arc, fs::metadata};
 
-use chrono::Local;
+use chrono::{Local, DateTime};
 use druid::{
   commands,
+  im::Vector,
   keyboard_types::Key,
   lens, theme,
   widget::{
-    Axis, Button, Checkbox, Controller, Flex, Label, Maybe, Painter, Scope, ScopeTransfer, Scroll,
+    Axis, Button, Checkbox, Controller, Flex, Label, Maybe, Painter, Scope, ScopeTransfer,
     SizedBox, Tabs, TabsPolicy, TextBox, ViewSwitcher,
   },
   AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Event, EventCtx, Handled, KeyEvent,
   Lens, LensExt, Menu, MenuItem, RenderContext, Selector, Target, Widget, WidgetExt, WidgetId,
   WindowDesc, WindowId,
 };
-use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
+use druid_widget_nursery::{material_icons::Icon, Separator, WidgetExt as WidgetExtNursery};
 use lazy_static::lazy_static;
+use remove_dir_all::remove_dir_all;
 use rfd::FileDialog;
 use self_update::version::bump_is_greater;
 use strum::IntoEnumIterator;
-use tap::Tap;
+use tap::{Tap, Pipe};
 use tokio::runtime::Handle;
 
 use crate::patch::{
@@ -27,7 +29,7 @@ use crate::patch::{
 };
 
 use self::{
-  installer::{ChannelMessage, StringOrPath},
+  installer::{ChannelMessage, HybridPath, StringOrPath},
   mod_description::ModDescription,
   mod_entry::{ModEntry, UpdateStatus},
   mod_list::{EnabledMods, Filters, ModList},
@@ -64,6 +66,8 @@ pub struct App {
   widget_id: WidgetId,
   #[data(same_fn = "PartialEq::eq")]
   log: Vec<String>,
+  overwrite_log: Vector<Rc<(StringOrPath, HybridPath, Arc<ModEntry>)>>,
+  duplicate_log: Vector<(Arc<ModEntry>, Arc<ModEntry>)>,
 }
 
 impl App {
@@ -81,6 +85,14 @@ impl App {
   const CLEAR_LOG: Selector = Selector::new("app.install.clear_log");
   const LOG_ERROR: Selector<(String, String)> = Selector::new("app.mod.install.fail");
   const LOG_MESSAGE: Selector<String> = Selector::new("app.mod.install.start");
+  const LOG_OVERWRITE: Selector<(StringOrPath, HybridPath, Arc<ModEntry>)> =
+    Selector::new("app.mod.install.overwrite");
+  const CLEAR_OVERWRITE_LOG: Selector<bool> = Selector::new("app.install.clear_overwrite_log");
+  const REMOVE_OVERWRITE_LOG_ENTRY: Selector<StringOrPath> =
+    Selector::new("app.install.overwrite.decline");
+  const DELETE_AND_SUMBIT: Selector<(PathBuf, Arc<ModEntry>)> = Selector::new("app.mod.duplicate.resolve");
+  const REMOVE_DUPLICATE_LOG_ENTRY: Selector<String> = Selector::new("app.mod.duplicate.remove_log");
+  const CLEAR_DUPLICATE_LOG: Selector = Selector::new("app.mod.duplicate.ignore_all");
 
   pub fn new(handle: Handle) -> Self {
     App {
@@ -103,6 +115,8 @@ impl App {
       runtime: handle,
       widget_id: WidgetId::reserved(0),
       log: Vec::new(),
+      overwrite_log: Vector::new(),
+      duplicate_log: Vector::new(),
     }
   }
 
@@ -493,6 +507,16 @@ impl App {
       .log
       .push(format!("[{}] {}", Local::now().format("%H:%M:%S"), message))
   }
+
+  fn push_overwrite(&mut self, message: (StringOrPath, HybridPath, Arc<ModEntry>)) {
+    if !self.overwrite_log.iter().any(|val| val.0 == message.0) {
+      self.overwrite_log.push_back(Rc::new(message))
+    }
+  }
+
+  fn push_duplicate(&mut self, duplicates: &(Arc<ModEntry>, Arc<ModEntry>)) {
+    self.duplicate_log.push_back(duplicates.clone())
+  }
 }
 
 enum AppCommands {
@@ -506,6 +530,8 @@ pub struct AppDelegate {
   root_id: Option<WindowId>,
   log_window: Option<WindowId>,
   fail_window: Option<WindowId>,
+  overwrite_window: Option<WindowId>,
+  duplicate_window: Option<WindowId>,
 }
 
 impl Delegate<App> for AppDelegate {
@@ -632,16 +658,91 @@ impl Delegate<App> for AppDelegate {
       self.display_log_if_closed(ctx);
 
       return Handled::Yes;
+    } else if let Some(message) = cmd.get(App::LOG_OVERWRITE) {
+      data.push_overwrite(message.clone());
+      self.display_overwrite_if_closed(ctx);
+
+      return Handled::Yes;
+    } else if let Some(ovewrite_all) = cmd.get(App::CLEAR_OVERWRITE_LOG) {
+      if *ovewrite_all {
+        for val in &data.overwrite_log {
+          let (conflict, to_install, entry) = val.as_ref();
+          ctx.submit_command(ModList::OVERWRITE.with((
+            match conflict {
+              StringOrPath::String(id) => data.mod_list.mods.get(id).unwrap().path.clone(),
+              StringOrPath::Path(path) => path.clone(),
+            },
+            to_install.clone(),
+            entry.clone(),
+          )))
+        }
+      }
+      data.overwrite_log.clear();
+
+      return Handled::Yes;
+    } else if let Some(overwrite_entry) = cmd.get(App::REMOVE_OVERWRITE_LOG_ENTRY) {
+      data.overwrite_log.retain(|val| val.0 != *overwrite_entry);
+      if data.overwrite_log.len() == 0 {
+        if let Some(id) = self.overwrite_window.take() {
+          ctx.submit_command(commands::CLOSE_WINDOW.to(id))
+        }
+      }
+
+      return Handled::Yes;
+    } else if let Some(duplicates) = cmd.get(ModList::DUPLICATE) {
+      data.push_duplicate(duplicates);
+      self.display_duplicate_if_closed(ctx);
+
+      return Handled::Yes
+    } else if let Some((delete_path, keep_entry)) = cmd.get(App::DELETE_AND_SUMBIT) {
+      let ext_ctx = ctx.get_external_handle();
+      let delete_path = delete_path.clone();
+      let keep_entry = keep_entry.clone();
+      data.runtime.spawn(async move {
+        if remove_dir_all(delete_path).is_ok() {
+          let remote_version = keep_entry.version_checker.clone();
+          if ext_ctx.submit_command(ModEntry::REPLACE, keep_entry, Target::Auto).is_err() {
+            eprintln!("Failed to submit new entry")
+          };
+          if let Some(version_meta) = remote_version {
+            util::get_master_version(ext_ctx, version_meta).await;
+          }
+        } else {
+          eprintln!("Failed to delete duplicate mod");
+        }
+      });
+
+      return Handled::Yes
+    } else if let Some(id) = cmd.get(App::REMOVE_DUPLICATE_LOG_ENTRY) {
+      data.duplicate_log.retain(|entry| entry.0.id != *id);
+      if data.duplicate_log.len() == 0 {
+        if let Some(id) = self.duplicate_window.take() {
+          ctx.submit_command(commands::CLOSE_WINDOW.to(id))
+        }
+      }
+
+      return Handled::Yes
+    } else if let Some(()) = cmd.get(App::CLEAR_DUPLICATE_LOG) {
+      data.duplicate_log.clear();
+      if let Some(id) = self.duplicate_window.take() {
+        ctx.submit_command(commands::CLOSE_WINDOW.to(id))
+      }
+
+      return Handled::Yes
     }
 
     Handled::No
   }
 
-  fn window_removed(&mut self, id: WindowId, _data: &mut App, _env: &Env, ctx: &mut DelegateCtx) {
+  fn window_removed(&mut self, id: WindowId, data: &mut App, _env: &Env, ctx: &mut DelegateCtx) {
     match Some(id) {
       a @ _ if a == self.settings_id => self.settings_id = None,
       a @ _ if a == self.log_window => self.log_window = None,
       a @ _ if a == self.fail_window => self.fail_window = None,
+      a @ _ if a == self.overwrite_window => {
+        data.overwrite_log.clear();
+        self.overwrite_window = None;
+      }
       a @ _ if a == self.root_id => ctx.submit_command(commands::QUIT_APP),
       _ => {}
     }
@@ -682,27 +783,18 @@ impl Delegate<App> for AppDelegate {
 
 impl AppDelegate {
   fn build_log_window() -> impl Widget<App> {
-    Modal::new("Log")
-      .with_content("")
-      .with_content(
-        Scroll::new(ViewSwitcher::new(
-          |data: &App, _| data.log.len(),
-          |_, data: &App, _| {
-            Flex::column()
-              .tap_mut(|flex| {
-                for val in data.log.iter() {
-                  flex.add_child(Label::wrapped(val))
-                }
-              })
-              .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-              .boxed()
-          },
-        ))
-        .vertical()
-        .boxed(),
-      )
-      .with_button("Close", App::CLEAR_LOG)
-      .build()
+    ViewSwitcher::new(
+      |data: &App, _| data.log.len(),
+      |_, data: &App, _| {
+        let mut modal = Modal::new("Log").with_content("");
+
+        for val in data.log.iter() {
+          modal = modal.with_content(val.as_str())
+        }
+
+        modal.with_button("Close", App::CLEAR_LOG).build().boxed()
+      },
+    )
   }
 
   fn display_log_if_closed(&mut self, ctx: &mut DelegateCtx) {
@@ -718,7 +810,212 @@ impl AppDelegate {
       ctx.new_window(log_window);
     }
   }
+
+  fn build_overwrite_window() -> impl Widget<App> {
+    ViewSwitcher::new(
+      |data: &App, _| data.overwrite_log.len(),
+      |_, data: &App, _| {
+        let mut modal = Modal::new("Overwrite?");
+
+        for val in data.overwrite_log.iter() {
+          let (conflict, to_install, entry) = val.as_ref();
+          modal = modal
+            .with_content(match conflict {
+              StringOrPath::String(id) => format!("A mod with ID {} alread exists.", id),
+              StringOrPath::Path(path) => format!(
+                "Found a folder at the path {} when trying to install {}.",
+                path.to_string_lossy(),
+                entry.id
+              ),
+            })
+            .with_content(
+              Maybe::or_empty(|| {
+                Label::wrapped(
+                  "\
+              NOTE: A .git directory has been detected in the target directory. \
+              Are you sure this isn't being used for development?\
+            ",
+                )
+              })
+              .lens(lens::Constant(
+                data
+                  .settings
+                  .git_warn
+                  .then(|| {
+                    if entry.path.join(".git").exists() {
+                      Some(())
+                    } else {
+                      None
+                    }
+                  })
+                  .flatten(),
+              ))
+              .boxed(),
+            )
+            .with_content(format!(
+              "Would you like to replace the existing {}?",
+              if let StringOrPath::String(_) = conflict {
+                "mod"
+              } else {
+                "folder"
+              }
+            ))
+            .with_content(
+              Flex::row()
+                .with_flex_spacer(1.)
+                .with_child(Button::new("Overwrite").on_click({
+                  let conflict = conflict.clone();
+                  let to_install = to_install.clone();
+                  let entry = entry.clone();
+                  move |ctx: &mut EventCtx, data: &mut App, _| {
+                    ctx.submit_command(App::REMOVE_OVERWRITE_LOG_ENTRY.with(conflict.clone()));
+                    ctx.submit_command(ModList::OVERWRITE.with((
+                      match &conflict {
+                        StringOrPath::String(id) => {
+                          data.mod_list.mods.get(id).unwrap().path.clone()
+                        }
+                        StringOrPath::Path(path) => path.clone(),
+                      },
+                      to_install.clone(),
+                      entry.clone(),
+                    )))
+                  }
+                }))
+                .with_child(Button::new("Cancel").on_click({
+                  let conflict = conflict.clone();
+                  move |ctx, _, _| {
+                    ctx.submit_command(App::REMOVE_OVERWRITE_LOG_ENTRY.with(conflict.clone()))
+                  }
+                }))
+                .boxed(),
+            )
+            .with_content(
+              Separator::new()
+                .with_width(2.0)
+                .with_color(druid::Color::GRAY)
+                .padding((0., 0., 0., 10.))
+                .boxed(),
+            );
+        }
+
+        if data.overwrite_log.len() > 1 {
+          modal
+            .with_button("Overwrite All", App::CLEAR_OVERWRITE_LOG.with(true))
+            .with_button("Cancel All", App::CLEAR_OVERWRITE_LOG.with(false))
+        } else {
+          modal.with_button("Close", App::CLEAR_OVERWRITE_LOG.with(false))
+        }
+        .build()
+        .boxed()
+      },
+    )
+  }
+
+  fn display_overwrite_if_closed(&mut self, ctx: &mut DelegateCtx) {
+    if self.overwrite_window.is_none() {
+      let modal = Self::build_overwrite_window();
+
+      let overwrite_window = WindowDesc::new(modal)
+        .window_size((500., 400.))
+        .show_titlebar(false);
+
+      self.overwrite_window = Some(overwrite_window.id);
+
+      ctx.new_window(overwrite_window);
+    }
+  }
+
+  fn build_duplicate_window() -> impl Widget<App> {
+    ViewSwitcher::new(
+      |app: &App, _| app.duplicate_log.len(),
+      |_, app, _| {
+        Modal::new("Duplicate detected")
+          .pipe(|mut modal| {
+            for (dupe_a, dupe_b) in &app.duplicate_log {
+              modal = modal
+                .with_content(format!("Detected duplicate installs of mod with ID {}.", dupe_a.id))
+                .with_content(
+                  Flex::row()
+                    .with_flex_child(
+                      Self::make_dupe_col(dupe_a, dupe_b),
+                      1.
+                    )
+                    .with_flex_child(
+                      Self::make_dupe_col(dupe_b, dupe_a),
+                      1.
+                    )
+                    .boxed()
+                )
+                .with_content(
+                  Flex::row()
+                    .with_flex_spacer(1.)
+                    .with_child(Button::new("Ignore").on_click({
+                      let id = dupe_a.id.clone();
+                      move |ctx, _, _| {
+                        ctx.submit_command(App::REMOVE_DUPLICATE_LOG_ENTRY.with(id.clone()))
+                      }
+                    }))
+                    .boxed()
+                )
+                .with_content(Separator::new().padding((0., 0., 0., 10.)).boxed())
+            }
+            modal
+          })
+          .with_button("Ignore All", App::CLEAR_DUPLICATE_LOG)
+          .build()
+          .boxed()
+      }
+    )
+  }
+
+  fn display_duplicate_if_closed(&mut self, ctx: &mut DelegateCtx) {
+    if self.duplicate_window.is_none() {
+      let modal = Self::build_duplicate_window();
+
+      let duplicate_window = WindowDesc::new(modal)
+        .window_size((500., 400.))
+        .show_titlebar(false);
+
+      self.duplicate_window = Some(duplicate_window.id);
+
+      ctx.new_window(duplicate_window);
+    }
+  }
+
+  fn make_dupe_col(dupe_a: &Arc<ModEntry>, dupe_b: &Arc<ModEntry>) -> Flex<App> {
+    let meta = metadata(&dupe_a.path);
+    Flex::column()
+      .with_child(Label::wrapped(&format!("Version: {}", dupe_a.version.to_string())))
+      .with_child(Label::wrapped(&format!("Path: {}", dupe_a.path.to_string_lossy())))
+      .with_child(Label::wrapped(
+        &format!("Last modified: {}", if let Ok(Ok(time)) = meta.as_ref().map(|meta| meta.modified()) {
+          DateTime::<Local>::from(time).format("%F:%R").to_string()
+        } else {
+          "Failed to retrieve last modified".to_string()
+        })
+      ))
+      .with_child(Label::wrapped(
+        &format!("Created at: {}", meta.and_then(|meta| meta.created()).map_or_else(
+          |_| "Failed to retrieve creation time".to_string(),
+          |time| {
+            DateTime::<Local>::from(time).format("%F:%R").to_string()
+          }
+        ))
+      ))
+      .with_child(Button::new("Keep").on_click({
+        let id = dupe_a.id.clone();
+        let path = dupe_b.path.clone();
+        let dupe_a = dupe_a.clone();
+        move |ctx, _, _| {
+          ctx.submit_command(App::REMOVE_DUPLICATE_LOG_ENTRY.with(id.clone()));
+          ctx.submit_command(App::DELETE_AND_SUMBIT.with((path.clone(), dupe_a.clone())))
+        }
+      }))
+      .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+      .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
+  }
 }
+
 struct InstallController;
 
 impl<W: Widget<App>> Controller<App, W> for InstallController {
@@ -806,82 +1103,29 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
         match payload {
           ChannelMessage::Success(entry) => {
             let mut entry = entry.clone();
-            let existing = data.mod_list.mods.get(&entry.id);
-            if let Some(remote_version_checker) = existing.and_then(|e| e.remote_version.clone()) {
+            if let Some(existing) = data.mod_list.mods.get(&entry.id) {
               let mut mut_entry = Arc::make_mut(&mut entry);
-              mut_entry.remote_version = Some(remote_version_checker.clone());
-              mut_entry.update_status = Some(UpdateStatus::from((
-                mut_entry.version_checker.as_ref().unwrap(),
-                &Some(remote_version_checker),
-              )));
-            } else if let Some(version_checker) = entry.version_checker.clone() {
-              data.runtime.spawn(get_master_version(
-                ctx.get_external_handle(),
-                version_checker,
-              ));
+              mut_entry.enabled = existing.enabled;
+              if let Some(remote_version_checker) = existing.remote_version.clone() {
+                mut_entry.remote_version = Some(remote_version_checker.clone());
+                mut_entry.update_status = Some(UpdateStatus::from((
+                  mut_entry.version_checker.as_ref().unwrap(),
+                  &Some(remote_version_checker),
+                )));
+              } else if let Some(version_checker) = entry.version_checker.clone() {
+                data.runtime.spawn(get_master_version(
+                  ctx.get_external_handle(),
+                  version_checker,
+                ));
+              }
             }
-            data.mod_list.mods.insert(entry.id.clone(), entry.clone());
-            ctx.children_changed();
             ctx.submit_command(App::LOG_SUCCESS.with(entry.name.clone()));
+            data.mod_list.mods.insert(entry.id.clone(), entry);
+            ctx.children_changed();
           }
-          ChannelMessage::Duplicate(conflict, to_install, entry) => {
-            Modal::new("Overwrite existing?")
-              .with_content(format!(
-                "Encountered conflict when trying to install {}",
-                entry.id
-              ))
-              .with_content(match conflict {
-                StringOrPath::String(id) => format!("A mod with ID {} alread exists.", id),
-                StringOrPath::Path(path) => format!(
-                  "A folder already exists at the path {}.",
-                  path.to_string_lossy()
-                ),
-              })
-              .with_content(
-                Maybe::or_empty(|| {
-                  Label::wrapped(
-                    "\
-                  NOTE: A .git directory has been detected in the target directory. \
-                  Are you sure this isn't being used for development?\
-                ",
-                  )
-                })
-                .lens(lens::Constant(
-                  data
-                    .settings
-                    .git_warn
-                    .then(|| {
-                      if entry.path.join(".git").exists() {
-                        Some(())
-                      } else {
-                        None
-                      }
-                    })
-                    .flatten(),
-                ))
-                .boxed(),
-              )
-              .with_content(format!(
-                "Would you like to replace the existing {}?",
-                if let StringOrPath::String(_) = conflict {
-                  "mod"
-                } else {
-                  "folder"
-                }
-              ))
-              .with_button(
-                "Overwrite",
-                ModList::OVERWRITE.with((
-                  match conflict {
-                    StringOrPath::String(id) => data.mod_list.mods.get(id).unwrap().path.clone(),
-                    StringOrPath::Path(path) => path.clone(),
-                  },
-                  to_install.clone(),
-                  entry.clone(),
-                )),
-              )
-              .show(ctx, env, &());
-          }
+          ChannelMessage::Duplicate(conflict, to_install, entry) => ctx.submit_command(
+            App::LOG_OVERWRITE.with((conflict.clone(), to_install.clone(), entry.clone())),
+          ),
           ChannelMessage::Error(name, err) => {
             ctx.submit_command(App::LOG_ERROR.with((name.clone(), err.clone())));
             eprintln!("Failed to install {}", err);
@@ -989,7 +1233,7 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
             .tag_name
             .strip_prefix('v')
             .unwrap_or(&release.tag_name);
-          if bump_is_greater(local_tag, release_tag).is_ok_with(|b| *b) {
+          if bump_is_greater(local_tag, release_tag).is_ok_and(|b| *b) {
             Modal::new("Update Mod Manager?")
               .with_content("A new version of Starsector Mod Manager is available.")
               .with_content(format!("Current version: {}", TAG))

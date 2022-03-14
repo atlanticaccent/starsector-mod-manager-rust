@@ -47,6 +47,7 @@ impl ModList {
   pub const AUTO_UPDATE: Selector<Arc<ModEntry>> = Selector::new("mod_list.install.auto_update");
   pub const SEARCH_UPDATE: Selector<()> = Selector::new("mod_list.filter.search.update");
   pub const FILTER_UPDATE: Selector<(Filters, bool)> = Selector::new("mod_list.filter.update");
+  pub const DUPLICATE: Selector<(Arc<ModEntry>, Arc<ModEntry>)> = Selector::new("mod_list.submit_entry.duplicate");
 
   pub fn new() -> Self {
     Self {
@@ -158,8 +159,12 @@ impl ModList {
         ),
         1.,
       )
-      .on_command(ModList::SUBMIT_ENTRY, |_ctx, payload, data| {
-        data.mods.insert(payload.id.clone(), payload.clone());
+      .on_command(ModList::SUBMIT_ENTRY, |ctx, payload, data| {
+        if let Some(existing) = data.mods.values().find(|existing| existing.id == payload.id) {
+          ctx.submit_command(ModList::DUPLICATE.with((existing.clone(), payload.clone())))
+        } else {
+          data.mods.insert(payload.id.clone(), payload.clone());
+        }
       })
       .on_command(Headings::SORT_CHANGED, |ctx, payload, data| {
         if data.headings.sort_by.0 == *payload {
@@ -445,35 +450,35 @@ impl Filters {
       Filters::Error => |entry: &Arc<ModEntry>| {
         !entry
           .update_status
-          .is_some_with(|s| s == &UpdateStatus::Error)
+          .is_some_and(|s| s == &UpdateStatus::Error)
       },
       Filters::UpToDate => |entry: &Arc<ModEntry>| {
         !entry
           .update_status
-          .is_some_with(|s| s == &UpdateStatus::UpToDate)
+          .is_some_and(|s| s == &UpdateStatus::UpToDate)
       },
       Filters::Discrepancy => |entry: &Arc<ModEntry>| {
         !entry
           .update_status
-          .is_some_with(|s| matches!(s, &UpdateStatus::Discrepancy(_)))
+          .is_some_and(|s| matches!(s, &UpdateStatus::Discrepancy(_)))
       },
       Filters::Patch => |entry: &Arc<ModEntry>| {
         !entry
           .update_status
-          .is_some_with(|s| matches!(s, &UpdateStatus::Patch(_)))
+          .is_some_and(|s| matches!(s, &UpdateStatus::Patch(_)))
       },
       Filters::Minor => |entry: &Arc<ModEntry>| {
         !entry
           .update_status
-          .is_some_with(|s| matches!(s, &UpdateStatus::Minor(_)))
+          .is_some_and(|s| matches!(s, &UpdateStatus::Minor(_)))
       },
       Filters::Major => |entry: &Arc<ModEntry>| {
         !entry
           .update_status
-          .is_some_with(|s| matches!(s, &UpdateStatus::Major(_)))
+          .is_some_and(|s| matches!(s, &UpdateStatus::Major(_)))
       },
       Filters::AutoUpdateAvailable => |entry: &Arc<ModEntry>| {
-        !(entry.update_status.is_some_with(|s| {
+        !(entry.update_status.is_some_and(|s| {
           matches!(
             s,
             UpdateStatus::Patch(_) | UpdateStatus::Minor(_) | UpdateStatus::Major(_)

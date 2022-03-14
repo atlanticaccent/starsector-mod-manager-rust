@@ -13,18 +13,21 @@ jobs:
   build:
     name: Rust project
     runs-on: windows-latest
+    env:
+      VCPKG_DEFAULT_TRIPLET: x64-windows-static
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
           override: true
+          minimal: true
       - name: Install libarchive
         uses: lukka/run-vcpkg@v7.4
         with:
           vcpkgArguments: libarchive
           vcpkgTriplet: x64-windows-static
-          vcpkgGitCommitId: 7dbc05515b44bf54d2a42b4da9d1e1f910868b86 # master
+          vcpkgGitCommitId: af2287382b1991dbdcb7e5112d236f3323b9dd7a # master
           useShell: true
       - name: Check cache
         uses: actions/cache@v2

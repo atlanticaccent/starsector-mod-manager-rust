@@ -17,7 +17,7 @@ jobs:
         uses: thebongy/version-check@v1
         with:
           file: Cargo.toml
-          tagFormat: v${version}
+          tagFormat: ${version}
           failBuild: true
         id: version_check
       - name:
