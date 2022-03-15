@@ -868,7 +868,7 @@ impl AppDelegate {
                   let to_install = to_install.clone();
                   let entry = entry.clone();
                   move |ctx: &mut EventCtx, data: &mut App, _| {
-                    ctx.submit_command(App::REMOVE_OVERWRITE_LOG_ENTRY.with(conflict.clone()));
+                    ctx.submit_command(App::REMOVE_OVERWRITE_LOG_ENTRY.with(conflict.clone()).to(Target::Global));
                     ctx.submit_command(ModList::OVERWRITE.with((
                       match &conflict {
                         StringOrPath::String(id) => {
@@ -878,7 +878,7 @@ impl AppDelegate {
                       },
                       to_install.clone(),
                       entry.clone(),
-                    )))
+                    )).to(Target::Global))
                   }
                 }))
                 .with_child(Button::new("Cancel").on_click({
@@ -952,7 +952,7 @@ impl AppDelegate {
                     .with_child(Button::new("Ignore").on_click({
                       let id = dupe_a.id.clone();
                       move |ctx, _, _| {
-                        ctx.submit_command(App::REMOVE_DUPLICATE_LOG_ENTRY.with(id.clone()))
+                        ctx.submit_command(App::REMOVE_DUPLICATE_LOG_ENTRY.with(id.clone()).to(Target::Global))
                       }
                     }))
                     .boxed()
@@ -1007,8 +1007,8 @@ impl AppDelegate {
         let path = dupe_b.path.clone();
         let dupe_a = dupe_a.clone();
         move |ctx, _, _| {
-          ctx.submit_command(App::REMOVE_DUPLICATE_LOG_ENTRY.with(id.clone()));
-          ctx.submit_command(App::DELETE_AND_SUMBIT.with((path.clone(), dupe_a.clone())))
+          ctx.submit_command(App::REMOVE_DUPLICATE_LOG_ENTRY.with(id.clone()).to(Target::Global));
+          ctx.submit_command(App::DELETE_AND_SUMBIT.with((path.clone(), dupe_a.clone())).to(Target::Global))
         }
       }))
       .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
