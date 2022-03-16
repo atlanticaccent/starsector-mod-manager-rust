@@ -1008,7 +1008,7 @@ impl AppDelegate {
         let dupe_a = dupe_a.clone();
         move |ctx, _, _| {
           ctx.submit_command(App::REMOVE_DUPLICATE_LOG_ENTRY.with(id.clone()).to(Target::Global));
-          ctx.submit_command(App::DELETE_AND_SUMBIT.with((path.clone(), dupe_a.clone())).to(Target::Global))
+          ctx.submit_command(App::DELETE_AND_SUMBIT.with((path.clone(), dupe_a.clone())).to(Target
         }
       }))
       .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
