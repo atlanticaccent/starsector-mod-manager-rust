@@ -129,18 +129,15 @@ impl ModEntry {
 
   pub fn ui_builder() -> impl Widget<Arc<Self>> {
     let children: VecDeque<SizedBox<Arc<ModEntry>>> = VecDeque::from_iter(vec![
-      Label::dynamic(|text: &String, _| text.to_string())
-        .with_line_break_mode(LineBreaking::WordWrap)
+      Label::wrapped_func(|text: &String, _| text.to_string())
         .lens(ModEntry::name.in_arc())
         .padding(5.)
         .expand_width(),
-      Label::dynamic(|text: &String, _| text.to_string())
-        .with_line_break_mode(LineBreaking::WordWrap)
+      Label::wrapped_func(|text: &String, _| text.to_string())
         .lens(ModEntry::id.in_arc())
         .padding(5.)
         .expand_width(),
-      Label::dynamic(|text: &String, _| text.to_string())
-        .with_line_break_mode(LineBreaking::WordWrap)
+      Label::wrapped_func(|text: &String, _| text.to_string())
         .lens(ModEntry::author.in_arc())
         .padding(5.)
         .expand_width(),
@@ -156,8 +153,7 @@ impl ModEntry {
           Box::new(
             Flex::row()
               .with_child(
-                Label::new(data.version.to_string())
-                  .with_line_break_mode(LineBreaking::WordWrap)
+                Label::wrapped(&data.version.to_string())
                   .with_text_color(change.clone()),
               )
               .tap_mut(|row| {
@@ -214,10 +210,9 @@ impl ModEntry {
       )
       .padding(5.)
       .expand_width(),
-      Label::dynamic(|version: &GameVersion, _| {
+      Label::wrapped_func(|version: &GameVersion, _| {
         util::get_quoted_version(version).unwrap_or_else(|| "".to_string())
       })
-      .with_line_break_mode(LineBreaking::WordWrap)
       .lens(ModEntry::game_version.in_arc())
       .padding(5.)
       .expand_width(),
