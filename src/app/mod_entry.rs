@@ -10,7 +10,7 @@ use std::{
 
 use druid::{
   widget::{
-    Button, Checkbox, Controller, ControllerHost, Flex, Label, LineBreaking, SizedBox, ViewSwitcher,
+    Button, Checkbox, Controller, ControllerHost, Flex, Label, SizedBox, ViewSwitcher,
   },
   Color, Data, KeyOrValue, Lens, LensExt, Selector, Widget, WidgetExt,
 };
@@ -27,7 +27,7 @@ use crate::{
     util::{parse_game_version, LabelExt},
     App, AppCommands,
   },
-  patch::split::Split,
+  patch::{split::Split, tooltip::TooltipController},
 };
 
 use super::{
@@ -149,31 +149,47 @@ impl ModEntry {
             .map(|s| s.as_text_colour())
             .unwrap_or_else(|| <KeyOrValue<Color>>::from(druid::theme::TEXT_COLOR))
         },
-        |change, data, _| {
+        |change, data, env| {
           Box::new(
             Flex::row()
               .with_child(
                 Label::wrapped(&data.version.to_string())
                   .with_text_color(change.clone()),
               )
+              .with_flex_spacer(1.)
               .tap_mut(|row| {
-                let iter = match data.update_status.as_ref() {
-                  Some(UpdateStatus::Major(_)) => 3,
-                  Some(UpdateStatus::Minor(_)) => 2,
-                  Some(UpdateStatus::Patch(_)) => 1,
-                  _ => 0,
-                };
+                let mut icon_row = Flex::row();
+                let mut iter = 0;
 
-                row.add_flex_spacer(1.);
-                for _ in 0..iter {
-                  row.add_child(Icon::new(NEW_RELEASES))
-                }
                 match data.update_status.as_ref() {
-                  Some(UpdateStatus::Error) => row.add_child(Icon::new(REPORT)),
-                  Some(UpdateStatus::Discrepancy(_)) => row.add_child(Icon::new(HELP)),
-                  Some(UpdateStatus::UpToDate) => row.add_child(Icon::new(VERIFIED)),
+                  Some(UpdateStatus::Major(_)) => iter = 3,
+                  Some(UpdateStatus::Minor(_)) => iter = 2,
+                  Some(UpdateStatus::Patch(_)) => iter = 1,
+                  Some(UpdateStatus::Error) => icon_row.add_child(Icon::new(REPORT)),
+                  Some(UpdateStatus::Discrepancy(_)) => icon_row.add_child(Icon::new(HELP)),
+                  Some(UpdateStatus::UpToDate) => icon_row.add_child(Icon::new(VERIFIED)),
                   _ => {}
                 };
+
+                for _ in 0..iter {
+                  icon_row.add_child(Icon::new(NEW_RELEASES))
+                }
+
+                if let Some(update_status) = &data.update_status {
+                  let tooltip = update_status.to_string();
+                  let change = change.clone();
+                  let color = <KeyOrValue<Color>>::from(update_status).resolve(env);
+                  row.add_child(icon_row.controller(TooltipController::new(move || {
+                    Label::new(tooltip.clone())
+                      .with_text_color(change.clone())
+                      .padding(5.)
+                      .background(color.clone())
+                      .border(change.clone(), 2.)
+                      .boxed()
+                  })))
+                } else {
+                  row.add_child(icon_row)
+                }
               }),
           )
         },
@@ -410,9 +426,9 @@ pub enum UpdateStatus {
 impl Display for UpdateStatus {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
     match self {
-      UpdateStatus::Major(_) => write!(f, "Major"),
-      UpdateStatus::Minor(_) => write!(f, "Minor"),
-      UpdateStatus::Patch(_) => write!(f, "Patch"),
+      UpdateStatus::Major(remote) => write!(f, "Major update available: {}", remote),
+      UpdateStatus::Minor(remote) => write!(f, "Minor update available: {}", remote),
+      UpdateStatus::Patch(remote) => write!(f, "Patch available: {}", remote),
       UpdateStatus::UpToDate => write!(f, "Up to date"),
       UpdateStatus::Error => write!(f, "Error"),
       UpdateStatus::Discrepancy(_) => write!(f, "Discrepancy"),
@@ -443,8 +459,8 @@ impl From<(&ModVersionMeta, &Option<ModVersionMeta>)> for UpdateStatus {
   }
 }
 
-impl From<UpdateStatus> for KeyOrValue<Color> {
-  fn from(status: UpdateStatus) -> Self {
+impl From<&UpdateStatus> for KeyOrValue<Color> {
+  fn from(status: &UpdateStatus) -> Self {
     match status {
       UpdateStatus::Major(_) => ORANGE_KEY.into(),
       UpdateStatus::Minor(_) => YELLOW_KEY.into(),
