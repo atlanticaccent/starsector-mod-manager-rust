@@ -1,5 +1,3 @@
-#[allow(dead_code)]
-
 use std::{io::Read, sync::Arc, path::PathBuf, collections::VecDeque};
 
 use druid::{widget::{Label, LensWrap, Flex, Axis, RawLabel, Controller}, Data, Lens, WidgetExt, Widget, ExtEventSink, Selector, Target, lens, text::{RichText, AttributeSpans, Attribute}, FontWeight, Key, Color, KeyOrValue, Point, EventCtx, Event};
