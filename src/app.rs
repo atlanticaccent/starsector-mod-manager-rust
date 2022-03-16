@@ -682,7 +682,7 @@ impl Delegate<App> for AppDelegate {
       return Handled::Yes;
     } else if let Some(overwrite_entry) = cmd.get(App::REMOVE_OVERWRITE_LOG_ENTRY) {
       data.overwrite_log.retain(|val| val.0 != *overwrite_entry);
-      if data.overwrite_log.len() == 0 {
+      if data.overwrite_log.is_empty() {
         if let Some(id) = self.overwrite_window.take() {
           ctx.submit_command(commands::CLOSE_WINDOW.to(id))
         }
@@ -715,7 +715,7 @@ impl Delegate<App> for AppDelegate {
       return Handled::Yes
     } else if let Some(id) = cmd.get(App::REMOVE_DUPLICATE_LOG_ENTRY) {
       data.duplicate_log.retain(|entry| entry.0.id != *id);
-      if data.duplicate_log.len() == 0 {
+      if data.duplicate_log.is_empty() {
         if let Some(id) = self.duplicate_window.take() {
           ctx.submit_command(commands::CLOSE_WINDOW.to(id))
         }
@@ -985,7 +985,7 @@ impl AppDelegate {
   fn make_dupe_col(dupe_a: &Arc<ModEntry>, dupe_b: &Arc<ModEntry>) -> Flex<App> {
     let meta = metadata(&dupe_a.path);
     Flex::column()
-      .with_child(Label::wrapped(&format!("Version: {}", dupe_a.version.to_string())))
+      .with_child(Label::wrapped(&format!("Version: {}", dupe_a.version)))
       .with_child(Label::wrapped(&format!("Path: {}", dupe_a.path.to_string_lossy())))
       .with_child(Label::wrapped(
         &format!("Last modified: {}", if let Ok(Ok(time)) = meta.as_ref().map(|meta| meta.modified()) {
@@ -1191,7 +1191,7 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
           if let Some(handle) = res {
             ext_ctx.submit_command(
               Settings::SELECTOR,
-              SettingsCommand::UpdateInstallDir(handle.clone()),
+              SettingsCommand::UpdateInstallDir(handle),
               Target::Auto,
             )
           } else {
