@@ -45,9 +45,11 @@ jobs:
       - name: Run make_portable.sh
         run: ./scripts/make_portable.sh target/release/bundle/osx/Starsector\ Mod\ Manager.app/Contents/MacOS/starsector_mod_manager ../Resources
         shell: bash
+      - name: Move app bundle
+        run: mv target/release/bundle/osx/Starsector\ Mod\ Manager.app target/release/Starsector\ Mod\ Manager.app
       - uses: actions/upload-artifact@v2
         with:
           name: macos
           path: |
             target/release/starsector_mod_manager
-            target/release/bundle/osx/Starsector Mod Manager.app
+            target/release/Starsector Mod Manager.app
