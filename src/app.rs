@@ -736,14 +736,14 @@ impl Delegate<App> for AppDelegate {
 
   fn window_removed(&mut self, id: WindowId, data: &mut App, _env: &Env, ctx: &mut DelegateCtx) {
     match Some(id) {
-      a @ _ if a == self.settings_id => self.settings_id = None,
-      a @ _ if a == self.log_window => self.log_window = None,
-      a @ _ if a == self.fail_window => self.fail_window = None,
-      a @ _ if a == self.overwrite_window => {
+      a if a == self.settings_id => self.settings_id = None,
+      a if a == self.log_window => self.log_window = None,
+      a if a == self.fail_window => self.fail_window = None,
+      a if a == self.overwrite_window => {
         data.overwrite_log.clear();
         self.overwrite_window = None;
       }
-      a @ _ if a == self.root_id => ctx.submit_command(commands::QUIT_APP),
+      a if a == self.root_id => ctx.submit_command(commands::QUIT_APP),
       _ => {}
     }
   }
