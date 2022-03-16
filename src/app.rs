@@ -682,7 +682,7 @@ impl Delegate<App> for AppDelegate {
       return Handled::Yes;
     } else if let Some(overwrite_entry) = cmd.get(App::REMOVE_OVERWRITE_LOG_ENTRY) {
       data.overwrite_log.retain(|val| val.0 != *overwrite_entry);
-      if data.overwrite_log.len() == 0 {
+      if data.overwrite_log.is_empty() {
         if let Some(id) = self.overwrite_window.take() {
           ctx.submit_command(commands::CLOSE_WINDOW.to(id))
         }
@@ -715,7 +715,7 @@ impl Delegate<App> for AppDelegate {
       return Handled::Yes
     } else if let Some(id) = cmd.get(App::REMOVE_DUPLICATE_LOG_ENTRY) {
       data.duplicate_log.retain(|entry| entry.0.id != *id);
-      if data.duplicate_log.len() == 0 {
+      if data.duplicate_log.is_empty() {
         if let Some(id) = self.duplicate_window.take() {
           ctx.submit_command(commands::CLOSE_WINDOW.to(id))
         }
@@ -736,14 +736,14 @@ impl Delegate<App> for AppDelegate {
 
   fn window_removed(&mut self, id: WindowId, data: &mut App, _env: &Env, ctx: &mut DelegateCtx) {
     match Some(id) {
-      a @ _ if a == self.settings_id => self.settings_id = None,
-      a @ _ if a == self.log_window => self.log_window = None,
-      a @ _ if a == self.fail_window => self.fail_window = None,
-      a @ _ if a == self.overwrite_window => {
+      a if a == self.settings_id => self.settings_id = None,
+      a if a == self.log_window => self.log_window = None,
+      a if a == self.fail_window => self.fail_window = None,
+      a if a == self.overwrite_window => {
         data.overwrite_log.clear();
         self.overwrite_window = None;
       }
-      a @ _ if a == self.root_id => ctx.submit_command(commands::QUIT_APP),
+      a if a == self.root_id => ctx.submit_command(commands::QUIT_APP),
       _ => {}
     }
   }
@@ -868,7 +868,7 @@ impl AppDelegate {
                   let to_install = to_install.clone();
                   let entry = entry.clone();
                   move |ctx: &mut EventCtx, data: &mut App, _| {
-                    ctx.submit_command(App::REMOVE_OVERWRITE_LOG_ENTRY.with(conflict.clone()));
+                    ctx.submit_command(App::REMOVE_OVERWRITE_LOG_ENTRY.with(conflict.clone()).to(Target::Global));
                     ctx.submit_command(ModList::OVERWRITE.with((
                       match &conflict {
                         StringOrPath::String(id) => {
@@ -878,7 +878,7 @@ impl AppDelegate {
                       },
                       to_install.clone(),
                       entry.clone(),
-                    )))
+                    )).to(Target::Global))
                   }
                 }))
                 .with_child(Button::new("Cancel").on_click({
@@ -952,7 +952,7 @@ impl AppDelegate {
                     .with_child(Button::new("Ignore").on_click({
                       let id = dupe_a.id.clone();
                       move |ctx, _, _| {
-                        ctx.submit_command(App::REMOVE_DUPLICATE_LOG_ENTRY.with(id.clone()))
+                        ctx.submit_command(App::REMOVE_DUPLICATE_LOG_ENTRY.with(id.clone()).to(Target::Global))
                       }
                     }))
                     .boxed()
@@ -985,7 +985,7 @@ impl AppDelegate {
   fn make_dupe_col(dupe_a: &Arc<ModEntry>, dupe_b: &Arc<ModEntry>) -> Flex<App> {
     let meta = metadata(&dupe_a.path);
     Flex::column()
-      .with_child(Label::wrapped(&format!("Version: {}", dupe_a.version.to_string())))
+      .with_child(Label::wrapped(&format!("Version: {}", dupe_a.version)))
       .with_child(Label::wrapped(&format!("Path: {}", dupe_a.path.to_string_lossy())))
       .with_child(Label::wrapped(
         &format!("Last modified: {}", if let Ok(Ok(time)) = meta.as_ref().map(|meta| meta.modified()) {
@@ -1007,8 +1007,8 @@ impl AppDelegate {
         let path = dupe_b.path.clone();
         let dupe_a = dupe_a.clone();
         move |ctx, _, _| {
-          ctx.submit_command(App::REMOVE_DUPLICATE_LOG_ENTRY.with(id.clone()));
-          ctx.submit_command(App::DELETE_AND_SUMBIT.with((path.clone(), dupe_a.clone())))
+          ctx.submit_command(App::REMOVE_DUPLICATE_LOG_ENTRY.with(id.clone()).to(Target::Global));
+          ctx.submit_command(App::DELETE_AND_SUMBIT.with((path.clone(), dupe_a.clone())).to(Target
         }
       }))
       .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
@@ -1191,7 +1191,7 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
           if let Some(handle) = res {
             ext_ctx.submit_command(
               Settings::SELECTOR,
-              SettingsCommand::UpdateInstallDir(handle.clone()),
+              SettingsCommand::UpdateInstallDir(handle),
               Target::Auto,
             )
           } else {
