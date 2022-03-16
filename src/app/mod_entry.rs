@@ -9,9 +9,7 @@ use std::{
 };
 
 use druid::{
-  widget::{
-    Button, Checkbox, Controller, ControllerHost, Flex, Label, SizedBox, ViewSwitcher,
-  },
+  widget::{Button, Checkbox, Controller, ControllerHost, Flex, Label, SizedBox, ViewSwitcher},
   Color, Data, KeyOrValue, Lens, LensExt, Selector, Widget, WidgetExt,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
@@ -152,10 +150,7 @@ impl ModEntry {
         |change, data, env| {
           Box::new(
             Flex::row()
-              .with_child(
-                Label::wrapped(&data.version.to_string())
-                  .with_text_color(change.clone()),
-              )
+              .with_child(Label::wrapped(&data.version.to_string()).with_text_color(change.clone()))
               .with_flex_spacer(1.)
               .tap_mut(|row| {
                 let mut icon_row = Flex::row();
