@@ -41,6 +41,8 @@ self_update = { version = "0.29.0", default-features = false, features = ["rustl
 indexmap = "1.8.0"
 chrono = "0.4.19"
 wry = { git = "https://github.com/atlanticaccent/wry.git", branch = "implement-new-window-requested-event" }
+clap = { version = "3.1.6", features = ["derive"] }
+shared_memory = "0.12.4"
 
 [patch.crates-io]
 cairo-rs = { git = "https://github.com/gtk-rs/gtk-rs-core.git", tag = "0.15.1" }
