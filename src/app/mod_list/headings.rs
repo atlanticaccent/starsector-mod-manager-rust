@@ -74,7 +74,7 @@ impl Headings {
 }
 
 fn heading_builder(title: Sorting) -> impl Widget<Headings> {
-  ClipBox::new(
+  ClipBox::unmanaged(
     Flex::row()
       .with_child(Label::wrapped(<&str>::from(title)))
       .with_child(
