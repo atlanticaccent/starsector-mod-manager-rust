@@ -1,6 +1,6 @@
-use std::{path::PathBuf, process, rc::Rc, sync::Arc, fs::metadata};
+use std::{fs::metadata, path::PathBuf, process, rc::Rc, sync::Arc};
 
-use chrono::{Local, DateTime};
+use chrono::{DateTime, Local};
 use druid::{
   commands,
   im::Vector,
@@ -20,12 +20,15 @@ use remove_dir_all::remove_dir_all;
 use rfd::FileDialog;
 use self_update::version::bump_is_greater;
 use strum::IntoEnumIterator;
-use tap::{Tap, Pipe};
+use tap::{Pipe, Tap};
 use tokio::runtime::Handle;
 
-use crate::patch::{
-  split::Split,
-  tabs_policy::{InitialTab, StaticTabsForked},
+use crate::{
+  patch::{
+    split::Split,
+    tabs_policy::{InitialTab, StaticTabsForked},
+  },
+  webview::fork_into_webview,
 };
 
 use self::{
@@ -74,7 +77,7 @@ impl App {
   const SELECTOR: Selector<AppCommands> = Selector::new("app.update.commands");
   const OPEN_FILE: Selector<Option<Vec<PathBuf>>> = Selector::new("app.open.multiple");
   const OPEN_FOLDER: Selector<Option<PathBuf>> = Selector::new("app.open.folder");
-  const ENABLE: Selector<()> = Selector::new("app.enable");
+  pub const ENABLE: Selector<()> = Selector::new("app.enable");
   const DUMB_UNIVERSAL_ESCAPE: Selector<()> = Selector::new("app.universal_escape");
   const REFRESH: Selector<()> = Selector::new("app.mod_list.refresh");
   const DISABLE: Selector<()> = Selector::new("app.disable");
@@ -90,8 +93,10 @@ impl App {
   const CLEAR_OVERWRITE_LOG: Selector<bool> = Selector::new("app.install.clear_overwrite_log");
   const REMOVE_OVERWRITE_LOG_ENTRY: Selector<StringOrPath> =
     Selector::new("app.install.overwrite.decline");
-  const DELETE_AND_SUMBIT: Selector<(PathBuf, Arc<ModEntry>)> = Selector::new("app.mod.duplicate.resolve");
-  const REMOVE_DUPLICATE_LOG_ENTRY: Selector<String> = Selector::new("app.mod.duplicate.remove_log");
+  const DELETE_AND_SUMBIT: Selector<(PathBuf, Arc<ModEntry>)> =
+    Selector::new("app.mod.duplicate.resolve");
+  const REMOVE_DUPLICATE_LOG_ENTRY: Selector<String> =
+    Selector::new("app.mod.duplicate.remove_log");
   const CLEAR_DUPLICATE_LOG: Selector = Selector::new("app.mod.duplicate.ignore_all");
 
   pub fn new(handle: Handle) -> Self {
@@ -227,6 +232,20 @@ impl App {
             ));
         }
       });
+    let browse_index_button = Flex::row()
+      .with_child(
+        Flex::row()
+          .with_child(Label::new("Browse Mod Index").with_text_size(18.))
+          .with_spacer(5.)
+          .with_child(Icon::new(SETTINGS))
+          .padding((8., 4.))
+          .background(button_painter())
+          .on_click(|event_ctx, data, _| {
+            event_ctx.submit_command(App::DISABLE);
+            fork_into_webview(&data.runtime, event_ctx.get_external_handle());
+          }),
+      )
+      .expand_width();
     let mod_list = mod_list::ModList::ui_builder()
       .lens(App::mod_list)
       .on_change(|_ctx, _old, data, _env| {
@@ -415,6 +434,8 @@ impl App {
           .with_child(settings)
           .with_spacer(10.)
           .with_child(install_mod_button)
+          .with_spacer(10.)
+          .with_child(browse_index_button)
           .with_spacer(10.)
           .with_child(refresh)
           .with_spacer(10.)
@@ -693,7 +714,7 @@ impl Delegate<App> for AppDelegate {
       data.push_duplicate(duplicates);
       self.display_duplicate_if_closed(ctx);
 
-      return Handled::Yes
+      return Handled::Yes;
     } else if let Some((delete_path, keep_entry)) = cmd.get(App::DELETE_AND_SUMBIT) {
       let ext_ctx = ctx.get_external_handle();
       let delete_path = delete_path.clone();
@@ -701,7 +722,10 @@ impl Delegate<App> for AppDelegate {
       data.runtime.spawn(async move {
         if remove_dir_all(delete_path).is_ok() {
           let remote_version = keep_entry.version_checker.clone();
-          if ext_ctx.submit_command(ModEntry::REPLACE, keep_entry, Target::Auto).is_err() {
+          if ext_ctx
+            .submit_command(ModEntry::REPLACE, keep_entry, Target::Auto)
+            .is_err()
+          {
             eprintln!("Failed to submit new entry")
           };
           if let Some(version_meta) = remote_version {
@@ -712,7 +736,7 @@ impl Delegate<App> for AppDelegate {
         }
       });
 
-      return Handled::Yes
+      return Handled::Yes;
     } else if let Some(id) = cmd.get(App::REMOVE_DUPLICATE_LOG_ENTRY) {
       data.duplicate_log.retain(|entry| entry.0.id != *id);
       if data.duplicate_log.is_empty() {
@@ -721,14 +745,14 @@ impl Delegate<App> for AppDelegate {
         }
       }
 
-      return Handled::Yes
+      return Handled::Yes;
     } else if let Some(()) = cmd.get(App::CLEAR_DUPLICATE_LOG) {
       data.duplicate_log.clear();
       if let Some(id) = self.duplicate_window.take() {
         ctx.submit_command(commands::CLOSE_WINDOW.to(id))
       }
 
-      return Handled::Yes
+      return Handled::Yes;
     }
 
     Handled::No
@@ -868,17 +892,25 @@ impl AppDelegate {
                   let to_install = to_install.clone();
                   let entry = entry.clone();
                   move |ctx: &mut EventCtx, data: &mut App, _| {
-                    ctx.submit_command(App::REMOVE_OVERWRITE_LOG_ENTRY.with(conflict.clone()).to(Target::Global));
-                    ctx.submit_command(ModList::OVERWRITE.with((
-                      match &conflict {
-                        StringOrPath::String(id) => {
-                          data.mod_list.mods.get(id).unwrap().path.clone()
-                        }
-                        StringOrPath::Path(path) => path.clone(),
-                      },
-                      to_install.clone(),
-                      entry.clone(),
-                    )).to(Target::Global))
+                    ctx.submit_command(
+                      App::REMOVE_OVERWRITE_LOG_ENTRY
+                        .with(conflict.clone())
+                        .to(Target::Global),
+                    );
+                    ctx.submit_command(
+                      ModList::OVERWRITE
+                        .with((
+                          match &conflict {
+                            StringOrPath::String(id) => {
+                              data.mod_list.mods.get(id).unwrap().path.clone()
+                            }
+                            StringOrPath::Path(path) => path.clone(),
+                          },
+                          to_install.clone(),
+                          entry.clone(),
+                        ))
+                        .to(Target::Global),
+                    )
                   }
                 }))
                 .with_child(Button::new("Cancel").on_click({
@@ -933,18 +965,15 @@ impl AppDelegate {
           .pipe(|mut modal| {
             for (dupe_a, dupe_b) in &app.duplicate_log {
               modal = modal
-                .with_content(format!("Detected duplicate installs of mod with ID {}.", dupe_a.id))
+                .with_content(format!(
+                  "Detected duplicate installs of mod with ID {}.",
+                  dupe_a.id
+                ))
                 .with_content(
                   Flex::row()
-                    .with_flex_child(
-                      Self::make_dupe_col(dupe_a, dupe_b),
-                      1.
-                    )
-                    .with_flex_child(
-                      Self::make_dupe_col(dupe_b, dupe_a),
-                      1.
-                    )
-                    .boxed()
+                    .with_flex_child(Self::make_dupe_col(dupe_a, dupe_b), 1.)
+                    .with_flex_child(Self::make_dupe_col(dupe_b, dupe_a), 1.)
+                    .boxed(),
                 )
                 .with_content(
                   Flex::row()
@@ -952,10 +981,14 @@ impl AppDelegate {
                     .with_child(Button::new("Ignore").on_click({
                       let id = dupe_a.id.clone();
                       move |ctx, _, _| {
-                        ctx.submit_command(App::REMOVE_DUPLICATE_LOG_ENTRY.with(id.clone()).to(Target::Global))
+                        ctx.submit_command(
+                          App::REMOVE_DUPLICATE_LOG_ENTRY
+                            .with(id.clone())
+                            .to(Target::Global),
+                        )
                       }
                     }))
-                    .boxed()
+                    .boxed(),
                 )
                 .with_content(Separator::new().padding((0., 0., 0., 10.)).boxed())
             }
@@ -964,7 +997,7 @@ impl AppDelegate {
           .with_button("Ignore All", App::CLEAR_DUPLICATE_LOG)
           .build()
           .boxed()
-      }
+      },
     )
   }
 
@@ -986,29 +1019,40 @@ impl AppDelegate {
     let meta = metadata(&dupe_a.path);
     Flex::column()
       .with_child(Label::wrapped(&format!("Version: {}", dupe_a.version)))
-      .with_child(Label::wrapped(&format!("Path: {}", dupe_a.path.to_string_lossy())))
-      .with_child(Label::wrapped(
-        &format!("Last modified: {}", if let Ok(Ok(time)) = meta.as_ref().map(|meta| meta.modified()) {
+      .with_child(Label::wrapped(&format!(
+        "Path: {}",
+        dupe_a.path.to_string_lossy()
+      )))
+      .with_child(Label::wrapped(&format!(
+        "Last modified: {}",
+        if let Ok(Ok(time)) = meta.as_ref().map(|meta| meta.modified()) {
           DateTime::<Local>::from(time).format("%F:%R").to_string()
         } else {
           "Failed to retrieve last modified".to_string()
-        })
-      ))
-      .with_child(Label::wrapped(
-        &format!("Created at: {}", meta.and_then(|meta| meta.created()).map_or_else(
+        }
+      )))
+      .with_child(Label::wrapped(&format!(
+        "Created at: {}",
+        meta.and_then(|meta| meta.created()).map_or_else(
           |_| "Failed to retrieve creation time".to_string(),
-          |time| {
-            DateTime::<Local>::from(time).format("%F:%R").to_string()
-          }
-        ))
-      ))
+          |time| { DateTime::<Local>::from(time).format("%F:%R").to_string() }
+        )
+      )))
       .with_child(Button::new("Keep").on_click({
         let id = dupe_a.id.clone();
         let path = dupe_b.path.clone();
         let dupe_a = dupe_a.clone();
         move |ctx, _, _| {
-          ctx.submit_command(App::REMOVE_DUPLICATE_LOG_ENTRY.with(id.clone()).to(Target::Global));
-          ctx.submit_command(App::DELETE_AND_SUMBIT.with((path.clone(), dupe_a.clone())).to(Target::Global))
+          ctx.submit_command(
+            App::REMOVE_DUPLICATE_LOG_ENTRY
+              .with(id.clone())
+              .to(Target::Global),
+          );
+          ctx.submit_command(
+            App::DELETE_AND_SUMBIT
+              .with((path.clone(), dupe_a.clone()))
+              .to(Target::Global),
+          )
         }
       }))
       .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)

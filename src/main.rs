@@ -24,15 +24,13 @@ mod webview;
 #[clap(author, version, about, long_about = None)]
 struct Args {
   #[clap(long)]
-  child: bool,
-  #[clap(long)]
-  shmem_id: Option<String>
+  webview: bool,
 }
 
 fn main() {
   let args = Args::parse();
 
-  if !args.child {
+  if !args.webview {
     let main_window = WindowDesc::new(app::App::ui_builder())
       .title("MOSS | Mod Organizer for StarSector")
       .window_size((1280., 1024.));
@@ -71,9 +69,7 @@ fn main() {
       .delegate(app::AppDelegate::default())
       .launch(initial_state)
       .expect("Failed to launch application");
-  } else if let Some(shmem_id) = args.shmem_id {
-    init_webview();
   } else {
-    panic!("Invalid launch configuration! Running as a child process but no shmem_id")
+    init_webview().expect("Launch webviews");
   }
 }
