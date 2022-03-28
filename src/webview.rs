@@ -69,11 +69,12 @@ pub fn init_webview() -> wry::Result<()> {
     })
     .with_download_handler({
       let proxy = proxy.clone();
-      move |uri: String| {
+      move |uri: String, _download_to: &mut String| {
         proxy.send_event(UserEvent::Download(uri.clone())).expect("Send event");
 
         false
-      }
+      }}, {
+      move || Box::new(move |_path, _success| {})
     })
     .build()?;
 
