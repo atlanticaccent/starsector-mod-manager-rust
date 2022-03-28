@@ -1,4 +1,4 @@
-use std::{fs::metadata, path::PathBuf, process, rc::Rc, sync::Arc};
+use std::{fs::metadata, path::PathBuf, process::{self, Child}, rc::Rc, sync::Arc, cell::RefCell};
 
 use chrono::{DateTime, Local};
 use druid::{
@@ -28,7 +28,7 @@ use crate::{
     split::Split,
     tabs_policy::{InitialTab, StaticTabsForked},
   },
-  webview::fork_into_webview,
+  webview::{fork_into_webview, WEBVIEW_SHUTDOWN, kill_server_thread},
 };
 
 use self::{
@@ -71,6 +71,7 @@ pub struct App {
   log: Vec<String>,
   overwrite_log: Vector<Rc<(StringOrPath, HybridPath, Arc<ModEntry>)>>,
   duplicate_log: Vector<(Arc<ModEntry>, Arc<ModEntry>)>,
+  webview: Option<Rc<RefCell<Child>>>,
 }
 
 impl App {
@@ -122,6 +123,7 @@ impl App {
       log: Vec::new(),
       overwrite_log: Vector::new(),
       duplicate_log: Vector::new(),
+      webview: None,
     }
   }
 
@@ -242,7 +244,9 @@ impl App {
           .background(button_painter())
           .on_click(|event_ctx, data, _| {
             event_ctx.submit_command(App::DISABLE);
-            fork_into_webview(&data.runtime, event_ctx.get_external_handle());
+            let child = fork_into_webview(&data.runtime, event_ctx.get_external_handle());
+
+            data.webview = Some(Rc::new(RefCell::new(child)))
           }),
       )
       .expand_width();
@@ -753,6 +757,10 @@ impl Delegate<App> for AppDelegate {
       }
 
       return Handled::Yes;
+    } else if let Some(()) = cmd.get(WEBVIEW_SHUTDOWN) {
+      data.webview = None;
+
+      return Handled::Yes;
     }
 
     Handled::No
@@ -767,7 +775,15 @@ impl Delegate<App> for AppDelegate {
         data.overwrite_log.clear();
         self.overwrite_window = None;
       }
-      a if a == self.root_id => ctx.submit_command(commands::QUIT_APP),
+      a if a == self.root_id => {
+        println!("quitting");
+        if let Some(child) = &data.webview {
+          kill_server_thread();
+          let _ = child.borrow_mut().kill();
+          data.webview = None;
+        }
+        ctx.submit_command(commands::QUIT_APP)
+      },
       _ => {}
     }
   }

@@ -1,4 +1,4 @@
-use std::process::Command;
+use std::process::{Command, Child};
 
 use druid::{ExtEventSink, Selector, Target};
 use interprocess::local_socket::{LocalSocketStream, LocalSocketListener};
@@ -15,7 +15,7 @@ use wry::{
 
 use crate::app::App;
 
-pub const WEBVIEW: Selector<WebviewMessage> = Selector::new("webview.event");
+pub const WEBVIEW_SHUTDOWN: Selector = Selector::new("webview.shutdown");
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub enum WebviewMessage {
@@ -30,6 +30,7 @@ pub enum WebviewMessage {
 enum UserEvent {
   Navigation(String),
   NewWindow(String),
+  Download(String),
 }
 
 pub fn init_webview() -> wry::Result<()> {
@@ -62,6 +63,14 @@ pub fn init_webview() -> wry::Result<()> {
       let proxy = proxy.clone();
       move |uri: String| {
         proxy.send_event(UserEvent::NewWindow(uri.clone())).expect("Send event");
+
+        false
+      }
+    })
+    .with_download_handler({
+      let proxy = proxy.clone();
+      move |uri: String| {
+        proxy.send_event(UserEvent::Download(uri.clone())).expect("Send event");
 
         false
       }
@@ -101,6 +110,10 @@ pub fn init_webview() -> wry::Result<()> {
       Event::UserEvent(UserEvent::Navigation(uri)) => {
         println!("Navigation: {}", uri);
       },
+      Event::UserEvent(UserEvent::Download(uri)) => {
+        println!("Download: {}", uri);
+        bincode::serialize_into(connect(), &WebviewMessage::Download(uri)).expect("");
+      },
       Event::UserEvent(UserEvent::NewWindow(uri)) => {
         println!("New Window: {}", uri);
         webview.evaluate_script(&format!("window.location.assign('{}')", uri)).expect("Navigate webview");
@@ -112,51 +125,57 @@ pub fn init_webview() -> wry::Result<()> {
   });
 }
 
-pub fn fork_into_webview(handle: &Handle, ext_sink: ExtEventSink) {
-  if let Ok(exe) = std::env::current_exe() {
-    fn handle_error(conn: std::io::Result<LocalSocketStream>) -> Option<LocalSocketStream> {
-      match conn {
-        Ok(val) => Some(val),
-        Err(error) => {
-          eprintln!("Incoming connection failed: {}", error);
-          None
-        }
+pub fn fork_into_webview(handle: &Handle, ext_sink: ExtEventSink) -> Child {
+  let exe = std::env::current_exe().expect("Get current executable path");
+  fn handle_error(conn: std::io::Result<LocalSocketStream>) -> Option<LocalSocketStream> {
+    match conn {
+      Ok(val) => Some(val),
+      Err(error) => {
+        eprintln!("Incoming connection failed: {}", error);
+        None
       }
     }
-  
-    let listener = LocalSocketListener::bind("@/tmp/moss.sock").expect("Open socket");
+  }
 
-    handle.spawn_blocking(move || {
-      let allow = None;
+  let listener = LocalSocketListener::bind("@/tmp/moss.sock").expect("Open socket");
 
-      for conn in listener.incoming().filter_map(handle_error) {
-        if let Some(allow) = allow {
-          bincode::serialize_into(
-            conn,
-            if allow {
-              &WebviewMessage::Allow
-            } else {
-              &WebviewMessage::Deny
-            }
-          ).expect("Write out");
-        } else {
-          let message: WebviewMessage = bincode::deserialize_from(conn).expect("Read from");
-          match message {
-            WebviewMessage::Navigation(uri) | WebviewMessage::Download(uri) => todo!(),
-            WebviewMessage::Shutdown => {
-              ext_sink.submit_command(App::ENABLE, (), Target::Auto).expect("Re-enable");
-              break;
-            },
-            _ => {}
+  handle.spawn_blocking(move || {
+    let allow = None;
+
+    for conn in listener.incoming().filter_map(handle_error) {
+      if let Some(allow) = allow {
+        bincode::serialize_into(
+          conn,
+          if allow {
+            &WebviewMessage::Allow
+          } else {
+            &WebviewMessage::Deny
           }
-          println!("Client answered: {:?}", message);
+        ).expect("Write out");
+      } else {
+        let message: WebviewMessage = bincode::deserialize_from(conn).expect("Read from");
+        match &message {
+          WebviewMessage::Navigation(uri) => {},
+          WebviewMessage::Download(uri) => {},
+          WebviewMessage::Shutdown => {
+            ext_sink.submit_command(WEBVIEW_SHUTDOWN, (), Target::Auto).expect("Remove child ref from parent");
+            ext_sink.submit_command(App::ENABLE, (), Target::Auto).expect("Re-enable");
+            break;
+          },
+          _ => {}
         }
+        println!("Client answered: {:?}", message);
       }
-    });
+    }
+  });
 
-    Command::new(exe)
-      .arg("--webview")
-      .spawn()
-      .expect("Failed to start child process");
-  };
+  Command::new(exe)
+    .arg("--webview")
+    .spawn()
+    .expect("Failed to start child process")
+}
+
+pub fn kill_server_thread() {
+  let socket = LocalSocketStream::connect("@/tmp/moss.sock").expect("Connect socket");
+  bincode::serialize_into(socket, &WebviewMessage::Shutdown).expect("");
 }

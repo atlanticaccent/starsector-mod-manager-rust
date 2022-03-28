@@ -4000,7 +4000,7 @@ dependencies = [
 [[package]]
 name = "wry"
 version = "0.13.3"
-source = "git+https://github.com/atlanticaccent/wry.git?branch=implement-new-window-requested-event#a202764c19862eaa9362ef08a71b32f270e58715"
+source = "git+https://github.com/atlanticaccent/wry.git?branch=events-fork#8b5bca1a160e554a043a64274b94dc038c068f39"
 dependencies = [
  "block",
  "cocoa",
