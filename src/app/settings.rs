@@ -16,6 +16,8 @@ use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use tap::Tap;
 
+use crate::app::PROJECT;
+
 use self::vmparams::{Unit, VMParams, Value};
 
 use super::util::{
@@ -284,16 +286,13 @@ impl Settings {
   }
 
   pub fn path(try_make: bool) -> PathBuf {
-    use directories::ProjectDirs;
     use std::fs;
 
-    if let Some(proj_dirs) = ProjectDirs::from("org", "laird", "Starsector Mod Manager") {
-      if proj_dirs.config_dir().exists()
-        || (try_make && fs::create_dir_all(proj_dirs.config_dir()).is_ok())
-      {
-        return proj_dirs.config_dir().to_path_buf().join("config.json");
-      }
-    };
+    if PROJECT.config_dir().exists()
+      || (try_make && fs::create_dir_all(PROJECT.config_dir()).is_ok())
+    {
+      return PROJECT.config_dir().to_path_buf().join("config.json");
+    }
     PathBuf::from(r"./config.json")
   }
 

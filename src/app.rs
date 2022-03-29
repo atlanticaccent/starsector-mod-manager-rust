@@ -1,6 +1,7 @@
 use std::{fs::metadata, path::PathBuf, process::{self, Child}, rc::Rc, sync::Arc, cell::RefCell};
 
 use chrono::{DateTime, Local};
+use directories::ProjectDirs;
 use druid::{
   commands,
   im::Vector,
@@ -56,6 +57,10 @@ mod updater;
 pub mod util;
 
 const TAG: &str = env!("CARGO_PKG_VERSION");
+
+lazy_static! {
+  pub static ref PROJECT: ProjectDirs = ProjectDirs::from("org", "laird", "Starsector Mod Manager").expect("Get project dirs");
+}
 
 #[derive(Clone, Data, Lens)]
 pub struct App {
