@@ -21,6 +21,9 @@ use crate::app::{App, PROJECT};
 pub const WEBVIEW_SHUTDOWN: Selector = Selector::new("webview.shutdown");
 pub const WEBVIEW_INSTALL: Selector<InstallType> = Selector::new("webview.install");
 
+const PARENT_CHILD_SOCKET: &'static str = "@/tmp/moss/parent.sock";
+const CHILD_PARENT_SOCKET: &'static str = "@/tmp/moss/child.sock";
+
 #[derive(Clone)]
 pub enum InstallType {
   Uri(String),
@@ -31,10 +34,11 @@ pub enum InstallType {
 pub enum WebviewMessage {
   Navigation(String),
   Download(String),
-  Allow,
-  Deny,
+  Whitelist(String),
   Shutdown,
   BlobFile(PathBuf),
+  Maximize,
+  Minimize,
 }
 
 #[derive(Debug)]
@@ -44,12 +48,43 @@ enum UserEvent {
   AskDownload(String),
   Download(String),
   BlobReceived(String),
-  BlobChunk(Option<String>)
+  BlobChunk(Option<String>),
+  Maximize,
+  Minimize,
 }
 
 pub fn init_webview() -> wry::Result<()> {
   let event_loop: EventLoop<UserEvent> = EventLoop::with_user_event();
   let proxy = event_loop.create_proxy();
+
+  let runtime = tokio::runtime::Builder::new_multi_thread()
+    .enable_all()
+    .build()
+    .expect("Build tokio runtime");
+
+  runtime.spawn_blocking({
+    let proxy = proxy.clone();
+    move || {
+      let listener = LocalSocketListener::bind(CHILD_PARENT_SOCKET).expect("Open socket");
+
+      for conn in listener.incoming().filter_map(handle_error) {
+        let message: WebviewMessage = bincode::deserialize_from(conn).expect("Read from connection");
+        match message {
+          WebviewMessage::Maximize => {
+            let _ = proxy.send_event(UserEvent::Maximize);
+          },
+          WebviewMessage::Minimize => {
+            let _ = proxy.send_event(UserEvent::Minimize);
+          }
+          WebviewMessage::Shutdown => {
+            println!("shutting down");
+            break;
+          },
+          _ => {}
+        }
+      }
+    }
+  });
 
   let mut menu_bar = MenuBar::new();
   let back = menu_bar.add_item(MenuItemAttributes::new("< Back"));
@@ -63,57 +98,59 @@ pub fn init_webview() -> wry::Result<()> {
   let mut webcontext = WebContext::default();
   webcontext.set_allows_automation(true);
 
+  let init_script = r"
+    // Adds an URL.getFromObjectURL( <blob:// URI> ) method
+    // returns the original object (<Blob> or <MediaSource>) the URI points to or null
+    (() => {
+      // overrides URL methods to be able to retrieve the original blobs later on
+      const old_create = URL.createObjectURL;
+      const old_revoke = URL.revokeObjectURL;
+      Object.defineProperty(URL, 'createObjectURL', {
+        get: () => storeAndCreate
+      });
+      Object.defineProperty(URL, 'revokeObjectURL', {
+        get: () => forgetAndRevoke
+      });
+      Object.defineProperty(URL, 'getFromObjectURL', {
+        get: () => getBlob
+      });
+      Object.defineProperty(URL, 'getObjectURLDict', {
+        get: () => getDict
+      });
+      Object.defineProperty(URL, 'clearURLDict', {
+        get: () => clearDict
+      });
+      const dict = {};
+    
+      function storeAndCreate(blob) {
+        const url = old_create(blob); // let it throw if it has to
+        dict[url] = blob;
+        console.log(blob)
+        return url
+      }
+    
+      function forgetAndRevoke(url) {
+        console.log(`revoke ${url}`)
+        old_revoke(url);
+      }
+    
+      function getBlob(url) {
+        return dict[url] || null;
+      }
+
+      function getDict() {
+        return dict;
+      }
+
+      function clearDict() {
+        dict = {};
+      }
+    })();
+  ";
+
   let webview = WebViewBuilder::new(window)?
     .with_url("https://fractalsoftworks.com/forum/index.php?topic=177.0")?
-    .with_initialization_script(r"
-      // Adds an URL.getFromObjectURL( <blob:// URI> ) method
-      // returns the original object (<Blob> or <MediaSource>) the URI points to or null
-      (() => {
-        // overrides URL methods to be able to retrieve the original blobs later on
-        const old_create = URL.createObjectURL;
-        const old_revoke = URL.revokeObjectURL;
-        Object.defineProperty(URL, 'createObjectURL', {
-          get: () => storeAndCreate
-        });
-        Object.defineProperty(URL, 'revokeObjectURL', {
-          get: () => forgetAndRevoke
-        });
-        Object.defineProperty(URL, 'getFromObjectURL', {
-          get: () => getBlob
-        });
-        Object.defineProperty(URL, 'getObjectURLDict', {
-          get: () => getDict
-        });
-        Object.defineProperty(URL, 'clearURLDict', {
-          get: () => clearDict
-        });
-        const dict = {};
-      
-        function storeAndCreate(blob) {
-          const url = old_create(blob); // let it throw if it has to
-          dict[url] = blob;
-          console.log(blob)
-          return url
-        }
-      
-        function forgetAndRevoke(url) {
-          console.log(`revoke ${url}`)
-          old_revoke(url);
-        }
-      
-        function getBlob(url) {
-          return dict[url] || null;
-        }
-
-        function getDict() {
-          return dict;
-        }
-
-        function clearDict() {
-          dict = {};
-        }
-      })();
-    ")
+    .with_initialization_script(init_script)
     .with_ipc_handler({
       let proxy = proxy.clone();
       move |_, string| {
@@ -186,7 +223,7 @@ pub fn init_webview() -> wry::Result<()> {
 
   let mut mega_file = None;
   let connect = || {
-    LocalSocketStream::connect("@/tmp/moss.sock").expect("Connect socket")
+    connect_parent().expect("Connect")
   };
   event_loop.run(move |event, _, control_flow| {
     *control_flow = ControlFlow::Wait;
@@ -198,6 +235,8 @@ pub fn init_webview() -> wry::Result<()> {
         ..
       } => {
         bincode::serialize_into(connect(), &WebviewMessage::Shutdown).expect("");
+        let socket = connect_child().expect("Connect");
+        bincode::serialize_into(socket, &WebviewMessage::Shutdown).expect("");
         *control_flow = ControlFlow::Exit
       },
       Event::MenuEvent {
@@ -225,7 +264,6 @@ pub fn init_webview() -> wry::Result<()> {
         ", encode(uri)));
       },
       Event::UserEvent(UserEvent::Download(uri)) => {
-        webview.window().set_minimized(true);
         bincode::serialize_into(connect(), &WebviewMessage::Download(uri)).expect("");
       },
       Event::UserEvent(UserEvent::NewWindow(uri)) => {
@@ -280,6 +318,12 @@ pub fn init_webview() -> wry::Result<()> {
             }
           }
         }
+      },
+      Event::UserEvent(UserEvent::Maximize) => {
+        webview.window().set_minimized(false)
+      },
+      Event::UserEvent(UserEvent::Minimize) => {
+        webview.window().set_minimized(true)
       }
       _ => {
         let _ = webview.resize();
@@ -290,50 +334,32 @@ pub fn init_webview() -> wry::Result<()> {
 
 pub fn fork_into_webview(handle: &Handle, ext_sink: ExtEventSink) -> Child {
   let exe = std::env::current_exe().expect("Get current executable path");
-  fn handle_error(conn: std::io::Result<LocalSocketStream>) -> Option<LocalSocketStream> {
-    match conn {
-      Ok(val) => Some(val),
-      Err(error) => {
-        eprintln!("Incoming connection failed: {}", error);
-        None
-      }
-    }
-  }
 
-  let listener = LocalSocketListener::bind("@/tmp/moss.sock").expect("Open socket");
+  let listener = LocalSocketListener::bind(PARENT_CHILD_SOCKET).expect("Open socket");
 
   handle.spawn_blocking(move || {
-    let allow = None;
 
     for conn in listener.incoming().filter_map(handle_error) {
-      if let Some(allow) = allow {
-        bincode::serialize_into(
-          conn,
-          if allow {
-            &WebviewMessage::Allow
-          } else {
-            &WebviewMessage::Deny
-          }
-        ).expect("Write out");
-      } else {
-        let message: WebviewMessage = bincode::deserialize_from(conn).expect("Read from");
-        match &message {
-          WebviewMessage::Navigation(_uri) => {},
-          WebviewMessage::Download(uri) => {
-            ext_sink.submit_command(WEBVIEW_INSTALL, InstallType::Uri(uri.clone()), Target::Auto).expect("Send install from webview");
-          },
-          WebviewMessage::Shutdown => {
-            ext_sink.submit_command(WEBVIEW_SHUTDOWN, (), Target::Auto).expect("Remove child ref from parent");
-            ext_sink.submit_command(App::ENABLE, (), Target::Auto).expect("Re-enable");
-            break;
-          },
-          WebviewMessage::BlobFile(file) => {
-            ext_sink.submit_command(WEBVIEW_INSTALL, InstallType::Path(file.clone()), Target::Auto).expect("Send install from webview");
-          }
-          _ => {}
+      let message: WebviewMessage = bincode::deserialize_from(conn).expect("Read from");
+      match &message {
+        WebviewMessage::Navigation(_uri) => {},
+        WebviewMessage::Download(uri) => {
+          ext_sink.submit_command(WEBVIEW_INSTALL, InstallType::Uri(uri.clone()), Target::Auto).expect("Send install from webview");
+        },
+        WebviewMessage::Shutdown => {
+          ext_sink.submit_command(WEBVIEW_SHUTDOWN, (), Target::Auto).expect("Remove child ref from parent");
+          ext_sink.submit_command(App::ENABLE, (), Target::Auto).expect("Re-enable");
+          break;
+        },
+        WebviewMessage::BlobFile(file) => {
+          ext_sink.submit_command(WEBVIEW_INSTALL, InstallType::Path(file.clone()), Target::Auto).expect("Send install from webview");
+        },
+        WebviewMessage::Whitelist(uri) => {
+
         }
-        println!("Client answered: {:?}", message);
+        _ => {}
       }
+      println!("Client answered: {:?}", message);
     }
   });
 
@@ -343,7 +369,39 @@ pub fn fork_into_webview(handle: &Handle, ext_sink: ExtEventSink) -> Child {
     .expect("Failed to start child process")
 }
 
+fn handle_error(conn: std::io::Result<LocalSocketStream>) -> Option<LocalSocketStream> {
+  match conn {
+    Ok(val) => Some(val),
+    Err(error) => {
+      eprintln!("Incoming connection failed: {}", error);
+      None
+    }
+  }
+}
+
+fn connect_parent() -> std::io::Result<LocalSocketStream> {
+  LocalSocketStream::connect(PARENT_CHILD_SOCKET)
+}
+
+fn connect_child() -> std::io::Result<LocalSocketStream> {
+  LocalSocketStream::connect(CHILD_PARENT_SOCKET)
+}
+
 pub fn kill_server_thread() {
-  let socket = LocalSocketStream::connect("@/tmp/moss.sock").expect("Connect socket");
+  let socket = connect_parent().expect("");
   bincode::serialize_into(socket, &WebviewMessage::Shutdown).expect("");
+  let socket = connect_child().expect("");
+  bincode::serialize_into(socket, &WebviewMessage::Shutdown).expect("");
+}
+
+pub fn minimize_webview() {
+  if let Ok(socket) = connect_child() {
+    let _ = bincode::serialize_into(socket, &WebviewMessage::Minimize);
+  }
+}
+
+pub fn maximize_webview() {
+  if let Ok(socket) = connect_child() {
+    let _ = bincode::serialize_into(socket, &WebviewMessage::Maximize);
+  }
 }

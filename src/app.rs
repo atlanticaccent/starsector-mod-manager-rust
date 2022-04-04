@@ -31,7 +31,7 @@ use crate::{
     split::Split,
     tabs_policy::{InitialTab, StaticTabsForked},
   },
-  webview::{fork_into_webview, WEBVIEW_SHUTDOWN, kill_server_thread, WEBVIEW_INSTALL, InstallType},
+  webview::{fork_into_webview, WEBVIEW_SHUTDOWN, kill_server_thread, WEBVIEW_INSTALL, InstallType, maximize_webview, minimize_webview},
 };
 
 use self::{
@@ -976,13 +976,15 @@ impl AppDelegate {
                           entry.clone(),
                         ))
                         .to(Target::Global),
-                    )
+                    );
+                    maximize_webview();
                   }
                 }))
                 .with_child(Button::new("Cancel").on_click({
                   let conflict = conflict.clone();
                   move |ctx, _, _| {
-                    ctx.submit_command(App::REMOVE_OVERWRITE_LOG_ENTRY.with(conflict.clone()))
+                    ctx.submit_command(App::REMOVE_OVERWRITE_LOG_ENTRY.with(conflict.clone()));
+                    maximize_webview();
                   }
                 }))
                 .boxed(),
@@ -1224,20 +1226,23 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
                   mut_entry.version_checker.as_ref().unwrap(),
                   &Some(remote_version_checker),
                 )));
-              } else if let Some(version_checker) = entry.version_checker.clone() {
-                data.runtime.spawn(get_master_version(
-                  ctx.get_external_handle(),
-                  version_checker,
-                ));
               }
+            } else if let Some(version_checker) = entry.version_checker.clone() {
+              data.runtime.spawn(get_master_version(
+                ctx.get_external_handle(),
+                version_checker,
+              ));
             }
             ctx.submit_command(App::LOG_SUCCESS.with(entry.name.clone()));
             data.mod_list.mods.insert(entry.id.clone(), entry);
             ctx.children_changed();
           }
-          ChannelMessage::Duplicate(conflict, to_install, entry) => ctx.submit_command(
+          ChannelMessage::Duplicate(conflict, to_install, entry) => {
+            minimize_webview();
+            ctx.submit_command(
             App::LOG_OVERWRITE.with((conflict.clone(), to_install.clone(), entry.clone())),
-          ),
+            )
+          },
           ChannelMessage::Error(name, err) => {
             ctx.submit_command(App::LOG_ERROR.with((name.clone(), err.clone())));
             eprintln!("Failed to install {}", err);
