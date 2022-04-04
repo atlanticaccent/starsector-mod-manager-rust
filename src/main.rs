@@ -9,7 +9,9 @@
 #![feature(is_some_with)]
 #![feature(bool_to_option)]
 #![feature(hash_set_entry)]
+#![feature(string_remove_matches)]
 
+use app::PROJECT;
 use druid::{AppLauncher, WindowDesc, theme, Color};
 use tokio::runtime::Builder;
 use clap::Parser;
@@ -29,6 +31,8 @@ struct Args {
 
 fn main() {
   let args = Args::parse();
+
+  std::fs::create_dir_all(PROJECT.cache_dir()).expect("Create cache dir");
 
   if !args.webview {
     let main_window = WindowDesc::new(app::App::ui_builder())

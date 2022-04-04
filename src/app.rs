@@ -13,11 +13,13 @@ use druid::{
   },
   AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Event, EventCtx, Handled, KeyEvent,
   Lens, LensExt, Menu, MenuItem, RenderContext, Selector, Target, Widget, WidgetExt, WidgetId,
-  WindowDesc, WindowId,
+  WindowDesc, WindowId, WindowLevel,
 };
 use druid_widget_nursery::{material_icons::Icon, Separator, WidgetExt as WidgetExtNursery};
 use lazy_static::lazy_static;
+use rand::random;
 use remove_dir_all::remove_dir_all;
+use reqwest::Url;
 use rfd::FileDialog;
 use self_update::version::bump_is_greater;
 use strum::IntoEnumIterator;
@@ -29,7 +31,7 @@ use crate::{
     split::Split,
     tabs_policy::{InitialTab, StaticTabsForked},
   },
-  webview::{fork_into_webview, WEBVIEW_SHUTDOWN, kill_server_thread},
+  webview::{fork_into_webview, WEBVIEW_SHUTDOWN, kill_server_thread, WEBVIEW_INSTALL, InstallType},
 };
 
 use self::{
@@ -46,7 +48,7 @@ use self::{
   },
 };
 
-mod installer;
+pub mod installer;
 mod mod_description;
 mod mod_entry;
 mod mod_list;
@@ -766,6 +768,47 @@ impl Delegate<App> for AppDelegate {
       data.webview = None;
 
       return Handled::Yes;
+    } else if let Some(install) = cmd.get(WEBVIEW_INSTALL) {
+      let runtime = data.runtime.clone();
+      let install = install.clone();
+      let ext_ctx = ctx.get_external_handle();
+      let install_dir = data.settings.install_dir.clone().unwrap();
+      let ids = data.mod_list.mods.values().map(|v| v.id.clone()).collect();
+      data.runtime.spawn_blocking(move || {
+        runtime.block_on(async move {
+          let path = match install {
+            InstallType::Uri(uri) => {
+              let file_name = Url::parse(&uri).ok()
+                .and_then(|url| {
+                  url.path_segments().and_then(|segments| segments.last()).map(|s| s.to_string())
+                })
+                .unwrap_or(uri.clone())
+                .to_string();
+              ext_ctx.submit_command(App::LOG_MESSAGE, format!("Installing {}", &file_name), Target::Auto).expect("Send install start");
+              let download = installer::download(uri).await.expect("Download archive");
+              let download_dir = PROJECT.cache_dir().to_path_buf();
+              let mut persist_path = download_dir.join(&file_name);
+              if persist_path.exists() {
+                persist_path = download_dir.join(format!("{}({})", file_name, random::<u8>()))
+              }
+              download.persist(&persist_path).expect("Persist download");
+
+              persist_path
+            },
+            InstallType::Path(path) => {
+              let file_name = path.file_name().unwrap_or(path.as_os_str()).to_string_lossy().to_string();
+              ext_ctx.submit_command(App::LOG_MESSAGE, format!("Installing {}", &file_name), Target::Auto).expect("Send install start");
+
+              path
+            }
+          };
+          installer::Payload::Initial(vec![path]).install(
+            ext_ctx,
+            install_dir,
+            ids
+          ).await;
+        });
+      });
     }
 
     Handled::No
@@ -787,6 +830,7 @@ impl Delegate<App> for AppDelegate {
           let _ = child.borrow_mut().kill();
           data.webview = None;
         }
+        let _ = std::fs::remove_dir_all(PROJECT.cache_dir());
         ctx.submit_command(commands::QUIT_APP)
       },
       _ => {}
@@ -848,7 +892,8 @@ impl AppDelegate {
 
       let log_window = WindowDesc::new(modal)
         .window_size((500., 400.))
-        .show_titlebar(false);
+        .show_titlebar(false)
+        .set_level(WindowLevel::AppWindow);
 
       self.log_window = Some(log_window.id);
 
@@ -970,7 +1015,8 @@ impl AppDelegate {
 
       let overwrite_window = WindowDesc::new(modal)
         .window_size((500., 400.))
-        .show_titlebar(false);
+        .show_titlebar(false)
+        .set_level(WindowLevel::AppWindow);
 
       self.overwrite_window = Some(overwrite_window.id);
 
@@ -1028,7 +1074,8 @@ impl AppDelegate {
 
       let duplicate_window = WindowDesc::new(modal)
         .window_size((500., 400.))
-        .show_titlebar(false);
+        .show_titlebar(false)
+        .set_level(WindowLevel::AppWindow);
 
       self.duplicate_window = Some(duplicate_window.id);
 
