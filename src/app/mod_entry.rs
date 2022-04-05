@@ -141,16 +141,17 @@ impl ModEntry {
         .expand_width(),
       ViewSwitcher::new(
         |entry: &Arc<ModEntry>, _| {
-          entry
+          entry.clone()
+        },
+        |data, _, env| {
+          let color = data
             .update_status
             .as_ref()
             .map(|s| s.as_text_colour())
-            .unwrap_or_else(|| <KeyOrValue<Color>>::from(druid::theme::TEXT_COLOR))
-        },
-        |change, data, env| {
+            .unwrap_or_else(|| <KeyOrValue<Color>>::from(druid::theme::TEXT_COLOR));
           Box::new(
             Flex::row()
-              .with_child(Label::wrapped(&data.version.to_string()).with_text_color(change.clone()))
+              .with_child(Label::wrapped(&data.version.to_string()).with_text_color(color.clone()))
               .with_flex_spacer(1.)
               .tap_mut(|row| {
                 let mut icon_row = Flex::row();
@@ -172,14 +173,14 @@ impl ModEntry {
 
                 if let Some(update_status) = &data.update_status {
                   let tooltip = update_status.to_string();
-                  let change = change.clone();
-                  let color = <KeyOrValue<Color>>::from(update_status).resolve(env);
+                  let text_color = color.clone();
+                  let background_color = <KeyOrValue<Color>>::from(update_status).resolve(env);
                   row.add_child(icon_row.controller(TooltipController::new(move || {
                     Label::new(tooltip.clone())
-                      .with_text_color(change.clone())
+                      .with_text_color(text_color.clone())
                       .padding(5.)
-                      .background(color.clone())
-                      .border(change.clone(), 2.)
+                      .background(background_color.clone())
+                      .border(text_color.clone(), 2.)
                       .boxed()
                   })))
                 } else {
