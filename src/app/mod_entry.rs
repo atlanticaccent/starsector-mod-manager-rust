@@ -22,7 +22,7 @@ use tap::Tap;
 
 use crate::{
   app::{
-    util::{parse_game_version, LabelExt},
+    util::{parse_game_version, default_true, LabelExt},
     App, AppCommands,
   },
   patch::{split::Split, tooltip::TooltipController},
@@ -69,7 +69,7 @@ pub struct ModEntry {
   #[data(same_fn = "PartialEq::eq")]
   pub path: PathBuf,
   #[serde(skip)]
-  #[serde(default = "ModEntry::def_true")]
+  #[serde(default = "default_true")]
   display: bool,
 }
 
@@ -115,10 +115,6 @@ impl ModEntry {
         None
       }
     }
-  }
-
-  fn def_true() -> bool {
-    true
   }
 
   pub fn set_enabled(&mut self, enabled: bool) {

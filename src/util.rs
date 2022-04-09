@@ -397,3 +397,5 @@ pub async fn get_latest_manager() -> Result<Release, String> {
     Err(String::from("Could not find any releases."))
   }
 }
+
+pub fn default_true() -> bool { true }

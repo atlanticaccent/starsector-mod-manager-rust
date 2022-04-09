@@ -106,6 +106,7 @@ impl App {
   const REMOVE_DUPLICATE_LOG_ENTRY: Selector<String> =
     Selector::new("app.mod.duplicate.remove_log");
   const CLEAR_DUPLICATE_LOG: Selector = Selector::new("app.mod.duplicate.ignore_all");
+  const OPEN_WEBVIEW: Selector<Option<String>> = Selector::new("app.webview.open");
 
   pub fn new(handle: Handle) -> Self {
     App {
@@ -249,11 +250,8 @@ impl App {
           .with_child(Icon::new(SETTINGS))
           .padding((8., 4.))
           .background(button_painter())
-          .on_click(|event_ctx, data, _| {
-            event_ctx.submit_command(App::DISABLE);
-            let child = fork_into_webview(&data.runtime, event_ctx.get_external_handle());
-
-            data.webview = Some(Rc::new(RefCell::new(child)))
+          .on_click(|event_ctx, _, _| {
+            event_ctx.submit_command(App::OPEN_WEBVIEW.with(None))
           }),
       )
       .expand_width();
@@ -279,7 +277,7 @@ impl App {
       |active: &Option<Arc<ModEntry>>, _| active.clone(),
       |active, _, _| {
         if let Some(active) = active {
-          Box::new(ModDescription::ui_builder().lens(lens::Constant(active.clone())))
+          ModDescription::ui_builder().lens(lens::Constant(active.clone())).boxed()
         } else {
           Box::new(ModDescription::empty_builder().lens(lens::Unit))
         }
@@ -809,6 +807,18 @@ impl Delegate<App> for AppDelegate {
           ).await;
         });
       });
+      return Handled::Yes;
+    } else if let Some(url) = cmd.get(App::OPEN_WEBVIEW) {
+      ctx.submit_command(App::DISABLE);
+      let child = fork_into_webview(&data.runtime, ctx.get_external_handle(), url.clone());
+
+      data.webview = Some(Rc::new(RefCell::new(child)))
+    } else if let Some(url) = cmd.get(mod_description::OPEN_IN_WEBVIEW) {
+      if data.settings.open_forum_link_in_webview {
+        ctx.submit_command(App::OPEN_WEBVIEW.with(Some(url.clone())));
+      } else {
+        let _ = opener::open(url);
+      }
     }
 
     Handled::No
@@ -1238,7 +1248,9 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
             ctx.children_changed();
           }
           ChannelMessage::Duplicate(conflict, to_install, entry) => {
-            minimize_webview();
+            if data.settings.hide_webview_on_conflict {
+              minimize_webview();
+            }
             ctx.submit_command(
             App::LOG_OVERWRITE.with((conflict.clone(), to_install.clone(), entry.clone())),
             )

@@ -16,13 +16,13 @@ use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use tap::Tap;
 
-use crate::app::PROJECT;
+use crate::{app::PROJECT, patch::tooltip::TooltipController};
 
 use self::vmparams::{Unit, VMParams, Value};
 
 use super::util::{
   h2, h3, make_column_pair, make_flex_description_row, make_flex_pair, DragWindowController,
-  LabelExt, LoadError, SaveError,
+  LabelExt, LoadError, SaveError, default_true
 };
 
 pub mod vmparams;
@@ -45,6 +45,9 @@ pub struct Settings {
   pub vmparams: Option<vmparams::VMParams>,
   pub experimental_launch: bool,
   pub experimental_resolution: (u32, u32),
+  #[serde(default = "default_true")]
+  pub hide_webview_on_conflict: bool,
+  pub open_forum_link_in_webview: bool,
 }
 
 impl Settings {
@@ -67,6 +70,25 @@ impl Settings {
             make_flex_description_row(
               Label::wrapped("Warn when overwriting '.git' folders:"),
               Checkbox::new("").lens(Settings::git_warn),
+            )
+            .padding(TRAILING_PADDING),
+          )
+          .with_child(
+            make_flex_description_row(
+              Label::wrapped("Minimize browser when installation encounters conflict:"),
+              Checkbox::new("").lens(Settings::hide_webview_on_conflict),
+            )
+            .padding(TRAILING_PADDING),
+          )
+          .with_child(
+            make_flex_description_row(
+              Label::wrapped("Use bundled browser when opening forum links:").controller(TooltipController::new(|| {
+                Label::new("This allows installing mods directly from links in forum posts")
+                  .padding(5.)
+                  .border(druid::Color::GRAY, 2.)
+                  .boxed()
+              })),
+              Checkbox::new("").lens(Settings::open_forum_link_in_webview),
             )
             .padding(TRAILING_PADDING),
           )

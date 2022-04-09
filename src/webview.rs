@@ -6,6 +6,7 @@ use interprocess::local_socket::{LocalSocketStream, LocalSocketListener};
 use rand::random;
 use reqwest::Url;
 use serde::{Serialize, Deserialize};
+use tap::Pipe;
 use tokio::runtime::Handle;
 use wry::{
   application::{
@@ -34,7 +35,6 @@ pub enum InstallType {
 pub enum WebviewMessage {
   Navigation(String),
   Download(String),
-  Whitelist(String),
   Shutdown,
   BlobFile(PathBuf),
   Maximize,
@@ -53,7 +53,7 @@ enum UserEvent {
   Minimize,
 }
 
-pub fn init_webview() -> wry::Result<()> {
+pub fn init_webview(url: Option<String>) -> wry::Result<()> {
   let event_loop: EventLoop<UserEvent> = EventLoop::with_user_event();
   let proxy = event_loop.create_proxy();
 
@@ -65,7 +65,7 @@ pub fn init_webview() -> wry::Result<()> {
   runtime.spawn_blocking({
     let proxy = proxy.clone();
     move || {
-      let listener = LocalSocketListener::bind(CHILD_PARENT_SOCKET).expect("Open socket");
+      let listener = bind_child().expect("Open socket");
 
       for conn in listener.incoming().filter_map(handle_error) {
         let message: WebviewMessage = bincode::deserialize_from(conn).expect("Read from connection");
@@ -149,7 +149,7 @@ pub fn init_webview() -> wry::Result<()> {
   ";
 
   let webview = WebViewBuilder::new(window)?
-    .with_url("https://fractalsoftworks.com/forum/index.php?topic=177.0")?
+    .with_url(url.as_deref().unwrap_or("https://fractalsoftworks.com/forum/index.php?topic=177.0"))?
     .with_initialization_script(init_script)
     .with_ipc_handler({
       let proxy = proxy.clone();
@@ -184,7 +184,7 @@ pub fn init_webview() -> wry::Result<()> {
 
         if let Ok(url) = Url::parse(&uri) {
           if url.host_str() == Some("drive.google.com") && url.query().map_or(false, |q| q.contains("export=download")) {
-            let _ = proxy.send_event(UserEvent::AskDownload(uri.clone()));
+            let _ = proxy.send_event(UserEvent::AskDownload(uri + "&confirm=t"));
             return false
           }
         }
@@ -332,13 +332,12 @@ pub fn init_webview() -> wry::Result<()> {
   });
 }
 
-pub fn fork_into_webview(handle: &Handle, ext_sink: ExtEventSink) -> Child {
+pub fn fork_into_webview(handle: &Handle, ext_sink: ExtEventSink, url: Option<String>) -> Child {
   let exe = std::env::current_exe().expect("Get current executable path");
 
-  let listener = LocalSocketListener::bind(PARENT_CHILD_SOCKET).expect("Open socket");
+  let listener = bind_parent().expect("Open socket");
 
   handle.spawn_blocking(move || {
-
     for conn in listener.incoming().filter_map(handle_error) {
       let message: WebviewMessage = bincode::deserialize_from(conn).expect("Read from");
       match &message {
@@ -354,9 +353,6 @@ pub fn fork_into_webview(handle: &Handle, ext_sink: ExtEventSink) -> Child {
         WebviewMessage::BlobFile(file) => {
           ext_sink.submit_command(WEBVIEW_INSTALL, InstallType::Path(file.clone()), Target::Auto).expect("Send install from webview");
         },
-        WebviewMessage::Whitelist(uri) => {
-
-        }
         _ => {}
       }
       println!("Client answered: {:?}", message);
@@ -365,6 +361,13 @@ pub fn fork_into_webview(handle: &Handle, ext_sink: ExtEventSink) -> Child {
 
   Command::new(exe)
     .arg("--webview")
+    .pipe(|cmd| {
+      if let Some(url) = url {
+        cmd.arg(format!("{}", url))
+      } else {
+        cmd
+      }
+    })
     .spawn()
     .expect("Failed to start child process")
 }
@@ -385,6 +388,30 @@ fn connect_parent() -> std::io::Result<LocalSocketStream> {
 
 fn connect_child() -> std::io::Result<LocalSocketStream> {
   LocalSocketStream::connect(CHILD_PARENT_SOCKET)
+}
+
+fn bind_parent() -> std::io::Result<LocalSocketListener> {
+  #[cfg(target_os = "macos")]
+  {
+    let path = PathBuf::from(PARENT_CHILD_SOCKET.replace('@', ""));
+    if !path.exists() {
+      let _ = std::fs::create_dir_all(path);
+    }
+  }
+
+  LocalSocketListener::bind(PARENT_CHILD_SOCKET)
+}
+
+fn bind_child() -> std::io::Result<LocalSocketListener> {
+  #[cfg(target_os = "macos")]
+  {
+    let path = PathBuf::from(CHILD_PARENT_SOCKET.replace('@', ""));
+    if !path.exists() {
+      let _ = std::fs::create_dir_all(path);
+    }
+  }
+
+  LocalSocketListener::bind(CHILD_PARENT_SOCKET)
 }
 
 pub fn kill_server_thread() {

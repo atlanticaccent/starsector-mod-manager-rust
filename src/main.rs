@@ -27,6 +27,7 @@ mod webview;
 struct Args {
   #[clap(long)]
   webview: bool,
+  url: Option<String>
 }
 
 fn main() {
@@ -74,6 +75,6 @@ fn main() {
       .launch(initial_state)
       .expect("Failed to launch application");
   } else {
-    init_webview().expect("Launch webviews");
+    init_webview(args.url).expect("Launch webviews");
   }
 }
