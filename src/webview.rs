@@ -415,10 +415,10 @@ fn bind_child() -> std::io::Result<LocalSocketListener> {
 }
 
 pub fn kill_server_thread() {
-  let socket = connect_parent().expect("");
-  bincode::serialize_into(socket, &WebviewMessage::Shutdown).expect("");
-  let socket = connect_child().expect("");
-  bincode::serialize_into(socket, &WebviewMessage::Shutdown).expect("");
+  let socket = connect_parent().unwrap();
+  bincode::serialize_into(socket, &WebviewMessage::Shutdown).unwrap();
+  let socket = connect_child().unwrap();
+  bincode::serialize_into(socket, &WebviewMessage::Shutdown).unwrap();
 }
 
 pub fn minimize_webview() {
