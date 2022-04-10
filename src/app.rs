@@ -244,6 +244,9 @@ impl App {
               data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
             ));
         }
+      })
+      .disabled_if(|data, _| {
+        data.settings.install_dir.is_none()
       });
     let browse_index_button = Flex::row()
       .with_child(
@@ -255,7 +258,10 @@ impl App {
           .background(button_painter())
           .on_click(|event_ctx, _, _| event_ctx.submit_command(App::OPEN_WEBVIEW.with(None))),
       )
-      .expand_width();
+      .expand_width()
+      .disabled_if(|data, _| {
+        data.settings.install_dir.is_none()
+      });
     let mod_list = mod_list::ModList::ui_builder()
       .lens(App::mod_list)
       .on_change(|_ctx, _old, data, _env| {
