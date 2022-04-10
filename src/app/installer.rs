@@ -97,7 +97,7 @@ async fn handle_path(
         ext_ctx.submit_command(INSTALL, ChannelMessage::Duplicate(id.clone().into(), rewrite(), Arc::new(mod_info)), Target::Auto).expect("Send query over async channel");
       } else if mods_dir.join(mod_info.id.clone()).exists() {
         let mod_folder = rewrite();
-        ext_ctx.submit_command(INSTALL, ChannelMessage::Duplicate(mod_path.into(), mod_folder, Arc::new(mod_info)), Target::Auto).expect("Send query over async channel");
+        ext_ctx.submit_command(INSTALL, ChannelMessage::Duplicate(mods_dir.join(mod_info.id.clone()).into(), mod_folder, Arc::new(mod_info)), Target::Auto).expect("Send query over async channel");
       } else {
         move_or_copy(mod_path, mods_dir.join(&mod_info.id)).await;
 
@@ -110,11 +110,11 @@ async fn handle_path(
   }
 }
 
-fn decompress(path: PathBuf) -> Result<TempDir, InstallError> {
-  let source = std::fs::File::open(&path).context(Io {})?;
-  let temp_dir = tempdir().context(Io {})?;
+pub fn decompress(path: PathBuf) -> Result<TempDir, InstallError> {
+  let source = std::fs::File::open(&path).context(Io { detail: String::from("Failed to open source archive") })?;
+  let temp_dir = tempdir().context(Io { detail: String::from("Failed to open a temp dir") })?;
   let mime_type = infer::get_from_path(&path)
-    .context(Io {})?
+    .context(Io { detail: String::from("Failed to open archive for archive type inference") })?
     .context(Mime {
       detail: "Failed to get mime type",
     })?
@@ -237,7 +237,10 @@ async fn handle_auto(ext_ctx: ExtEventSink, entry: Arc<ModEntry>) {
           let hybrid = HybridPath::Temp(Arc::new(temp), None);
           let path = hybrid.get_path_copy();
           if_chain! {
-            if let Ok(Some(path)) = task::spawn_blocking(move || find_nested_mod(&path)).await.expect("Run blocking search").context(Io {});
+            if let Ok(Some(path)) = task::spawn_blocking(move || find_nested_mod(&path))
+              .await
+              .expect("Run blocking search")
+              .context(Io { detail: String::from("Failed to find mod during recursive folder search") });
             if let Ok(mod_info) = ModEntry::from_file(&path);
             then {
               let hybrid = if let HybridPath::Temp(temp, _) = hybrid {
@@ -279,12 +282,27 @@ async fn handle_auto(ext_ctx: ExtEventSink, entry: Arc<ModEntry>) {
   }
 }
 
-async fn download(url: String) -> Result<tempfile::NamedTempFile, InstallError> {
-  let mut file = tempfile::NamedTempFile::new().context(Io {})?;
-  let mut res = reqwest::get(url).await.context(Network {})?;
+pub async fn download(url: String) -> Result<tempfile::NamedTempFile, InstallError> {
+  static APP_USER_AGENT: &str = concat!(
+    env!("CARGO_PKG_NAME"),
+    "/",
+    env!("CARGO_PKG_VERSION"),
+  );
+
+  let mut file = tempfile::NamedTempFile::new().context(Io { detail: String::from("Failed to create named temp file to write to") })?;
+  let client = reqwest::ClientBuilder::default()
+    .redirect(reqwest::redirect::Policy::limited(200))
+    .user_agent(APP_USER_AGENT)
+    .build()
+    .context(Network {})?;
+
+  let mut res = client.get(url)
+    .send()
+    .await
+    .context(Network {})?;
 
   while let Some(chunk) = res.chunk().await.context(Network {})? {
-    file.write(&chunk).context(Io {})?;
+    file.write(&chunk).context(Io { detail: String::from("Failed to write downloaded chunk to temp file") })?;
   }
 
   Ok(file)
@@ -307,8 +325,11 @@ impl HybridPath {
 }
 
 #[derive(Debug, Snafu)]
-enum InstallError {
-  Io { source: std::io::Error },
+pub enum InstallError {
+  Io {
+    source: std::io::Error,
+    detail: String,
+  },
   Mime { detail: String },
   CompressTools { source: compress_tools::Error },
   Unrar { detail: String },

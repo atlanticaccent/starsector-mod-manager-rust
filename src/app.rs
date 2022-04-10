@@ -1,48 +1,56 @@
-use std::{path::PathBuf, process, rc::Rc, sync::Arc, fs::metadata};
+use std::{cell::RefCell, fs::metadata, path::PathBuf, process::Child, rc::Rc, sync::Arc};
 
-use chrono::{Local, DateTime};
+use chrono::{DateTime, Local};
+use directories::ProjectDirs;
 use druid::{
   commands,
   im::Vector,
   keyboard_types::Key,
   lens, theme,
   widget::{
-    Axis, Button, Checkbox, Controller, Flex, Label, Maybe, Painter, Scope, ScopeTransfer,
-    SizedBox, Tabs, TabsPolicy, TextBox, ViewSwitcher,
+    Axis, Button, Checkbox, Flex, Label, Maybe, Painter, Scope, ScopeTransfer, SizedBox, Tabs,
+    TabsPolicy, TextBox, ViewSwitcher,
   },
   AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Event, EventCtx, Handled, KeyEvent,
-  Lens, LensExt, Menu, MenuItem, RenderContext, Selector, Target, Widget, WidgetExt, WidgetId,
-  WindowDesc, WindowId,
+  Lens, LensExt, RenderContext, Selector, Target, Widget, WidgetExt, WidgetId, WindowDesc,
+  WindowId, WindowLevel,
 };
 use druid_widget_nursery::{material_icons::Icon, Separator, WidgetExt as WidgetExtNursery};
 use lazy_static::lazy_static;
+use rand::random;
 use remove_dir_all::remove_dir_all;
-use rfd::FileDialog;
-use self_update::version::bump_is_greater;
+use reqwest::Url;
 use strum::IntoEnumIterator;
-use tap::{Tap, Pipe};
+use tap::{Pipe, Tap};
 use tokio::runtime::Handle;
 
-use crate::patch::{
-  split::Split,
-  tabs_policy::{InitialTab, StaticTabsForked},
+use crate::{
+  patch::{
+    split::Split,
+    tabs_policy::{InitialTab, StaticTabsForked},
+  },
+  webview::{
+    fork_into_webview, kill_server_thread, maximize_webview, InstallType, WEBVIEW_INSTALL,
+    WEBVIEW_SHUTDOWN,
+  },
 };
 
 use self::{
   installer::{ChannelMessage, HybridPath, StringOrPath},
   mod_description::ModDescription,
-  mod_entry::{ModEntry, UpdateStatus},
+  mod_entry::ModEntry,
   mod_list::{EnabledMods, Filters, ModList},
   modal::Modal,
   settings::{Settings, SettingsCommand},
-  updater::{open_in_browser, self_update, support_self_update},
   util::{
-    get_latest_manager, get_master_version, get_quoted_version, get_starsector_version, h2, h3,
-    icons::*, make_column_pair, LabelExt, Release, GET_INSTALLED_STARSECTOR,
+    get_latest_manager, get_quoted_version, get_starsector_version, h2, h3, icons::*,
+    make_column_pair, LabelExt, Release, GET_INSTALLED_STARSECTOR,
   },
+  controllers::{InstallController, ModListController, AppController},
 };
 
-mod installer;
+mod controllers;
+pub mod installer;
 mod mod_description;
 mod mod_entry;
 mod mod_list;
@@ -53,6 +61,11 @@ mod updater;
 pub mod util;
 
 const TAG: &str = env!("CARGO_PKG_VERSION");
+
+lazy_static! {
+  pub static ref PROJECT: ProjectDirs =
+    ProjectDirs::from("org", "laird", "Starsector Mod Manager").expect("Get project dirs");
+}
 
 #[derive(Clone, Data, Lens)]
 pub struct App {
@@ -68,13 +81,14 @@ pub struct App {
   log: Vec<String>,
   overwrite_log: Vector<Rc<(StringOrPath, HybridPath, Arc<ModEntry>)>>,
   duplicate_log: Vector<(Arc<ModEntry>, Arc<ModEntry>)>,
+  webview: Option<Rc<RefCell<Child>>>,
 }
 
 impl App {
   const SELECTOR: Selector<AppCommands> = Selector::new("app.update.commands");
   const OPEN_FILE: Selector<Option<Vec<PathBuf>>> = Selector::new("app.open.multiple");
   const OPEN_FOLDER: Selector<Option<PathBuf>> = Selector::new("app.open.folder");
-  const ENABLE: Selector<()> = Selector::new("app.enable");
+  pub const ENABLE: Selector<()> = Selector::new("app.enable");
   const DUMB_UNIVERSAL_ESCAPE: Selector<()> = Selector::new("app.universal_escape");
   const REFRESH: Selector<()> = Selector::new("app.mod_list.refresh");
   const DISABLE: Selector<()> = Selector::new("app.disable");
@@ -90,9 +104,12 @@ impl App {
   const CLEAR_OVERWRITE_LOG: Selector<bool> = Selector::new("app.install.clear_overwrite_log");
   const REMOVE_OVERWRITE_LOG_ENTRY: Selector<StringOrPath> =
     Selector::new("app.install.overwrite.decline");
-  const DELETE_AND_SUMBIT: Selector<(PathBuf, Arc<ModEntry>)> = Selector::new("app.mod.duplicate.resolve");
-  const REMOVE_DUPLICATE_LOG_ENTRY: Selector<String> = Selector::new("app.mod.duplicate.remove_log");
+  const DELETE_AND_SUMBIT: Selector<(PathBuf, Arc<ModEntry>)> =
+    Selector::new("app.mod.duplicate.resolve");
+  const REMOVE_DUPLICATE_LOG_ENTRY: Selector<String> =
+    Selector::new("app.mod.duplicate.remove_log");
   const CLEAR_DUPLICATE_LOG: Selector = Selector::new("app.mod.duplicate.ignore_all");
+  pub const OPEN_WEBVIEW: Selector<Option<String>> = Selector::new("app.webview.open");
 
   pub fn new(handle: Handle) -> Self {
     App {
@@ -109,7 +126,7 @@ impl App {
           }
           settings
         })
-        .unwrap_or_else(|_| settings::Settings::default()),
+        .unwrap_or_else(|_| settings::Settings::new()),
       mod_list: mod_list::ModList::new(),
       active: None,
       runtime: handle,
@@ -117,6 +134,7 @@ impl App {
       log: Vec::new(),
       overwrite_log: Vector::new(),
       duplicate_log: Vector::new(),
+      webview: None,
     }
   }
 
@@ -226,6 +244,23 @@ impl App {
               data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
             ));
         }
+      })
+      .disabled_if(|data, _| {
+        data.settings.install_dir.is_none()
+      });
+    let browse_index_button = Flex::row()
+      .with_child(
+        Flex::row()
+          .with_child(Label::new("Open Mod Browser").with_text_size(18.))
+          .with_spacer(5.)
+          .with_child(Icon::new(OPEN_IN_BROWSER))
+          .padding((8., 4.))
+          .background(button_painter())
+          .on_click(|event_ctx, _, _| event_ctx.submit_command(App::OPEN_WEBVIEW.with(None))),
+      )
+      .expand_width()
+      .disabled_if(|data, _| {
+        data.settings.install_dir.is_none()
       });
     let mod_list = mod_list::ModList::ui_builder()
       .lens(App::mod_list)
@@ -246,16 +281,19 @@ impl App {
       .expand()
       .controller(ModListController);
     let mod_description = ViewSwitcher::new(
-      |active: &Option<Arc<ModEntry>>, _| active.clone(),
-      |active, _, _| {
+      |data: &App, _| (data.active.clone(), data.webview.is_some()),
+      |(active, enabled), _, _| {
         if let Some(active) = active {
-          Box::new(ModDescription::ui_builder().lens(lens::Constant(active.clone())))
+          let enabled = *enabled;
+          ModDescription::ui_builder()
+            .lens(lens::Constant(active.clone()))
+            .disabled_if(move |_, _| enabled)
+            .boxed()
         } else {
           Box::new(ModDescription::empty_builder().lens(lens::Unit))
         }
       },
-    )
-    .lens(App::active);
+    );
     let tool_panel = Flex::column()
       .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
       .with_child(h2("Search"))
@@ -415,6 +453,8 @@ impl App {
           .with_child(settings)
           .with_spacer(10.)
           .with_child(install_mod_button)
+          .with_spacer(10.)
+          .with_child(browse_index_button)
           .with_spacer(10.)
           .with_child(refresh)
           .with_spacer(10.)
@@ -693,7 +733,7 @@ impl Delegate<App> for AppDelegate {
       data.push_duplicate(duplicates);
       self.display_duplicate_if_closed(ctx);
 
-      return Handled::Yes
+      return Handled::Yes;
     } else if let Some((delete_path, keep_entry)) = cmd.get(App::DELETE_AND_SUMBIT) {
       let ext_ctx = ctx.get_external_handle();
       let delete_path = delete_path.clone();
@@ -701,7 +741,10 @@ impl Delegate<App> for AppDelegate {
       data.runtime.spawn(async move {
         if remove_dir_all(delete_path).is_ok() {
           let remote_version = keep_entry.version_checker.clone();
-          if ext_ctx.submit_command(ModEntry::REPLACE, keep_entry, Target::Auto).is_err() {
+          if ext_ctx
+            .submit_command(ModEntry::REPLACE, keep_entry, Target::Auto)
+            .is_err()
+          {
             eprintln!("Failed to submit new entry")
           };
           if let Some(version_meta) = remote_version {
@@ -712,7 +755,7 @@ impl Delegate<App> for AppDelegate {
         }
       });
 
-      return Handled::Yes
+      return Handled::Yes;
     } else if let Some(id) = cmd.get(App::REMOVE_DUPLICATE_LOG_ENTRY) {
       data.duplicate_log.retain(|entry| entry.0.id != *id);
       if data.duplicate_log.is_empty() {
@@ -721,14 +764,89 @@ impl Delegate<App> for AppDelegate {
         }
       }
 
-      return Handled::Yes
+      return Handled::Yes;
     } else if let Some(()) = cmd.get(App::CLEAR_DUPLICATE_LOG) {
       data.duplicate_log.clear();
       if let Some(id) = self.duplicate_window.take() {
         ctx.submit_command(commands::CLOSE_WINDOW.to(id))
       }
 
-      return Handled::Yes
+      return Handled::Yes;
+    } else if let Some(()) = cmd.get(WEBVIEW_SHUTDOWN) {
+      data.webview = None;
+
+      return Handled::Yes;
+    } else if let Some(install) = cmd.get(WEBVIEW_INSTALL) {
+      let runtime = data.runtime.clone();
+      let install = install.clone();
+      let ext_ctx = ctx.get_external_handle();
+      let install_dir = data.settings.install_dir.clone().unwrap();
+      let ids = data.mod_list.mods.values().map(|v| v.id.clone()).collect();
+      data.runtime.spawn_blocking(move || {
+        runtime.block_on(async move {
+          let path = match install {
+            InstallType::Uri(uri) => {
+              let file_name = Url::parse(&uri)
+                .ok()
+                .and_then(|url| {
+                  url
+                    .path_segments()
+                    .and_then(|segments| segments.last())
+                    .map(|s| s.to_string())
+                })
+                .unwrap_or(uri.clone())
+                .to_string();
+              ext_ctx
+                .submit_command(
+                  App::LOG_MESSAGE,
+                  format!("Installing {}", &file_name),
+                  Target::Auto,
+                )
+                .expect("Send install start");
+              let download = installer::download(uri).await.expect("Download archive");
+              let download_dir = PROJECT.cache_dir().to_path_buf();
+              let mut persist_path = download_dir.join(&file_name);
+              if persist_path.exists() {
+                persist_path = download_dir.join(format!("{}({})", file_name, random::<u8>()))
+              }
+              download.persist(&persist_path).expect("Persist download");
+
+              persist_path
+            }
+            InstallType::Path(path) => {
+              let file_name = path
+                .file_name()
+                .unwrap_or(path.as_os_str())
+                .to_string_lossy()
+                .to_string();
+              ext_ctx
+                .submit_command(
+                  App::LOG_MESSAGE,
+                  format!("Installing {}", &file_name),
+                  Target::Auto,
+                )
+                .expect("Send install start");
+
+              path
+            }
+          };
+          installer::Payload::Initial(vec![path])
+            .install(ext_ctx, install_dir, ids)
+            .await;
+        });
+      });
+      return Handled::Yes;
+    } else if let Some(url) = cmd.get(App::OPEN_WEBVIEW) {
+      ctx.submit_command(App::DISABLE);
+      let child = fork_into_webview(&data.runtime, ctx.get_external_handle(), url.clone());
+
+      data.webview = Some(Rc::new(RefCell::new(child)))
+    } else if let Some(url) = cmd.get(mod_description::OPEN_IN_WEBVIEW) {
+      if data.settings.open_forum_link_in_webview {
+        ctx.submit_command(App::OPEN_WEBVIEW.with(Some(url.clone())));
+      } else {
+        let _ = opener::open(url);
+      }
     }
 
     Handled::No
@@ -743,7 +861,19 @@ impl Delegate<App> for AppDelegate {
         data.overwrite_log.clear();
         self.overwrite_window = None;
       }
-      a if a == self.root_id => ctx.submit_command(commands::QUIT_APP),
+      a if a == self.root_id => {
+        println!("quitting");
+        if let Some(child) = &data.webview {
+          kill_server_thread();
+          let _ = child.borrow_mut().kill();
+          data.webview = None;
+        }
+        let _ = std::fs::remove_dir_all(PROJECT.cache_dir());
+        #[cfg(not(target_os = "macos"))]
+        ctx.submit_command(commands::QUIT_APP);
+        #[cfg(target_os = "macos")]
+        std::process::exit(0);
+      }
       _ => {}
     }
   }
@@ -803,7 +933,8 @@ impl AppDelegate {
 
       let log_window = WindowDesc::new(modal)
         .window_size((500., 400.))
-        .show_titlebar(false);
+        .show_titlebar(false)
+        .set_level(WindowLevel::AppWindow);
 
       self.log_window = Some(log_window.id);
 
@@ -868,23 +999,33 @@ impl AppDelegate {
                   let to_install = to_install.clone();
                   let entry = entry.clone();
                   move |ctx: &mut EventCtx, data: &mut App, _| {
-                    ctx.submit_command(App::REMOVE_OVERWRITE_LOG_ENTRY.with(conflict.clone()).to(Target::Global));
-                    ctx.submit_command(ModList::OVERWRITE.with((
-                      match &conflict {
-                        StringOrPath::String(id) => {
-                          data.mod_list.mods.get(id).unwrap().path.clone()
-                        }
-                        StringOrPath::Path(path) => path.clone(),
-                      },
-                      to_install.clone(),
-                      entry.clone(),
-                    )).to(Target::Global))
+                    ctx.submit_command(
+                      App::REMOVE_OVERWRITE_LOG_ENTRY
+                        .with(conflict.clone())
+                        .to(Target::Global),
+                    );
+                    ctx.submit_command(
+                      ModList::OVERWRITE
+                        .with((
+                          match &conflict {
+                            StringOrPath::String(id) => {
+                              data.mod_list.mods.get(id).unwrap().path.clone()
+                            }
+                            StringOrPath::Path(path) => path.clone(),
+                          },
+                          to_install.clone(),
+                          entry.clone(),
+                        ))
+                        .to(Target::Global),
+                    );
+                    maximize_webview();
                   }
                 }))
                 .with_child(Button::new("Cancel").on_click({
                   let conflict = conflict.clone();
                   move |ctx, _, _| {
-                    ctx.submit_command(App::REMOVE_OVERWRITE_LOG_ENTRY.with(conflict.clone()))
+                    ctx.submit_command(App::REMOVE_OVERWRITE_LOG_ENTRY.with(conflict.clone()));
+                    maximize_webview();
                   }
                 }))
                 .boxed(),
@@ -917,7 +1058,8 @@ impl AppDelegate {
 
       let overwrite_window = WindowDesc::new(modal)
         .window_size((500., 400.))
-        .show_titlebar(false);
+        .show_titlebar(false)
+        .set_level(WindowLevel::AppWindow);
 
       self.overwrite_window = Some(overwrite_window.id);
 
@@ -933,18 +1075,15 @@ impl AppDelegate {
           .pipe(|mut modal| {
             for (dupe_a, dupe_b) in &app.duplicate_log {
               modal = modal
-                .with_content(format!("Detected duplicate installs of mod with ID {}.", dupe_a.id))
+                .with_content(format!(
+                  "Detected duplicate installs of mod with ID {}.",
+                  dupe_a.id
+                ))
                 .with_content(
                   Flex::row()
-                    .with_flex_child(
-                      Self::make_dupe_col(dupe_a, dupe_b),
-                      1.
-                    )
-                    .with_flex_child(
-                      Self::make_dupe_col(dupe_b, dupe_a),
-                      1.
-                    )
-                    .boxed()
+                    .with_flex_child(Self::make_dupe_col(dupe_a, dupe_b), 1.)
+                    .with_flex_child(Self::make_dupe_col(dupe_b, dupe_a), 1.)
+                    .boxed(),
                 )
                 .with_content(
                   Flex::row()
@@ -952,10 +1091,14 @@ impl AppDelegate {
                     .with_child(Button::new("Ignore").on_click({
                       let id = dupe_a.id.clone();
                       move |ctx, _, _| {
-                        ctx.submit_command(App::REMOVE_DUPLICATE_LOG_ENTRY.with(id.clone()).to(Target::Global))
+                        ctx.submit_command(
+                          App::REMOVE_DUPLICATE_LOG_ENTRY
+                            .with(id.clone())
+                            .to(Target::Global),
+                        )
                       }
                     }))
-                    .boxed()
+                    .boxed(),
                 )
                 .with_content(Separator::new().padding((0., 0., 0., 10.)).boxed())
             }
@@ -964,7 +1107,7 @@ impl AppDelegate {
           .with_button("Ignore All", App::CLEAR_DUPLICATE_LOG)
           .build()
           .boxed()
-      }
+      },
     )
   }
 
@@ -974,7 +1117,8 @@ impl AppDelegate {
 
       let duplicate_window = WindowDesc::new(modal)
         .window_size((500., 400.))
-        .show_titlebar(false);
+        .show_titlebar(false)
+        .set_level(WindowLevel::AppWindow);
 
       self.duplicate_window = Some(duplicate_window.id);
 
@@ -986,294 +1130,44 @@ impl AppDelegate {
     let meta = metadata(&dupe_a.path);
     Flex::column()
       .with_child(Label::wrapped(&format!("Version: {}", dupe_a.version)))
-      .with_child(Label::wrapped(&format!("Path: {}", dupe_a.path.to_string_lossy())))
-      .with_child(Label::wrapped(
-        &format!("Last modified: {}", if let Ok(Ok(time)) = meta.as_ref().map(|meta| meta.modified()) {
+      .with_child(Label::wrapped(&format!(
+        "Path: {}",
+        dupe_a.path.to_string_lossy()
+      )))
+      .with_child(Label::wrapped(&format!(
+        "Last modified: {}",
+        if let Ok(Ok(time)) = meta.as_ref().map(|meta| meta.modified()) {
           DateTime::<Local>::from(time).format("%F:%R").to_string()
         } else {
           "Failed to retrieve last modified".to_string()
-        })
-      ))
-      .with_child(Label::wrapped(
-        &format!("Created at: {}", meta.and_then(|meta| meta.created()).map_or_else(
+        }
+      )))
+      .with_child(Label::wrapped(&format!(
+        "Created at: {}",
+        meta.and_then(|meta| meta.created()).map_or_else(
           |_| "Failed to retrieve creation time".to_string(),
-          |time| {
-            DateTime::<Local>::from(time).format("%F:%R").to_string()
-          }
-        ))
-      ))
+          |time| { DateTime::<Local>::from(time).format("%F:%R").to_string() }
+        )
+      )))
       .with_child(Button::new("Keep").on_click({
         let id = dupe_a.id.clone();
         let path = dupe_b.path.clone();
         let dupe_a = dupe_a.clone();
         move |ctx, _, _| {
-          ctx.submit_command(App::REMOVE_DUPLICATE_LOG_ENTRY.with(id.clone()).to(Target::Global));
-          ctx.submit_command(App::DELETE_AND_SUMBIT.with((path.clone(), dupe_a.clone())).to(Target::Global))
+          ctx.submit_command(
+            App::REMOVE_DUPLICATE_LOG_ENTRY
+              .with(id.clone())
+              .to(Target::Global),
+          );
+          ctx.submit_command(
+            App::DELETE_AND_SUMBIT
+              .with((path.clone(), dupe_a.clone()))
+              .to(Target::Global),
+          )
         }
       }))
       .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
       .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
-  }
-}
-
-struct InstallController;
-
-impl<W: Widget<App>> Controller<App, W> for InstallController {
-  fn event(
-    &mut self,
-    child: &mut W,
-    ctx: &mut EventCtx,
-    event: &Event,
-    data: &mut App,
-    env: &druid::Env,
-  ) {
-    match event {
-      Event::MouseDown(mouse_event) => {
-        if mouse_event.button == druid::MouseButton::Left {
-          ctx.set_active(true);
-          ctx.request_paint();
-        }
-      }
-      Event::MouseUp(mouse_event) => {
-        if ctx.is_active() && mouse_event.button == druid::MouseButton::Left {
-          ctx.set_active(false);
-          if ctx.is_hot() {
-            let ext_ctx = ctx.get_external_handle();
-            let menu: Menu<App> = Menu::empty()
-              .entry(MenuItem::new("From Archive(s)").on_activate(
-                move |_ctx, data: &mut App, _| {
-                  let ext_ctx = ext_ctx.clone();
-                  data.runtime.spawn_blocking(move || {
-                    let res = FileDialog::new()
-                      .add_filter(
-                        "Archives",
-                        &["zip", "7z", "7zip", "rar", "rar4", "rar5", "tar"],
-                      )
-                      .pick_files();
-
-                    ext_ctx.submit_command(App::OPEN_FILE, res, Target::Auto)
-                  });
-                },
-              ))
-              .entry(MenuItem::new("From Folder").on_activate({
-                let ext_ctx = ctx.get_external_handle();
-                move |_ctx, data: &mut App, _| {
-                  data.runtime.spawn_blocking({
-                    let ext_ctx = ext_ctx.clone();
-                    move || {
-                      let res = FileDialog::new().pick_folder();
-
-                      ext_ctx.submit_command(App::OPEN_FOLDER, res, Target::Auto)
-                    }
-                  });
-                }
-              }));
-
-            ctx.show_context_menu::<App>(menu, ctx.to_window(mouse_event.pos))
-          }
-          ctx.request_paint();
-        }
-      }
-      _ => {}
-    }
-
-    child.event(ctx, event, data, env);
-  }
-}
-
-struct ModListController;
-
-impl<W: Widget<App>> Controller<App, W> for ModListController {
-  fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut App, env: &Env) {
-    if let Event::Command(cmd) = event {
-      if let Some((conflict, install_to, entry)) = cmd.get(ModList::OVERWRITE) {
-        if let Some(install_dir) = &data.settings.install_dir {
-          ctx.submit_command(App::LOG_MESSAGE.with(format!("Resuming install for {}", entry.name)));
-          data.runtime.spawn(
-            installer::Payload::Resumed(entry.clone(), install_to.clone(), conflict.clone())
-              .install(
-                ctx.get_external_handle(),
-                install_dir.clone(),
-                data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
-              ),
-          );
-        }
-        ctx.is_handled();
-      } else if let Some(payload) = cmd.get(installer::INSTALL) {
-        match payload {
-          ChannelMessage::Success(entry) => {
-            let mut entry = entry.clone();
-            if let Some(existing) = data.mod_list.mods.get(&entry.id) {
-              let mut mut_entry = Arc::make_mut(&mut entry);
-              mut_entry.enabled = existing.enabled;
-              if let Some(remote_version_checker) = existing.remote_version.clone() {
-                mut_entry.remote_version = Some(remote_version_checker.clone());
-                mut_entry.update_status = Some(UpdateStatus::from((
-                  mut_entry.version_checker.as_ref().unwrap(),
-                  &Some(remote_version_checker),
-                )));
-              } else if let Some(version_checker) = entry.version_checker.clone() {
-                data.runtime.spawn(get_master_version(
-                  ctx.get_external_handle(),
-                  version_checker,
-                ));
-              }
-            }
-            ctx.submit_command(App::LOG_SUCCESS.with(entry.name.clone()));
-            data.mod_list.mods.insert(entry.id.clone(), entry);
-            ctx.children_changed();
-          }
-          ChannelMessage::Duplicate(conflict, to_install, entry) => ctx.submit_command(
-            App::LOG_OVERWRITE.with((conflict.clone(), to_install.clone(), entry.clone())),
-          ),
-          ChannelMessage::Error(name, err) => {
-            ctx.submit_command(App::LOG_ERROR.with((name.clone(), err.clone())));
-            eprintln!("Failed to install {}", err);
-          }
-        }
-      }
-    } else if let Event::Notification(notif) = event {
-      if let Some(entry) = notif.get(ModEntry::AUTO_UPDATE) {
-        Modal::new("Auto-update?")
-          .with_content(format!("Would you like to automatically update {}?", entry.name))
-          .with_content(format!("Installed version: {}", entry.version))
-          .with_content(format!(
-            "New version: {}",
-            entry
-              .remote_version
-              .as_ref()
-              .map(|v| v.version.to_string())
-              .unwrap_or_else(|| String::from(
-                "Error: failed to retrieve version, this shouldn't be possible."
-              ))
-          ))
-          .with_content(
-            Maybe::or_empty(|| Label::wrapped("\
-              NOTE: A .git directory has been detected in the target directory. \
-              Are you sure this isn't being used for development?\
-            "))
-            .lens(
-              lens::Constant(data.settings.git_warn.then(|| {
-                if entry.path.join(".git").exists() {
-                  Some(())
-                } else {
-                  None
-                }
-              }).flatten())
-            )
-            .boxed()
-          )
-          .with_content("WARNING:")
-          .with_content("Save compatibility is not guaranteed when updating a mod. Your save may no longer load if you apply this update.")
-          .with_content("Bug reports about saves broken by using this feature will be ignored.")
-          .with_content("YOU HAVE BEEN WARNED")
-          .with_button("Update", ModList::AUTO_UPDATE.with(entry.clone()))
-          .with_close_label("Cancel")
-          .show_with_size(ctx, env, &(), (600., 300.));
-      }
-    }
-
-    child.event(ctx, event, data, env)
-  }
-}
-
-struct AppController;
-
-impl<W: Widget<App>> Controller<App, W> for AppController {
-  fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut App, env: &Env) {
-    if let Event::Command(cmd) = event {
-      if let Some(settings::SettingsCommand::SelectInstallDir) = cmd.get(Settings::SELECTOR) {
-        let ext_ctx = ctx.get_external_handle();
-        ctx.set_disabled(true);
-        data.runtime.spawn_blocking(move || {
-          let res = FileDialog::new().pick_folder();
-
-          if let Some(handle) = res {
-            ext_ctx.submit_command(
-              Settings::SELECTOR,
-              SettingsCommand::UpdateInstallDir(handle),
-              Target::Auto,
-            )
-          } else {
-            ext_ctx.submit_command(App::ENABLE, (), Target::Auto)
-          }
-        });
-      } else if let Some(()) = cmd.get(App::DUMB_UNIVERSAL_ESCAPE) {
-        ctx.set_focus(data.widget_id);
-        ctx.resign_focus();
-      } else if let Some(()) = cmd.get(App::SELF_UPDATE) {
-        let original_exe = std::env::current_exe();
-        if dbg!(support_self_update()) && original_exe.is_ok() {
-          let widget = if dbg!(self_update()).is_ok() {
-            Modal::new("Restart?")
-              .with_content("Update complete.")
-              .with_content("Would you like to restart?")
-              .with_button(
-                "Restart",
-                App::RESTART
-                  .with(original_exe.as_ref().unwrap().clone())
-                  .to(Target::Global),
-              )
-              .with_close_label("Cancel")
-          } else {
-            Modal::new("Error")
-              .with_content("Failed to update Mod Manager.")
-              .with_content("It is recommended that you restart and check that the Manager has not been corrupted.")
-              .with_close()
-          };
-
-          widget.show(ctx, env, &());
-        } else {
-          open_in_browser();
-        }
-      } else if let Some(payload) = cmd.get(App::UPDATE_AVAILABLE) {
-        let widget = if let Ok(release) = payload {
-          let local_tag = TAG.strip_prefix('v').unwrap_or(TAG);
-          let release_tag = release
-            .tag_name
-            .strip_prefix('v')
-            .unwrap_or(&release.tag_name);
-          if bump_is_greater(local_tag, release_tag).is_ok_and(|b| *b) {
-            Modal::new("Update Mod Manager?")
-              .with_content("A new version of Starsector Mod Manager is available.")
-              .with_content(format!("Current version: {}", TAG))
-              .with_content(format!("New version: {}", release.tag_name))
-              .with_content({
-                #[cfg(not(target_os = "macos"))]
-                let label = "Would you like to update now?";
-                #[cfg(target_os = "macos")]
-                let label = "Would you like to open the update in your browser?";
-
-                label
-              })
-              .with_button("Update", App::SELF_UPDATE)
-              .with_close_label("Cancel")
-          } else {
-            return;
-          }
-        } else {
-          Modal::new("Error")
-            .with_content("Failed to retrieve Mod Manager update status.")
-            .with_content("There may or may not be an update available.")
-            .with_close()
-        };
-
-        widget.show(ctx, env, &());
-      } else if let Some(original_exe) = cmd.get(App::RESTART) {
-        if process::Command::new(original_exe).spawn().is_ok() {
-          ctx.submit_command(commands::QUIT_APP)
-        } else {
-          eprintln!("Failed to restart")
-        };
-      }
-      if (cmd.is(ModList::SUBMIT_ENTRY) || cmd.is(App::ENABLE)) && ctx.is_disabled() {
-        ctx.set_disabled(false);
-      } else if cmd.is(App::DISABLE) {
-        ctx.set_disabled(true)
-      }
-    }
-
-    child.event(ctx, event, data, env)
   }
 }
 

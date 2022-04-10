@@ -2,15 +2,17 @@ use std::sync::Arc;
 
 use druid::{
   widget::{Button, Flex, Label, Maybe, Scroll},
-  LensExt, Widget, WidgetExt,
+  LensExt, Widget, WidgetExt, Selector,
 };
 
 use super::{mod_entry::ModVersionMeta, ModEntry};
 
 use super::util::{make_flex_description_row, LabelExt};
 
+pub const OPEN_IN_WEBVIEW: Selector<String> = Selector::new("mod_description.forum.open_in_webview");
+
 #[derive(Default)]
-pub struct ModDescription {}
+pub struct ModDescription;
 
 impl ModDescription {
   const FRACTAL_URL: &'static str = "https://fractalsoftworks.com/forum/index.php?topic=";
@@ -50,12 +52,8 @@ impl ModDescription {
                       Button::from_label(Label::wrapped_func(|data: &String, _: &druid::Env| {
                         format!("{}{}", ModDescription::FRACTAL_URL, data.clone())
                       }))
-                      .on_click(|_, data, _| {
-                        if let Err(err) =
-                          opener::open(format!("{}{}", ModDescription::FRACTAL_URL, data))
-                        {
-                          eprintln!("{}", err)
-                        }
+                      .on_click(|ctx, data, _| {
+                        ctx.submit_command(OPEN_IN_WEBVIEW.with(format!("{}{}", ModDescription::FRACTAL_URL, data)))
                       }),
                     )
                   })
@@ -80,12 +78,8 @@ impl ModDescription {
                       Button::from_label(Label::wrapped_func(|data: &String, _: &druid::Env| {
                         format!("{}{}", ModDescription::NEXUS_URL, data.clone())
                       }))
-                      .on_click(|_, data, _| {
-                        if let Err(err) =
-                          opener::open(format!("{}{}", ModDescription::NEXUS_URL, data))
-                        {
-                          eprintln!("{}", err)
-                        }
+                      .on_click(|ctx, data, _| {
+                        ctx.submit_command(OPEN_IN_WEBVIEW.with(format!("{}{}", ModDescription::FRACTAL_URL, data)))
                       }),
                     )
                   })

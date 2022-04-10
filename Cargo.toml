@@ -8,8 +8,8 @@ description = "A mod manager for the game Starsector"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-druid = { git = "https://github.com/linebender/druid", rev = "fc05e965c85fced8720c655685e02478e0530e94" }
-druid-widget-nursery = { git = "https://github.com/linebender/druid-widget-nursery", rev = "f302b2d668dac7801af7b1e4e6f22e1b3accce42", features = ["material-icons"] }
+druid = { git = "https://github.com/atlanticaccent/druid", rev = "76c130799d5341d11880b14b95a214dacf537fc3" }
+druid-widget-nursery = { git = "https://github.com/atlanticaccent/druid-widget-nursery", rev = "79b5368c26b5badd570959622a15834580ac7931", features = ["material-icons"] }
 infer = "0.3.4"
 tokio = { version = "1.6.0", features = ["fs", "io-util", "rt-multi-thread", "process"] }
 serde = { version = "1.0.126", features = ["derive"] }
@@ -37,9 +37,24 @@ strum = "0.23"
 strum_macros = "0.23"
 tap = "1.0.1"
 rayon = "1.5"
-self_update = { version = "0.28.0", default-features = false, features = ["rustls"] }
+self_update = { version = "0.29.0", default-features = false, features = ["rustls"] }
 indexmap = "1.8.0"
 chrono = "0.4.19"
+wry = { git = "https://github.com/atlanticaccent/wry.git", branch = "events-fork" }
+clap = { version = "3.1.6", features = ["derive"] }
+interprocess = "1.1.1"
+bincode = "1.3.3"
+rand = "0.8.5"
+base64 = "0.13.0"
+const_format = "0.2.22"
+
+[patch.crates-io]
+cairo-rs = { git = "https://github.com/gtk-rs/gtk-rs-core.git", tag = "0.15.1" }
+cairo-sys-rs = { git = "https://github.com/gtk-rs/gtk-rs-core.git", tag = "0.15.1" }
+gdk-sys = { git = "https://github.com/gtk-rs/gtk3-rs.git", tag = "0.15.1" }
+# gtk = { git = "https://github.com/gtk-rs/gtk3-rs.git", tag = "0.15.1" }
+glib-sys = { git = "https://github.com/gtk-rs/gtk-rs-core.git", tag = "0.15.1" }
+# gtk-sys = { git = "https://github.com/gtk-rs/gtk3-rs.git", tag = "0.15.1" }
 
 [package.metadata.bundle]
 name = "Starsector Mod Manager"
