@@ -1,4 +1,4 @@
-use std::{fs::metadata, path::PathBuf, process::{self, Child}, rc::Rc, sync::Arc, cell::RefCell};
+use std::{cell::RefCell, fs::metadata, path::PathBuf, process::Child, rc::Rc, sync::Arc};
 
 use chrono::{DateTime, Local};
 use directories::ProjectDirs;
@@ -8,20 +8,18 @@ use druid::{
   keyboard_types::Key,
   lens, theme,
   widget::{
-    Axis, Button, Checkbox, Controller, Flex, Label, Maybe, Painter, Scope, ScopeTransfer,
-    SizedBox, Tabs, TabsPolicy, TextBox, ViewSwitcher,
+    Axis, Button, Checkbox, Flex, Label, Maybe, Painter, Scope, ScopeTransfer, SizedBox, Tabs,
+    TabsPolicy, TextBox, ViewSwitcher,
   },
   AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Event, EventCtx, Handled, KeyEvent,
-  Lens, LensExt, Menu, MenuItem, RenderContext, Selector, Target, Widget, WidgetExt, WidgetId,
-  WindowDesc, WindowId, WindowLevel,
+  Lens, LensExt, RenderContext, Selector, Target, Widget, WidgetExt, WidgetId, WindowDesc,
+  WindowId, WindowLevel,
 };
 use druid_widget_nursery::{material_icons::Icon, Separator, WidgetExt as WidgetExtNursery};
 use lazy_static::lazy_static;
 use rand::random;
 use remove_dir_all::remove_dir_all;
 use reqwest::Url;
-use rfd::FileDialog;
-use self_update::version::bump_is_greater;
 use strum::IntoEnumIterator;
 use tap::{Pipe, Tap};
 use tokio::runtime::Handle;
@@ -31,23 +29,27 @@ use crate::{
     split::Split,
     tabs_policy::{InitialTab, StaticTabsForked},
   },
-  webview::{fork_into_webview, WEBVIEW_SHUTDOWN, kill_server_thread, WEBVIEW_INSTALL, InstallType, maximize_webview, minimize_webview},
+  webview::{
+    fork_into_webview, kill_server_thread, maximize_webview, InstallType, WEBVIEW_INSTALL,
+    WEBVIEW_SHUTDOWN,
+  },
 };
 
 use self::{
   installer::{ChannelMessage, HybridPath, StringOrPath},
   mod_description::ModDescription,
-  mod_entry::{ModEntry, UpdateStatus},
+  mod_entry::ModEntry,
   mod_list::{EnabledMods, Filters, ModList},
   modal::Modal,
   settings::{Settings, SettingsCommand},
-  updater::{open_in_browser, self_update, support_self_update},
   util::{
-    get_latest_manager, get_master_version, get_quoted_version, get_starsector_version, h2, h3,
-    icons::*, make_column_pair, LabelExt, Release, GET_INSTALLED_STARSECTOR,
+    get_latest_manager, get_quoted_version, get_starsector_version, h2, h3, icons::*,
+    make_column_pair, LabelExt, Release, GET_INSTALLED_STARSECTOR,
   },
+  controllers::{InstallController, ModListController, AppController},
 };
 
+mod controllers;
 pub mod installer;
 mod mod_description;
 mod mod_entry;
@@ -61,7 +63,8 @@ pub mod util;
 const TAG: &str = env!("CARGO_PKG_VERSION");
 
 lazy_static! {
-  pub static ref PROJECT: ProjectDirs = ProjectDirs::from("org", "laird", "Starsector Mod Manager").expect("Get project dirs");
+  pub static ref PROJECT: ProjectDirs =
+    ProjectDirs::from("org", "laird", "Starsector Mod Manager").expect("Get project dirs");
 }
 
 #[derive(Clone, Data, Lens)]
@@ -106,7 +109,7 @@ impl App {
   const REMOVE_DUPLICATE_LOG_ENTRY: Selector<String> =
     Selector::new("app.mod.duplicate.remove_log");
   const CLEAR_DUPLICATE_LOG: Selector = Selector::new("app.mod.duplicate.ignore_all");
-  const OPEN_WEBVIEW: Selector<Option<String>> = Selector::new("app.webview.open");
+  pub const OPEN_WEBVIEW: Selector<Option<String>> = Selector::new("app.webview.open");
 
   pub fn new(handle: Handle) -> Self {
     App {
@@ -250,9 +253,7 @@ impl App {
           .with_child(Icon::new(SETTINGS))
           .padding((8., 4.))
           .background(button_painter())
-          .on_click(|event_ctx, _, _| {
-            event_ctx.submit_command(App::OPEN_WEBVIEW.with(None))
-          }),
+          .on_click(|event_ctx, _, _| event_ctx.submit_command(App::OPEN_WEBVIEW.with(None))),
       )
       .expand_width();
     let mod_list = mod_list::ModList::ui_builder()
@@ -779,13 +780,23 @@ impl Delegate<App> for AppDelegate {
         runtime.block_on(async move {
           let path = match install {
             InstallType::Uri(uri) => {
-              let file_name = Url::parse(&uri).ok()
+              let file_name = Url::parse(&uri)
+                .ok()
                 .and_then(|url| {
-                  url.path_segments().and_then(|segments| segments.last()).map(|s| s.to_string())
+                  url
+                    .path_segments()
+                    .and_then(|segments| segments.last())
+                    .map(|s| s.to_string())
                 })
                 .unwrap_or(uri.clone())
                 .to_string();
-              ext_ctx.submit_command(App::LOG_MESSAGE, format!("Installing {}", &file_name), Target::Auto).expect("Send install start");
+              ext_ctx
+                .submit_command(
+                  App::LOG_MESSAGE,
+                  format!("Installing {}", &file_name),
+                  Target::Auto,
+                )
+                .expect("Send install start");
               let download = installer::download(uri).await.expect("Download archive");
               let download_dir = PROJECT.cache_dir().to_path_buf();
               let mut persist_path = download_dir.join(&file_name);
@@ -795,19 +806,27 @@ impl Delegate<App> for AppDelegate {
               download.persist(&persist_path).expect("Persist download");
 
               persist_path
-            },
+            }
             InstallType::Path(path) => {
-              let file_name = path.file_name().unwrap_or(path.as_os_str()).to_string_lossy().to_string();
-              ext_ctx.submit_command(App::LOG_MESSAGE, format!("Installing {}", &file_name), Target::Auto).expect("Send install start");
+              let file_name = path
+                .file_name()
+                .unwrap_or(path.as_os_str())
+                .to_string_lossy()
+                .to_string();
+              ext_ctx
+                .submit_command(
+                  App::LOG_MESSAGE,
+                  format!("Installing {}", &file_name),
+                  Target::Auto,
+                )
+                .expect("Send install start");
 
               path
             }
           };
-          installer::Payload::Initial(vec![path]).install(
-            ext_ctx,
-            install_dir,
-            ids
-          ).await;
+          installer::Payload::Initial(vec![path])
+            .install(ext_ctx, install_dir, ids)
+            .await;
         });
       });
       return Handled::Yes;
@@ -845,7 +864,7 @@ impl Delegate<App> for AppDelegate {
         }
         let _ = std::fs::remove_dir_all(PROJECT.cache_dir());
         ctx.submit_command(commands::QUIT_APP)
-      },
+      }
       _ => {}
     }
   }
@@ -1140,272 +1159,6 @@ impl AppDelegate {
       }))
       .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
       .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
-  }
-}
-
-struct InstallController;
-
-impl<W: Widget<App>> Controller<App, W> for InstallController {
-  fn event(
-    &mut self,
-    child: &mut W,
-    ctx: &mut EventCtx,
-    event: &Event,
-    data: &mut App,
-    env: &druid::Env,
-  ) {
-    match event {
-      Event::MouseDown(mouse_event) => {
-        if mouse_event.button == druid::MouseButton::Left {
-          ctx.set_active(true);
-          ctx.request_paint();
-        }
-      }
-      Event::MouseUp(mouse_event) => {
-        if ctx.is_active() && mouse_event.button == druid::MouseButton::Left {
-          ctx.set_active(false);
-          if ctx.is_hot() {
-            let ext_ctx = ctx.get_external_handle();
-            let menu: Menu<App> = Menu::empty()
-              .entry(MenuItem::new("From Archive(s)").on_activate(
-                move |_ctx, data: &mut App, _| {
-                  let ext_ctx = ext_ctx.clone();
-                  data.runtime.spawn_blocking(move || {
-                    let res = FileDialog::new()
-                      .add_filter(
-                        "Archives",
-                        &["zip", "7z", "7zip", "rar", "rar4", "rar5", "tar"],
-                      )
-                      .pick_files();
-
-                    ext_ctx.submit_command(App::OPEN_FILE, res, Target::Auto)
-                  });
-                },
-              ))
-              .entry(MenuItem::new("From Folder").on_activate({
-                let ext_ctx = ctx.get_external_handle();
-                move |_ctx, data: &mut App, _| {
-                  data.runtime.spawn_blocking({
-                    let ext_ctx = ext_ctx.clone();
-                    move || {
-                      let res = FileDialog::new().pick_folder();
-
-                      ext_ctx.submit_command(App::OPEN_FOLDER, res, Target::Auto)
-                    }
-                  });
-                }
-              }));
-
-            ctx.show_context_menu::<App>(menu, ctx.to_window(mouse_event.pos))
-          }
-          ctx.request_paint();
-        }
-      }
-      _ => {}
-    }
-
-    child.event(ctx, event, data, env);
-  }
-}
-
-struct ModListController;
-
-impl<W: Widget<App>> Controller<App, W> for ModListController {
-  fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut App, env: &Env) {
-    if let Event::Command(cmd) = event {
-      if let Some((conflict, install_to, entry)) = cmd.get(ModList::OVERWRITE) {
-        if let Some(install_dir) = &data.settings.install_dir {
-          ctx.submit_command(App::LOG_MESSAGE.with(format!("Resuming install for {}", entry.name)));
-          data.runtime.spawn(
-            installer::Payload::Resumed(entry.clone(), install_to.clone(), conflict.clone())
-              .install(
-                ctx.get_external_handle(),
-                install_dir.clone(),
-                data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
-              ),
-          );
-        }
-        ctx.is_handled();
-      } else if let Some(payload) = cmd.get(installer::INSTALL) {
-        match payload {
-          ChannelMessage::Success(entry) => {
-            let mut entry = entry.clone();
-            if let Some(existing) = data.mod_list.mods.get(&entry.id) {
-              let mut mut_entry = Arc::make_mut(&mut entry);
-              mut_entry.enabled = existing.enabled;
-              if let Some(remote_version_checker) = existing.remote_version.clone() {
-                mut_entry.remote_version = Some(remote_version_checker.clone());
-                mut_entry.update_status = Some(UpdateStatus::from((
-                  mut_entry.version_checker.as_ref().unwrap(),
-                  &Some(remote_version_checker),
-                )));
-              }
-            } else if let Some(version_checker) = entry.version_checker.clone() {
-              data.runtime.spawn(get_master_version(
-                ctx.get_external_handle(),
-                version_checker,
-              ));
-            }
-            ctx.submit_command(App::LOG_SUCCESS.with(entry.name.clone()));
-            data.mod_list.mods.insert(entry.id.clone(), entry);
-            ctx.children_changed();
-          }
-          ChannelMessage::Duplicate(conflict, to_install, entry) => {
-            if data.settings.hide_webview_on_conflict {
-              minimize_webview();
-            }
-            ctx.submit_command(
-            App::LOG_OVERWRITE.with((conflict.clone(), to_install.clone(), entry.clone())),
-            )
-          },
-          ChannelMessage::Error(name, err) => {
-            ctx.submit_command(App::LOG_ERROR.with((name.clone(), err.clone())));
-            eprintln!("Failed to install {}", err);
-          }
-        }
-      }
-    } else if let Event::Notification(notif) = event {
-      if let Some(entry) = notif.get(ModEntry::AUTO_UPDATE) {
-        Modal::new("Auto-update?")
-          .with_content(format!("Would you like to automatically update {}?", entry.name))
-          .with_content(format!("Installed version: {}", entry.version))
-          .with_content(format!(
-            "New version: {}",
-            entry
-              .remote_version
-              .as_ref()
-              .map(|v| v.version.to_string())
-              .unwrap_or_else(|| String::from(
-                "Error: failed to retrieve version, this shouldn't be possible."
-              ))
-          ))
-          .with_content(
-            Maybe::or_empty(|| Label::wrapped("\
-              NOTE: A .git directory has been detected in the target directory. \
-              Are you sure this isn't being used for development?\
-            "))
-            .lens(
-              lens::Constant(data.settings.git_warn.then(|| {
-                if entry.path.join(".git").exists() {
-                  Some(())
-                } else {
-                  None
-                }
-              }).flatten())
-            )
-            .boxed()
-          )
-          .with_content("WARNING:")
-          .with_content("Save compatibility is not guaranteed when updating a mod. Your save may no longer load if you apply this update.")
-          .with_content("Bug reports about saves broken by using this feature will be ignored.")
-          .with_content("YOU HAVE BEEN WARNED")
-          .with_button("Update", ModList::AUTO_UPDATE.with(entry.clone()))
-          .with_close_label("Cancel")
-          .show_with_size(ctx, env, &(), (600., 300.));
-      }
-    }
-
-    child.event(ctx, event, data, env)
-  }
-}
-
-struct AppController;
-
-impl<W: Widget<App>> Controller<App, W> for AppController {
-  fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut App, env: &Env) {
-    if let Event::Command(cmd) = event {
-      if let Some(settings::SettingsCommand::SelectInstallDir) = cmd.get(Settings::SELECTOR) {
-        let ext_ctx = ctx.get_external_handle();
-        ctx.set_disabled(true);
-        data.runtime.spawn_blocking(move || {
-          let res = FileDialog::new().pick_folder();
-
-          if let Some(handle) = res {
-            ext_ctx.submit_command(
-              Settings::SELECTOR,
-              SettingsCommand::UpdateInstallDir(handle),
-              Target::Auto,
-            )
-          } else {
-            ext_ctx.submit_command(App::ENABLE, (), Target::Auto)
-          }
-        });
-      } else if let Some(()) = cmd.get(App::DUMB_UNIVERSAL_ESCAPE) {
-        ctx.set_focus(data.widget_id);
-        ctx.resign_focus();
-      } else if let Some(()) = cmd.get(App::SELF_UPDATE) {
-        let original_exe = std::env::current_exe();
-        if dbg!(support_self_update()) && original_exe.is_ok() {
-          let widget = if dbg!(self_update()).is_ok() {
-            Modal::new("Restart?")
-              .with_content("Update complete.")
-              .with_content("Would you like to restart?")
-              .with_button(
-                "Restart",
-                App::RESTART
-                  .with(original_exe.as_ref().unwrap().clone())
-                  .to(Target::Global),
-              )
-              .with_close_label("Cancel")
-          } else {
-            Modal::new("Error")
-              .with_content("Failed to update Mod Manager.")
-              .with_content("It is recommended that you restart and check that the Manager has not been corrupted.")
-              .with_close()
-          };
-
-          widget.show(ctx, env, &());
-        } else {
-          open_in_browser();
-        }
-      } else if let Some(payload) = cmd.get(App::UPDATE_AVAILABLE) {
-        let widget = if let Ok(release) = payload {
-          let local_tag = TAG.strip_prefix('v').unwrap_or(TAG);
-          let release_tag = release
-            .tag_name
-            .strip_prefix('v')
-            .unwrap_or(&release.tag_name);
-          if bump_is_greater(local_tag, release_tag).is_ok_and(|b| *b) {
-            Modal::new("Update Mod Manager?")
-              .with_content("A new version of Starsector Mod Manager is available.")
-              .with_content(format!("Current version: {}", TAG))
-              .with_content(format!("New version: {}", release.tag_name))
-              .with_content({
-                #[cfg(not(target_os = "macos"))]
-                let label = "Would you like to update now?";
-                #[cfg(target_os = "macos")]
-                let label = "Would you like to open the update in your browser?";
-
-                label
-              })
-              .with_button("Update", App::SELF_UPDATE)
-              .with_close_label("Cancel")
-          } else {
-            return;
-          }
-        } else {
-          Modal::new("Error")
-            .with_content("Failed to retrieve Mod Manager update status.")
-            .with_content("There may or may not be an update available.")
-            .with_close()
-        };
-
-        widget.show(ctx, env, &());
-      } else if let Some(original_exe) = cmd.get(App::RESTART) {
-        if process::Command::new(original_exe).spawn().is_ok() {
-          ctx.submit_command(commands::QUIT_APP)
-        } else {
-          eprintln!("Failed to restart")
-        };
-      }
-      if (cmd.is(ModList::SUBMIT_ENTRY) || cmd.is(App::ENABLE)) && ctx.is_disabled() {
-        ctx.set_disabled(false);
-      } else if cmd.is(App::DISABLE) {
-        ctx.set_disabled(true)
-      }
-    }
-
-    child.event(ctx, event, data, env)
   }
 }
 
