@@ -22,8 +22,8 @@ use crate::app::{App, PROJECT};
 pub const WEBVIEW_SHUTDOWN: Selector = Selector::new("webview.shutdown");
 pub const WEBVIEW_INSTALL: Selector<InstallType> = Selector::new("webview.install");
 
-const PARENT_CHILD_SOCKET: &'static str = "@/tmp/moss/parent.sock";
-const CHILD_PARENT_SOCKET: &'static str = "@/tmp/moss/child.sock";
+const PARENT_CHILD_SOCKET: &'static str = "@/tmp/moss_parent.sock";
+const CHILD_PARENT_SOCKET: &'static str = "@/tmp/moss_child.sock";
 
 const FRACTAL_INDEX: &'static str = "https://fractalsoftworks.com/forum/index.php?topic=177.0";
 const FRACTAL_MODS_FORUM: &'static str = "https://fractalsoftworks.com/forum/index.php?board=8.0";
@@ -69,7 +69,7 @@ pub fn init_webview(url: Option<String>) -> wry::Result<()> {
   runtime.spawn_blocking({
     let proxy = proxy.clone();
     move || {
-      let listener = bind_child().expect("Open socket");
+      let listener = LocalSocketListener::bind(CHILD_PARENT_SOCKET).expect("Open socket");
 
       for conn in listener.incoming().filter_map(handle_error) {
         let message: WebviewMessage = bincode::deserialize_from(conn).expect("Read from connection");
@@ -82,6 +82,7 @@ pub fn init_webview(url: Option<String>) -> wry::Result<()> {
           }
           WebviewMessage::Shutdown => {
             println!("shutting down");
+            let _ = std::fs::remove_file(CHILD_PARENT_SOCKET.replace('@', ""));
             break;
           },
           _ => {}
@@ -350,7 +351,7 @@ pub fn init_webview(url: Option<String>) -> wry::Result<()> {
 pub fn fork_into_webview(handle: &Handle, ext_sink: ExtEventSink, url: Option<String>) -> Child {
   let exe = std::env::current_exe().expect("Get current executable path");
 
-  let listener = bind_parent().expect("Open socket");
+  let listener = LocalSocketListener::bind(PARENT_CHILD_SOCKET).expect("Open socket");
 
   handle.spawn_blocking(move || {
     for conn in listener.incoming().filter_map(handle_error) {
@@ -363,6 +364,7 @@ pub fn fork_into_webview(handle: &Handle, ext_sink: ExtEventSink, url: Option<St
         WebviewMessage::Shutdown => {
           ext_sink.submit_command(WEBVIEW_SHUTDOWN, (), Target::Auto).expect("Remove child ref from parent");
           ext_sink.submit_command(App::ENABLE, (), Target::Auto).expect("Re-enable");
+          let _ = std::fs::remove_file(PARENT_CHILD_SOCKET.replace('@', ""));
           break;
         },
         WebviewMessage::BlobFile(file) => {
@@ -403,30 +405,6 @@ fn connect_parent() -> std::io::Result<LocalSocketStream> {
 
 fn connect_child() -> std::io::Result<LocalSocketStream> {
   LocalSocketStream::connect(CHILD_PARENT_SOCKET)
-}
-
-fn bind_parent() -> std::io::Result<LocalSocketListener> {
-  #[cfg(target_os = "macos")]
-  {
-    let path = PathBuf::from(PARENT_CHILD_SOCKET.replace('@', ""));
-    if !path.exists() {
-      let _ = std::fs::create_dir_all(path);
-    }
-  }
-
-  LocalSocketListener::bind(PARENT_CHILD_SOCKET)
-}
-
-fn bind_child() -> std::io::Result<LocalSocketListener> {
-  #[cfg(target_os = "macos")]
-  {
-    let path = PathBuf::from(CHILD_PARENT_SOCKET.replace('@', ""));
-    if !path.exists() {
-      let _ = std::fs::create_dir_all(path);
-    }
-  }
-
-  LocalSocketListener::bind(CHILD_PARENT_SOCKET)
 }
 
 pub fn kill_server_thread() {
