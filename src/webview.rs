@@ -25,6 +25,10 @@ pub const WEBVIEW_INSTALL: Selector<InstallType> = Selector::new("webview.instal
 const PARENT_CHILD_SOCKET: &'static str = "@/tmp/moss/parent.sock";
 const CHILD_PARENT_SOCKET: &'static str = "@/tmp/moss/child.sock";
 
+const FRACTAL_INDEX: &'static str = "https://fractalsoftworks.com/forum/index.php?topic=177.0";
+const FRACTAL_MODS_FORUM: &'static str = "https://fractalsoftworks.com/forum/index.php?board=8.0";
+const FRACTAL_MODDING_SUBFORUM: &'static str = "https://fractalsoftworks.com/forum/index.php?board=3.0";
+
 #[derive(Clone)]
 pub enum InstallType {
   Uri(String),
@@ -90,6 +94,14 @@ pub fn init_webview(url: Option<String>) -> wry::Result<()> {
   let back = menu_bar.add_item(MenuItemAttributes::new("< Back"));
   let forward = menu_bar.add_item(MenuItemAttributes::new("Forward >"));
 
+  menu_bar.add_item(MenuItemAttributes::new("|").with_enabled(false));
+
+  let mut bookmarks = MenuBar::new();
+  let mod_index = bookmarks.add_item(MenuItemAttributes::new("Mod Index"));
+  let mods_forum = bookmarks.add_item(MenuItemAttributes::new("Mods Forum"));
+  let modding_subforum = bookmarks.add_item(MenuItemAttributes::new("Modding Sub-Forum"));
+  menu_bar.add_submenu("Bookmarks", true, bookmarks);
+
   let window = WindowBuilder::new()
     .with_title("MOSS | Browser")
     .with_menu(menu_bar)
@@ -149,7 +161,7 @@ pub fn init_webview(url: Option<String>) -> wry::Result<()> {
   ";
 
   let webview = WebViewBuilder::new(window)?
-    .with_url(url.as_deref().unwrap_or("https://fractalsoftworks.com/forum/index.php?topic=177.0"))?
+    .with_url(url.as_deref().unwrap_or(FRACTAL_INDEX))?
     .with_initialization_script(init_script)
     .with_ipc_handler({
       let proxy = proxy.clone();
@@ -244,10 +256,13 @@ pub fn init_webview(url: Option<String>) -> wry::Result<()> {
         origin: MenuType::MenuBar,
         ..
       } => {
-        if menu_id == forward.clone().id() {
-          webview.evaluate_script("window.history.forward()").expect("Go forward in webview history");
-        } else if menu_id == back.clone().id() {
-          webview.evaluate_script("window.history.back()").expect("Go back in webview history");
+        match menu_id {
+          _ if menu_id == forward.clone().id() => webview.evaluate_script("window.history.forward()").expect("Go forward in webview history"),
+          _ if menu_id == back.clone().id() => webview.evaluate_script("window.history.back()").expect("Go back in webview history"),
+          _ if menu_id == mod_index.clone().id() => webview.evaluate_script(&format!("window.location.assign('{}')", FRACTAL_INDEX)).expect("Navigate webview"),
+          _ if menu_id == mods_forum.clone().id() => webview.evaluate_script(&format!("window.location.assign('{}')", FRACTAL_MODS_FORUM)).expect("Navigate webview"),
+          _ if menu_id == modding_subforum.clone().id() => webview.evaluate_script(&format!("window.location.assign('{}')", FRACTAL_MODDING_SUBFORUM)).expect("Navigate webview"),
+          _ => {}
         }
         println!("Clicked on {:?}", menu_id);
       }
