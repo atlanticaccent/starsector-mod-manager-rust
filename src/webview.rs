@@ -16,14 +16,17 @@ use wry::{
   },
   webview::{WebViewBuilder, WebContext},
 };
+use const_format::concatcp;
 
 use crate::app::{App, PROJECT};
 
 pub const WEBVIEW_SHUTDOWN: Selector = Selector::new("webview.shutdown");
 pub const WEBVIEW_INSTALL: Selector<InstallType> = Selector::new("webview.install");
 
-const PARENT_CHILD_SOCKET: &'static str = "@/tmp/moss_parent.sock";
-const CHILD_PARENT_SOCKET: &'static str = "@/tmp/moss_child.sock";
+const PARENT_CHILD_PATH: &'static str = "/tmp/moss_parent.sock";
+const PARENT_CHILD_SOCKET: &'static str = concatcp!("@", PARENT_CHILD_PATH);
+const CHILD_PARENT_PATH: &'static str = "/tmp/moss_child.sock";
+const CHILD_PARENT_SOCKET: &'static str = concatcp!("@", CHILD_PARENT_PATH);
 
 const FRACTAL_INDEX: &'static str = "https://fractalsoftworks.com/forum/index.php?topic=177.0";
 const FRACTAL_MODS_FORUM: &'static str = "https://fractalsoftworks.com/forum/index.php?board=8.0";
@@ -82,7 +85,8 @@ pub fn init_webview(url: Option<String>) -> wry::Result<()> {
           }
           WebviewMessage::Shutdown => {
             println!("shutting down");
-            let _ = std::fs::remove_file(CHILD_PARENT_SOCKET.replace('@', ""));
+            #[cfg(not(target_family = "windows"))]
+            let _ = std::fs::remove_file(CHILD_PARENT_PATH);
             break;
           },
           _ => {}
@@ -364,7 +368,8 @@ pub fn fork_into_webview(handle: &Handle, ext_sink: ExtEventSink, url: Option<St
         WebviewMessage::Shutdown => {
           ext_sink.submit_command(WEBVIEW_SHUTDOWN, (), Target::Auto).expect("Remove child ref from parent");
           ext_sink.submit_command(App::ENABLE, (), Target::Auto).expect("Re-enable");
-          let _ = std::fs::remove_file(PARENT_CHILD_SOCKET.replace('@', ""));
+          #[cfg(not(target_family = "windows"))]
+          let _ = std::fs::remove_file(PARENT_CHILD_PATH);
           break;
         },
         WebviewMessage::BlobFile(file) => {
