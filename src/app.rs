@@ -274,16 +274,19 @@ impl App {
       .expand()
       .controller(ModListController);
     let mod_description = ViewSwitcher::new(
-      |active: &Option<Arc<ModEntry>>, _| active.clone(),
-      |active, _, _| {
+      |data: &App, _| (data.active.clone(), data.webview.is_some()),
+      |(active, enabled), _, _| {
         if let Some(active) = active {
-          ModDescription::ui_builder().lens(lens::Constant(active.clone())).boxed()
+          let enabled = *enabled;
+          ModDescription::ui_builder()
+            .lens(lens::Constant(active.clone()))
+            .disabled_if(move |_, _| enabled)
+            .boxed()
         } else {
           Box::new(ModDescription::empty_builder().lens(lens::Unit))
         }
       },
-    )
-    .lens(App::active);
+    );
     let tool_panel = Flex::column()
       .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
       .with_child(h2("Search"))
