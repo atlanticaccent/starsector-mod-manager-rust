@@ -248,9 +248,9 @@ impl App {
     let browse_index_button = Flex::row()
       .with_child(
         Flex::row()
-          .with_child(Label::new("Browse Mod Index").with_text_size(18.))
+          .with_child(Label::new("Open Mod Browser").with_text_size(18.))
           .with_spacer(5.)
-          .with_child(Icon::new(SETTINGS))
+          .with_child(Icon::new(OPEN_IN_BROWSER))
           .padding((8., 4.))
           .background(button_painter())
           .on_click(|event_ctx, _, _| event_ctx.submit_command(App::OPEN_WEBVIEW.with(None))),
