@@ -1,4 +1,4 @@
-use std::{cell::RefCell, fs::metadata, path::PathBuf, process::Child, rc::Rc, sync::Arc};
+use std::{cell::RefCell, fs::metadata, path::PathBuf, process::{Child, exit}, rc::Rc, sync::Arc};
 
 use chrono::{DateTime, Local};
 use directories::ProjectDirs;
@@ -863,7 +863,10 @@ impl Delegate<App> for AppDelegate {
           data.webview = None;
         }
         let _ = std::fs::remove_dir_all(PROJECT.cache_dir());
-        ctx.submit_command(commands::QUIT_APP)
+        #[cfg(not(target_os = "macos"))]
+        ctx.submit_command(commands::QUIT_APP);
+        #[cfg(target_os = "macos")]
+        exit(0);
       }
       _ => {}
     }
