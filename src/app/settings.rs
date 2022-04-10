@@ -47,11 +47,20 @@ pub struct Settings {
   pub experimental_resolution: (u32, u32),
   #[serde(default = "default_true")]
   pub hide_webview_on_conflict: bool,
+  #[serde(default = "default_true")]
   pub open_forum_link_in_webview: bool,
 }
 
 impl Settings {
   pub const SELECTOR: Selector<SettingsCommand> = Selector::new("SETTINGS");
+
+  pub fn new() -> Self {
+    Self {
+      hide_webview_on_conflict: true,
+      open_forum_link_in_webview: true,
+      ..Default::default()
+    }
+  }
 
   pub fn ui_builder() -> impl Widget<Self> {
     Flex::column()

@@ -126,7 +126,7 @@ impl App {
           }
           settings
         })
-        .unwrap_or_else(|_| settings::Settings::default()),
+        .unwrap_or_else(|_| settings::Settings::new()),
       mod_list: mod_list::ModList::new(),
       active: None,
       runtime: handle,
