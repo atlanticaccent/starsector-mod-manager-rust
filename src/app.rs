@@ -110,6 +110,7 @@ impl App {
     Selector::new("app.mod.duplicate.remove_log");
   const CLEAR_DUPLICATE_LOG: Selector = Selector::new("app.mod.duplicate.ignore_all");
   pub const OPEN_WEBVIEW: Selector<Option<String>> = Selector::new("app.webview.open");
+  const CONFIRM_DELETE_MOD: Selector<Arc<ModEntry>> = Selector::new("app.mod_entry.delete");
 
   pub fn new(handle: Handle) -> Self {
     App {
@@ -841,11 +842,31 @@ impl Delegate<App> for AppDelegate {
       let child = fork_into_webview(&data.runtime, ctx.get_external_handle(), url.clone());
 
       data.webview = Some(Rc::new(RefCell::new(child)))
-    } else if let Some(url) = cmd.get(mod_description::OPEN_IN_WEBVIEW) {
+    } else if let Some(url) = cmd.get(mod_description::OPEN_IN_BROWSER) {
       if data.settings.open_forum_link_in_webview {
         ctx.submit_command(App::OPEN_WEBVIEW.with(Some(url.clone())));
       } else {
         let _ = opener::open(url);
+      }
+    } else if let Some(entry) = cmd.get(ModEntry::ASK_DELETE_MOD) {
+      let modal = Modal::<App>::new(&format!("Delete {}", entry.name))
+        .with_content(format!("Do you want to PERMANENTLY delete {}?", entry.name))
+        .with_content("This operation cannot be undone.")
+        .with_button("Confirm", App::CONFIRM_DELETE_MOD.with(entry.clone()))
+        .with_close_label("Cancel")
+        .build();
+
+      let window = WindowDesc::new(modal)
+        .window_size((400., 150.))
+        .show_titlebar(false)
+        .set_level(WindowLevel::AppWindow);
+
+      ctx.new_window(window)
+    } else if let Some(entry) = cmd.get(App::CONFIRM_DELETE_MOD) {
+      if remove_dir_all(&entry.path).is_ok() {
+        data.mod_list.mods.remove(&entry.id);
+      } else {
+        eprintln!("Failed to delete mod")
       }
     }
 
