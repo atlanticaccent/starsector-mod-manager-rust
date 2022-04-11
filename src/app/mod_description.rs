@@ -15,8 +15,8 @@ pub const OPEN_IN_BROWSER: Selector<String> = Selector::new("mod_description.for
 pub struct ModDescription;
 
 impl ModDescription {
-  const FRACTAL_URL: &'static str = "https://fractalsoftworks.com/forum/index.php?topic=";
-  const NEXUS_URL: &'static str = "https://www.nexusmods.com/starsector/mods/";
+  pub const FRACTAL_URL: &'static str = "https://fractalsoftworks.com/forum/index.php?topic=";
+  pub const NEXUS_URL: &'static str = "https://www.nexusmods.com/starsector/mods/";
 
   pub fn ui_builder() -> impl Widget<Arc<ModEntry>> {
     Flex::column()

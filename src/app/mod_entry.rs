@@ -23,7 +23,7 @@ use tap::Tap;
 use crate::{
   app::{
     util::{parse_game_version, default_true, LabelExt},
-    App, AppCommands,
+    App, AppCommands, controllers::ModEntryClickController,
   },
   patch::{split::Split, tooltip::TooltipController},
 };
@@ -77,6 +77,7 @@ impl ModEntry {
   pub const UPDATE_RATIOS: Selector<(usize, f64)> = Selector::new("MOD_ENTRY_UPDATE_RATIOS");
   pub const REPLACE: Selector<Arc<ModEntry>> = Selector::new("MOD_ENTRY_REPLACE");
   pub const AUTO_UPDATE: Selector<Arc<ModEntry>> = Selector::new("mod_list.update.auto");
+  pub const ASK_DELETE_MOD: Selector<Arc<ModEntry>> = Selector::new("mod_entry.delete");
 
   pub fn from_file(path: &Path) -> Result<ModEntry, ModEntryError> {
     if let Ok(mod_info_file) = std::fs::read_to_string(path.join("mod_info.json")) {
@@ -271,6 +272,7 @@ impl ModEntry {
         ctx.submit_command(App::SELECTOR.with(AppCommands::UpdateModDescription(data.clone())))
       },
     )
+    .controller(ModEntryClickController)
   }
 
   /// Set the mod entry's path.
@@ -357,11 +359,11 @@ pub struct ModVersionMeta {
   #[serde(alias = "modThreadId")]
   #[serde(deserialize_with = "deserialize_string_from_number")]
   #[serde(default)]
-  fractal_id: String,
+  pub fractal_id: String,
   #[serde(alias = "modNexusId")]
   #[serde(deserialize_with = "deserialize_string_from_number")]
   #[serde(default)]
-  nexus_id: String,
+  pub nexus_id: String,
   #[serde(alias = "modVersion")]
   pub version: Version,
 }
