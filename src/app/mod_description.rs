@@ -79,7 +79,7 @@ impl ModDescription {
                         format!("{}{}", ModDescription::NEXUS_URL, data.clone())
                       }))
                       .on_click(|ctx, data, _| {
-                        ctx.submit_command(OPEN_IN_BROWSER.with(format!("{}{}", ModDescription::FRACTAL_URL, data)))
+                        ctx.submit_command(OPEN_IN_BROWSER.with(format!("{}{}", ModDescription::NEXUS_URL, data)))
                       }),
                     )
                   })
