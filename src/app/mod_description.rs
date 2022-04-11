@@ -9,7 +9,7 @@ use super::{mod_entry::ModVersionMeta, ModEntry};
 
 use super::util::{make_flex_description_row, LabelExt};
 
-pub const OPEN_IN_WEBVIEW: Selector<String> = Selector::new("mod_description.forum.open_in_webview");
+pub const OPEN_IN_BROWSER: Selector<String> = Selector::new("mod_description.forum.open_in_webview");
 
 #[derive(Default)]
 pub struct ModDescription;
@@ -53,7 +53,7 @@ impl ModDescription {
                         format!("{}{}", ModDescription::FRACTAL_URL, data.clone())
                       }))
                       .on_click(|ctx, data, _| {
-                        ctx.submit_command(OPEN_IN_WEBVIEW.with(format!("{}{}", ModDescription::FRACTAL_URL, data)))
+                        ctx.submit_command(OPEN_IN_BROWSER.with(format!("{}{}", ModDescription::FRACTAL_URL, data)))
                       }),
                     )
                   })
@@ -79,7 +79,7 @@ impl ModDescription {
                         format!("{}{}", ModDescription::NEXUS_URL, data.clone())
                       }))
                       .on_click(|ctx, data, _| {
-                        ctx.submit_command(OPEN_IN_WEBVIEW.with(format!("{}{}", ModDescription::FRACTAL_URL, data)))
+                        ctx.submit_command(OPEN_IN_BROWSER.with(format!("{}{}", ModDescription::FRACTAL_URL, data)))
                       }),
                     )
                   })
