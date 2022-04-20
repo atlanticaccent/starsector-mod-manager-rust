@@ -20,10 +20,10 @@ use crate::{app::PROJECT, patch::tooltip::TooltipController};
 
 use self::vmparams::{Unit, VMParams, Value};
 
-use super::util::{
+use super::{util::{
   h2, h3, make_column_pair, make_flex_description_row, make_flex_pair, DragWindowController,
   LabelExt, LoadError, SaveError, default_true
-};
+}, controllers::HoverController};
 
 pub mod vmparams;
 
@@ -284,7 +284,9 @@ impl Settings {
         1.,
         Flex::for_axis(axis)
           .with_flex_child(input.expand_width(), 1.)
-          .with_child(Button::new("Browse...").on_click(|ctx, _, _| {
+          .with_child(Button::new("Browse...")
+          .controller(HoverController)
+          .on_click(|ctx, _, _| {
             ctx.submit_command(
               Selector::new("druid.builtin.textbox-cancel-editing").to(Target::Global),
             );
@@ -301,7 +303,9 @@ impl Settings {
         h2("Starsector Install Directory:"),
         Flex::for_axis(axis)
           .with_child(input.expand_width())
-          .with_child(Button::new("Browse...").on_click(|ctx, _, _| {
+          .with_child(Button::new("Browse...")
+          .controller(HoverController)
+          .on_click(|ctx, _, _| {
             ctx.submit_command(
               Selector::new("druid.builtin.textbox-cancel-editing").to(Target::Global),
             );
