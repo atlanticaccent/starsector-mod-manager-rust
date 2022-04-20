@@ -105,6 +105,10 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
       } else if cmd.is(App::DISABLE) {
         ctx.set_disabled(true)
       }
+    } else if let Event::MouseDown(_) = event {
+      if ctx.is_disabled() {
+        ctx.set_handled();
+      }
     }
 
     child.event(ctx, event, data, env)

@@ -1,16 +1,26 @@
 use std::{
+  collections::HashMap,
   fs::{copy, create_dir_all, read_dir},
   io::{self, Write},
+  lazy::SyncLazy,
   path::{Path, PathBuf},
-  sync::Arc,
+  sync::{Arc, Mutex, Weak},
 };
 
+use chrono::Local;
 use druid::{ExtEventSink, Selector, Target};
 use if_chain::if_chain;
 use remove_dir_all::remove_dir_all;
+use reqwest::Url;
 use snafu::{OptionExt, ResultExt, Snafu};
 use tempfile::{tempdir, TempDir};
-use tokio::{fs::rename, task};
+use tokio::{
+  fs::rename,
+  select,
+  sync::mpsc,
+  task,
+  time::{sleep, Duration, Instant},
+};
 
 use crate::app::mod_entry::ModEntry;
 
@@ -22,6 +32,9 @@ pub enum Payload {
 }
 
 pub const INSTALL: Selector<ChannelMessage> = Selector::new("install.message");
+pub const DOWNLOAD_STARTED: Selector<(i64, String)> = Selector::new("install.download.started");
+pub const DOWNLOAD_PROGRESS: Selector<Vec<(i64, String, f64)>> =
+  Selector::new("install.download.progress");
 
 impl Payload {
   pub async fn install(self, ext_ctx: ExtEventSink, install_dir: PathBuf, installed: Vec<String>) {
@@ -55,7 +68,8 @@ async fn handle_path(
   mods_dir: Arc<PathBuf>,
   installed: Arc<Vec<String>>,
 ) {
-  let file_name = path.file_name()
+  let file_name = path
+    .file_name()
     .map(|f| f.to_string_lossy().to_string())
     .unwrap_or_else(|| String::from("unknown"));
 
@@ -111,10 +125,16 @@ async fn handle_path(
 }
 
 pub fn decompress(path: PathBuf) -> Result<TempDir, InstallError> {
-  let source = std::fs::File::open(&path).context(Io { detail: String::from("Failed to open source archive") })?;
-  let temp_dir = tempdir().context(Io { detail: String::from("Failed to open a temp dir") })?;
+  let source = std::fs::File::open(&path).context(Io {
+    detail: String::from("Failed to open source archive"),
+  })?;
+  let temp_dir = tempdir().context(Io {
+    detail: String::from("Failed to open a temp dir"),
+  })?;
   let mime_type = infer::get_from_path(&path)
-    .context(Io { detail: String::from("Failed to open archive for archive type inference") })?
+    .context(Io {
+      detail: String::from("Failed to open archive for archive type inference"),
+    })?
     .context(Mime {
       detail: "Failed to get mime type",
     })?
@@ -226,7 +246,7 @@ async fn handle_auto(ext_ctx: ExtEventSink, entry: Arc<ModEntry>) {
     .as_ref()
     .unwrap();
   let target_version = &entry.remote_version.as_ref().unwrap().version;
-  match download(url.clone()).await {
+  match download(url.clone(), ext_ctx.clone()).await {
     Ok(file) => {
       let path = file.path().to_path_buf();
       let decompress = task::spawn_blocking(move || decompress(path))
@@ -282,28 +302,106 @@ async fn handle_auto(ext_ctx: ExtEventSink, entry: Arc<ModEntry>) {
   }
 }
 
-pub async fn download(url: String) -> Result<tempfile::NamedTempFile, InstallError> {
-  static APP_USER_AGENT: &str = concat!(
-    env!("CARGO_PKG_NAME"),
-    "/",
-    env!("CARGO_PKG_VERSION"),
-  );
+pub async fn download(
+  url: String,
+  ext_ctx: ExtEventSink,
+) -> Result<tempfile::NamedTempFile, InstallError> {
+  static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
 
-  let mut file = tempfile::NamedTempFile::new().context(Io { detail: String::from("Failed to create named temp file to write to") })?;
+  static UPDATE_BALANCER: SyncLazy<Mutex<Weak<mpsc::UnboundedSender<(i64, String, f64)>>>> =
+    SyncLazy::new(|| Mutex::new(Weak::new()));
+
+  let mut file = tempfile::NamedTempFile::new().context(Io {
+    detail: String::from("Failed to create named temp file to write to"),
+  })?;
   let client = reqwest::ClientBuilder::default()
     .redirect(reqwest::redirect::Policy::limited(200))
     .user_agent(APP_USER_AGENT)
     .build()
     .context(Network {})?;
 
-  let mut res = client.get(url)
-    .send()
-    .await
-    .context(Network {})?;
+  let mut res = client.get(&url).send().await.context(Network {})?;
 
+  let name = res
+    .headers()
+    .get(reqwest::header::CONTENT_DISPOSITION)
+    .and_then(|v| v.to_str().ok())
+    .and_then(|v| v.rsplit_once("filename="))
+    .map(|(_, filename)| filename.to_string())
+    .unwrap_or_else(|| {
+      Url::parse(&url)
+        .ok()
+        .and_then(|url| {
+          url
+            .path_segments()
+            .and_then(|segments| segments.last())
+            .map(|s| s.to_string())
+        })
+        .unwrap_or(url.clone())
+        .to_string()
+    });
+
+  let tx = {
+    let mut sender = UPDATE_BALANCER.lock().unwrap();
+    if let Some(tx) = sender.upgrade() {
+      tx
+    } else {
+      let (tx, mut rx) = mpsc::unbounded_channel::<(i64, String, f64)>();
+      let ext_ctx = ext_ctx.clone();
+      let tx = Arc::new(tx.clone());
+      *sender = Arc::downgrade(&tx);
+      task::spawn(async move {
+        let sleep = sleep(Duration::from_millis(50));
+        tokio::pin!(sleep);
+
+        let mut queue: HashMap<i64, (i64, String, f64)> = HashMap::new();
+        loop {
+          select! {
+            message = rx.recv() => {
+              match message {
+                Some(message) => {
+                  queue.insert(message.0, message);
+                },
+                None => {
+                  if queue.len() > 0 {
+                    let vals: Vec<(i64, String, f64)> = queue.drain().map(|(_, val)| val).collect();
+                    let _ = ext_ctx.submit_command(DOWNLOAD_PROGRESS, vals, Target::Auto);
+                  }
+                  break
+                },
+              }
+            },
+            _ = &mut sleep => {
+              let vals: Vec<(i64, String, f64)> = queue.drain().map(|(_, val)| val).collect();
+              let _ = ext_ctx.submit_command(DOWNLOAD_PROGRESS, vals, Target::Auto);
+              sleep.as_mut().reset(Instant::now() + Duration::from_millis(50));
+            }
+          }
+        }
+      });
+
+      tx
+    }
+  };
+
+  let start = Local::now().timestamp();
+  let _ = ext_ctx.submit_command(DOWNLOAD_STARTED, (start, name.clone()), Target::Auto);
+
+  let total = res.content_length();
+  let mut current_total = 0.0;
   while let Some(chunk) = res.chunk().await.context(Network {})? {
-    file.write(&chunk).context(Io { detail: String::from("Failed to write downloaded chunk to temp file") })?;
+    file.write(&chunk).context(Io {
+      detail: String::from("Failed to write downloaded chunk to temp file"),
+    })?;
+    if let Some(total) = total {
+      current_total += chunk.len() as f64;
+      let _ = tx.send((start, name.clone(), (current_total / total as f64)));
+    }
   }
+
+  let _ = tx.send((start, name, 1.0)).inspect_err(|e| {
+    eprintln!("err: {:?}", e);
+  });
 
   Ok(file)
 }
