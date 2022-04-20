@@ -20,10 +20,13 @@ use crate::{app::PROJECT, patch::tooltip::TooltipController};
 
 use self::vmparams::{Unit, VMParams, Value};
 
-use super::{util::{
-  h2, h3, make_column_pair, make_flex_description_row, make_flex_pair, DragWindowController,
-  LabelExt, LoadError, SaveError, default_true
-}, controllers::HoverController};
+use super::{
+  controllers::HoverController,
+  util::{
+    default_true, h2, h3, make_column_pair, make_flex_description_row, make_flex_pair,
+    DragWindowController, LabelExt, LoadError, SaveError,
+  },
+};
 
 pub mod vmparams;
 
@@ -91,12 +94,14 @@ impl Settings {
           )
           .with_child(
             make_flex_description_row(
-              Label::wrapped("Use bundled browser when opening forum links:").controller(TooltipController::new(|| {
-                Label::new("This allows installing mods directly from links in forum posts")
-                  .padding(5.)
-                  .border(druid::Color::GRAY, 2.)
-                  .boxed()
-              })),
+              Label::wrapped("Use bundled browser when opening forum links:").controller(
+                TooltipController::new(|| {
+                  Label::new("This allows installing mods directly from links in forum posts")
+                    .padding(5.)
+                    .border(druid::Color::GRAY, 2.)
+                    .boxed()
+                }),
+              ),
               Checkbox::new("").lens(Settings::open_forum_link_in_webview),
             )
             .padding(TRAILING_PADDING),
@@ -129,7 +134,7 @@ impl Settings {
                       |u| u.clone().expect("This has to work..."),
                       |u, data| *u = Some(data),
                     );
-  
+
                     return Box::new(
                       Flex::column()
                         .with_child(
@@ -173,7 +178,9 @@ impl Settings {
                             .with_flex_child(
                               Button::new(|u: &Unit, _env: &druid::Env| u.to_string())
                                 .lens(VMParams::heap_max.then(Value::unit))
-                                .controller(UnitController::new(VMParams::heap_max.then(Value::unit)))
+                                .controller(UnitController::new(
+                                  VMParams::heap_max.then(Value::unit),
+                                ))
                                 .expand_width(),
                               0.5,
                             ),
@@ -284,18 +291,20 @@ impl Settings {
         1.,
         Flex::for_axis(axis)
           .with_flex_child(input.expand_width(), 1.)
-          .with_child(Button::new("Browse...")
-          .controller(HoverController)
-          .on_click(|ctx, _, _| {
-            ctx.submit_command(
-              Selector::new("druid.builtin.textbox-cancel-editing").to(Target::Global),
-            );
-            ctx.submit_command(
-              Settings::SELECTOR
-                .with(SettingsCommand::SelectInstallDir)
-                .to(Target::Global),
-            )
-          })),
+          .with_child(
+            Button::new("Browse...")
+              .controller(HoverController)
+              .on_click(|ctx, _, _| {
+                ctx.submit_command(
+                  Selector::new("druid.builtin.textbox-cancel-editing").to(Target::Global),
+                );
+                ctx.submit_command(
+                  Settings::SELECTOR
+                    .with(SettingsCommand::SelectInstallDir)
+                    .to(Target::Global),
+                )
+              }),
+          ),
         1.5,
         axis,
       ),
@@ -303,18 +312,20 @@ impl Settings {
         h2("Starsector Install Directory:"),
         Flex::for_axis(axis)
           .with_child(input.expand_width())
-          .with_child(Button::new("Browse...")
-          .controller(HoverController)
-          .on_click(|ctx, _, _| {
-            ctx.submit_command(
-              Selector::new("druid.builtin.textbox-cancel-editing").to(Target::Global),
-            );
-            ctx.submit_command(
-              Settings::SELECTOR
-                .with(SettingsCommand::SelectInstallDir)
-                .to(Target::Global),
-            )
-          }))
+          .with_child(
+            Button::new("Browse...")
+              .controller(HoverController)
+              .on_click(|ctx, _, _| {
+                ctx.submit_command(
+                  Selector::new("druid.builtin.textbox-cancel-editing").to(Target::Global),
+                );
+                ctx.submit_command(
+                  Settings::SELECTOR
+                    .with(SettingsCommand::SelectInstallDir)
+                    .to(Target::Global),
+                )
+              }),
+          )
           .cross_axis_alignment(druid::widget::CrossAxisAlignment::End),
       ),
     }
@@ -375,11 +386,9 @@ impl ValidationDelegate for InstallDirDelegate {
     if let TextBoxEvent::Complete | TextBoxEvent::Changed = event {
       let path = PathBuf::from(current_text);
       if path.exists() {
-        ctx.submit_command(
-          Settings::SELECTOR.with(SettingsCommand::UpdateInstallDir(PathBuf::from(
-            current_text,
-          ))),
-        )
+        ctx.submit_command(Settings::SELECTOR.with(SettingsCommand::UpdateInstallDir(
+          PathBuf::from(current_text),
+        )))
       }
     }
     if let TextBoxEvent::Invalid(_) = event {
