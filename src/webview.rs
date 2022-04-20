@@ -54,6 +54,7 @@ enum UserEvent {
   NewWindow(String),
   AskDownload(String),
   Download(String),
+  CancelDownload,
   BlobReceived(String),
   BlobChunk(Option<String>),
   Maximize,
@@ -186,6 +187,8 @@ pub fn init_webview(url: Option<String>) -> wry::Result<()> {
               let decoded = decode(base).expect("decode uri");
               let uri = String::from_utf8(decoded).expect("decode");
               let _ = proxy.send_event(UserEvent::Download(uri));
+            } else {
+              let _ = proxy.send_event(UserEvent::CancelDownload);
             }
           },
           _ => {}
@@ -270,80 +273,84 @@ pub fn init_webview(url: Option<String>) -> wry::Result<()> {
           _ => {}
         }
         println!("Clicked on {:?}", menu_id);
-      }
-      Event::UserEvent(UserEvent::Navigation(uri)) => {
-        println!("Navigation: {}", uri);
-        if uri.starts_with("https://www.mediafire.com/file") {
-          let _ = webview.evaluate_script(r#"window.alert("You appear to be on a Mediafire site.\nIn order to correctly trigger a Mediafire download, attempt to open the dowload link in a new window.\nThis can be done through the right click context menu, or using a platform shortcut.")"#);
-        }
       },
-      Event::UserEvent(UserEvent::AskDownload(uri)) => {
-        let _ = webview.evaluate_script(&format!(r"
-          let res = window.confirm('Detected an attempted download.\nDo you want to try and install a mod using this download?')
-          window.ipc.postMessage(`confirm_download:${{res}},uri:{}`)
-        ", encode(uri)));
-      },
-      Event::UserEvent(UserEvent::Download(uri)) => {
-        bincode::serialize_into(connect(), &WebviewMessage::Download(uri)).expect("");
-      },
-      Event::UserEvent(UserEvent::NewWindow(uri)) => {
-        webview.evaluate_script(&format!("window.location.assign('{}')", uri)).expect("Navigate webview");
-      },
-      Event::UserEvent(UserEvent::BlobReceived(uri)) => {
-        let path = PROJECT.cache_dir().join(format!("{}", random::<u16>()));
-        mega_file = Some((File::create(&path).expect("Create file"), path));
-        webview.evaluate_script(&format!(r#"
-          /**
-           * @type Blob
-           */
-          let blob = URL.getObjectURLDict()['{}']
-
-          var increment = 1024;
-          var index = 0;
-          var reader = new FileReader();
-          let func = function() {{
-            let res = reader.result;
-            window.ipc.postMessage(`${{res}}`);
-            index += increment;
-            if (index < blob.size) {{
-              let slice = blob.slice(index, index + increment);
-              reader = new FileReader();
-              reader.onloadend = func;
-              reader.readAsDataURL(slice);
-            }} else {{
-              window.ipc.postMessage('#EOF');
-            }}
-          }};
-          reader.onloadend = func;
-          reader.readAsDataURL(blob.slice(index, increment))
-        "#, uri)).expect("Eval script");
-      },
-      Event::UserEvent(UserEvent::BlobChunk(chunk)) => {
-        if let Some((file, path)) = mega_file.as_mut() {
-          match chunk {
-            Some(chunk) => {
-              let split = chunk.split(',').nth(1);
-              println!("{:?}", chunk.split(',').nth(0));
-              if let Some(split) = split {
-                if let Ok(decoded) = decode(split) {
-                  if file.write(&decoded).is_err() {
-                    eprintln!("Failed to write bytes to temp file")
+      Event::UserEvent(user_event) => match user_event {
+        UserEvent::Navigation(uri) => {
+          println!("Navigation: {}", uri);
+          if uri.starts_with("https://www.mediafire.com/file") {
+            let _ = webview.evaluate_script(r#"window.alert("You appear to be on a Mediafire site.\nIn order to correctly trigger a Mediafire download, attempt to open the dowload link in a new window.\nThis can be done through the right click context menu, or using a platform shortcut.")"#);
+          }
+        },
+        UserEvent::AskDownload(uri) => {
+          let _ = webview.evaluate_script(&format!(r"
+            let res = window.confirm('Detected an attempted download.\nDo you want to try and install a mod using this download?')
+            window.ipc.postMessage(`confirm_download:${{res}},uri:{}`)
+          ", encode(uri)));
+        },
+        UserEvent::Download(uri) => {
+          let _ = webview.evaluate_script("location.reload();");
+          bincode::serialize_into(connect(), &WebviewMessage::Download(uri)).expect("");
+        },
+        UserEvent::CancelDownload => {},
+        UserEvent::NewWindow(uri) => {
+          webview.evaluate_script(&format!("window.location.assign('{}')", uri)).expect("Navigate webview");
+        },
+        UserEvent::BlobReceived(uri) => {
+          let path = PROJECT.cache_dir().join(format!("{}", random::<u16>()));
+          mega_file = Some((File::create(&path).expect("Create file"), path));
+          webview.evaluate_script(&format!(r#"
+            /**
+             * @type Blob
+             */
+            let blob = URL.getObjectURLDict()['{}']
+  
+            var increment = 1024;
+            var index = 0;
+            var reader = new FileReader();
+            let func = function() {{
+              let res = reader.result;
+              window.ipc.postMessage(`${{res}}`);
+              index += increment;
+              if (index < blob.size) {{
+                let slice = blob.slice(index, index + increment);
+                reader = new FileReader();
+                reader.onloadend = func;
+                reader.readAsDataURL(slice);
+              }} else {{
+                window.ipc.postMessage('#EOF');
+              }}
+            }};
+            reader.onloadend = func;
+            reader.readAsDataURL(blob.slice(index, increment))
+          "#, uri)).expect("Eval script");
+        },
+        UserEvent::BlobChunk(chunk) => {
+          if let Some((file, path)) = mega_file.as_mut() {
+            match chunk {
+              Some(chunk) => {
+                let split = chunk.split(',').nth(1);
+                println!("{:?}", chunk.split(',').nth(0));
+                if let Some(split) = split {
+                  if let Ok(decoded) = decode(split) {
+                    if file.write(&decoded).is_err() {
+                      eprintln!("Failed to write bytes to temp file")
+                    }
                   }
                 }
+              },
+              None => {
+                let _ = bincode::serialize_into(connect(), &WebviewMessage::BlobFile(path.clone()));
+                mega_file = None;
               }
-            },
-            None => {
-              let _ = bincode::serialize_into(connect(), &WebviewMessage::BlobFile(path.clone()));
-              mega_file = None;
             }
           }
+        },
+        UserEvent::Maximize => {
+          webview.window().set_minimized(false)
+        },
+        UserEvent::Minimize => {
+          webview.window().set_minimized(true)
         }
-      },
-      Event::UserEvent(UserEvent::Maximize) => {
-        webview.window().set_minimized(false)
-      },
-      Event::UserEvent(UserEvent::Minimize) => {
-        webview.window().set_minimized(true)
       }
       _ => {
         let _ = webview.resize();
