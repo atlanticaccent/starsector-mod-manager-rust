@@ -10,6 +10,7 @@
 #![feature(bool_to_option)]
 #![feature(hash_set_entry)]
 #![feature(string_remove_matches)]
+#![feature(once_cell)]
 
 use app::PROJECT;
 use druid::{AppLauncher, WindowDesc, theme, Color};
