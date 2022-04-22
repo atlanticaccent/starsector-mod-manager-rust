@@ -4,7 +4,7 @@ use base64::{decode, encode};
 use interprocess::local_socket::LocalSocketListener;
 use rand::random;
 use url::Url;
-use webview_shared::{WebviewMessage, CHILD_PARENT_SOCKET, handle_error, CHILD_PARENT_PATH, connect_parent, connect_child, PROJECT};
+use webview_shared::{WebviewMessage, CHILD_PARENT_SOCKET, handle_error, connect_parent, connect_child, PROJECT};
 use wry::{
   application::{
     event::{Event, StartCause, WindowEvent},
@@ -57,7 +57,7 @@ pub fn init_webview(url: Option<String>) -> wry::Result<()> {
           WebviewMessage::Shutdown => {
             println!("shutting down");
             #[cfg(not(target_family = "windows"))]
-            let _ = std::fs::remove_file(CHILD_PARENT_PATH);
+            let _ = std::fs::remove_file(webview_shared::CHILD_PARENT_PATH);
             break;
           },
           _ => {}
