@@ -1,7 +1,7 @@
 use std::process;
 
 use druid::{widget::Controller, Env, Event, EventCtx, Target, Widget, commands};
-use rfd::FileDialog;
+use rfd::AsyncFileDialog;
 use self_update::version::bump_is_greater;
 
 use crate::app::{
@@ -19,13 +19,13 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
       if let Some(settings::SettingsCommand::SelectInstallDir) = cmd.get(Settings::SELECTOR) {
         let ext_ctx = ctx.get_external_handle();
         ctx.set_disabled(true);
-        data.runtime.spawn_blocking(move || {
-          let res = FileDialog::new().pick_folder();
+        data.runtime.spawn(async move {
+          let res = AsyncFileDialog::new().pick_folder().await;
 
           if let Some(handle) = res {
             ext_ctx.submit_command(
               Settings::SELECTOR,
-              SettingsCommand::UpdateInstallDir(handle),
+              SettingsCommand::UpdateInstallDir(handle.path().to_path_buf()),
               Target::Auto,
             )
           } else {
