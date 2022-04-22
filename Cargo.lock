@@ -3737,6 +3737,8 @@ version = "0.1.0"
 dependencies = [
  "base64",
  "bincode",
+ "const_format",
+ "directories",
  "interprocess",
  "rand 0.8.5",
  "serde",
