@@ -4,47 +4,76 @@ use crate::{
 };
 use druid::{
   widget::{ClipBox, Controller, ControllerHost, Flex, Label, Painter, ViewSwitcher},
-  Data, Lens, RenderContext, Selector, UnitPoint, Widget, WidgetExt,
+  Data, Lens, RenderContext, Selector, UnitPoint, Widget, WidgetExt, im::Vector,
 };
 use druid_widget_nursery::material_icons::Icon;
 
 use super::util::icons::*;
-use super::Sorting;
 
 pub const RATIOS: [f64; 5] = [1. / 6., 1. / 5., 1. / 4., 1. / 3., 1. / 2.];
 pub const ENABLED_RATIO: f64 = 1. / 12.;
 
-#[derive(Clone, Data, Lens)]
-pub struct Headings {
-  #[data(same_fn = "PartialEq::eq")]
-  pub ratios: [f64; 5],
-  pub sort_by: (Sorting, bool),
+#[derive(Debug, Clone, Copy, Data, PartialEq, Eq)]
+pub enum Heading {
+  ID,
+  Name,
+  Author,
+  GameVersion,
+  Enabled,
+  Version,
+  Score,
+  AutoUpdateSupport,
 }
 
-impl Headings {
-  pub const SORT_CHANGED: Selector<Sorting> = Selector::new("headings.sorting.changed");
+impl From<Heading> for &str {
+  fn from(sorting: Heading) -> Self {
+    match sorting {
+      Heading::ID => "ID",
+      Heading::Name => "Name",
+      Heading::Author => "Author(s)",
+      Heading::GameVersion => "Game Version",
+      Heading::Enabled => "Enabled",
+      Heading::Version => "Version",
+      Heading::Score => "score",
+      Heading::AutoUpdateSupport => "Auto-Update Supported",
+    }
+  }
+}
 
-  const TITLES: [Sorting; 6] = [
-    Sorting::Name,
-    Sorting::ID,
-    Sorting::Author,
-    Sorting::Version,
-    Sorting::AutoUpdateSupport,
-    Sorting::GameVersion,
+#[derive(Clone, Data, Lens)]
+pub struct Header {
+  #[data(same_fn = "PartialEq::eq")]
+  pub ratios: Vec<f64>,
+  #[data(same_fn = "PartialEq::eq")]
+  pub headings: Vector<Heading>,
+  pub sort_by: (Heading, bool),
+}
+
+impl Header {
+  pub const SORT_CHANGED: Selector<Heading> = Selector::new("headings.sorting.changed");
+
+  const TITLES: [Heading; 6] = [
+    Heading::Name,
+    Heading::ID,
+    Heading::Author,
+    Heading::Version,
+    Heading::AutoUpdateSupport,
+    Heading::GameVersion,
   ];
 
   pub fn new(ratios: &[f64; 5]) -> Self {
     Self {
-      ratios: *ratios,
-      sort_by: (Sorting::Name, false),
+      ratios: ratios.to_vec(),
+      headings: Header::TITLES.to_vec().into(),
+      sort_by: (Heading::Name, false),
     }
   }
 
-  pub fn ui_builder() -> impl Widget<Headings> {
+  pub fn ui_builder() -> impl Widget<Header> {
     fn recursive_split(
       idx: usize,
-      titles: &[Sorting],
-    ) -> ControllerHost<Split<Headings>, ResizeController> {
+      titles: &Vector<Heading>,
+    ) -> ControllerHost<Split<Header>, ResizeController> {
       if idx < titles.len() - 2 {
         Split::columns(
           heading_builder(titles[idx]),
@@ -64,22 +93,28 @@ impl Headings {
       .controller(ResizeController::new(idx + 1))
     }
 
-    Split::columns(
-      heading_builder(Sorting::Enabled),
-      recursive_split(0, &Headings::TITLES),
+    ViewSwitcher::new(
+      |data: &Header, _| data.headings.clone(),
+      |_, data, _| {
+        Split::columns(
+          heading_builder(Heading::Enabled),
+          recursive_split(0, &data.headings),
+        )
+        .split_point(ENABLED_RATIO)
+        .controller(ResizeController::new(0))
+        .boxed()
+      }
     )
-    .split_point(ENABLED_RATIO)
-    .controller(ResizeController::new(0))
   }
 }
 
-fn heading_builder(title: Sorting) -> impl Widget<Headings> {
+fn heading_builder(title: Heading) -> impl Widget<Header> {
   ClipBox::unmanaged(
     Flex::row()
       .with_child(Label::wrapped(<&str>::from(title)))
       .with_child(
         ViewSwitcher::new(
-          |data: &(Sorting, bool), _| *data,
+          |data: &(Heading, bool), _| *data,
           move |_, new, _| {
             if new.0 == title {
               if new.1 {
@@ -92,7 +127,7 @@ fn heading_builder(title: Sorting) -> impl Widget<Headings> {
             }
           },
         )
-        .lens(Headings::sort_by),
+        .lens(Header::sort_by),
       ),
   )
   .constrain_horizontal(true)
@@ -105,7 +140,7 @@ fn heading_builder(title: Sorting) -> impl Widget<Headings> {
       ctx.stroke(border_rect, &env.get(druid::theme::BORDER_LIGHT), 3.)
     }
   }))
-  .on_click(move |ctx, _, _| ctx.submit_command(Headings::SORT_CHANGED.with(title)))
+  .on_click(move |ctx, _, _| ctx.submit_command(Header::SORT_CHANGED.with(title)))
 }
 
 struct ResizeController {
@@ -118,13 +153,13 @@ impl ResizeController {
   }
 }
 
-impl<W: Widget<Headings>> Controller<Headings, W> for ResizeController {
+impl<W: Widget<Header>> Controller<Header, W> for ResizeController {
   fn event(
     &mut self,
     child: &mut W,
     ctx: &mut druid::EventCtx,
     event: &druid::Event,
-    data: &mut Headings,
+    data: &mut Header,
     env: &druid::Env,
   ) {
     if let druid::Event::Notification(notif) = event {

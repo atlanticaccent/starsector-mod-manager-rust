@@ -9,7 +9,7 @@ use druid::{
   lens, theme,
   widget::{Either, Flex, Label, List, ListIter, Painter, Scroll},
   Color, Data, ExtEventSink, KeyOrValue, Lens, LensExt, Rect, RenderContext, Selector, Target,
-  Widget, WidgetExt,
+  Widget, WidgetExt, im::Vector,
 };
 use druid_widget_nursery::WidgetExt as WidgetExtNursery;
 use if_chain::if_chain;
@@ -27,13 +27,13 @@ use super::{
 };
 
 pub mod headings;
-use self::headings::Headings;
+use self::headings::{Header, Heading};
 
 #[derive(Clone, Data, Lens)]
 pub struct ModList {
   #[data(same_fn = "PartialEq::eq")]
   pub mods: BTreeMap<String, Arc<ModEntry>>,
-  headings: Headings,
+  header: Header,
   search_text: String,
   #[data(same_fn = "PartialEq::eq")]
   active_filters: HashSet<Filters>,
@@ -52,7 +52,7 @@ impl ModList {
   pub fn new() -> Self {
     Self {
       mods: BTreeMap::new(),
-      headings: Headings::new(&headings::RATIOS),
+      header: Header::new(&headings::RATIOS),
       search_text: String::new(),
       active_filters: HashSet::new(),
       starsector_version: None,
@@ -61,7 +61,7 @@ impl ModList {
 
   pub fn ui_builder() -> impl Widget<Self> {
     Flex::column()
-      .with_child(headings::Headings::ui_builder().lens(ModList::headings))
+      .with_child(headings::Header::ui_builder().lens(ModList::header))
       .with_flex_child(
         Either::new(
           |data: &ModList, _| !data.mods.is_empty(),
@@ -70,17 +70,17 @@ impl ModList {
               ModEntry::ui_builder()
                 .expand_width()
                 .lens(lens!(
-                  (Arc<ModEntry>, usize, Rc<[f64; 5]>, Rc<Option<GameVersion>>),
+                  EntryAlias,
                   0
                 ))
                 .background(Painter::new(
-                  |ctx, (entry, i, ratios, game_version): &EntryAlias, env| {
+                  |ctx, (entry, i, ratios, _, game_version): &EntryAlias, env| {
                     let rect = ctx.size().to_rect();
                     // manually paint cells here to indicate version info
                     // set ratios in ModList through a command listener on this widget
                     // implement update status parser
                     // calculate cell widths using ratios and paint appropriately
-                    fn calc_pos(idx: usize, ratios: &Rc<[f64; 5]>, width: f64) -> f64 {
+                    fn calc_pos(idx: usize, ratios: &Rc<Vec<f64>>, width: f64) -> f64 {
                       if idx == 0 {
                         0.
                       } else if idx == 1 {
@@ -140,7 +140,7 @@ impl ModList {
               ctx.children_changed();
             })
             .on_command(ModList::SEARCH_UPDATE, |ctx, _, data| {
-              data.headings.sort_by = (Sorting::Score, true);
+              data.header.sort_by = (Heading::Score, true);
               ctx.children_changed()
             })
             .on_command(ModList::FILTER_UPDATE, |ctx, (filter, insert), data| {
@@ -166,11 +166,11 @@ impl ModList {
           data.mods.insert(payload.id.clone(), payload.clone());
         }
       })
-      .on_command(Headings::SORT_CHANGED, |ctx, payload, data| {
-        if data.headings.sort_by.0 == *payload {
-          data.headings.sort_by.1 = !data.headings.sort_by.1;
+      .on_command(Header::SORT_CHANGED, |ctx, payload, data| {
+        if data.header.sort_by.0 == *payload {
+          data.header.sort_by.1 = !data.header.sort_by.1;
         } else {
-          data.headings.sort_by = (*payload, false)
+          data.header.sort_by = (*payload, false)
         }
         ctx.children_changed()
       })
@@ -258,7 +258,7 @@ impl ModList {
 
   fn sorted_vals(&self) -> Vec<Arc<ModEntry>> {
     let values_iter = self.mods.par_iter().filter_map(|(_, entry)| {
-      let search = if let Sorting::Score = self.headings.sort_by.0 {
+      let search = if let Heading::Score = self.header.sort_by.0 {
         if !self.search_text.is_empty() {
           let id_score = best_match(&self.search_text, &entry.id).map(|m| m.score());
           let name_score = best_match(&self.search_text, &entry.name).map(|m| m.score());
@@ -278,20 +278,20 @@ impl ModList {
 
     let mut values: Vec<Arc<ModEntry>> = values_iter.collect();
     values.par_sort_unstable_by(|a, b| {
-      let ord = match self.headings.sort_by.0 {
-        Sorting::ID => a.id.cmp(&b.id),
-        Sorting::Name => a.name.cmp(&b.name),
-        Sorting::Author => a.author.cmp(&b.author),
-        Sorting::GameVersion => a.game_version.cmp(&b.game_version),
-        Sorting::Enabled => a.enabled.cmp(&b.enabled),
-        Sorting::Version => match (a.update_status.as_ref(), b.update_status.as_ref()) {
+      let ord = match self.header.sort_by.0 {
+        Heading::ID => a.id.cmp(&b.id),
+        Heading::Name => a.name.cmp(&b.name),
+        Heading::Author => a.author.cmp(&b.author),
+        Heading::GameVersion => a.game_version.cmp(&b.game_version),
+        Heading::Enabled => a.enabled.cmp(&b.enabled),
+        Heading::Version => match (a.update_status.as_ref(), b.update_status.as_ref()) {
           (None, None) => a.name.cmp(&b.name),
           (_, _) if a.update_status.cmp(&b.update_status) == std::cmp::Ordering::Equal => {
             a.name.cmp(&b.name)
           }
           (_, _) => a.update_status.cmp(&b.update_status),
         },
-        Sorting::Score => {
+        Heading::Score => {
           let scoring = |entry: &Arc<ModEntry>| -> Option<isize> {
             let id_score = best_match(&self.search_text, &entry.id).map(|m| m.score());
             let name_score = best_match(&self.search_text, &entry.name).map(|m| m.score());
@@ -302,7 +302,7 @@ impl ModList {
 
           scoring(a).cmp(&scoring(b))
         }
-        Sorting::AutoUpdateSupport => a
+        Heading::AutoUpdateSupport => a
           .remote_version
           .as_ref()
           .and_then(|r| r.direct_download_url.as_ref())
@@ -315,7 +315,7 @@ impl ModList {
           ),
       };
 
-      if self.headings.sort_by.1 {
+      if self.header.sort_by.1 {
         ord.reverse()
       } else {
         ord
@@ -325,25 +325,27 @@ impl ModList {
   }
 }
 
-type EntryAlias = (Arc<ModEntry>, usize, Rc<[f64; 5]>, Rc<Option<GameVersion>>);
+type EntryAlias = (Arc<ModEntry>, usize, Rc<Vec<f64>>, Rc<Vector<Heading>>, Rc<Option<GameVersion>>);
 
 impl ListIter<EntryAlias> for ModList {
   fn for_each(&self, mut cb: impl FnMut(&EntryAlias, usize)) {
-    let ratios = Rc::new(self.headings.ratios);
+    let ratios = Rc::new(self.header.ratios.clone());
+    let headers = Rc::new(self.header.headings.clone());
     let game_version = Rc::new(self.starsector_version.clone());
 
     for (i, item) in self.sorted_vals().into_iter().enumerate() {
-      cb(&(item, i, ratios.clone(), game_version.clone()), i);
+      cb(&(item, i, ratios.clone(), headers.clone(), game_version.clone()), i);
     }
   }
 
   fn for_each_mut(&mut self, mut cb: impl FnMut(&mut EntryAlias, usize)) {
-    let ratios = Rc::new(self.headings.ratios);
+    let ratios = Rc::new(self.header.ratios.clone());
+    let headers = Rc::new(self.header.headings.clone());
     let game_version = Rc::new(self.starsector_version.clone());
 
     for (i, item) in self.sorted_vals().iter_mut().enumerate() {
       cb(
-        &mut (item.clone(), i, ratios.clone(), game_version.clone()),
+        &mut (item.clone(), i, ratios.clone(), headers.clone(), game_version.clone()),
         i,
       );
     }
@@ -393,33 +395,6 @@ impl From<Vec<Arc<ModEntry>>> for EnabledMods {
 impl From<Vec<String>> for EnabledMods {
   fn from(enabled_mods: Vec<String>) -> Self {
     Self { enabled_mods }
-  }
-}
-
-#[derive(Debug, Clone, Copy, Data, PartialEq, Eq)]
-pub enum Sorting {
-  ID,
-  Name,
-  Author,
-  GameVersion,
-  Enabled,
-  Version,
-  Score,
-  AutoUpdateSupport,
-}
-
-impl From<Sorting> for &str {
-  fn from(sorting: Sorting) -> Self {
-    match sorting {
-      Sorting::ID => "ID",
-      Sorting::Name => "Name",
-      Sorting::Author => "Author(s)",
-      Sorting::GameVersion => "Game Version",
-      Sorting::Enabled => "Enabled",
-      Sorting::Version => "Version",
-      Sorting::Score => "score",
-      Sorting::AutoUpdateSupport => "Auto-Update Supported",
-    }
   }
 }
 
