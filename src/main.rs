@@ -12,11 +12,13 @@
 #![feature(string_remove_matches)]
 #![feature(once_cell)]
 
-use app::PROJECT;
+extern crate webview_subsystem;
+
+use webview_shared::PROJECT;
 use druid::{AppLauncher, WindowDesc, theme, Color};
 use tokio::runtime::Builder;
 use clap::Parser;
-use webview::init_webview;
+use webview_subsystem::init_webview;
 
 // #[path ="patch/mod.rs"]
 mod patch;

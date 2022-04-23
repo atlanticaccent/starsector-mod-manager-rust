@@ -1,7 +1,6 @@
 use std::{cell::RefCell, fs::metadata, path::PathBuf, process::Child, rc::Rc, sync::Arc};
 
 use chrono::{DateTime, Local, TimeZone};
-use directories::ProjectDirs;
 use druid::{
   commands,
   im::{OrdMap, Vector},
@@ -25,6 +24,7 @@ use reqwest::Url;
 use strum::IntoEnumIterator;
 use tap::{Pipe, Tap};
 use tokio::runtime::Handle;
+use webview_shared::{InstallType, PROJECT};
 
 use crate::{
   patch::{
@@ -32,7 +32,7 @@ use crate::{
     tabs_policy::{InitialTab, StaticTabsForked},
   },
   webview::{
-    fork_into_webview, kill_server_thread, maximize_webview, InstallType, WEBVIEW_INSTALL,
+    fork_into_webview, kill_server_thread, maximize_webview, WEBVIEW_INSTALL,
     WEBVIEW_SHUTDOWN,
   },
 };
@@ -63,11 +63,6 @@ mod updater;
 pub mod util;
 
 const TAG: &str = env!("CARGO_PKG_VERSION");
-
-lazy_static! {
-  pub static ref PROJECT: ProjectDirs =
-    ProjectDirs::from("org", "laird", "Starsector Mod Manager").expect("Get project dirs");
-}
 
 #[derive(Clone, Data, Lens)]
 pub struct App {
