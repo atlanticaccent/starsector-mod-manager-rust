@@ -4,7 +4,7 @@ use druid::{ExtEventSink, Selector, Target};
 use interprocess::local_socket::LocalSocketListener;
 use tap::Pipe;
 use tokio::runtime::Handle;
-use webview_shared::{WebviewMessage, InstallType, connect_parent, connect_child, handle_error, PARENT_CHILD_SOCKET, PARENT_CHILD_PATH};
+use webview_shared::{WebviewMessage, InstallType, connect_parent, connect_child, handle_error, PARENT_CHILD_SOCKET};
 
 pub const WEBVIEW_SHUTDOWN: Selector = Selector::new("webview.shutdown");
 pub const WEBVIEW_INSTALL: Selector<InstallType> = Selector::new("webview.install");
@@ -27,7 +27,7 @@ pub fn fork_into_webview(handle: &Handle, ext_sink: ExtEventSink, url: Option<St
           ext_sink.submit_command(WEBVIEW_SHUTDOWN, (), Target::Auto).expect("Remove child ref from parent");
           ext_sink.submit_command(ENABLE, (), Target::Auto).expect("Re-enable");
           #[cfg(not(target_family = "windows"))]
-          let _ = std::fs::remove_file(PARENT_CHILD_PATH);
+          let _ = std::fs::remove_file(webview_shared::PARENT_CHILD_PATH);
           break;
         },
         WebviewMessage::BlobFile(file) => {
