@@ -33,7 +33,7 @@ use self::headings::{Header, Heading};
 pub struct ModList {
   #[data(same_fn = "PartialEq::eq")]
   pub mods: BTreeMap<String, Arc<ModEntry>>,
-  header: Header,
+  pub header: Header,
   search_text: String,
   #[data(same_fn = "PartialEq::eq")]
   active_filters: HashSet<Filters>,
@@ -61,7 +61,9 @@ impl ModList {
 
   pub fn ui_builder() -> impl Widget<Self> {
     Flex::column()
-      .with_child(headings::Header::ui_builder().lens(ModList::header))
+      .with_child(
+        headings::Header::ui_builder().lens(ModList::header)
+      )
       .with_flex_child(
         Either::new(
           |data: &ModList, _| !data.mods.is_empty(),
@@ -69,12 +71,12 @@ impl ModList {
             List::new(|| {
               ModEntry::ui_builder()
                 .expand_width()
-                .lens(lens!(
-                  EntryAlias,
-                  0
+                .lens(lens::Map::new(
+                  |val: &EntryAlias| (val.0.clone(), val.3.clone()),
+                  |_, _| {}
                 ))
                 .background(Painter::new(
-                  |ctx, (entry, i, ratios, _, game_version): &EntryAlias, env| {
+                  |ctx, (entry, i, ratios, headings, game_version): &EntryAlias, env| {
                     let rect = ctx.size().to_rect();
                     // manually paint cells here to indicate version info
                     // set ratios in ModList through a command listener on this widget
@@ -96,39 +98,52 @@ impl ModList {
                     } else {
                       ctx.fill(rect, &env.get(theme::BACKGROUND_LIGHT))
                     }
-                    if let Some(local) = &entry.version_checker {
-                      let update_status = UpdateStatus::from((local, &entry.remote_version));
-
-                      let enabled_shift = (headings::ENABLED_RATIO) * rect.width();
-                      let mut row_origin = rect.origin();
-                      row_origin.x += enabled_shift + 3.;
-                      let row_rect = rect.with_origin(row_origin).intersect(rect);
-
-                      let cell_left = calc_pos(3, ratios, row_rect.width());
-                      let cell_right = calc_pos(4, ratios, row_rect.width());
-                      let cell_0_rect = Rect::from_points(
-                        (row_rect.origin().x + cell_left, row_rect.origin().y),
-                        (row_rect.origin().x + cell_right, row_rect.height()),
-                      );
-
-                      let color = <KeyOrValue<Color>>::from(&update_status).resolve(env);
-                      ctx.fill(cell_0_rect, &color)
+                    if let Some(idx) = headings.index_of(&Heading::Version) {
+                      if let Some(local) = &entry.version_checker {
+                        let update_status = UpdateStatus::from((local, &entry.remote_version));
+  
+                        let enabled_shift = (headings::ENABLED_RATIO) * rect.width();
+                        let mut row_origin = rect.origin();
+                        row_origin.x += enabled_shift + 3.;
+                        let row_rect = rect.with_origin(row_origin).intersect(rect);
+  
+                        let cell_left = row_rect.origin().x + calc_pos(idx, ratios, row_rect.width());
+                        let cell_right = if idx < ratios.len() {
+                          row_rect.origin().x + calc_pos(idx + 1, ratios, row_rect.width())
+                        } else {
+                          row_rect.max_x()
+                        };
+                        let cell_0_rect = Rect::from_points(
+                          (cell_left, row_rect.origin().y),
+                          (cell_right, row_rect.height()),
+                        );
+  
+                        let color = <KeyOrValue<Color>>::from(&update_status).resolve(env);
+                        ctx.fill(cell_0_rect, &color)
+                      }
                     }
-                    if let Some(game_version) = game_version.as_ref() {
-                      let diff = StarsectorVersionDiff::from((&entry.game_version, game_version));
-                      let enabled_shift = (headings::ENABLED_RATIO) * rect.width();
-                      let mut row_origin = rect.origin();
-                      row_origin.x += enabled_shift + 3.;
-                      let row_rect = rect.with_origin(row_origin).intersect(rect);
+                    if let Some(idx) = headings.index_of(&Heading::GameVersion) {
+                      if let Some(game_version) = game_version.as_ref() {
+                        let diff = StarsectorVersionDiff::from((&entry.game_version, game_version));
+                        let enabled_shift = (headings::ENABLED_RATIO) * rect.width();
+                        let mut row_origin = rect.origin();
+                        row_origin.x += enabled_shift + 3.;
+                        let row_rect = rect.with_origin(row_origin).intersect(rect);
 
-                      let cell_left = calc_pos(5, ratios, row_rect.width());
-                      let cell_0_rect = Rect::from_points(
-                        (row_rect.origin().x + cell_left, row_rect.origin().y),
-                        (row_rect.max_x(), row_rect.height()),
-                      );
+                        let cell_left = row_rect.origin().x + calc_pos(idx, ratios, row_rect.width());
+                        let cell_right = if idx < ratios.len() {
+                          row_rect.origin().x + calc_pos(idx + 1, ratios, row_rect.width())
+                        } else {
+                          row_rect.max_x()
+                        };
+                        let cell_0_rect = Rect::from_points(
+                          (cell_left, row_rect.origin().y),
+                          (cell_right, row_rect.height()),
+                        );
 
-                      let color = <KeyOrValue<Color>>::from(diff).resolve(env);
-                      ctx.fill(cell_0_rect, &color)
+                        let color = <KeyOrValue<Color>>::from(diff).resolve(env);
+                        ctx.fill(cell_0_rect, &color)
+                      }
                     }
                   },
                 ))

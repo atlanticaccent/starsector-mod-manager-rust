@@ -1,20 +1,21 @@
 use std::{path::PathBuf, rc::Rc};
 
 use druid::{
+  im::Vector,
   lens,
   text::ParseFormatter,
   theme,
   widget::{
-    Axis, Button, Checkbox, Controller, Flex, Label, SizedBox, TextBox, TextBoxEvent,
-    ValidationDelegate, ViewSwitcher, WidgetExt,
+    Axis, Button, Checkbox, Controller, Either, Flex, Label, Painter, SizedBox, TextBox,
+    TextBoxEvent, ValidationDelegate, ViewSwitcher, WidgetExt,
   },
-  Data, Event, EventCtx, Lens, LensExt, Menu, MenuItem, Selector, Target, Widget,
+  Data, Event, EventCtx, Lens, LensExt, Menu, MenuItem, RenderContext, Selector, Widget,
 };
-use druid_widget_nursery::{DynLens, WidgetExt as WidgetExtNursery};
+use druid_widget_nursery::{material_icons::Icon, DynLens, WidgetExt as WidgetExtNursery};
 use if_chain::if_chain;
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
-use tap::Tap;
+use tap::{Tap, Pipe};
 
 use crate::{app::PROJECT, patch::tooltip::TooltipController};
 
@@ -22,9 +23,10 @@ use self::vmparams::{Unit, VMParams, Value};
 
 use super::{
   controllers::HoverController,
+  mod_list::headings::{Header, Heading},
   util::{
-    default_true, h2, h3, make_column_pair, make_flex_description_row, make_flex_pair,
-    DragWindowController, LabelExt, LoadError, SaveError,
+    button_painter, default_true, h2, h3, icons::*, make_column_pair, make_flex_pair,
+    make_flex_settings_row, DragWindowController, LabelExt, LoadError, SaveError, CommandExt,
   },
 };
 
@@ -52,6 +54,16 @@ pub struct Settings {
   pub hide_webview_on_conflict: bool,
   #[serde(default = "default_true")]
   pub open_forum_link_in_webview: bool,
+  #[serde(skip)]
+  show_column_editor: bool,
+  #[serde(skip)]
+  #[serde(default = "default_headers")]
+  #[data(same_fn = "PartialEq::eq")]
+  headings: Vector<Heading>,
+}
+
+fn default_headers() -> Vector<Heading> {
+  Header::TITLES.to_vec().into()
 }
 
 impl Settings {
@@ -61,6 +73,7 @@ impl Settings {
     Self {
       hide_webview_on_conflict: true,
       open_forum_link_in_webview: true,
+      headings: Header::TITLES.to_vec().into(),
       ..Default::default()
     }
   }
@@ -79,21 +92,22 @@ impl Settings {
         Flex::column()
           .with_child(Self::install_dir_browser_builder(Axis::Horizontal).padding(TRAILING_PADDING))
           .with_child(
-            make_flex_description_row(
-              Label::wrapped("Warn when overwriting '.git' folders:"),
+            make_flex_settings_row(
               Checkbox::new("").lens(Settings::git_warn),
+              Label::wrapped("Warn when overwriting '.git' folders:"),
             )
             .padding(TRAILING_PADDING),
           )
           .with_child(
-            make_flex_description_row(
-              Label::wrapped("Minimize browser when installation encounters conflict:"),
+            make_flex_settings_row(
               Checkbox::new("").lens(Settings::hide_webview_on_conflict),
+              Label::wrapped("Minimize browser when installation encounters conflict:"),
             )
             .padding(TRAILING_PADDING),
           )
           .with_child(
-            make_flex_description_row(
+            make_flex_settings_row(
+              Checkbox::new("").lens(Settings::open_forum_link_in_webview),
               Label::wrapped("Use bundled browser when opening forum links:").controller(
                 TooltipController::new(|| {
                   Label::new("This allows installing mods directly from links in forum posts")
@@ -102,14 +116,98 @@ impl Settings {
                     .boxed()
                 }),
               ),
-              Checkbox::new("").lens(Settings::open_forum_link_in_webview),
             )
             .padding(TRAILING_PADDING),
           )
           .with_child(
-            make_flex_description_row(
-              Label::wrapped("Enable vmparams editing:"),
+            make_flex_settings_row(
+              Either::new(
+                |data, _| *data,
+                Icon::new(ARROW_DROP_DOWN),
+                Icon::new(ARROW_RIGHT),
+              ),
+              Label::wrapped("Edit columns"),
+            )
+            .controller(HoverController)
+            .on_click(|_, data, _| *data = !*data)
+            .lens(Settings::show_column_editor)
+            .padding(TRAILING_PADDING),
+          )
+          .with_child(
+            ViewSwitcher::new(
+              |data: &Settings, _| data.show_column_editor,
+              |_, data, _| {
+                if data.show_column_editor {
+                  ViewSwitcher::new(
+                    |headings: &Vector<Heading>, _| headings.clone(),
+                    |_, headings, _| Flex::row()
+                      .tap_mut(|row| {
+                        for (idx, heading) in headings.iter().enumerate() {
+                          row.add_flex_child(
+                            Flex::row()
+                              .with_default_spacer()
+                              .with_child(
+                                Icon::new(ARROW_LEFT)
+                                  .background(button_painter())
+                                  .controller(HoverController)
+                                  .on_click(move |ctx, data: &mut Vector<Heading>, _| {
+                                    data.swap(idx - 1, idx);
+                                    ctx.submit_command_global(Header::SWAP_HEADINGS.with((idx - 1, idx)))
+                                  })
+                                  .pipe(|icon| if idx == 0 {
+                                    icon.disabled_if(|_, _| true).boxed()
+                                  } else {
+                                    icon.boxed()
+                                  }),
+                              )
+                              .with_flex_child(
+                                Label::wrapped(<&str>::from(*heading))
+                                  .with_text_alignment(druid::TextAlignment::Center)
+                                  .expand_width(),
+                                1.,
+                              )
+                              .with_child(
+                                Icon::new(ARROW_RIGHT)
+                                  .background(button_painter())
+                                  .controller(HoverController)
+                                  .on_click(move |ctx, data: &mut Vector<Heading>, _| {
+                                    data.swap(idx, idx + 1);
+                                    ctx.submit_command_global(Header::SWAP_HEADINGS.with((idx, idx + 1)));
+                                  })
+                                  .pipe(|icon| if idx == headings.len() - 1 {
+                                    icon.disabled_if(|_, _| true).boxed()
+                                  } else {
+                                    icon.boxed()
+                                  }),
+                              )
+                              .with_default_spacer()
+                              .padding((0., 5., 0., 5.))
+                              .background(Painter::new(|ctx, _, env| {
+                                let border_rect = ctx.size().to_rect().inset(-1.5);
+                                if ctx.is_hot() {
+                                  ctx.stroke(border_rect, &env.get(druid::theme::BORDER_LIGHT), 3.)
+                                }
+                              }))
+                              .on_click(|_, _, _| {}),
+                            1.,
+                          )
+                        }
+                      })
+                      .boxed()
+                  )
+                  .lens(Settings::headings)
+                  .boxed()
+                } else {
+                  SizedBox::empty().boxed()
+                }
+              },
+            )
+            .padding(TRAILING_PADDING),
+          )
+          .with_child(
+            make_flex_settings_row(
               Checkbox::new("").lens(Settings::vmparams_enabled),
+              Label::wrapped("Enable vmparams editing"),
             )
             .on_change(|_, _old, data, _| {
               if data.vmparams_enabled && data.vmparams.is_none() {
@@ -205,9 +303,9 @@ impl Settings {
             )
           })
           .with_child(
-            make_flex_description_row(
-              Label::wrapped("Enable experimental direct launch:"),
+            make_flex_settings_row(
               Checkbox::new("").lens(Settings::experimental_launch),
+              Label::wrapped("Enable experimental direct launch"),
             )
             .padding(TRAILING_PADDING),
           )
@@ -295,13 +393,12 @@ impl Settings {
             Button::new("Browse...")
               .controller(HoverController)
               .on_click(|ctx, _, _| {
-                ctx.submit_command(
-                  Selector::new("druid.builtin.textbox-cancel-editing").to(Target::Global),
+                ctx.submit_command_global(
+                  Selector::new("druid.builtin.textbox-cancel-editing"),
                 );
-                ctx.submit_command(
+                ctx.submit_command_global(
                   Settings::SELECTOR
-                    .with(SettingsCommand::SelectInstallDir)
-                    .to(Target::Global),
+                    .with(SettingsCommand::SelectInstallDir),
                 )
               }),
           ),
@@ -316,13 +413,12 @@ impl Settings {
             Button::new("Browse...")
               .controller(HoverController)
               .on_click(|ctx, _, _| {
-                ctx.submit_command(
-                  Selector::new("druid.builtin.textbox-cancel-editing").to(Target::Global),
+                ctx.submit_command_global(
+                  Selector::new("druid.builtin.textbox-cancel-editing"),
                 );
-                ctx.submit_command(
+                ctx.submit_command_global(
                   Settings::SELECTOR
                     .with(SettingsCommand::SelectInstallDir)
-                    .to(Target::Global),
                 )
               }),
           )

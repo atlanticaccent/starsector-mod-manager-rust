@@ -5,13 +5,13 @@ use druid::{
   commands,
   im::{OrdMap, Vector},
   keyboard_types::Key,
-  lens, theme,
+  lens,
   widget::{
-    Axis, Button, Checkbox, Flex, Label, List, Maybe, Painter, Scope, ScopeTransfer, SizedBox,
+    Axis, Button, Checkbox, Flex, Label, List, Maybe, Scope, SizedBox,
     Tabs, TabsPolicy, TextBox, ViewSwitcher, Either, Spinner,
   },
   AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Event, EventCtx, Handled, KeyEvent,
-  Lens, LensExt, RenderContext, Selector, Target, Widget, WidgetExt, WidgetId, WindowDesc,
+  Lens, LensExt, Selector, Target, Widget, WidgetExt, WidgetId, WindowDesc,
   WindowId, WindowLevel,
 };
 use druid_widget_nursery::{
@@ -47,7 +47,7 @@ use self::{
   settings::{Settings, SettingsCommand},
   util::{
     get_latest_manager, get_quoted_version, get_starsector_version, h2, h3, icons::*,
-    make_column_pair, LabelExt, Release, GET_INSTALLED_STARSECTOR,
+    make_column_pair, LabelExt, Release, GET_INSTALLED_STARSECTOR, IndyToggleState, button_painter,
   },
 };
 
@@ -140,37 +140,6 @@ impl App {
   }
 
   pub fn ui_builder() -> impl Widget<Self> {
-    let button_painter = || {
-      Painter::new(|ctx, _, env| {
-        let is_active = ctx.is_active() && !ctx.is_disabled();
-        let is_hot = ctx.is_hot();
-        let size = ctx.size();
-        let stroke_width = env.get(theme::BUTTON_BORDER_WIDTH);
-
-        let rounded_rect = size
-          .to_rect()
-          .inset(-stroke_width / 2.0)
-          .to_rounded_rect(env.get(theme::BUTTON_BORDER_RADIUS));
-
-        let bg_gradient = if ctx.is_disabled() {
-          env.get(theme::DISABLED_BUTTON_DARK)
-        } else if is_active {
-          env.get(theme::BUTTON_DARK)
-        } else {
-          env.get(theme::BUTTON_LIGHT)
-        };
-
-        let border_color = if is_hot && !ctx.is_disabled() {
-          env.get(theme::BORDER_LIGHT)
-        } else {
-          env.get(theme::BORDER_DARK)
-        };
-
-        ctx.stroke(rounded_rect, &border_color, stroke_width);
-
-        ctx.fill(rounded_rect, &bg_gradient);
-      })
-    };
     let settings = Flex::row()
       .with_child(
         Flex::row()
@@ -262,8 +231,11 @@ impl App {
           .on_click(|event_ctx, _, _| event_ctx.submit_command(App::OPEN_WEBVIEW.with(None))),
       )
       .expand_width()
-      .disabled_if(|data, _| data.settings.install_dir.is_none());
-    let mod_list = mod_list::ModList::ui_builder()
+      .disabled_if(|data: &App, _| data.settings.install_dir.is_none());
+    let mod_list = ViewSwitcher::new(
+        |data: &ModList, _| data.header.headings.clone(),
+        |_, _, _| mod_list::ModList::ui_builder().boxed()
+      )
       .lens(App::mod_list)
       .on_change(|_ctx, _old, data, _env| {
         if let Some(install_dir) = &data.settings.install_dir {
@@ -378,7 +350,7 @@ impl App {
           panel.add_child(
             Scope::from_function(
               |state: bool| state,
-              IndyToggleState { state: true },
+              IndyToggleState::default(),
               Checkbox::from_label(Label::wrapped(&filter.to_string())).on_change(
                 move |ctx, _, new, _| {
                   ctx.submit_command(ModList::FILTER_UPDATE.with((filter, !*new)))
@@ -1259,18 +1231,4 @@ enum SubwindowType {
   Overwrite,
   Duplicate,
   Download,
-}
-
-#[derive(Clone, Data, Lens)]
-struct IndyToggleState {
-  state: bool,
-}
-
-impl ScopeTransfer for IndyToggleState {
-  type In = bool;
-  type State = bool;
-
-  fn read_input(&self, _: &mut Self::State, _: &Self::In) {}
-
-  fn write_back_input(&self, _: &Self::State, _: &mut Self::In) {}
 }
