@@ -72,7 +72,7 @@ impl ModList {
               ModEntry::ui_builder()
                 .expand_width()
                 .lens(lens::Map::new(
-                  |val: &EntryAlias| (val.0.clone(), val.3.clone()),
+                  |val: &EntryAlias| (val.0.clone(), val.2.clone(), val.3.clone()),
                   |_, _| {}
                 ))
                 .background(Painter::new(
@@ -328,6 +328,7 @@ impl ModList {
               .and_then(|r| r.direct_download_url.as_ref())
               .is_some(),
           ),
+          Heading::InstallDate => std::cmp::Ordering::Equal,
       };
 
       if self.header.sort_by.1 {

@@ -125,7 +125,7 @@ impl ModEntry {
     self.enabled = enabled;
   }
 
-  pub fn ui_builder() -> impl Widget<(Arc<Self>, Rc<Vector<Heading>>)> {
+  pub fn ui_builder() -> impl Widget<(Arc<Self>, Rc<Vec<f64>>, Rc<Vector<Heading>>)> {
     fn recursive_split(
       idx: usize,
       mut widgets: VecDeque<SizedBox<Arc<ModEntry>>>,
@@ -157,8 +157,8 @@ impl ModEntry {
     }
 
     ViewSwitcher::new(
-      |data: &(Arc<Self>, Rc<Vector<Heading>>), _| data.1.clone(),
-      |_, (_, headings), _| {
+      |data: &(Arc<Self>, Rc<Vec<f64>>, Rc<Vector<Heading>>), _| data.1.clone(),
+      |_, (_, ratios, headings), _| {
         let mut children: VecDeque<SizedBox<Arc<ModEntry>>> = VecDeque::new();
 
         let iter = headings.iter();
@@ -269,6 +269,9 @@ impl ModEntry {
             )
             .padding(5.)
             .expand_width(),
+            Heading::InstallDate => Label::new("Unimplemented")
+              .padding(5.)
+              .expand_width(),
             Heading::Enabled | Heading::Score => continue,
           };
 
@@ -284,7 +287,7 @@ impl ModEntry {
             .on_change(|ctx, _old, data, _| {
               ctx.submit_command(ModEntry::REPLACE.with(data.clone()))
             }),
-          recursive_split(0, children, &headings::RATIOS),
+          recursive_split(0, children, &ratios),
         )
         .split_point(headings::ENABLED_RATIO)
         .on_click(
@@ -293,7 +296,7 @@ impl ModEntry {
           },
         )
         .controller(ModEntryClickController)
-        .lens(lens!((Arc<ModEntry>, Rc<Vector<Heading>>), 0))
+        .lens(lens!((Arc<ModEntry>, Rc<Vec<f64>>, Rc<Vector<Heading>>), 0))
         .boxed()
       },
     )

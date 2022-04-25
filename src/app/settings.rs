@@ -6,28 +6,34 @@ use druid::{
   text::ParseFormatter,
   theme,
   widget::{
-    Axis, Button, Checkbox, Controller, Either, Flex, Label, Painter, SizedBox, TextBox,
+    Axis, Button, Checkbox, Controller, Flex, Label, Painter, SizedBox, TextBox,
     TextBoxEvent, ValidationDelegate, ViewSwitcher, WidgetExt,
   },
   Data, Event, EventCtx, Lens, LensExt, Menu, MenuItem, RenderContext, Selector, Widget,
+  WindowConfig,
 };
 use druid_widget_nursery::{material_icons::Icon, DynLens, WidgetExt as WidgetExtNursery};
 use if_chain::if_chain;
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
-use tap::{Tap, Pipe};
+use tap::{Pipe, Tap};
 
-use crate::{app::PROJECT, patch::tooltip::TooltipController};
+use crate::{
+  app::PROJECT,
+  patch::{click::Click, tooltip::TooltipController},
+};
 
 use self::vmparams::{Unit, VMParams, Value};
 
 use super::{
   controllers::HoverController,
   mod_list::headings::{Header, Heading},
+  modal::Modal,
   util::{
     button_painter, default_true, h2, h3, icons::*, make_column_pair, make_flex_pair,
-    make_flex_settings_row, DragWindowController, LabelExt, LoadError, SaveError, CommandExt,
+    make_flex_settings_row, CommandExt, DragWindowController, LabelExt, LoadError, SaveError,
   },
+  App,
 };
 
 pub mod vmparams;
@@ -121,16 +127,136 @@ impl Settings {
           )
           .with_child(
             make_flex_settings_row(
-              Either::new(
-                |data, _| *data,
-                Icon::new(ARROW_DROP_DOWN),
-                Icon::new(ARROW_RIGHT),
+              SizedBox::empty(),
+              Button::from_label(Label::wrapped("Edit columns")).on_click(
+                |ctx, data: &mut Settings, env| {
+                  let modal = Modal::<Settings>::new("Column Editor")
+                    .with_content(
+                      ViewSwitcher::new(
+                        |headings: &Vector<Heading>, _| headings.clone(),
+                        |_, headings, _| {
+                          Flex::row()
+                            .tap_mut(|column| {
+                              for (idx, heading) in headings.iter().cloned().enumerate() {
+                                column.add_flex_child(
+                                  Flex::row()
+                                    .with_default_spacer()
+                                    .with_child(
+                                      Icon::new(ARROW_LEFT)
+                                        .background(button_painter())
+                                        .controller(HoverController)
+                                        .on_click(move |ctx, data: &mut Vector<Heading>, _| {
+                                          data.swap(idx - 1, idx);
+                                          ctx.submit_command_global(
+                                            Header::SWAP_HEADINGS.with((idx - 1, idx)),
+                                          )
+                                        })
+                                        .pipe(|icon| {
+                                          if idx == 0 {
+                                            icon.disabled_if(|_, _| true).boxed()
+                                          } else {
+                                            icon.boxed()
+                                          }
+                                        }),
+                                    )
+                                    .with_flex_child(
+                                      Label::wrapped(<&str>::from(heading))
+                                        .with_text_alignment(druid::TextAlignment::Center)
+                                        .expand_width(),
+                                      1.,
+                                    )
+                                    .with_child(
+                                      Icon::new(CLOSE)
+                                        .on_click(move |ctx, data: &mut Vector<Heading>, _| {
+                                          data.retain(|existing| existing != &heading);
+                                          ctx.submit_command_global(
+                                            Header::REMOVE_HEADING.with(heading),
+                                          );
+                                        })
+                                        .controller(HoverController),
+                                    )
+                                    .with_child(
+                                      Icon::new(ARROW_RIGHT)
+                                        .background(button_painter())
+                                        .controller(HoverController)
+                                        .on_click(move |ctx, data: &mut Vector<Heading>, _| {
+                                          data.swap(idx, idx + 1);
+                                          ctx.submit_command_global(
+                                            Header::SWAP_HEADINGS.with((idx, idx + 1)),
+                                          );
+                                        })
+                                        .pipe(|icon| {
+                                          if idx == headings.len() - 1 {
+                                            icon.disabled_if(|_, _| true).boxed()
+                                          } else {
+                                            icon.boxed()
+                                          }
+                                        }),
+                                    )
+                                    .with_default_spacer()
+                                    .padding((0., 5., 0., 5.))
+                                    .background(Painter::new(|ctx, _, env| {
+                                      let border_rect = ctx.size().to_rect().inset(-1.5);
+                                      if ctx.is_hot() {
+                                        ctx.stroke(
+                                          border_rect,
+                                          &env.get(druid::theme::BORDER_LIGHT),
+                                          3.,
+                                        )
+                                      }
+                                    }))
+                                    .on_click(|_, _, _| {}),
+                                  1.,
+                                )
+                              }
+                            })
+                            .boxed()
+                        },
+                      )
+                      .lens(Settings::headings)
+                      .boxed(),
+                    )
+                    .with_content(
+                      Flex::row()
+                        .with_flex_spacer(1.)
+                        .with_flex_child(
+                          Button::new("Add new column")
+                            .controller(Click::new(|ctx, mouse_event, data: &mut Settings, _| {
+                              let mut menu: Menu<super::App> = Menu::empty();
+                              for heading in Heading::iter().filter(|heading| {
+                                !matches!(heading, Heading::Score | Heading::Enabled)
+                                  && !data.headings.contains(heading)
+                              }) {
+                                menu = menu.entry(MenuItem::new(<&str>::from(heading)).on_activate(
+                                  move |ctx, data: &mut App, _| {
+                                    data.settings.headings.push_back(heading);
+                                    ctx.submit_command(Header::ADD_HEADING.with(heading).to(druid::Target::Global))
+                                  },
+                                ))
+                              }
+    
+                              ctx.show_context_menu::<super::App>(menu, ctx.to_window(mouse_event.pos))
+                            }))
+                            .expand_width(),
+                          2.
+                        )
+                        .with_flex_spacer(1.)
+                        .boxed(),
+                    )
+                    .with_close()
+                    .build();
+
+                  ctx.new_sub_window(
+                    WindowConfig::default()
+                      .window_size((1200., 200.))
+                      .show_titlebar(false),
+                    modal,
+                    data.clone(),
+                    env.clone(),
+                  );
+                },
               ),
-              Label::wrapped("Edit columns"),
             )
-            .controller(HoverController)
-            .on_click(|_, data, _| *data = !*data)
-            .lens(Settings::show_column_editor)
             .padding(TRAILING_PADDING),
           )
           .with_child(
@@ -140,60 +266,74 @@ impl Settings {
                 if data.show_column_editor {
                   ViewSwitcher::new(
                     |headings: &Vector<Heading>, _| headings.clone(),
-                    |_, headings, _| Flex::row()
-                      .tap_mut(|row| {
-                        for (idx, heading) in headings.iter().enumerate() {
-                          row.add_flex_child(
-                            Flex::row()
-                              .with_default_spacer()
-                              .with_child(
-                                Icon::new(ARROW_LEFT)
-                                  .background(button_painter())
-                                  .controller(HoverController)
-                                  .on_click(move |ctx, data: &mut Vector<Heading>, _| {
-                                    data.swap(idx - 1, idx);
-                                    ctx.submit_command_global(Header::SWAP_HEADINGS.with((idx - 1, idx)))
-                                  })
-                                  .pipe(|icon| if idx == 0 {
-                                    icon.disabled_if(|_, _| true).boxed()
-                                  } else {
-                                    icon.boxed()
-                                  }),
-                              )
-                              .with_flex_child(
-                                Label::wrapped(<&str>::from(*heading))
-                                  .with_text_alignment(druid::TextAlignment::Center)
-                                  .expand_width(),
-                                1.,
-                              )
-                              .with_child(
-                                Icon::new(ARROW_RIGHT)
-                                  .background(button_painter())
-                                  .controller(HoverController)
-                                  .on_click(move |ctx, data: &mut Vector<Heading>, _| {
-                                    data.swap(idx, idx + 1);
-                                    ctx.submit_command_global(Header::SWAP_HEADINGS.with((idx, idx + 1)));
-                                  })
-                                  .pipe(|icon| if idx == headings.len() - 1 {
-                                    icon.disabled_if(|_, _| true).boxed()
-                                  } else {
-                                    icon.boxed()
-                                  }),
-                              )
-                              .with_default_spacer()
-                              .padding((0., 5., 0., 5.))
-                              .background(Painter::new(|ctx, _, env| {
-                                let border_rect = ctx.size().to_rect().inset(-1.5);
-                                if ctx.is_hot() {
-                                  ctx.stroke(border_rect, &env.get(druid::theme::BORDER_LIGHT), 3.)
-                                }
-                              }))
-                              .on_click(|_, _, _| {}),
-                            1.,
-                          )
-                        }
-                      })
-                      .boxed()
+                    |_, headings, _| {
+                      Flex::row()
+                        .tap_mut(|row| {
+                          for (idx, heading) in headings.iter().enumerate() {
+                            row.add_flex_child(
+                              Flex::row()
+                                .with_default_spacer()
+                                .with_child(
+                                  Icon::new(ARROW_LEFT)
+                                    .background(button_painter())
+                                    .controller(HoverController)
+                                    .on_click(move |ctx, data: &mut Vector<Heading>, _| {
+                                      data.swap(idx - 1, idx);
+                                      ctx.submit_command_global(
+                                        Header::SWAP_HEADINGS.with((idx - 1, idx)),
+                                      )
+                                    })
+                                    .pipe(|icon| {
+                                      if idx == 0 {
+                                        icon.disabled_if(|_, _| true).boxed()
+                                      } else {
+                                        icon.boxed()
+                                      }
+                                    }),
+                                )
+                                .with_flex_child(
+                                  Label::wrapped(<&str>::from(*heading))
+                                    .with_text_alignment(druid::TextAlignment::Center)
+                                    .expand_width(),
+                                  1.,
+                                )
+                                .with_child(
+                                  Icon::new(ARROW_RIGHT)
+                                    .background(button_painter())
+                                    .controller(HoverController)
+                                    .on_click(move |ctx, data: &mut Vector<Heading>, _| {
+                                      data.swap(idx, idx + 1);
+                                      ctx.submit_command_global(
+                                        Header::SWAP_HEADINGS.with((idx, idx + 1)),
+                                      );
+                                    })
+                                    .pipe(|icon| {
+                                      if idx == headings.len() - 1 {
+                                        icon.disabled_if(|_, _| true).boxed()
+                                      } else {
+                                        icon.boxed()
+                                      }
+                                    }),
+                                )
+                                .with_default_spacer()
+                                .padding((0., 5., 0., 5.))
+                                .background(Painter::new(|ctx, _, env| {
+                                  let border_rect = ctx.size().to_rect().inset(-1.5);
+                                  if ctx.is_hot() {
+                                    ctx.stroke(
+                                      border_rect,
+                                      &env.get(druid::theme::BORDER_LIGHT),
+                                      3.,
+                                    )
+                                  }
+                                }))
+                                .on_click(|_, _, _| {}),
+                              1.,
+                            )
+                          }
+                        })
+                        .boxed()
+                    },
                   )
                   .lens(Settings::headings)
                   .boxed()
@@ -393,13 +533,9 @@ impl Settings {
             Button::new("Browse...")
               .controller(HoverController)
               .on_click(|ctx, _, _| {
-                ctx.submit_command_global(
-                  Selector::new("druid.builtin.textbox-cancel-editing"),
-                );
-                ctx.submit_command_global(
-                  Settings::SELECTOR
-                    .with(SettingsCommand::SelectInstallDir),
-                )
+                ctx.submit_command_global(Selector::new("druid.builtin.textbox-cancel-editing"));
+                ctx
+                  .submit_command_global(Settings::SELECTOR.with(SettingsCommand::SelectInstallDir))
               }),
           ),
         1.5,
@@ -413,13 +549,9 @@ impl Settings {
             Button::new("Browse...")
               .controller(HoverController)
               .on_click(|ctx, _, _| {
-                ctx.submit_command_global(
-                  Selector::new("druid.builtin.textbox-cancel-editing"),
-                );
-                ctx.submit_command_global(
-                  Settings::SELECTOR
-                    .with(SettingsCommand::SelectInstallDir)
-                )
+                ctx.submit_command_global(Selector::new("druid.builtin.textbox-cancel-editing"));
+                ctx
+                  .submit_command_global(Settings::SELECTOR.with(SettingsCommand::SelectInstallDir))
               }),
           )
           .cross_axis_alignment(druid::widget::CrossAxisAlignment::End),

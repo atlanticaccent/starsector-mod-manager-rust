@@ -14,7 +14,7 @@ use super::util::icons::*;
 pub const RATIOS: [f64; 5] = [1. / 6., 1. / 5., 1. / 4., 1. / 3., 1. / 2.];
 pub const ENABLED_RATIO: f64 = 1. / 12.;
 
-#[derive(Debug, Clone, Copy, Data, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Data, PartialEq, Eq, strum_macros::EnumIter)]
 pub enum Heading {
   ID,
   Name,
@@ -24,6 +24,7 @@ pub enum Heading {
   Version,
   Score,
   AutoUpdateSupport,
+  InstallDate,
 }
 
 impl From<Heading> for &str {
@@ -37,6 +38,7 @@ impl From<Heading> for &str {
       Heading::Version => "Version",
       Heading::Score => "score",
       Heading::AutoUpdateSupport => "Auto-Update Supported",
+      Heading::InstallDate => "Install Date",
     }
   }
 }
@@ -53,6 +55,8 @@ pub struct Header {
 impl Header {
   pub const SORT_CHANGED: Selector<Heading> = Selector::new("headings.sorting.changed");
   pub const SWAP_HEADINGS: Selector<(usize, usize)> = Selector::new("headings.order.changed");
+  pub const ADD_HEADING: Selector<Heading> = Selector::new("headings.add");
+  pub const REMOVE_HEADING: Selector<Heading> = Selector::new("headings.remove");
 
   pub const TITLES: [Heading; 6] = [
     Heading::Name,
@@ -109,6 +113,22 @@ impl Header {
     )
     .on_command(Header::SWAP_HEADINGS, |_, (idx, jdx), header| {
       header.headings.swap(*idx, *jdx)
+    })
+    .on_command(Header::ADD_HEADING, |_, heading, header| {
+      header.headings.push_back(*heading);
+      let mut ratios = vec![];
+      for idx in (0..header.headings.len() - 1).rev() {
+        ratios.push(1. / (idx + 2) as f64)
+      }
+      header.ratios = ratios;
+    })
+    .on_command(Header::REMOVE_HEADING, |_, heading, header| {
+      header.headings.retain(|existing| existing != heading);
+      let mut ratios = vec![];
+      for idx in (0..header.headings.len() - 1).rev() {
+        ratios.push(1. / (idx + 2) as f64)
+      }
+      header.ratios = ratios;
     })
   }
 }
