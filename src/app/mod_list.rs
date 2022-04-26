@@ -22,7 +22,7 @@ use crate::app::util::StarsectorVersionDiff;
 
 use super::{
   installer::HybridPath,
-  mod_entry::{GameVersion, ModEntry, UpdateStatus},
+  mod_entry::{GameVersion, ModEntry, UpdateStatus, ModMetadata},
   util::{self, SaveError},
 };
 
@@ -32,7 +32,7 @@ use self::headings::{Header, Heading};
 #[derive(Clone, Data, Lens)]
 pub struct ModList {
   #[data(same_fn = "PartialEq::eq")]
-  pub mods: BTreeMap<String, Arc<ModEntry>>,
+  pub mods: HashMap<String, Arc<ModEntry>>,
   pub header: Header,
   search_text: String,
   #[data(same_fn = "PartialEq::eq")]
@@ -204,6 +204,15 @@ impl ModList {
           data.mods.insert(entry.id.clone(), entry);
         };
       })
+      .on_command(ModMetadata::SUBMIT_MOD_METADATA, |_ctx, (id, metadata), data| {
+        if let Some(mut entry) = data.mods.remove(id) {
+          ModEntry::manager_metadata
+            .in_arc()
+            .put(&mut entry, metadata.clone());
+
+          data.mods.insert(id.clone(), entry);
+        }
+      })
   }
 
   pub async fn parse_mod_folder(event_sink: ExtEventSink, root_dir: Option<PathBuf>) {
@@ -241,7 +250,7 @@ impl ModList {
             }
           })
           .filter_map(|entry| {
-            if let Ok(mut mod_info) = ModEntry::from_file(&entry.path()) {
+            if let Ok(mut mod_info) = ModEntry::from_file(&entry.path(), ModMetadata::default()) {
               mod_info.set_enabled(
                 enabled_mods_iter
                   .clone()
@@ -261,6 +270,9 @@ impl ModList {
             };
             if let Some(version) = entry.version_checker.clone() {
               handle.spawn(util::get_master_version(event_sink.clone(), version));
+            }
+            if ModMetadata::path(&entry.path).exists() {
+              handle.spawn(ModMetadata::parse_and_send(entry.id.clone(), entry.path.clone(), event_sink.clone()));
             }
           });
       }

@@ -2,7 +2,17 @@
 
 use std::{io::Read, sync::Arc, path::PathBuf, collections::VecDeque};
 
-use druid::{widget::{Label, LensWrap, Flex, Axis, RawLabel, Controller, ScopeTransfer, Painter}, Data, Lens, WidgetExt, Widget, ExtEventSink, Selector, Target, lens, text::{RichText, AttributeSpans, Attribute}, FontWeight, Key, Color, KeyOrValue, Point, EventCtx, Event, theme, RenderContext, UnitPoint, Command};
+use druid::{
+  widget::{
+    Label, LensWrap, Flex, Axis, RawLabel, Controller, ScopeTransfer, Painter
+  },
+  text::{
+    RichText, AttributeSpans, Attribute
+  },
+  Data, Lens, WidgetExt, Widget, ExtEventSink, Selector, Target, lens,
+  FontWeight, Key, Color, KeyOrValue, Point, EventCtx, Event, theme,
+  RenderContext, UnitPoint, Command
+};
 use druid_widget_nursery::CommandCtx;
 use if_chain::if_chain;
 use json_comments::strip_comments;

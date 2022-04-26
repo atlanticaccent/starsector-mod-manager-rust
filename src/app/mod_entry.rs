@@ -8,15 +8,16 @@ use std::{
   sync::Arc,
 };
 
+use chrono::{Utc, DateTime};
 use druid::{
   im::Vector,
   lens,
   widget::{Button, Checkbox, Controller, ControllerHost, Flex, Label, SizedBox, ViewSwitcher},
-  Color, Data, KeyOrValue, Lens, LensExt, Selector, Widget, WidgetExt,
+  Color, Data, KeyOrValue, Lens, LensExt, Selector, Widget, WidgetExt, ExtEventSink,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
 use json_comments::strip_comments;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use if_chain::if_chain;
 use serde_aux::prelude::*;
@@ -74,6 +75,8 @@ pub struct ModEntry {
   #[serde(skip)]
   #[serde(default = "default_true")]
   display: bool,
+  #[serde(skip)]
+  pub manager_metadata: ModMetadata,
 }
 
 impl ModEntry {
@@ -82,7 +85,7 @@ impl ModEntry {
   pub const AUTO_UPDATE: Selector<Arc<ModEntry>> = Selector::new("mod_list.update.auto");
   pub const ASK_DELETE_MOD: Selector<Arc<ModEntry>> = Selector::new("mod_entry.delete");
 
-  pub fn from_file(path: &Path) -> Result<ModEntry, ModEntryError> {
+  pub fn from_file(path: &Path, manager_metadata: ModMetadata) -> Result<ModEntry, ModEntryError> {
     if let Ok(mod_info_file) = std::fs::read_to_string(path.join("mod_info.json")) {
       if_chain! {
         let mut stripped = String::new();
@@ -92,6 +95,7 @@ impl ModEntry {
           mod_info.version_checker = ModEntry::parse_version_checker(path, &mod_info.id);
           mod_info.path = path.to_path_buf();
           mod_info.game_version = parse_game_version(&mod_info.raw_game_version);
+          mod_info.manager_metadata = manager_metadata;
           Ok(mod_info)
         } else {
           Err(ModEntryError::ParseError)
@@ -503,5 +507,57 @@ impl UpdateStatus {
       UpdateStatus::Error => ON_RED_KEY.into(),
       UpdateStatus::UpToDate => ON_GREEN_KEY.into(),
     }
+  }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Data, Default)]
+pub struct ModMetadata {
+  #[data(same_fn = "PartialEq::eq")]
+  install_date: Option<DateTime<Utc>>,
+}
+
+impl ModMetadata {
+  const FILE_NAME: &'static str = ".moss";
+
+  pub const SUBMIT_MOD_METADATA: Selector<(String, ModMetadata)> = Selector::new("mod_metadata.submit");
+
+  pub fn new() -> Self {
+    Self {
+      install_date: Some(Utc::now())
+    }
+  }
+
+  pub fn path(parent: impl AsRef<Path>) -> PathBuf {
+    parent.as_ref().join(Self::FILE_NAME)
+  }
+
+  pub async fn parse(mod_folder: impl AsRef<Path>) -> std::io::Result<Self> {
+    use tokio::fs::read_to_string;
+
+    let json = read_to_string(Self::path(mod_folder)).await?;
+
+    let metadata = serde_json::from_str(&json)?;
+
+    Ok(metadata)
+  }
+
+  pub async fn parse_and_send(id: String, mod_folder: impl AsRef<Path>, ext_ctx: ExtEventSink) {
+    use druid::Target;
+
+    if let Ok(mod_metadata) = Self::parse(mod_folder).await {
+      let _ = ext_ctx.submit_command(Self::SUBMIT_MOD_METADATA, (id, mod_metadata), Target::Auto);
+    }
+  }
+
+  pub async fn save(&self, mod_folder: impl AsRef<Path>) -> std::io::Result<()> {
+    use tokio::fs::write;
+
+    let path = Self::path(mod_folder);
+
+    let json = serde_json::to_vec_pretty(&self)?;
+
+    write(&path, json).await?;
+
+    Ok(())
   }
 }
