@@ -292,7 +292,7 @@ impl ModEntry {
         .split_point(headings::ENABLED_RATIO)
         .on_click(
           |ctx: &mut druid::EventCtx, data: &mut Arc<ModEntry>, _env: &druid::Env| {
-            ctx.submit_command(App::SELECTOR.with(AppCommands::UpdateModDescription(data.clone())))
+            ctx.submit_command(App::SELECTOR.with(AppCommands::UpdateModDescription(data.id.clone())))
           },
         )
         .controller(ModEntryClickController)

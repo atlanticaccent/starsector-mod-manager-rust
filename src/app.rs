@@ -7,12 +7,11 @@ use druid::{
   keyboard_types::Key,
   lens,
   widget::{
-    Axis, Button, Checkbox, Flex, Label, List, Maybe, Scope, SizedBox,
-    Tabs, TabsPolicy, TextBox, ViewSwitcher, Either, Spinner,
+    Axis, Button, Checkbox, Either, Flex, Label, List, Maybe, Scope, SizedBox, Spinner, Tabs,
+    TabsPolicy, TextBox, ViewSwitcher,
   },
   AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Event, EventCtx, Handled, KeyEvent,
-  Lens, LensExt, Selector, Target, Widget, WidgetExt, WidgetId, WindowDesc,
-  WindowId, WindowLevel,
+  Lens, LensExt, Selector, Target, Widget, WidgetExt, WidgetId, WindowDesc, WindowId, WindowLevel,
 };
 use druid_widget_nursery::{
   material_icons::Icon, ProgressBar, Separator, WidgetExt as WidgetExtNursery,
@@ -32,22 +31,21 @@ use crate::{
     tabs_policy::{InitialTab, StaticTabsForked},
   },
   webview::{
-    fork_into_webview, kill_server_thread, maximize_webview, WEBVIEW_INSTALL,
-    WEBVIEW_SHUTDOWN,
+    fork_into_webview, kill_server_thread, maximize_webview, WEBVIEW_INSTALL, WEBVIEW_SHUTDOWN,
   },
 };
 
 use self::{
-  controllers::{AppController, InstallController, ModListController, HoverController},
-  installer::{ChannelMessage, HybridPath, StringOrPath, DOWNLOAD_STARTED, DOWNLOAD_PROGRESS},
+  controllers::{AppController, HoverController, InstallController, ModListController},
+  installer::{HybridPath, StringOrPath, DOWNLOAD_PROGRESS, DOWNLOAD_STARTED},
   mod_description::ModDescription,
   mod_entry::ModEntry,
   mod_list::{EnabledMods, Filters, ModList},
   modal::Modal,
   settings::{Settings, SettingsCommand},
   util::{
-    get_latest_manager, get_quoted_version, get_starsector_version, h2, h3, icons::*,
-    make_column_pair, LabelExt, Release, GET_INSTALLED_STARSECTOR, IndyToggleState, button_painter,
+    button_painter, get_latest_manager, get_quoted_version, get_starsector_version, h2, h3,
+    icons::*, make_column_pair, IndyToggleState, LabelExt, Release, GET_INSTALLED_STARSECTOR,
   },
 };
 
@@ -69,7 +67,7 @@ pub struct App {
   init: bool,
   settings: settings::Settings,
   mod_list: mod_list::ModList,
-  active: Option<Arc<ModEntry>>,
+  active: Option<String>,
   #[data(ignore)]
   runtime: Handle,
   #[data(ignore)]
@@ -233,33 +231,40 @@ impl App {
       .expand_width()
       .disabled_if(|data: &App, _| data.settings.install_dir.is_none());
     let mod_list = ViewSwitcher::new(
-        |data: &ModList, _| data.header.headings.clone(),
-        |_, _, _| mod_list::ModList::ui_builder().boxed()
-      )
-      .lens(App::mod_list)
-      .on_change(|_ctx, _old, data, _env| {
-        if let Some(install_dir) = &data.settings.install_dir {
-          let enabled: Vec<Arc<ModEntry>> = data
-            .mod_list
-            .mods
-            .iter()
-            .filter_map(|(_, v)| v.enabled.then(|| v.clone()))
-            .collect();
+      |data: &ModList, _| data.header.headings.clone(),
+      |_, _, _| mod_list::ModList::ui_builder().boxed(),
+    )
+    .lens(App::mod_list)
+    .on_change(|_ctx, _old, data, _env| {
+      if let Some(install_dir) = &data.settings.install_dir {
+        let enabled: Vec<Arc<ModEntry>> = data
+          .mod_list
+          .mods
+          .iter()
+          .filter_map(|(_, v)| v.enabled.then(|| v.clone()))
+          .collect();
 
-          if let Err(err) = EnabledMods::from(enabled).save(install_dir) {
-            eprintln!("{:?}", err)
-          };
-        }
-      })
-      .expand()
-      .controller(ModListController);
+        if let Err(err) = EnabledMods::from(enabled).save(install_dir) {
+          eprintln!("{:?}", err)
+        };
+      }
+    })
+    .expand()
+    .controller(ModListController);
     let mod_description = ViewSwitcher::new(
-      |data: &App, _| (data.active.clone(), data.webview.is_some()),
-      |(active, enabled), _, _| {
+      |data: &App, _| {
+        (
+          data.active.clone(),
+          data.mod_list.mods.clone(),
+          data.webview.is_some(),
+        )
+      },
+      |(active, mods, enabled), _, _| {
         if let Some(active) = active {
           let enabled = *enabled;
+          let entry = mods.get(active).unwrap();
           ModDescription::ui_builder()
-            .lens(lens::Constant(active.clone()))
+            .lens(lens::Constant(entry.clone()))
             .disabled_if(move |_, _| enabled)
             .boxed()
         } else {
@@ -284,24 +289,16 @@ impl App {
         Button::new("Enable All")
           .controller(HoverController)
           .on_click(|_, data: &mut App, _| {
-            if let Some(install_dir) = data.settings.install_dir.as_ref() {
-              let id = data.active.as_ref().map(|e| e.id.clone());
-              data.active = None;
-              let mut enabled: Vec<String> = Vec::new();
-              data.mod_list.mods = data
-                .mod_list
-                .mods
-                .drain_filter(|_, _| true)
-                .map(|(id, mut entry)| {
+            if let Some(install_dir) = data.settings.install_dir.as_ref().cloned() {
+              let ids: Vec<String> = data.mod_list.mods.keys().cloned().collect();
+
+              for id in ids.iter() {
+                if let Some(mut entry) = data.mod_list.mods.remove(id) {
                   (Arc::make_mut(&mut entry)).enabled = true;
-                  enabled.push(id.clone());
-                  (id, entry)
-                })
-                .collect();
-              data.active = id
-                .as_ref()
-                .and_then(|id| data.mod_list.mods.get(id).cloned());
-              if let Err(err) = EnabledMods::from(enabled).save(install_dir) {
+                  data.mod_list.mods.insert(id.clone(), entry);
+                }
+              }
+              if let Err(err) = EnabledMods::from(ids).save(&install_dir) {
                 eprintln!("{:?}", err)
               }
             }
@@ -315,20 +312,14 @@ impl App {
           .controller(HoverController)
           .on_click(|_, data: &mut App, _| {
             if let Some(install_dir) = data.settings.install_dir.as_ref() {
-              let id = data.active.as_ref().map(|e| e.id.clone());
-              data.active = None;
-              data.mod_list.mods = data
-                .mod_list
-                .mods
-                .drain_filter(|_, _| true)
-                .map(|(id, mut entry)| {
+              let ids: Vec<String> = data.mod_list.mods.keys().cloned().collect();
+
+              for id in ids.iter() {
+                if let Some(mut entry) = data.mod_list.mods.remove(id) {
                   (Arc::make_mut(&mut entry)).enabled = false;
-                  (id, entry)
-                })
-                .collect();
-              data.active = id
-                .as_ref()
-                .and_then(|id| data.mod_list.mods.get(id).cloned());
+                  data.mod_list.mods.insert(id.clone(), entry);
+                }
+              }
               if let Err(err) = EnabledMods::empty().save(install_dir) {
                 eprintln!("{:?}", err)
               }
@@ -537,7 +528,7 @@ impl App {
 
 enum AppCommands {
   OpenSettings,
-  UpdateModDescription(Arc<ModEntry>),
+  UpdateModDescription(String),
 }
 
 #[derive(Default)]
@@ -639,7 +630,8 @@ impl Delegate<App> for AppDelegate {
       App::mod_list
         .then(ModList::starsector_version)
         .put(data, res.as_ref().ok().cloned());
-    } else if let Some(entry) = cmd
+    }
+    /* else if let Some(entry) = cmd
       .get(ModEntry::REPLACE)
       .or_else(|| cmd.get(ModList::SUBMIT_ENTRY))
       .or_else(|| {
@@ -655,7 +647,8 @@ impl Delegate<App> for AppDelegate {
       if Some(&entry.id) == data.active.as_ref().map(|e| &e.id) {
         data.active = Some(entry.clone())
       }
-    } else if let Some(name) = cmd.get(App::LOG_SUCCESS) {
+    }  */
+    else if let Some(name) = cmd.get(App::LOG_SUCCESS) {
       data.log_message(&format!("Successfully installed {}", name));
       self.display_if_closed(ctx, SubwindowType::Log);
 
@@ -846,7 +839,9 @@ impl Delegate<App> for AppDelegate {
         eprintln!("Failed to delete mod")
       }
     } else if let Some((timestamp, url)) = cmd.get(DOWNLOAD_STARTED) {
-      data.downloads.insert(*timestamp, (*timestamp, url.clone(), 0.0));
+      data
+        .downloads
+        .insert(*timestamp, (*timestamp, url.clone(), 0.0));
 
       self.display_if_closed(ctx, SubwindowType::Download);
 
@@ -1181,11 +1176,14 @@ impl AppDelegate {
         List::new(|| {
           Flex::column()
             .with_child(Label::wrapped_lens(lens!((i64, String, f64), 1)))
-            .with_child(Label::wrapped_func(|data, _| {
-              let start_time = Local.timestamp(*data, 0).format("%I:%M%p");
+            .with_child(
+              Label::wrapped_func(|data, _| {
+                let start_time = Local.timestamp(*data, 0).format("%I:%M%p");
 
-              format!("Started at: {}", start_time)
-            }).lens(lens!((i64, String, f64), 0)))
+                format!("Started at: {}", start_time)
+              })
+              .lens(lens!((i64, String, f64), 0)),
+            )
             .with_child(
               Flex::row()
                 .with_flex_child(
@@ -1194,27 +1192,29 @@ impl AppDelegate {
                     .with_bar_brush(druid::Color::GREEN.into())
                     .expand_width()
                     .lens(lens!((i64, String, f64), 2)),
-                    1.
+                  1.,
                 )
                 .with_child(
                   Either::new(
                     |fraction, _| *fraction < 1.0,
                     Spinner::new(),
-                    Icon::new(VERIFIED)
+                    Icon::new(VERIFIED),
                   )
-                  .lens(lens!((i64, String, f64), 2))
+                  .lens(lens!((i64, String, f64), 2)),
                 )
                 .with_child(
                   Either::new(
                     |fraction, _| *fraction < 1.0,
                     Icon::new(CLOSE).with_color(druid::Color::GRAY),
-                    Icon::new(CLOSE)
+                    Icon::new(CLOSE),
                   )
                   .lens(lens!((i64, String, f64), 2))
                   .controller(HoverController)
-                  .on_click(|ctx, data, _| ctx.submit_command(App::REMOVE_DOWNLOAD_BAR.with(data.0)))
-                  .disabled_if(|data, _| data.2 < 1.0)
-                )
+                  .on_click(|ctx, data, _| {
+                    ctx.submit_command(App::REMOVE_DOWNLOAD_BAR.with(data.0))
+                  })
+                  .disabled_if(|data, _| data.2 < 1.0),
+                ),
             )
             .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
         })

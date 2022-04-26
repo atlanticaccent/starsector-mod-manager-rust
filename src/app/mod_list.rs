@@ -1,5 +1,5 @@
 use std::{
-  collections::{BTreeMap, HashSet},
+  collections::HashSet,
   path::{Path, PathBuf},
   rc::Rc,
   sync::Arc,
@@ -9,7 +9,7 @@ use druid::{
   lens, theme,
   widget::{Either, Flex, Label, List, ListIter, Painter, Scroll},
   Color, Data, ExtEventSink, KeyOrValue, Lens, LensExt, Rect, RenderContext, Selector, Target,
-  Widget, WidgetExt, im::Vector,
+  Widget, WidgetExt, im::{Vector, HashMap},
 };
 use druid_widget_nursery::WidgetExt as WidgetExtNursery;
 use if_chain::if_chain;
@@ -51,7 +51,7 @@ impl ModList {
 
   pub fn new() -> Self {
     Self {
-      mods: BTreeMap::new(),
+      mods: HashMap::new(),
       header: Header::new(&headings::RATIOS),
       search_text: String::new(),
       active_filters: HashSet::new(),
@@ -272,7 +272,7 @@ impl ModList {
   }
 
   fn sorted_vals(&self) -> Vec<Arc<ModEntry>> {
-    let values_iter = self.mods.par_iter().filter_map(|(_, entry)| {
+    let mut values: Vec<Arc<ModEntry>> = self.mods.iter().filter_map(|(_, entry)| {
       let search = if let Heading::Score = self.header.sort_by.0 {
         if !self.search_text.is_empty() {
           let id_score = best_match(&self.search_text, &entry.id).map(|m| m.score());
@@ -289,9 +289,8 @@ impl ModList {
       let filters = self.active_filters.par_iter().all(|f| f.as_fn()(entry));
 
       (search && filters).then(|| entry.clone())
-    });
+    }).collect();
 
-    let mut values: Vec<Arc<ModEntry>> = values_iter.collect();
     values.par_sort_unstable_by(|a, b| {
       let ord = match self.header.sort_by.0 {
         Heading::ID => a.id.cmp(&b.id),
