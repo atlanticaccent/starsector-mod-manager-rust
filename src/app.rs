@@ -260,9 +260,8 @@ impl App {
         )
       },
       |(active, mods, enabled), _, _| {
-        if let Some(active) = active {
+        if let Some(entry) = active.as_ref().and_then(|active| mods.get(active)) {
           let enabled = *enabled;
-          let entry = mods.get(active).unwrap();
           ModDescription::ui_builder()
             .lens(lens::Constant(entry.clone()))
             .disabled_if(move |_, _| enabled)
