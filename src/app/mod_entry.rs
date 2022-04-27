@@ -8,7 +8,7 @@ use std::{
   sync::Arc,
 };
 
-use chrono::{Utc, DateTime};
+use chrono::{Utc, DateTime, Local};
 use druid::{
   im::Vector,
   lens,
@@ -273,7 +273,12 @@ impl ModEntry {
             )
             .padding(5.)
             .expand_width(),
-            Heading::InstallDate => Label::new("Unimplemented")
+            Heading::InstallDate => Label::wrapped_func(|data: &ModMetadata, _| if let Some(date) = data.install_date {
+                DateTime::<Local>::from(date).format("%v %I:%M%p").to_string()
+              } else {
+                String::from("Unknown")
+              })
+              .lens(ModEntry::manager_metadata.in_arc())
               .padding(5.)
               .expand_width(),
             Heading::Enabled | Heading::Score => continue,
@@ -510,10 +515,10 @@ impl UpdateStatus {
   }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Data, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Data, Lens, Default)]
 pub struct ModMetadata {
   #[data(same_fn = "PartialEq::eq")]
-  install_date: Option<DateTime<Utc>>,
+  pub install_date: Option<DateTime<Utc>>,
 }
 
 impl ModMetadata {

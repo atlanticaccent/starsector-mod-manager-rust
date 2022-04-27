@@ -339,7 +339,7 @@ impl ModList {
               .and_then(|r| r.direct_download_url.as_ref())
               .is_some(),
           ),
-          Heading::InstallDate => std::cmp::Ordering::Equal,
+          Heading::InstallDate => a.manager_metadata.install_date.cmp(&b.manager_metadata.install_date),
       };
 
       if self.header.sort_by.1 {

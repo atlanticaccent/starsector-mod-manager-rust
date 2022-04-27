@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
+use chrono::{DateTime, Local};
 use druid::{
   widget::{Button, Flex, Label, Maybe, Scroll},
   LensExt, Widget, WidgetExt, Selector,
 };
 
-use super::{mod_entry::ModVersionMeta, ModEntry};
+use super::{mod_entry::{ModVersionMeta, ModMetadata}, ModEntry};
 
 use super::util::{make_flex_description_row, LabelExt};
 
@@ -44,6 +45,16 @@ impl ModDescription {
                 Label::wrapped("Version:"),
                 Label::wrapped_lens(ModEntry::version.in_arc().map(|v| v.to_string(), |_, _| {})),
               ))
+              .with_child(
+                make_flex_description_row(
+                  Label::wrapped("Installed at:"),
+                  Label::wrapped_func(|data: &ModMetadata, _| if let Some(date) = data.install_date {
+                    DateTime::<Local>::from(date).format("%v %I:%M%p").to_string()
+                  } else {
+                    String::from("Unknown")
+                  })
+                ).lens(ModEntry::manager_metadata.in_arc())
+              )
               .with_child(
                 Maybe::or_empty(|| {
                   Maybe::or_empty(|| {
