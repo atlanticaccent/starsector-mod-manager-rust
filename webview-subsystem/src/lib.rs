@@ -76,6 +76,7 @@ pub fn init_webview(url: Option<String>) -> wry::Result<()> {
   let mod_index = bookmarks.add_item(MenuItemAttributes::new("Mod Index"));
   let mods_forum = bookmarks.add_item(MenuItemAttributes::new("Mods Forum"));
   let modding_subforum = bookmarks.add_item(MenuItemAttributes::new("Modding Sub-Forum"));
+  let cursed_discord = bookmarks.add_item(MenuItemAttributes::new("Starsector Discord"));
   menu_bar.add_submenu("Bookmarks", true, bookmarks);
   
   let window = WindowBuilder::new()
@@ -240,6 +241,7 @@ pub fn init_webview(url: Option<String>) -> wry::Result<()> {
             _ if menu_id == mod_index.clone().id() => webview.evaluate_script(&format!("window.location.assign('{}')", FRACTAL_INDEX)).expect("Navigate webview"),
             _ if menu_id == mods_forum.clone().id() => webview.evaluate_script(&format!("window.location.assign('{}')", FRACTAL_MODS_FORUM)).expect("Navigate webview"),
             _ if menu_id == modding_subforum.clone().id() => webview.evaluate_script(&format!("window.location.assign('{}')", FRACTAL_MODDING_SUBFORUM)).expect("Navigate webview"),
+            _ if menu_id == cursed_discord.clone().id() => webview.evaluate_script(&format!("window.location.assign('{}')", "https://discord.com/channels/187635036525166592/825068217361760306")).expect("Navigate webview"),
             _ => {}
           }
           println!("Clicked on {:?}", menu_id);
