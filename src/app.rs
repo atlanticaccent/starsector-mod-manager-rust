@@ -629,25 +629,7 @@ impl Delegate<App> for AppDelegate {
       App::mod_list
         .then(ModList::starsector_version)
         .put(data, res.as_ref().ok().cloned());
-    }
-    /* else if let Some(entry) = cmd
-      .get(ModEntry::REPLACE)
-      .or_else(|| cmd.get(ModList::SUBMIT_ENTRY))
-      .or_else(|| {
-        cmd.get(installer::INSTALL).and_then(|m| {
-          if let ChannelMessage::Success(e) = m {
-            Some(e)
-          } else {
-            None
-          }
-        })
-      })
-    {
-      if Some(&entry.id) == data.active.as_ref().map(|e| &e.id) {
-        data.active = Some(entry.clone())
-      }
-    }  */
-    else if let Some(name) = cmd.get(App::LOG_SUCCESS) {
+    } else if let Some(name) = cmd.get(App::LOG_SUCCESS) {
       data.log_message(&format!("Successfully installed {}", name));
       self.display_if_closed(ctx, SubwindowType::Log);
 
