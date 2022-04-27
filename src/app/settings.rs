@@ -62,10 +62,9 @@ pub struct Settings {
   pub open_forum_link_in_webview: bool,
   #[serde(skip)]
   show_column_editor: bool,
-  #[serde(skip)]
   #[serde(default = "default_headers")]
   #[data(same_fn = "PartialEq::eq")]
-  headings: Vector<Heading>,
+  pub headings: Vector<Heading>,
 }
 
 fn default_headers() -> Vector<Heading> {
@@ -79,7 +78,7 @@ impl Settings {
     Self {
       hide_webview_on_conflict: true,
       open_forum_link_in_webview: true,
-      headings: Header::TITLES.to_vec().into(),
+      headings: default_headers(),
       ..Default::default()
     }
   }
@@ -514,6 +513,16 @@ impl Settings {
           .expand_width(),
       )
       .expand_height()
+      .on_change(|_, _old, data, _| {
+        if let Err(err) = data.save() {
+          eprintln!("{:?}", err)
+        }
+      })
+      .on_command(Header::ADD_HEADING, |_, _heading, settings| {
+        if let Err(err) = settings.save() {
+          eprintln!("{:?}", err)
+        }
+      })
   }
 
   pub fn install_dir_browser_builder(axis: Axis) -> Flex<Self> {

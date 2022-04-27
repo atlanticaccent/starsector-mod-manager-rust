@@ -109,25 +109,29 @@ impl App {
   const CONFIRM_DELETE_MOD: Selector<Arc<ModEntry>> = Selector::new("app.mod_entry.delete");
   const REMOVE_DOWNLOAD_BAR: Selector<i64> = Selector::new("app.download.bar.remove");
 
-  pub fn new(handle: Handle) -> Self {
+  pub fn new(runtime: Handle) -> Self {
+    let settings = settings::Settings::load()
+      .map(|mut settings| {
+        if settings.vmparams_enabled {
+          if let Some(path) = settings.install_dir.clone() {
+            settings.vmparams = settings::vmparams::VMParams::load(path).ok();
+          }
+        }
+        if let Some(install_dir) = settings.install_dir.clone() {
+          settings.install_dir_buf = install_dir.to_string_lossy().to_string()
+        }
+        settings
+      })
+      .unwrap_or_else(|_| settings::Settings::new());
+
+    let headings = settings.headings.clone();
+
     App {
       init: false,
-      settings: settings::Settings::load()
-        .map(|mut settings| {
-          if settings.vmparams_enabled {
-            if let Some(path) = settings.install_dir.clone() {
-              settings.vmparams = settings::vmparams::VMParams::load(path).ok();
-            }
-          }
-          if let Some(install_dir) = settings.install_dir.clone() {
-            settings.install_dir_buf = install_dir.to_string_lossy().to_string()
-          }
-          settings
-        })
-        .unwrap_or_else(|_| settings::Settings::new()),
-      mod_list: mod_list::ModList::new(),
+      settings,
+      mod_list: mod_list::ModList::new(headings),
       active: None,
-      runtime: handle,
+      runtime,
       widget_id: WidgetId::reserved(0),
       log: Vector::new(),
       overwrite_log: Vector::new(),
@@ -564,12 +568,7 @@ impl Delegate<App> for AppDelegate {
 
           let settings_window = WindowDesc::new(
             settings::Settings::ui_builder()
-              .lens(App::settings)
-              .on_change(|_, _old, data, _| {
-                if let Err(err) = data.settings.save() {
-                  eprintln!("{:?}", err)
-                }
-              }),
+              .lens(App::settings),
           )
           .window_size((800., 400.))
           .show_titlebar(false);

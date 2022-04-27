@@ -49,10 +49,10 @@ impl ModList {
   pub const FILTER_UPDATE: Selector<(Filters, bool)> = Selector::new("mod_list.filter.update");
   pub const DUPLICATE: Selector<(Arc<ModEntry>, Arc<ModEntry>)> = Selector::new("mod_list.submit_entry.duplicate");
 
-  pub fn new() -> Self {
+  pub fn new(headings: Vector<Heading>) -> Self {
     Self {
       mods: HashMap::new(),
-      header: Header::new(&headings::RATIOS),
+      header: Header::new(headings),
       search_text: String::new(),
       active_filters: HashSet::new(),
       starsector_version: None,

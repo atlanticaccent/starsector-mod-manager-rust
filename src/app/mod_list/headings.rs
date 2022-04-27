@@ -8,13 +8,14 @@ use druid::{
   Data, Lens, RenderContext, Selector, Widget, WidgetExt,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
+use serde::{Deserialize, Serialize};
+use strum_macros::EnumIter;
 
 use super::util::icons::*;
 
-pub const RATIOS: [f64; 5] = [1. / 6., 1. / 5., 1. / 4., 1. / 3., 1. / 2.];
 pub const ENABLED_RATIO: f64 = 1. / 12.;
 
-#[derive(Debug, Clone, Copy, Data, PartialEq, Eq, strum_macros::EnumIter)]
+#[derive(Debug, Clone, Copy, Data, PartialEq, Eq, EnumIter, Serialize, Deserialize)]
 pub enum Heading {
   ID,
   Name,
@@ -67,12 +68,19 @@ impl Header {
     Heading::GameVersion,
   ];
 
-  pub fn new(ratios: &[f64; 5]) -> Self {
+  pub fn new(headings: Vector<Heading>) -> Self {
     Self {
-      ratios: ratios.to_vec(),
-      headings: Header::TITLES.to_vec().into(),
+      ratios: Self::calculate_ratios(headings.len()),
+      headings,
       sort_by: (Heading::Name, false),
     }
+  }
+
+  fn calculate_ratios(num_headings: usize) -> Vec<f64> {
+    (0..num_headings - 1)
+      .rev()
+      .map(|idx| 1. / (idx + 2) as f64)
+      .collect()
   }
 
   pub fn ui_builder() -> impl Widget<Header> {
@@ -116,19 +124,11 @@ impl Header {
     })
     .on_command(Header::ADD_HEADING, |_, heading, header| {
       header.headings.push_back(*heading);
-      let mut ratios = vec![];
-      for idx in (0..header.headings.len() - 1).rev() {
-        ratios.push(1. / (idx + 2) as f64)
-      }
-      header.ratios = ratios;
+      header.ratios = Self::calculate_ratios(header.headings.len());
     })
     .on_command(Header::REMOVE_HEADING, |_, heading, header| {
       header.headings.retain(|existing| existing != heading);
-      let mut ratios = vec![];
-      for idx in (0..header.headings.len() - 1).rev() {
-        ratios.push(1. / (idx + 2) as f64)
-      }
-      header.ratios = ratios;
+      header.ratios = Self::calculate_ratios(header.headings.len());
     })
   }
 }

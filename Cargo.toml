@@ -47,6 +47,9 @@ rand = "0.8.5"
 base64 = "0.13.0"
 const_format = "0.2.22"
 
+[dependencies.im]
+features = ["serde"]
+
 [dependencies.webview-subsystem]
 path = "./webview-subsystem"
 
