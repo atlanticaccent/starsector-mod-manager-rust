@@ -12,7 +12,7 @@ use chrono::{Utc, DateTime, Local};
 use druid::{
   im::Vector,
   lens,
-  widget::{Button, Checkbox, Controller, ControllerHost, Flex, Label, SizedBox, ViewSwitcher},
+  widget::{Button, Checkbox, Controller, Flex, Label, SizedBox, ViewSwitcher},
   Color, Data, KeyOrValue, Lens, LensExt, Selector, Widget, WidgetExt, ExtEventSink,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
@@ -134,7 +134,7 @@ impl ModEntry {
       idx: usize,
       mut widgets: VecDeque<SizedBox<Arc<ModEntry>>>,
       ratios: &[f64],
-    ) -> ControllerHost<Split<Arc<ModEntry>>, RowController> {
+    ) -> impl Widget<Arc<ModEntry>> {
       if widgets.len() > 2 {
         Split::columns(
           widgets
