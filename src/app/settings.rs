@@ -1,31 +1,39 @@
 use std::{path::PathBuf, rc::Rc};
 
 use druid::{
+  im::Vector,
   lens,
   text::ParseFormatter,
   theme,
   widget::{
-    Axis, Button, Checkbox, Controller, Flex, Label, SizedBox, TextBox, TextBoxEvent,
-    ValidationDelegate, ViewSwitcher, WidgetExt,
+    Axis, Button, Checkbox, Controller, Flex, Label, Painter, SizedBox, TextBox,
+    TextBoxEvent, ValidationDelegate, ViewSwitcher, WidgetExt,
   },
-  Data, Event, EventCtx, Lens, LensExt, Menu, MenuItem, Selector, Target, Widget,
+  Data, Event, EventCtx, Lens, LensExt, Menu, MenuItem, RenderContext, Selector, Widget,
+  WindowConfig,
 };
-use druid_widget_nursery::{DynLens, WidgetExt as WidgetExtNursery};
+use druid_widget_nursery::{material_icons::Icon, DynLens, WidgetExt as WidgetExtNursery};
 use if_chain::if_chain;
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
-use tap::Tap;
+use tap::{Pipe, Tap};
 
-use crate::{app::PROJECT, patch::tooltip::TooltipController};
+use crate::{
+  app::PROJECT,
+  patch::{click::Click, tooltip::TooltipController},
+};
 
 use self::vmparams::{Unit, VMParams, Value};
 
 use super::{
   controllers::HoverController,
+  mod_list::headings::{Header, Heading},
+  modal::Modal,
   util::{
-    default_true, h2, h3, make_column_pair, make_flex_description_row, make_flex_pair,
-    DragWindowController, LabelExt, LoadError, SaveError,
+    button_painter, default_true, h2, h3, icons::*, make_column_pair, make_flex_pair,
+    make_flex_settings_row, CommandExt, DragWindowController, LabelExt, LoadError, SaveError,
   },
+  App,
 };
 
 pub mod vmparams;
@@ -52,6 +60,15 @@ pub struct Settings {
   pub hide_webview_on_conflict: bool,
   #[serde(default = "default_true")]
   pub open_forum_link_in_webview: bool,
+  #[serde(skip)]
+  show_column_editor: bool,
+  #[serde(default = "default_headers")]
+  #[data(same_fn = "PartialEq::eq")]
+  pub headings: Vector<Heading>,
+}
+
+fn default_headers() -> Vector<Heading> {
+  Header::TITLES.to_vec().into()
 }
 
 impl Settings {
@@ -61,6 +78,7 @@ impl Settings {
     Self {
       hide_webview_on_conflict: true,
       open_forum_link_in_webview: true,
+      headings: default_headers(),
       ..Default::default()
     }
   }
@@ -79,21 +97,22 @@ impl Settings {
         Flex::column()
           .with_child(Self::install_dir_browser_builder(Axis::Horizontal).padding(TRAILING_PADDING))
           .with_child(
-            make_flex_description_row(
-              Label::wrapped("Warn when overwriting '.git' folders:"),
+            make_flex_settings_row(
               Checkbox::new("").lens(Settings::git_warn),
+              Label::wrapped("Warn when overwriting '.git' folders:"),
             )
             .padding(TRAILING_PADDING),
           )
           .with_child(
-            make_flex_description_row(
-              Label::wrapped("Minimize browser when installation encounters conflict:"),
+            make_flex_settings_row(
               Checkbox::new("").lens(Settings::hide_webview_on_conflict),
+              Label::wrapped("Minimize browser when installation encounters conflict:"),
             )
             .padding(TRAILING_PADDING),
           )
           .with_child(
-            make_flex_description_row(
+            make_flex_settings_row(
+              Checkbox::new("").lens(Settings::open_forum_link_in_webview),
               Label::wrapped("Use bundled browser when opening forum links:").controller(
                 TooltipController::new(|| {
                   Label::new("This allows installing mods directly from links in forum posts")
@@ -102,14 +121,232 @@ impl Settings {
                     .boxed()
                 }),
               ),
-              Checkbox::new("").lens(Settings::open_forum_link_in_webview),
             )
             .padding(TRAILING_PADDING),
           )
           .with_child(
-            make_flex_description_row(
-              Label::wrapped("Enable vmparams editing:"),
+            make_flex_settings_row(
+              SizedBox::empty(),
+              Button::from_label(Label::wrapped("Edit columns")).on_click(
+                |ctx, data: &mut Settings, env| {
+                  let modal = Modal::<Settings>::new("Column Editor")
+                    .with_content(
+                      ViewSwitcher::new(
+                        |headings: &Vector<Heading>, _| headings.clone(),
+                        |_, headings, _| {
+                          Flex::row()
+                            .tap_mut(|column| {
+                              for (idx, heading) in headings.iter().cloned().enumerate() {
+                                column.add_flex_child(
+                                  Flex::row()
+                                    .with_default_spacer()
+                                    .with_child(
+                                      Icon::new(ARROW_LEFT)
+                                        .background(button_painter())
+                                        .controller(HoverController)
+                                        .on_click(move |ctx, data: &mut Vector<Heading>, _| {
+                                          data.swap(idx - 1, idx);
+                                          ctx.submit_command_global(
+                                            Header::SWAP_HEADINGS.with((idx - 1, idx)),
+                                          )
+                                        })
+                                        .pipe(|icon| {
+                                          if idx == 0 {
+                                            icon.disabled_if(|_, _| true).boxed()
+                                          } else {
+                                            icon.boxed()
+                                          }
+                                        }),
+                                    )
+                                    .with_flex_child(
+                                      Label::wrapped(<&str>::from(heading))
+                                        .with_text_alignment(druid::TextAlignment::Center)
+                                        .expand_width(),
+                                      1.,
+                                    )
+                                    .with_child(
+                                      Icon::new(CLOSE)
+                                        .on_click(move |ctx, data: &mut Vector<Heading>, _| {
+                                          data.retain(|existing| existing != &heading);
+                                          ctx.submit_command_global(
+                                            Header::REMOVE_HEADING.with(heading),
+                                          );
+                                        })
+                                        .controller(HoverController),
+                                    )
+                                    .with_child(
+                                      Icon::new(ARROW_RIGHT)
+                                        .background(button_painter())
+                                        .controller(HoverController)
+                                        .on_click(move |ctx, data: &mut Vector<Heading>, _| {
+                                          data.swap(idx, idx + 1);
+                                          ctx.submit_command_global(
+                                            Header::SWAP_HEADINGS.with((idx, idx + 1)),
+                                          );
+                                        })
+                                        .pipe(|icon| {
+                                          if idx == headings.len() - 1 {
+                                            icon.disabled_if(|_, _| true).boxed()
+                                          } else {
+                                            icon.boxed()
+                                          }
+                                        }),
+                                    )
+                                    .with_default_spacer()
+                                    .padding((0., 5., 0., 5.))
+                                    .background(Painter::new(|ctx, _, env| {
+                                      let border_rect = ctx.size().to_rect().inset(-1.5);
+                                      if ctx.is_hot() {
+                                        ctx.stroke(
+                                          border_rect,
+                                          &env.get(druid::theme::BORDER_LIGHT),
+                                          3.,
+                                        )
+                                      }
+                                    }))
+                                    .on_click(|_, _, _| {}),
+                                  1.,
+                                )
+                              }
+                            })
+                            .boxed()
+                        },
+                      )
+                      .lens(Settings::headings)
+                      .boxed(),
+                    )
+                    .with_content(
+                      Flex::row()
+                        .with_flex_spacer(1.)
+                        .with_flex_child(
+                          Button::new("Add new column")
+                            .controller(Click::new(|ctx, mouse_event, data: &mut Settings, _| {
+                              let mut menu: Menu<super::App> = Menu::empty();
+                              for heading in Heading::iter().filter(|heading| {
+                                !matches!(heading, Heading::Score | Heading::Enabled)
+                                  && !data.headings.contains(heading)
+                              }) {
+                                menu = menu.entry(MenuItem::new(<&str>::from(heading)).on_activate(
+                                  move |ctx, data: &mut App, _| {
+                                    data.settings.headings.push_back(heading);
+                                    ctx.submit_command(Header::ADD_HEADING.with(heading).to(druid::Target::Global))
+                                  },
+                                ))
+                              }
+    
+                              ctx.show_context_menu::<super::App>(menu, ctx.to_window(mouse_event.pos))
+                            }))
+                            .expand_width(),
+                          2.
+                        )
+                        .with_flex_spacer(1.)
+                        .boxed(),
+                    )
+                    .with_close()
+                    .build();
+
+                  ctx.new_sub_window(
+                    WindowConfig::default()
+                      .window_size((1200., 200.))
+                      .show_titlebar(false),
+                    modal,
+                    data.clone(),
+                    env.clone(),
+                  );
+                },
+              ),
+            )
+            .padding(TRAILING_PADDING),
+          )
+          .with_child(
+            ViewSwitcher::new(
+              |data: &Settings, _| data.show_column_editor,
+              |_, data, _| {
+                if data.show_column_editor {
+                  ViewSwitcher::new(
+                    |headings: &Vector<Heading>, _| headings.clone(),
+                    |_, headings, _| {
+                      Flex::row()
+                        .tap_mut(|row| {
+                          for (idx, heading) in headings.iter().enumerate() {
+                            row.add_flex_child(
+                              Flex::row()
+                                .with_default_spacer()
+                                .with_child(
+                                  Icon::new(ARROW_LEFT)
+                                    .background(button_painter())
+                                    .controller(HoverController)
+                                    .on_click(move |ctx, data: &mut Vector<Heading>, _| {
+                                      data.swap(idx - 1, idx);
+                                      ctx.submit_command_global(
+                                        Header::SWAP_HEADINGS.with((idx - 1, idx)),
+                                      )
+                                    })
+                                    .pipe(|icon| {
+                                      if idx == 0 {
+                                        icon.disabled_if(|_, _| true).boxed()
+                                      } else {
+                                        icon.boxed()
+                                      }
+                                    }),
+                                )
+                                .with_flex_child(
+                                  Label::wrapped(<&str>::from(*heading))
+                                    .with_text_alignment(druid::TextAlignment::Center)
+                                    .expand_width(),
+                                  1.,
+                                )
+                                .with_child(
+                                  Icon::new(ARROW_RIGHT)
+                                    .background(button_painter())
+                                    .controller(HoverController)
+                                    .on_click(move |ctx, data: &mut Vector<Heading>, _| {
+                                      data.swap(idx, idx + 1);
+                                      ctx.submit_command_global(
+                                        Header::SWAP_HEADINGS.with((idx, idx + 1)),
+                                      );
+                                    })
+                                    .pipe(|icon| {
+                                      if idx == headings.len() - 1 {
+                                        icon.disabled_if(|_, _| true).boxed()
+                                      } else {
+                                        icon.boxed()
+                                      }
+                                    }),
+                                )
+                                .with_default_spacer()
+                                .padding((0., 5., 0., 5.))
+                                .background(Painter::new(|ctx, _, env| {
+                                  let border_rect = ctx.size().to_rect().inset(-1.5);
+                                  if ctx.is_hot() {
+                                    ctx.stroke(
+                                      border_rect,
+                                      &env.get(druid::theme::BORDER_LIGHT),
+                                      3.,
+                                    )
+                                  }
+                                }))
+                                .on_click(|_, _, _| {}),
+                              1.,
+                            )
+                          }
+                        })
+                        .boxed()
+                    },
+                  )
+                  .lens(Settings::headings)
+                  .boxed()
+                } else {
+                  SizedBox::empty().boxed()
+                }
+              },
+            )
+            .padding(TRAILING_PADDING),
+          )
+          .with_child(
+            make_flex_settings_row(
               Checkbox::new("").lens(Settings::vmparams_enabled),
+              Label::wrapped("Enable vmparams editing"),
             )
             .on_change(|_, _old, data, _| {
               if data.vmparams_enabled && data.vmparams.is_none() {
@@ -205,9 +442,9 @@ impl Settings {
             )
           })
           .with_child(
-            make_flex_description_row(
-              Label::wrapped("Enable experimental direct launch:"),
+            make_flex_settings_row(
               Checkbox::new("").lens(Settings::experimental_launch),
+              Label::wrapped("Enable experimental direct launch"),
             )
             .padding(TRAILING_PADDING),
           )
@@ -276,6 +513,16 @@ impl Settings {
           .expand_width(),
       )
       .expand_height()
+      .on_change(|_, _old, data, _| {
+        if let Err(err) = data.save() {
+          eprintln!("{:?}", err)
+        }
+      })
+      .on_command(Header::ADD_HEADING, |_, _heading, settings| {
+        if let Err(err) = settings.save() {
+          eprintln!("{:?}", err)
+        }
+      })
   }
 
   pub fn install_dir_browser_builder(axis: Axis) -> Flex<Self> {
@@ -295,14 +542,9 @@ impl Settings {
             Button::new("Browse...")
               .controller(HoverController)
               .on_click(|ctx, _, _| {
-                ctx.submit_command(
-                  Selector::new("druid.builtin.textbox-cancel-editing").to(Target::Global),
-                );
-                ctx.submit_command(
-                  Settings::SELECTOR
-                    .with(SettingsCommand::SelectInstallDir)
-                    .to(Target::Global),
-                )
+                ctx.submit_command_global(Selector::new("druid.builtin.textbox-cancel-editing"));
+                ctx
+                  .submit_command_global(Settings::SELECTOR.with(SettingsCommand::SelectInstallDir))
               }),
           ),
         1.5,
@@ -316,14 +558,9 @@ impl Settings {
             Button::new("Browse...")
               .controller(HoverController)
               .on_click(|ctx, _, _| {
-                ctx.submit_command(
-                  Selector::new("druid.builtin.textbox-cancel-editing").to(Target::Global),
-                );
-                ctx.submit_command(
-                  Settings::SELECTOR
-                    .with(SettingsCommand::SelectInstallDir)
-                    .to(Target::Global),
-                )
+                ctx.submit_command_global(Selector::new("druid.builtin.textbox-cancel-editing"));
+                ctx
+                  .submit_command_global(Settings::SELECTOR.with(SettingsCommand::SelectInstallDir))
               }),
           )
           .cross_axis_alignment(druid::widget::CrossAxisAlignment::End),

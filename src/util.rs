@@ -2,7 +2,18 @@
 
 use std::{io::Read, sync::Arc, path::PathBuf, collections::VecDeque};
 
-use druid::{widget::{Label, LensWrap, Flex, Axis, RawLabel, Controller}, Data, Lens, WidgetExt, Widget, ExtEventSink, Selector, Target, lens, text::{RichText, AttributeSpans, Attribute}, FontWeight, Key, Color, KeyOrValue, Point, EventCtx, Event};
+use druid::{
+  widget::{
+    Label, LensWrap, Flex, Axis, RawLabel, Controller, ScopeTransfer, Painter
+  },
+  text::{
+    RichText, AttributeSpans, Attribute
+  },
+  Data, Lens, WidgetExt, Widget, ExtEventSink, Selector, Target, lens,
+  FontWeight, Key, Color, KeyOrValue, Point, EventCtx, Event, theme,
+  RenderContext, UnitPoint, Command
+};
+use druid_widget_nursery::CommandCtx;
 use if_chain::if_chain;
 use json_comments::strip_comments;
 use serde::Deserialize;
@@ -84,6 +95,10 @@ pub fn make_flex_pair<T: Data>(label: impl Widget<T> + 'static, ratio_1: f64, va
 
 pub fn make_flex_description_row<T: Data>(label: impl Widget<T> + 'static, val: impl Widget<T> + 'static) -> Flex<T> {
   make_flex_pair(label, 1., val, 1.5, Axis::Horizontal)
+}
+
+pub fn make_flex_settings_row<T: Data>(widget: impl Widget<T> + 'static, label: impl Widget<T> + 'static) -> Flex<T> {
+  make_flex_pair(widget.align_horizontal(UnitPoint::CENTER), 1., label, 10., Axis::Horizontal)
 }
 
 pub fn make_flex_column_pair<T: Data>(label: impl Widget<T> + 'static, val: impl Widget<T> + 'static) -> Flex<T> {
@@ -399,3 +414,64 @@ pub async fn get_latest_manager() -> Result<Release, String> {
 }
 
 pub fn default_true() -> bool { true }
+
+#[derive(Clone, Data, Lens)]
+pub struct IndyToggleState {
+  state: bool,
+}
+
+impl ScopeTransfer for IndyToggleState {
+  type In = bool;
+  type State = bool;
+
+  fn read_input(&self, _: &mut Self::State, _: &Self::In) {}
+
+  fn write_back_input(&self, _: &Self::State, _: &mut Self::In) {}
+}
+
+impl Default for IndyToggleState {
+  fn default() -> Self {
+    Self { state: true }
+  }
+}
+
+pub fn button_painter<T: Data>() -> Painter<T> {
+  Painter::new(|ctx, _, env| {
+    let is_active = ctx.is_active() && !ctx.is_disabled();
+    let is_hot = ctx.is_hot();
+    let size = ctx.size();
+    let stroke_width = env.get(theme::BUTTON_BORDER_WIDTH);
+
+    let rounded_rect = size
+      .to_rect()
+      .inset(-stroke_width / 2.0)
+      .to_rounded_rect(env.get(theme::BUTTON_BORDER_RADIUS));
+
+    let bg_gradient = if ctx.is_disabled() {
+      env.get(theme::DISABLED_BUTTON_DARK)
+    } else if is_active {
+      env.get(theme::BUTTON_DARK)
+    } else {
+      env.get(theme::BUTTON_LIGHT)
+    };
+
+    let border_color = if is_hot && !ctx.is_disabled() {
+      env.get(theme::BORDER_LIGHT)
+    } else {
+      env.get(theme::BORDER_DARK)
+    };
+
+    ctx.stroke(rounded_rect, &border_color, stroke_width);
+
+    ctx.fill(rounded_rect, &bg_gradient);
+  })
+}
+
+pub trait CommandExt: CommandCtx {
+  fn submit_command_global(&mut self, cmd: impl Into<Command>) {
+    let cmd: Command = cmd.into();
+    self.submit_command(cmd.to(Target::Global))
+  }
+}
+
+impl<T: CommandCtx> CommandExt for T {}

@@ -3,48 +3,91 @@ use crate::{
   patch::split::{Split, DRAGGED},
 };
 use druid::{
-  widget::{ClipBox, Controller, ControllerHost, Flex, Label, Painter, ViewSwitcher},
-  Data, Lens, RenderContext, Selector, UnitPoint, Widget, WidgetExt,
+  im::Vector,
+  widget::{Controller, ControllerHost, Flex, Label, Painter, ViewSwitcher},
+  Data, Lens, RenderContext, Selector, Widget, WidgetExt,
 };
-use druid_widget_nursery::material_icons::Icon;
+use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
+use serde::{Deserialize, Serialize};
+use strum_macros::EnumIter;
 
 use super::util::icons::*;
-use super::Sorting;
 
-pub const RATIOS: [f64; 5] = [1. / 6., 1. / 5., 1. / 4., 1. / 3., 1. / 2.];
 pub const ENABLED_RATIO: f64 = 1. / 12.;
 
-#[derive(Clone, Data, Lens)]
-pub struct Headings {
-  #[data(same_fn = "PartialEq::eq")]
-  pub ratios: [f64; 5],
-  pub sort_by: (Sorting, bool),
+#[derive(Debug, Clone, Copy, Data, PartialEq, Eq, EnumIter, Serialize, Deserialize)]
+pub enum Heading {
+  ID,
+  Name,
+  Author,
+  GameVersion,
+  Enabled,
+  Version,
+  Score,
+  AutoUpdateSupport,
+  InstallDate,
 }
 
-impl Headings {
-  pub const SORT_CHANGED: Selector<Sorting> = Selector::new("headings.sorting.changed");
+impl From<Heading> for &str {
+  fn from(sorting: Heading) -> Self {
+    match sorting {
+      Heading::ID => "ID",
+      Heading::Name => "Name",
+      Heading::Author => "Author(s)",
+      Heading::GameVersion => "Game Version",
+      Heading::Enabled => "Enabled",
+      Heading::Version => "Version",
+      Heading::Score => "score",
+      Heading::AutoUpdateSupport => "Auto-Update Supported",
+      Heading::InstallDate => "Install Date",
+    }
+  }
+}
 
-  const TITLES: [Sorting; 6] = [
-    Sorting::Name,
-    Sorting::ID,
-    Sorting::Author,
-    Sorting::Version,
-    Sorting::AutoUpdateSupport,
-    Sorting::GameVersion,
+#[derive(Clone, Data, Lens)]
+pub struct Header {
+  #[data(same_fn = "PartialEq::eq")]
+  pub ratios: Vec<f64>,
+  #[data(same_fn = "PartialEq::eq")]
+  pub headings: Vector<Heading>,
+  pub sort_by: (Heading, bool),
+}
+
+impl Header {
+  pub const SORT_CHANGED: Selector<Heading> = Selector::new("headings.sorting.changed");
+  pub const SWAP_HEADINGS: Selector<(usize, usize)> = Selector::new("headings.order.changed");
+  pub const ADD_HEADING: Selector<Heading> = Selector::new("headings.add");
+  pub const REMOVE_HEADING: Selector<Heading> = Selector::new("headings.remove");
+
+  pub const TITLES: [Heading; 6] = [
+    Heading::Name,
+    Heading::ID,
+    Heading::Author,
+    Heading::Version,
+    Heading::AutoUpdateSupport,
+    Heading::GameVersion,
   ];
 
-  pub fn new(ratios: &[f64; 5]) -> Self {
+  pub fn new(headings: Vector<Heading>) -> Self {
     Self {
-      ratios: *ratios,
-      sort_by: (Sorting::Name, false),
+      ratios: Self::calculate_ratios(headings.len()),
+      headings,
+      sort_by: (Heading::Name, false),
     }
   }
 
-  pub fn ui_builder() -> impl Widget<Headings> {
+  fn calculate_ratios(num_headings: usize) -> Vec<f64> {
+    (0..num_headings - 1)
+      .rev()
+      .map(|idx| 1. / (idx + 2) as f64)
+      .collect()
+  }
+
+  pub fn ui_builder() -> impl Widget<Header> {
     fn recursive_split(
       idx: usize,
-      titles: &[Sorting],
-    ) -> ControllerHost<Split<Headings>, ResizeController> {
+      titles: &Vector<Heading>,
+    ) -> ControllerHost<Split<Header>, ResizeController> {
       if idx < titles.len() - 2 {
         Split::columns(
           heading_builder(titles[idx]),
@@ -64,48 +107,66 @@ impl Headings {
       .controller(ResizeController::new(idx + 1))
     }
 
-    Split::columns(
-      heading_builder(Sorting::Enabled),
-      recursive_split(0, &Headings::TITLES),
+    ViewSwitcher::new(
+      |data: &Header, _| data.headings.clone(),
+      |_, data, _| {
+        Split::columns(
+          heading_builder(Heading::Enabled),
+          recursive_split(0, &data.headings),
+        )
+        .split_point(ENABLED_RATIO)
+        .controller(ResizeController::new(0))
+        .boxed()
+      },
     )
-    .split_point(ENABLED_RATIO)
-    .controller(ResizeController::new(0))
+    .on_command(Header::SWAP_HEADINGS, |_, (idx, jdx), header| {
+      header.headings.swap(*idx, *jdx)
+    })
+    .on_command(Header::ADD_HEADING, |_, heading, header| {
+      header.headings.push_back(*heading);
+      header.ratios = Self::calculate_ratios(header.headings.len());
+    })
+    .on_command(Header::REMOVE_HEADING, |_, heading, header| {
+      header.headings.retain(|existing| existing != heading);
+      header.ratios = Self::calculate_ratios(header.headings.len());
+    })
   }
 }
 
-fn heading_builder(title: Sorting) -> impl Widget<Headings> {
-  ClipBox::unmanaged(
-    Flex::row()
-      .with_child(Label::wrapped(<&str>::from(title)))
-      .with_child(
-        ViewSwitcher::new(
-          |data: &(Sorting, bool), _| *data,
-          move |_, new, _| {
-            if new.0 == title {
-              if new.1 {
-                Box::new(Icon::new(ARROW_DROP_DOWN))
-              } else {
-                Box::new(Icon::new(ARROW_DROP_UP))
-              }
+fn heading_builder(title: Heading) -> impl Widget<Header> {
+  Flex::row()
+    .with_flex_child(
+      Label::wrapped(<&str>::from(title))
+        .with_text_alignment(druid::TextAlignment::Center)
+        .expand_width(),
+      1.,
+    )
+    .with_child(
+      ViewSwitcher::new(
+        |data: &(Heading, bool), _| *data,
+        move |_, new, _| {
+          if new.0 == title {
+            if new.1 {
+              Box::new(Icon::new(ARROW_DROP_DOWN))
             } else {
-              Box::new(Icon::new(UNFOLD_MORE))
+              Box::new(Icon::new(ARROW_DROP_UP))
             }
-          },
-        )
-        .lens(Headings::sort_by),
-      ),
-  )
-  .constrain_horizontal(true)
-  .align_vertical(UnitPoint::CENTER)
-  .fix_height(40.)
-  .padding((0., 5., 0., 5.))
-  .background(Painter::new(|ctx, _, env| {
-    let border_rect = ctx.size().to_rect().inset(-1.5);
-    if ctx.is_hot() {
-      ctx.stroke(border_rect, &env.get(druid::theme::BORDER_LIGHT), 3.)
-    }
-  }))
-  .on_click(move |ctx, _, _| ctx.submit_command(Headings::SORT_CHANGED.with(title)))
+          } else {
+            Box::new(Icon::new(UNFOLD_MORE))
+          }
+        },
+      )
+      .lens(Header::sort_by),
+    )
+    .fix_height(40.)
+    .padding((0., 5., 0., 5.))
+    .background(Painter::new(|ctx, _, env| {
+      let border_rect = ctx.size().to_rect().inset(-1.5);
+      if ctx.is_hot() {
+        ctx.stroke(border_rect, &env.get(druid::theme::BORDER_LIGHT), 3.)
+      }
+    }))
+    .on_click(move |ctx, _, _| ctx.submit_command(Header::SORT_CHANGED.with(title)))
 }
 
 struct ResizeController {
@@ -118,13 +179,13 @@ impl ResizeController {
   }
 }
 
-impl<W: Widget<Headings>> Controller<Headings, W> for ResizeController {
+impl<W: Widget<Header>> Controller<Header, W> for ResizeController {
   fn event(
     &mut self,
     child: &mut W,
     ctx: &mut druid::EventCtx,
     event: &druid::Event,
-    data: &mut Headings,
+    data: &mut Header,
     env: &druid::Env,
   ) {
     if let druid::Event::Notification(notif) = event {

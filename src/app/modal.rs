@@ -56,6 +56,53 @@ impl<'a, T: Data> Modal<'a, T> {
     self.close(label)
   }
 
+  // pub fn build_no_flex(mut self, width: Option<f64>) -> impl Widget<T> {
+  //   Flex::column()
+  //     .with_child(
+  //       h3(&self.title)
+  //         .center()
+  //         .padding(2.)
+  //         .expand_width()
+  //         .background(theme::BACKGROUND_LIGHT)
+  //         .controller(DragWindowController::default()),
+  //     )
+  //     .with_child(
+  //       Flex::column()
+  //         .tap_mut(|flex| {
+  //           for content in self.contents.drain(..) {
+  //             flex.add_child(match content {
+  //               StringOrWidget::Str(str) => Label::wrapped(str).boxed(),
+  //               StringOrWidget::String(str) => Label::wrapped(&str).boxed(),
+  //               StringOrWidget::Widget(widget) => widget,
+  //             })
+  //           }
+  //         })
+  //         .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+  //         .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
+  //         .padding(20.),
+  //     )
+  //     .with_child(
+  //       Flex::row()
+  //         .with_flex_spacer(1.)
+  //         .tap_mut(|flex| {
+  //           for (label, commands) in self.buttons {
+  //             flex.add_child(Button::new(label).on_click({
+  //               let commands = commands.clone();
+  //               move |ctx, _, _| {
+  //                 for command in &commands {
+  //                   ctx.submit_command(command.clone().to(Target::Global))
+  //                 }
+  //                 ctx.submit_command(commands::CLOSE_WINDOW)
+  //               }
+  //             }))
+  //           }
+  //         }),
+  //     )
+  //     .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+  //     .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
+  //     .pipe(|column| column.fix_width(width.unwrap_or(400.)))
+  // }
+
   pub fn build(mut self) -> impl Widget<T> {
     Flex::column()
       .with_child(

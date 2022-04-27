@@ -1,5 +1,5 @@
 use std::{
-  collections::{BTreeMap, HashSet},
+  collections::HashSet,
   path::{Path, PathBuf},
   rc::Rc,
   sync::Arc,
@@ -9,7 +9,7 @@ use druid::{
   lens, theme,
   widget::{Either, Flex, Label, List, ListIter, Painter, Scroll},
   Color, Data, ExtEventSink, KeyOrValue, Lens, LensExt, Rect, RenderContext, Selector, Target,
-  Widget, WidgetExt,
+  Widget, WidgetExt, im::{Vector, HashMap},
 };
 use druid_widget_nursery::WidgetExt as WidgetExtNursery;
 use if_chain::if_chain;
@@ -22,18 +22,18 @@ use crate::app::util::StarsectorVersionDiff;
 
 use super::{
   installer::HybridPath,
-  mod_entry::{GameVersion, ModEntry, UpdateStatus},
+  mod_entry::{GameVersion, ModEntry, UpdateStatus, ModMetadata},
   util::{self, SaveError},
 };
 
 pub mod headings;
-use self::headings::Headings;
+use self::headings::{Header, Heading};
 
 #[derive(Clone, Data, Lens)]
 pub struct ModList {
   #[data(same_fn = "PartialEq::eq")]
-  pub mods: BTreeMap<String, Arc<ModEntry>>,
-  headings: Headings,
+  pub mods: HashMap<String, Arc<ModEntry>>,
+  pub header: Header,
   search_text: String,
   #[data(same_fn = "PartialEq::eq")]
   active_filters: HashSet<Filters>,
@@ -49,10 +49,10 @@ impl ModList {
   pub const FILTER_UPDATE: Selector<(Filters, bool)> = Selector::new("mod_list.filter.update");
   pub const DUPLICATE: Selector<(Arc<ModEntry>, Arc<ModEntry>)> = Selector::new("mod_list.submit_entry.duplicate");
 
-  pub fn new() -> Self {
+  pub fn new(headings: Vector<Heading>) -> Self {
     Self {
-      mods: BTreeMap::new(),
-      headings: Headings::new(&headings::RATIOS),
+      mods: HashMap::new(),
+      header: Header::new(headings),
       search_text: String::new(),
       active_filters: HashSet::new(),
       starsector_version: None,
@@ -61,7 +61,9 @@ impl ModList {
 
   pub fn ui_builder() -> impl Widget<Self> {
     Flex::column()
-      .with_child(headings::Headings::ui_builder().lens(ModList::headings))
+      .with_child(
+        headings::Header::ui_builder().lens(ModList::header)
+      )
       .with_flex_child(
         Either::new(
           |data: &ModList, _| !data.mods.is_empty(),
@@ -69,18 +71,18 @@ impl ModList {
             List::new(|| {
               ModEntry::ui_builder()
                 .expand_width()
-                .lens(lens!(
-                  (Arc<ModEntry>, usize, Rc<[f64; 5]>, Rc<Option<GameVersion>>),
-                  0
+                .lens(lens::Map::new(
+                  |val: &EntryAlias| (val.0.clone(), val.2.clone(), val.3.clone()),
+                  |_, _| {}
                 ))
                 .background(Painter::new(
-                  |ctx, (entry, i, ratios, game_version): &EntryAlias, env| {
+                  |ctx, (entry, i, ratios, headings, game_version): &EntryAlias, env| {
                     let rect = ctx.size().to_rect();
                     // manually paint cells here to indicate version info
                     // set ratios in ModList through a command listener on this widget
                     // implement update status parser
                     // calculate cell widths using ratios and paint appropriately
-                    fn calc_pos(idx: usize, ratios: &Rc<[f64; 5]>, width: f64) -> f64 {
+                    fn calc_pos(idx: usize, ratios: &Rc<Vec<f64>>, width: f64) -> f64 {
                       if idx == 0 {
                         0.
                       } else if idx == 1 {
@@ -96,39 +98,52 @@ impl ModList {
                     } else {
                       ctx.fill(rect, &env.get(theme::BACKGROUND_LIGHT))
                     }
-                    if let Some(local) = &entry.version_checker {
-                      let update_status = UpdateStatus::from((local, &entry.remote_version));
-
-                      let enabled_shift = (headings::ENABLED_RATIO) * rect.width();
-                      let mut row_origin = rect.origin();
-                      row_origin.x += enabled_shift + 3.;
-                      let row_rect = rect.with_origin(row_origin).intersect(rect);
-
-                      let cell_left = calc_pos(3, ratios, row_rect.width());
-                      let cell_right = calc_pos(4, ratios, row_rect.width());
-                      let cell_0_rect = Rect::from_points(
-                        (row_rect.origin().x + cell_left, row_rect.origin().y),
-                        (row_rect.origin().x + cell_right, row_rect.height()),
-                      );
-
-                      let color = <KeyOrValue<Color>>::from(&update_status).resolve(env);
-                      ctx.fill(cell_0_rect, &color)
+                    if let Some(idx) = headings.index_of(&Heading::Version) {
+                      if let Some(local) = &entry.version_checker {
+                        let update_status = UpdateStatus::from((local, &entry.remote_version));
+  
+                        let enabled_shift = (headings::ENABLED_RATIO) * rect.width();
+                        let mut row_origin = rect.origin();
+                        row_origin.x += enabled_shift + 3.;
+                        let row_rect = rect.with_origin(row_origin).intersect(rect);
+  
+                        let cell_left = row_rect.origin().x + calc_pos(idx, ratios, row_rect.width());
+                        let cell_right = if idx < ratios.len() {
+                          row_rect.origin().x + calc_pos(idx + 1, ratios, row_rect.width())
+                        } else {
+                          row_rect.max_x()
+                        };
+                        let cell_0_rect = Rect::from_points(
+                          (cell_left, row_rect.origin().y),
+                          (cell_right, row_rect.height()),
+                        );
+  
+                        let color = <KeyOrValue<Color>>::from(&update_status).resolve(env);
+                        ctx.fill(cell_0_rect, &color)
+                      }
                     }
-                    if let Some(game_version) = game_version.as_ref() {
-                      let diff = StarsectorVersionDiff::from((&entry.game_version, game_version));
-                      let enabled_shift = (headings::ENABLED_RATIO) * rect.width();
-                      let mut row_origin = rect.origin();
-                      row_origin.x += enabled_shift + 3.;
-                      let row_rect = rect.with_origin(row_origin).intersect(rect);
+                    if let Some(idx) = headings.index_of(&Heading::GameVersion) {
+                      if let Some(game_version) = game_version.as_ref() {
+                        let diff = StarsectorVersionDiff::from((&entry.game_version, game_version));
+                        let enabled_shift = (headings::ENABLED_RATIO) * rect.width();
+                        let mut row_origin = rect.origin();
+                        row_origin.x += enabled_shift + 3.;
+                        let row_rect = rect.with_origin(row_origin).intersect(rect);
 
-                      let cell_left = calc_pos(5, ratios, row_rect.width());
-                      let cell_0_rect = Rect::from_points(
-                        (row_rect.origin().x + cell_left, row_rect.origin().y),
-                        (row_rect.max_x(), row_rect.height()),
-                      );
+                        let cell_left = row_rect.origin().x + calc_pos(idx, ratios, row_rect.width());
+                        let cell_right = if idx < ratios.len() {
+                          row_rect.origin().x + calc_pos(idx + 1, ratios, row_rect.width())
+                        } else {
+                          row_rect.max_x()
+                        };
+                        let cell_0_rect = Rect::from_points(
+                          (cell_left, row_rect.origin().y),
+                          (cell_right, row_rect.height()),
+                        );
 
-                      let color = <KeyOrValue<Color>>::from(diff).resolve(env);
-                      ctx.fill(cell_0_rect, &color)
+                        let color = <KeyOrValue<Color>>::from(diff).resolve(env);
+                        ctx.fill(cell_0_rect, &color)
+                      }
                     }
                   },
                 ))
@@ -140,7 +155,7 @@ impl ModList {
               ctx.children_changed();
             })
             .on_command(ModList::SEARCH_UPDATE, |ctx, _, data| {
-              data.headings.sort_by = (Sorting::Score, true);
+              data.header.sort_by = (Heading::Score, true);
               ctx.children_changed()
             })
             .on_command(ModList::FILTER_UPDATE, |ctx, (filter, insert), data| {
@@ -166,11 +181,11 @@ impl ModList {
           data.mods.insert(payload.id.clone(), payload.clone());
         }
       })
-      .on_command(Headings::SORT_CHANGED, |ctx, payload, data| {
-        if data.headings.sort_by.0 == *payload {
-          data.headings.sort_by.1 = !data.headings.sort_by.1;
+      .on_command(Header::SORT_CHANGED, |ctx, payload, data| {
+        if data.header.sort_by.0 == *payload {
+          data.header.sort_by.1 = !data.header.sort_by.1;
         } else {
-          data.headings.sort_by = (*payload, false)
+          data.header.sort_by = (*payload, false)
         }
         ctx.children_changed()
       })
@@ -188,6 +203,15 @@ impl ModList {
           }
           data.mods.insert(entry.id.clone(), entry);
         };
+      })
+      .on_command(ModMetadata::SUBMIT_MOD_METADATA, |_ctx, (id, metadata), data| {
+        if let Some(mut entry) = data.mods.remove(id) {
+          ModEntry::manager_metadata
+            .in_arc()
+            .put(&mut entry, metadata.clone());
+
+          data.mods.insert(id.clone(), entry);
+        }
       })
   }
 
@@ -226,7 +250,7 @@ impl ModList {
             }
           })
           .filter_map(|entry| {
-            if let Ok(mut mod_info) = ModEntry::from_file(&entry.path()) {
+            if let Ok(mut mod_info) = ModEntry::from_file(&entry.path(), ModMetadata::default()) {
               mod_info.set_enabled(
                 enabled_mods_iter
                   .clone()
@@ -247,6 +271,9 @@ impl ModList {
             if let Some(version) = entry.version_checker.clone() {
               handle.spawn(util::get_master_version(event_sink.clone(), version));
             }
+            if ModMetadata::path(&entry.path).exists() {
+              handle.spawn(ModMetadata::parse_and_send(entry.id.clone(), entry.path.clone(), event_sink.clone()));
+            }
           });
       }
     }
@@ -257,8 +284,8 @@ impl ModList {
   }
 
   fn sorted_vals(&self) -> Vec<Arc<ModEntry>> {
-    let values_iter = self.mods.par_iter().filter_map(|(_, entry)| {
-      let search = if let Sorting::Score = self.headings.sort_by.0 {
+    let mut values: Vec<Arc<ModEntry>> = self.mods.iter().filter_map(|(_, entry)| {
+      let search = if let Heading::Score = self.header.sort_by.0 {
         if !self.search_text.is_empty() {
           let id_score = best_match(&self.search_text, &entry.id).map(|m| m.score());
           let name_score = best_match(&self.search_text, &entry.name).map(|m| m.score());
@@ -274,24 +301,23 @@ impl ModList {
       let filters = self.active_filters.par_iter().all(|f| f.as_fn()(entry));
 
       (search && filters).then(|| entry.clone())
-    });
+    }).collect();
 
-    let mut values: Vec<Arc<ModEntry>> = values_iter.collect();
     values.par_sort_unstable_by(|a, b| {
-      let ord = match self.headings.sort_by.0 {
-        Sorting::ID => a.id.cmp(&b.id),
-        Sorting::Name => a.name.cmp(&b.name),
-        Sorting::Author => a.author.cmp(&b.author),
-        Sorting::GameVersion => a.game_version.cmp(&b.game_version),
-        Sorting::Enabled => a.enabled.cmp(&b.enabled),
-        Sorting::Version => match (a.update_status.as_ref(), b.update_status.as_ref()) {
+      let ord = match self.header.sort_by.0 {
+        Heading::ID => a.id.cmp(&b.id),
+        Heading::Name => a.name.cmp(&b.name),
+        Heading::Author => a.author.cmp(&b.author),
+        Heading::GameVersion => a.game_version.cmp(&b.game_version),
+        Heading::Enabled => a.enabled.cmp(&b.enabled),
+        Heading::Version => match (a.update_status.as_ref(), b.update_status.as_ref()) {
           (None, None) => a.name.cmp(&b.name),
           (_, _) if a.update_status.cmp(&b.update_status) == std::cmp::Ordering::Equal => {
             a.name.cmp(&b.name)
           }
           (_, _) => a.update_status.cmp(&b.update_status),
         },
-        Sorting::Score => {
+        Heading::Score => {
           let scoring = |entry: &Arc<ModEntry>| -> Option<isize> {
             let id_score = best_match(&self.search_text, &entry.id).map(|m| m.score());
             let name_score = best_match(&self.search_text, &entry.name).map(|m| m.score());
@@ -302,7 +328,7 @@ impl ModList {
 
           scoring(a).cmp(&scoring(b))
         }
-        Sorting::AutoUpdateSupport => a
+        Heading::AutoUpdateSupport => a
           .remote_version
           .as_ref()
           .and_then(|r| r.direct_download_url.as_ref())
@@ -313,9 +339,10 @@ impl ModList {
               .and_then(|r| r.direct_download_url.as_ref())
               .is_some(),
           ),
+          Heading::InstallDate => a.manager_metadata.install_date.cmp(&b.manager_metadata.install_date),
       };
 
-      if self.headings.sort_by.1 {
+      if self.header.sort_by.1 {
         ord.reverse()
       } else {
         ord
@@ -325,25 +352,27 @@ impl ModList {
   }
 }
 
-type EntryAlias = (Arc<ModEntry>, usize, Rc<[f64; 5]>, Rc<Option<GameVersion>>);
+type EntryAlias = (Arc<ModEntry>, usize, Rc<Vec<f64>>, Rc<Vector<Heading>>, Rc<Option<GameVersion>>);
 
 impl ListIter<EntryAlias> for ModList {
   fn for_each(&self, mut cb: impl FnMut(&EntryAlias, usize)) {
-    let ratios = Rc::new(self.headings.ratios);
+    let ratios = Rc::new(self.header.ratios.clone());
+    let headers = Rc::new(self.header.headings.clone());
     let game_version = Rc::new(self.starsector_version.clone());
 
     for (i, item) in self.sorted_vals().into_iter().enumerate() {
-      cb(&(item, i, ratios.clone(), game_version.clone()), i);
+      cb(&(item, i, ratios.clone(), headers.clone(), game_version.clone()), i);
     }
   }
 
   fn for_each_mut(&mut self, mut cb: impl FnMut(&mut EntryAlias, usize)) {
-    let ratios = Rc::new(self.headings.ratios);
+    let ratios = Rc::new(self.header.ratios.clone());
+    let headers = Rc::new(self.header.headings.clone());
     let game_version = Rc::new(self.starsector_version.clone());
 
     for (i, item) in self.sorted_vals().iter_mut().enumerate() {
       cb(
-        &mut (item.clone(), i, ratios.clone(), game_version.clone()),
+        &mut (item.clone(), i, ratios.clone(), headers.clone(), game_version.clone()),
         i,
       );
     }
@@ -393,33 +422,6 @@ impl From<Vec<Arc<ModEntry>>> for EnabledMods {
 impl From<Vec<String>> for EnabledMods {
   fn from(enabled_mods: Vec<String>) -> Self {
     Self { enabled_mods }
-  }
-}
-
-#[derive(Debug, Clone, Copy, Data, PartialEq, Eq)]
-pub enum Sorting {
-  ID,
-  Name,
-  Author,
-  GameVersion,
-  Enabled,
-  Version,
-  Score,
-  AutoUpdateSupport,
-}
-
-impl From<Sorting> for &str {
-  fn from(sorting: Sorting) -> Self {
-    match sorting {
-      Sorting::ID => "ID",
-      Sorting::Name => "Name",
-      Sorting::Author => "Author(s)",
-      Sorting::GameVersion => "Game Version",
-      Sorting::Enabled => "Enabled",
-      Sorting::Version => "Version",
-      Sorting::Score => "score",
-      Sorting::AutoUpdateSupport => "Auto-Update Supported",
-    }
   }
 }
 

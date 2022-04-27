@@ -24,6 +24,8 @@ use tokio::{
 
 use crate::app::mod_entry::ModEntry;
 
+use super::mod_entry::ModMetadata;
+
 #[derive(Clone)]
 pub enum Payload {
   Initial(Vec<PathBuf>),
@@ -99,7 +101,9 @@ async fn handle_path(
   let dir = mod_folder.get_path_copy();
   if_chain! {
     if let Ok(Some(mod_path)) = task::spawn_blocking(move || find_nested_mod(&dir)).await.expect("Find mod in given folder");
-    if let Ok(mut mod_info) = ModEntry::from_file(&mod_path);
+    let mod_metadata = ModMetadata::new();
+    if mod_metadata.save(&mod_path).await.is_ok();
+    if let Ok(mut mod_info) = ModEntry::from_file(&mod_path, mod_metadata);
     then {
       let rewrite = || {
         match mod_folder {
@@ -261,7 +265,9 @@ async fn handle_auto(ext_ctx: ExtEventSink, entry: Arc<ModEntry>) {
               .await
               .expect("Run blocking search")
               .context(Io { detail: String::from("Failed to find mod during recursive folder search") });
-            if let Ok(mod_info) = ModEntry::from_file(&path);
+            let mod_metadata = ModMetadata::new();
+            if mod_metadata.save(&path).await.is_ok();
+            if let Ok(mod_info) = ModEntry::from_file(&path, mod_metadata);
             then {
               let hybrid = if let HybridPath::Temp(temp, _) = hybrid {
                 HybridPath::Temp(temp, Some(path))

@@ -3,18 +3,21 @@ use std::{
   fmt::Display,
   fs::File,
   io::{BufRead, BufReader, Read},
-  iter::FromIterator,
   path::{Path, PathBuf},
+  rc::Rc,
   sync::Arc,
 };
 
+use chrono::{Utc, DateTime, Local};
 use druid::{
+  im::Vector,
+  lens,
   widget::{Button, Checkbox, Controller, ControllerHost, Flex, Label, SizedBox, ViewSwitcher},
-  Color, Data, KeyOrValue, Lens, LensExt, Selector, Widget, WidgetExt,
+  Color, Data, KeyOrValue, Lens, LensExt, Selector, Widget, WidgetExt, ExtEventSink,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
 use json_comments::strip_comments;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use if_chain::if_chain;
 use serde_aux::prelude::*;
@@ -22,14 +25,15 @@ use tap::Tap;
 
 use crate::{
   app::{
-    util::{parse_game_version, default_true, LabelExt},
-    App, AppCommands, controllers::ModEntryClickController,
+    controllers::ModEntryClickController,
+    util::{default_true, parse_game_version, LabelExt},
+    App, AppCommands,
   },
   patch::{split::Split, tooltip::TooltipController},
 };
 
 use super::{
-  mod_list::headings,
+  mod_list::headings::{self, Heading},
   util::{
     self, icons::*, BLUE_KEY, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ON_RED_KEY,
     ON_YELLOW_KEY, ORANGE_KEY, RED_KEY, YELLOW_KEY,
@@ -71,6 +75,8 @@ pub struct ModEntry {
   #[serde(skip)]
   #[serde(default = "default_true")]
   display: bool,
+  #[serde(skip)]
+  pub manager_metadata: ModMetadata,
 }
 
 impl ModEntry {
@@ -79,7 +85,7 @@ impl ModEntry {
   pub const AUTO_UPDATE: Selector<Arc<ModEntry>> = Selector::new("mod_list.update.auto");
   pub const ASK_DELETE_MOD: Selector<Arc<ModEntry>> = Selector::new("mod_entry.delete");
 
-  pub fn from_file(path: &Path) -> Result<ModEntry, ModEntryError> {
+  pub fn from_file(path: &Path, manager_metadata: ModMetadata) -> Result<ModEntry, ModEntryError> {
     if let Ok(mod_info_file) = std::fs::read_to_string(path.join("mod_info.json")) {
       if_chain! {
         let mut stripped = String::new();
@@ -89,6 +95,7 @@ impl ModEntry {
           mod_info.version_checker = ModEntry::parse_version_checker(path, &mod_info.id);
           mod_info.path = path.to_path_buf();
           mod_info.game_version = parse_game_version(&mod_info.raw_game_version);
+          mod_info.manager_metadata = manager_metadata;
           Ok(mod_info)
         } else {
           Err(ModEntryError::ParseError)
@@ -122,111 +129,7 @@ impl ModEntry {
     self.enabled = enabled;
   }
 
-  pub fn ui_builder() -> impl Widget<Arc<Self>> {
-    let children: VecDeque<SizedBox<Arc<ModEntry>>> = VecDeque::from_iter(vec![
-      Label::wrapped_func(|text: &String, _| text.to_string())
-        .lens(ModEntry::name.in_arc())
-        .padding(5.)
-        .expand_width(),
-      Label::wrapped_func(|text: &String, _| text.to_string())
-        .lens(ModEntry::id.in_arc())
-        .padding(5.)
-        .expand_width(),
-      Label::wrapped_func(|text: &String, _| text.to_string())
-        .lens(ModEntry::author.in_arc())
-        .padding(5.)
-        .expand_width(),
-      ViewSwitcher::new(
-        |entry: &Arc<ModEntry>, _| {
-          entry.clone()
-        },
-        |data, _, env| {
-          let color = data
-            .update_status
-            .as_ref()
-            .map(|s| s.as_text_colour())
-            .unwrap_or_else(|| <KeyOrValue<Color>>::from(druid::theme::TEXT_COLOR));
-          Box::new(
-            Flex::row()
-              .with_child(Label::wrapped(&data.version.to_string()).with_text_color(color.clone()))
-              .with_flex_spacer(1.)
-              .tap_mut(|row| {
-                let mut icon_row = Flex::row();
-                let mut iter = 0;
-
-                match data.update_status.as_ref() {
-                  Some(UpdateStatus::Major(_)) => iter = 3,
-                  Some(UpdateStatus::Minor(_)) => iter = 2,
-                  Some(UpdateStatus::Patch(_)) => iter = 1,
-                  Some(UpdateStatus::Error) => icon_row.add_child(Icon::new(REPORT)),
-                  Some(UpdateStatus::Discrepancy(_)) => icon_row.add_child(Icon::new(HELP)),
-                  Some(UpdateStatus::UpToDate) => icon_row.add_child(Icon::new(VERIFIED)),
-                  _ => {}
-                };
-
-                for _ in 0..iter {
-                  icon_row.add_child(Icon::new(NEW_RELEASES))
-                }
-
-                if let Some(update_status) = &data.update_status {
-                  let tooltip = update_status.to_string();
-                  let text_color = color.clone();
-                  let background_color = <KeyOrValue<Color>>::from(update_status).resolve(env);
-                  row.add_child(icon_row.controller(TooltipController::new(move || {
-                    Label::new(tooltip.clone())
-                      .with_text_color(text_color.clone())
-                      .padding(5.)
-                      .background(background_color.clone())
-                      .border(text_color.clone(), 2.)
-                      .boxed()
-                  })))
-                } else {
-                  row.add_child(icon_row)
-                }
-              }),
-          )
-        },
-      )
-      .padding(5.)
-      .expand_width(),
-      ViewSwitcher::new(
-        |entry: &Arc<ModEntry>, _| {
-          if entry.version_checker.is_some()
-            && entry
-              .remote_version
-              .as_ref()
-              .and_then(|r| r.direct_download_url.as_ref())
-              .is_some()
-          {
-            if let Some(status) = &entry.update_status {
-              return status.clone();
-            }
-          }
-
-          UpdateStatus::Error
-        },
-        |status, _, _| match status {
-          UpdateStatus::Error => Box::new(Label::wrapped("Unsupported")),
-          UpdateStatus::UpToDate => Box::new(Label::wrapped("No update available")),
-          _ => Box::new(
-            Button::from_label(Label::wrapped("Update available!")).on_click(
-              |ctx: &mut druid::EventCtx, data: &mut Arc<ModEntry>, _| {
-                ctx.submit_notification(ModEntry::AUTO_UPDATE.with(data.clone()))
-              },
-            ),
-          ),
-        },
-      )
-      .padding(5.)
-      .expand_width(),
-      Label::wrapped_func(|version: &GameVersion, _| {
-        util::get_quoted_version(version).unwrap_or_else(|| "".to_string())
-      })
-      .lens(ModEntry::game_version.in_arc())
-      .padding(5.)
-      .expand_width(),
-    ]);
-
+  pub fn ui_builder() -> impl Widget<(Arc<Self>, Rc<Vec<f64>>, Rc<Vector<Heading>>)> {
     fn recursive_split(
       idx: usize,
       mut widgets: VecDeque<SizedBox<Arc<ModEntry>>>,
@@ -236,7 +139,7 @@ impl ModEntry {
         Split::columns(
           widgets
             .pop_front()
-            .expect("This better work..")
+            .unwrap()
             .padding((0., 5., 0., 5.)),
           recursive_split(idx + 1, widgets, ratios),
         )
@@ -244,11 +147,11 @@ impl ModEntry {
         Split::columns(
           widgets
             .pop_front()
-            .expect("This better work")
+            .unwrap()
             .padding((0., 5., 0., 5.)),
           widgets
             .pop_front()
-            .expect("This better work")
+            .unwrap()
             .padding((0., 5., 0., 5.)),
         )
       }
@@ -257,22 +160,155 @@ impl ModEntry {
       .controller(RowController::new(idx))
     }
 
-    Split::columns(
-      Checkbox::new("")
-        .lens(ModEntry::enabled.in_arc())
-        .center()
-        .padding(5.)
-        .expand_width()
-        .on_change(|ctx, _old, data, _| ctx.submit_command(ModEntry::REPLACE.with(data.clone()))),
-      recursive_split(0, children, &headings::RATIOS),
-    )
-    .split_point(headings::ENABLED_RATIO)
-    .on_click(
-      |ctx: &mut druid::EventCtx, data: &mut Arc<ModEntry>, _env: &druid::Env| {
-        ctx.submit_command(App::SELECTOR.with(AppCommands::UpdateModDescription(data.clone())))
+    ViewSwitcher::new(
+      |data: &(Arc<Self>, Rc<Vec<f64>>, Rc<Vector<Heading>>), _| data.1.clone(),
+      |_, (_, ratios, headings), _| {
+        let mut children: VecDeque<SizedBox<Arc<ModEntry>>> = VecDeque::new();
+
+        let iter = headings.iter();
+        for heading in iter {
+          let cell = match heading {
+            header @ Heading::ID | header @ Heading::Name | header @ Heading::Author => {
+              let label = Label::wrapped_func(|text: &String, _| text.to_string());
+              match header {
+                Heading::ID => label.lens(ModEntry::id.in_arc()).padding(5.).expand_width(),
+                Heading::Name => label
+                  .lens(ModEntry::name.in_arc())
+                  .padding(5.)
+                  .expand_width(),
+                Heading::Author => label
+                  .lens(ModEntry::author.in_arc())
+                  .padding(5.)
+                  .expand_width(),
+                _ => unreachable!(),
+              }
+            }
+            Heading::GameVersion => Label::wrapped_func(|version: &GameVersion, _| {
+              util::get_quoted_version(version).unwrap_or_else(|| "".to_string())
+            })
+            .lens(ModEntry::game_version.in_arc())
+            .padding(5.)
+            .expand_width(),
+            Heading::Version => ViewSwitcher::new(
+              |entry: &Arc<ModEntry>, _| entry.clone(),
+              |data, _, env| {
+                let color = data
+                  .update_status
+                  .as_ref()
+                  .map(|s| s.as_text_colour())
+                  .unwrap_or_else(|| <KeyOrValue<Color>>::from(druid::theme::TEXT_COLOR));
+                Box::new(
+                  Flex::row()
+                    .with_child(
+                      Label::wrapped(&data.version.to_string()).with_text_color(color.clone()),
+                    )
+                    .with_flex_spacer(1.)
+                    .tap_mut(|row| {
+                      let mut icon_row = Flex::row();
+                      let mut iter = 0;
+
+                      match data.update_status.as_ref() {
+                        Some(UpdateStatus::Major(_)) => iter = 3,
+                        Some(UpdateStatus::Minor(_)) => iter = 2,
+                        Some(UpdateStatus::Patch(_)) => iter = 1,
+                        Some(UpdateStatus::Error) => icon_row.add_child(Icon::new(REPORT)),
+                        Some(UpdateStatus::Discrepancy(_)) => icon_row.add_child(Icon::new(HELP)),
+                        Some(UpdateStatus::UpToDate) => icon_row.add_child(Icon::new(VERIFIED)),
+                        _ => {}
+                      };
+
+                      for _ in 0..iter {
+                        icon_row.add_child(Icon::new(NEW_RELEASES))
+                      }
+
+                      if let Some(update_status) = &data.update_status {
+                        let tooltip = update_status.to_string();
+                        let text_color = color.clone();
+                        let background_color =
+                          <KeyOrValue<Color>>::from(update_status).resolve(env);
+                        row.add_child(icon_row.controller(TooltipController::new(move || {
+                          Label::new(tooltip.clone())
+                            .with_text_color(text_color.clone())
+                            .padding(5.)
+                            .background(background_color.clone())
+                            .border(text_color.clone(), 2.)
+                            .boxed()
+                        })))
+                      } else {
+                        row.add_child(icon_row)
+                      }
+                    }),
+                )
+              },
+            )
+            .padding(5.)
+            .expand_width(),
+            Heading::AutoUpdateSupport => ViewSwitcher::new(
+              |entry: &Arc<ModEntry>, _| {
+                if entry.version_checker.is_some()
+                  && entry
+                    .remote_version
+                    .as_ref()
+                    .and_then(|r| r.direct_download_url.as_ref())
+                    .is_some()
+                {
+                  if let Some(status) = &entry.update_status {
+                    return status.clone();
+                  }
+                }
+
+                UpdateStatus::Error
+              },
+              |status, _, _| match status {
+                UpdateStatus::Error => Box::new(Label::wrapped("Unsupported")),
+                UpdateStatus::UpToDate => Box::new(Label::wrapped("No update available")),
+                _ => Box::new(
+                  Button::from_label(Label::wrapped("Update available!")).on_click(
+                    |ctx: &mut druid::EventCtx, data: &mut Arc<ModEntry>, _| {
+                      ctx.submit_notification(ModEntry::AUTO_UPDATE.with(data.clone()))
+                    },
+                  ),
+                ),
+              },
+            )
+            .padding(5.)
+            .expand_width(),
+            Heading::InstallDate => Label::wrapped_func(|data: &ModMetadata, _| if let Some(date) = data.install_date {
+                DateTime::<Local>::from(date).format("%v %I:%M%p").to_string()
+              } else {
+                String::from("Unknown")
+              })
+              .lens(ModEntry::manager_metadata.in_arc())
+              .padding(5.)
+              .expand_width(),
+            Heading::Enabled | Heading::Score => continue,
+          };
+
+          children.push_back(cell)
+        }
+
+        Split::columns(
+          Checkbox::new("")
+            .lens(ModEntry::enabled.in_arc())
+            .center()
+            .padding(5.)
+            .expand_width()
+            .on_change(|ctx, _old, data, _| {
+              ctx.submit_command(ModEntry::REPLACE.with(data.clone()))
+            }),
+          recursive_split(0, children, &ratios),
+        )
+        .split_point(headings::ENABLED_RATIO)
+        .on_click(
+          |ctx: &mut druid::EventCtx, data: &mut Arc<ModEntry>, _env: &druid::Env| {
+            ctx.submit_command(App::SELECTOR.with(AppCommands::UpdateModDescription(data.id.clone())))
+          },
+        )
+        .controller(ModEntryClickController)
+        .lens(lens!((Arc<ModEntry>, Rc<Vec<f64>>, Rc<Vector<Heading>>), 0))
+        .boxed()
       },
     )
-    .controller(ModEntryClickController)
   }
 
   /// Set the mod entry's path.
@@ -476,5 +512,57 @@ impl UpdateStatus {
       UpdateStatus::Error => ON_RED_KEY.into(),
       UpdateStatus::UpToDate => ON_GREEN_KEY.into(),
     }
+  }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Data, Lens, Default)]
+pub struct ModMetadata {
+  #[data(same_fn = "PartialEq::eq")]
+  pub install_date: Option<DateTime<Utc>>,
+}
+
+impl ModMetadata {
+  const FILE_NAME: &'static str = ".moss";
+
+  pub const SUBMIT_MOD_METADATA: Selector<(String, ModMetadata)> = Selector::new("mod_metadata.submit");
+
+  pub fn new() -> Self {
+    Self {
+      install_date: Some(Utc::now())
+    }
+  }
+
+  pub fn path(parent: impl AsRef<Path>) -> PathBuf {
+    parent.as_ref().join(Self::FILE_NAME)
+  }
+
+  pub async fn parse(mod_folder: impl AsRef<Path>) -> std::io::Result<Self> {
+    use tokio::fs::read_to_string;
+
+    let json = read_to_string(Self::path(mod_folder)).await?;
+
+    let metadata = serde_json::from_str(&json)?;
+
+    Ok(metadata)
+  }
+
+  pub async fn parse_and_send(id: String, mod_folder: impl AsRef<Path>, ext_ctx: ExtEventSink) {
+    use druid::Target;
+
+    if let Ok(mod_metadata) = Self::parse(mod_folder).await {
+      let _ = ext_ctx.submit_command(Self::SUBMIT_MOD_METADATA, (id, mod_metadata), Target::Auto);
+    }
+  }
+
+  pub async fn save(&self, mod_folder: impl AsRef<Path>) -> std::io::Result<()> {
+    use tokio::fs::write;
+
+    let path = Self::path(mod_folder);
+
+    let json = serde_json::to_vec_pretty(&self)?;
+
+    write(&path, json).await?;
+
+    Ok(())
   }
 }
