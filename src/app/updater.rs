@@ -1,5 +1,5 @@
 use self_update::{
-  backends::github::Update, cargo_crate_version, errors::Error as SelfUpdateError,
+  errors::Error as SelfUpdateError,
 };
 
 pub fn support_self_update() -> bool {
@@ -11,6 +11,10 @@ pub fn support_self_update() -> bool {
 
 #[cfg(not(target_os = "macos"))]
 pub fn self_update() -> Result<(), SelfUpdateError> {
+  use self_update::{
+    backends::github::Update, cargo_crate_version,
+  };
+
   Update::configure()
     .repo_owner("atlanticaccent")
     .repo_name("starsector-mod-manager-rust")
