@@ -1,114 +1,126 @@
-<header>
-  <h1>MOSS | Mod Organizer for StarSector</h1>
-  <h2>A mod manager for Starsector, a space fleet-battle and economics simulator. This time written in Rust.</h2>
-  <a href="https://github.com/atlanticaccent/starsector-mod-manager-rust/releases/latest/download/starsector_mod_manager.exe">Download for Windows</a>
-  <a href="https://github.com/atlanticaccent/starsector-mod-manager-rust/releases/latest/download/macos.zip">Download for macOS</a>
-  <a href="https://github.com/atlanticaccent/starsector-mod-manager-rust/releases/latest/download/starsector_mod_manager_linux_dynamic">Download for Linux (dynamic)</a>
-  <a href="https://github.com/atlanticaccent/starsector-mod-manager-rust/releases/latest/download/starsector_mod_manager_linux_static">Download for Linux (static)</a>
-</header>
-
-<h1>Installation:</h1>
-<p>
-  Simply download the version for your platform and unzip it to a convenient location.
-</p>
-<p>
-  No additional installation is required.
-</p>
-
-<h1>Usage:</h1>
-<p>To start the app simply run the extracted file.</p>
-<p>
-  After you boot the application for the first time, you will need to direct it to your Starsector installation directory.
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/the-new-css-reset@1.6.0/css/reset.min.css">
+  <title>MOSS | Mod Organizer for StarSector</title>
+</head>
+<body>
+  <header>
+    <h1>MOSS | Mod Organizer for StarSector</h1>
+    <h2>A mod manager for Starsector, a space fleet-battle and economics simulator. This time written in Rust.</h2>
+    <a href="https://github.com/atlanticaccent/starsector-mod-manager-rust/releases/latest/download/starsector_mod_manager.exe">Download for Windows</a>
+    <a href="https://github.com/atlanticaccent/starsector-mod-manager-rust/releases/latest/download/macos.zip">Download for macOS</a>
+    <a href="https://github.com/atlanticaccent/starsector-mod-manager-rust/releases/latest/download/starsector_mod_manager_linux_dynamic">Download for Linux (dynamic)</a>
+    <a href="https://github.com/atlanticaccent/starsector-mod-manager-rust/releases/latest/download/starsector_mod_manager_linux_static">Download for Linux (static)</a>
+  </header>
+  
+  <h1>Installation:</h1>
+  <p>
+    Simply download the version for your platform and unzip it to a convenient location.
+  </p>
+  <p>
+    No additional installation is required.
+  </p>
+  
+  <h1>Usage:</h1>
+  <p>To start the app simply run the extracted file.</p>
+  <p>
+    After you boot the application for the first time, you will need to direct it to your Starsector installation directory.
+    <ul>
+      <li>
+        For Windows and Linux, this means selecting the Starsector folder (not the mods folder)
+      </li>
+      <li>
+        On macOS, this means selecting the <code>Starsector.app</code>  file
+      </li>
+    </ul>
+  </p>
+  <p>
+    Once the Starsector installation directory is set, you are now free to use the main features of the app.
+  </p>
+  <h2>Mod Installation</h2>
   <ul>
     <li>
-      For Windows and Linux, this means selecting the Starsector folder (not the mods folder)
+      Click <code>Install Mod(s)</code>
     </li>
     <li>
-      On macOS, this means selecting the <code>Starsector.app</code>  file
+      From the dropdown select <code>From folder</code> if you already unzipped a mod into a folder, or <code>From archive(s)</code> if you have one or more archives (ie: zip, rar, 7z, etc...) you'd like to install from.
+      <ul>
+        <li>Note<sup>1</sup>: You can install from multiple archives at once.</li>
+        <li>Note<sup>2</sup>: There is no need to worry about folder nesting when installing with MOSS. Mods will always be copied into your mod folder at the correct level, eg: <code>mods/{mod_name}</code>.</li>
+      </ul>
     </li>
   </ul>
-</p>
-<p>
-  Once the Starsector installation directory is set, you are now free to use the main features of the app.
-</p>
-<h2>Mod Installation</h2>
-<ul>
-  <li>
-    Click <code>Install Mod(s)</code>
-  </li>
-  <li>
-    From the dropdown select <code>From folder</code> if you already unzipped a mod into a folder, or <code>From archive(s)</code> if you have one or more archives (ie: zip, rar, 7z, etc...) you'd like to install from.
-    <ul>
-      <li>Note<sup>1</sup>: You can install from multiple archives at once.</li>
-      <li>Note<sup>2</sup>: There is no need to worry about folder nesting when installing with MOSS. Mods will always be copied into your mod folder at the correct level, eg: <code>mods/{mod_name}</code>.</li>
-    </ul>
-  </li>
-</ul>
-
-<h2>Version Checking</h2>
-<p>
-  By default, MOSS displays a <code>Version</code> column for all mods. 
-  This column displays the version of each installed mod.
-</p>
-<p>
-  You may notice that this column has different coloured backgrounds and different symbols for some mods, and nothing for others.
-  This represents the update status of the mod, including whether the mod supports Version Checker.
-</p>
-<p>
-  Mods that support Version Checker will display one of 6 statuses:
-</p>
-<ul>
-  <li>
-    Up to Date: There are no updates for this mod, as far as we know.
-    <ul>
-      <li>Green background</li>
-      <li>No symbols</li>
-    </ul>
-  </li>
-  <li>
-    Patch available: A patch update is available for this mod.
-    <ul>
-      <li>Blue background</li>
-      <li>One exclamation mark</li>
-    </ul>
-  </li>
-  <li>
-    Minor update available: A minor update is available for this mod.
-    <ul>
-      <li>Yellow background</li>
-      <li>Two exclamation marks</li>
-    </ul>
-  </li>
-  <li>
-    Major update available: A major update is available for this mod.
-    <ul>
-      <li>Orange/brown background</li>
-      <li>Three exclamation marks</li>
-    </ul>
-  </li>
-  <li>
-    Discrepancy: The installed version is greater than the highest known version.
-    <br>
-    This likely means that the mod author has forgotten to update their remote version checker file. This <b>is not an error</b>, 
-    but rather a configuration issue that must be resolved by the mod author.
-    <ul>
-      <li>Purple background</li>
-      <li>Question mark</li>
-    </ul>
-  </li>
-  <li>
-    Error: This mod supports Version Checker, but checking it's update status failed. Common causes include network access is unavailable, the version checker file being written incorrectly, or the given remote version file URL is incorrect.
-    <ul>
-      <li>Red background</li>
-      <li>Stop sign (aka: exclamation mark in triangle)</li>
-    </ul>
-  </li>
-</ul>
-
-<h2>Launching</h2>
-<p>
-  It is possible to launch the game directly from MOSS. Simply click the <code>Launch</code> button in the right-hand panel.
-</p>
-<p>
-  Additionally, you may enable the <code>Experimental direct launch</code> feature in the settings pane. This will allow you to bypass the vanilla launcher entirely, skipping that one extra click.
-</p>
+  
+  <h2>Version Checking</h2>
+  <p>
+    By default, MOSS displays a <code>Version</code> column for all mods. 
+    This column displays the version of each installed mod.
+  </p>
+  <p>
+    You may notice that this column has different coloured backgrounds and different symbols for some mods, and nothing for others.
+    This represents the update status of the mod, including whether the mod supports Version Checker.
+  </p>
+  <p>
+    Mods that support Version Checker will display one of 6 statuses:
+  </p>
+  <ul>
+    <li>
+      Up to Date: There are no updates for this mod, as far as we know.
+      <ul>
+        <li>Green background</li>
+        <li>No symbols</li>
+      </ul>
+    </li>
+    <li>
+      Patch available: A patch update is available for this mod.
+      <ul>
+        <li>Blue background</li>
+        <li>One exclamation mark</li>
+      </ul>
+    </li>
+    <li>
+      Minor update available: A minor update is available for this mod.
+      <ul>
+        <li>Yellow background</li>
+        <li>Two exclamation marks</li>
+      </ul>
+    </li>
+    <li>
+      Major update available: A major update is available for this mod.
+      <ul>
+        <li>Orange/brown background</li>
+        <li>Three exclamation marks</li>
+      </ul>
+    </li>
+    <li>
+      Discrepancy: The installed version is greater than the highest known version.
+      <br>
+      This likely means that the mod author has forgotten to update their remote version checker file. This <b>is not an error</b>, 
+      but rather a configuration issue that must be resolved by the mod author.
+      <ul>
+        <li>Purple background</li>
+        <li>Question mark</li>
+      </ul>
+    </li>
+    <li>
+      Error: This mod supports Version Checker, but checking it's update status failed. Common causes include network access is unavailable, the version checker file being written incorrectly, or the given remote version file URL is incorrect.
+      <ul>
+        <li>Red background</li>
+        <li>Stop sign (aka: exclamation mark in triangle)</li>
+      </ul>
+    </li>
+  </ul>
+  
+  <h2>Launching</h2>
+  <p>
+    It is possible to launch the game directly from MOSS. Simply click the <code>Launch</code> button in the right-hand panel.
+  </p>
+  <p>
+    Additionally, you may enable the <code>Experimental direct launch</code> feature in the settings pane. This will allow you to bypass the vanilla launcher entirely, skipping that one extra click.
+  </p>
+</body>
+</html>
