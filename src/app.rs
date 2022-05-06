@@ -14,7 +14,7 @@ use druid::{
   Lens, LensExt, Selector, Target, Widget, WidgetExt, WidgetId, WindowDesc, WindowId, WindowLevel,
 };
 use druid_widget_nursery::{
-  material_icons::Icon, ProgressBar, Separator, WidgetExt as WidgetExtNursery,
+  material_icons::Icon, ProgressBar, Separator, WidgetExt as WidgetExtNursery, FutureWidget,
 };
 use lazy_static::lazy_static;
 use rand::random;
@@ -46,7 +46,7 @@ use self::{
   util::{
     button_painter, get_latest_manager, get_quoted_version, get_starsector_version, h2, h3,
     icons::*, make_column_pair, IndyToggleState, LabelExt, Release, GET_INSTALLED_STARSECTOR,
-  },
+  }, mod_repo::ModRepo,
 };
 
 mod controllers;
@@ -59,6 +59,7 @@ mod settings;
 mod updater;
 #[path = "./util.rs"]
 pub mod util;
+mod mod_repo;
 
 const TAG: &str = env!("CARGO_PKG_VERSION");
 
@@ -78,6 +79,7 @@ pub struct App {
   duplicate_log: Vector<(Arc<ModEntry>, Arc<ModEntry>)>,
   webview: Option<Rc<RefCell<Child>>>,
   downloads: OrdMap<i64, (i64, String, f64)>,
+  mod_repo: Option<ModRepo>,
 }
 
 impl App {
@@ -138,6 +140,7 @@ impl App {
       duplicate_log: Vector::new(),
       webview: None,
       downloads: OrdMap::new(),
+      mod_repo: None,
     }
   }
 
@@ -222,18 +225,49 @@ impl App {
       })
       .disabled_if(|data, _| data.settings.install_dir.is_none());
     let browse_index_button = Flex::row()
-      .with_child(
+      .with_child(Label::new("Open Mod Browser").with_text_size(18.))
+      .with_spacer(5.)
+      .with_child(Icon::new(OPEN_IN_BROWSER))
+      .padding((8., 4.))
+      .background(button_painter())
+      .controller(HoverController)
+      .on_click(|event_ctx, _, _| event_ctx.submit_command(App::OPEN_WEBVIEW.with(None)))
+      .expand_width()
+      .disabled_if(|data: &App, _| data.settings.install_dir.is_none());
+    let mod_repo = FutureWidget::new(
+      |_, _| ModRepo::get_mod_repo(),
+      Flex::row()
+        .with_child(Label::new("Open Unofficial Mod Repo").with_text_size(18.))
+        .with_spacer(5.)
+        .with_child(Icon::new(EXTENSION))
+        .padding((8., 4.))
+        .background(button_painter()),
+      |value, data: &mut App, _| {
+        data.mod_repo = value.inspect_err(|err| eprintln!("{:?}", err)).ok();
+
         Flex::row()
-          .with_child(Label::new("Open Mod Browser").with_text_size(18.))
+          .with_child(Label::new("Open Unofficial Mod Repo").with_text_size(18.))
           .with_spacer(5.)
-          .with_child(Icon::new(OPEN_IN_BROWSER))
+          .with_child(Icon::new(EXTENSION))
           .padding((8., 4.))
           .background(button_painter())
           .controller(HoverController)
-          .on_click(|event_ctx, _, _| event_ctx.submit_command(App::OPEN_WEBVIEW.with(None))),
-      )
-      .expand_width()
-      .disabled_if(|data: &App, _| data.settings.install_dir.is_none());
+          .on_click(|ctx, _, _| {
+            let modal = Maybe::new(
+              || ModRepo::ui_builder(),
+              || Label::new("Loading failed")
+            ).lens(App::mod_repo);
+
+            let window = WindowDesc::new(modal)
+              .window_size((1000., 400.))
+              .show_titlebar(false)
+              .set_level(WindowLevel::AppWindow);
+
+            ctx.new_window(window);
+          })
+          .boxed()
+      }
+    ).disabled_if(|data, _| data.mod_repo.is_none());
     let mod_list = ViewSwitcher::new(
       |data: &ModList, _| data.header.headings.clone(),
       |_, _, _| mod_list::ModList::ui_builder().boxed(),
@@ -425,6 +459,8 @@ impl App {
           .with_child(install_mod_button)
           .with_spacer(10.)
           .with_child(browse_index_button)
+          .with_spacer(10.)
+          .with_child(mod_repo)
           .with_spacer(10.)
           .with_child(refresh)
           .with_spacer(10.)
