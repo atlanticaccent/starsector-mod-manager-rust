@@ -1,10 +1,8 @@
-#[allow(dead_code)]
-
 use std::{io::Read, sync::Arc, path::PathBuf, collections::VecDeque};
 
 use druid::{
   widget::{
-    Label, LensWrap, Flex, Axis, RawLabel, Controller, ScopeTransfer, Painter
+    Label, LensWrap, Flex, Axis, RawLabel, Controller, ScopeTransfer, Painter, Scope
   },
   text::{
     RichText, AttributeSpans, Attribute
