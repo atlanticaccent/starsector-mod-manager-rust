@@ -39,7 +39,7 @@ use crate::{
 use self::{
   controllers::{AppController, HoverController, InstallController, ModListController},
   installer::{HybridPath, StringOrPath, DOWNLOAD_PROGRESS, DOWNLOAD_STARTED},
-  mod_description::{ModDescription, OPEN_IN_BROWSER},
+  mod_description::ModDescription,
   mod_entry::ModEntry,
   mod_list::{EnabledMods, Filters, ModList},
   mod_repo::ModRepo,
@@ -47,7 +47,7 @@ use self::{
   settings::{Settings, SettingsCommand},
   util::{
     button_painter, get_latest_manager, get_quoted_version, get_starsector_version, h2, h3,
-    icons::*, make_column_pair, CommandExt, IndyToggleState, LabelExt, Release, WidgetExtEx,
+    icons::*, make_column_pair, CommandExt, IndyToggleState, LabelExt, Release,
     GET_INSTALLED_STARSECTOR,
   },
 };
@@ -274,30 +274,13 @@ impl App {
                       .build()
                       .background(druid::theme::BACKGROUND_DARK)
                       .border(druid::Color::BLACK, 2.)
-                      .fix_size(300., 100.),
+                      .fix_size(300., 125.),
                     SizedBox::empty(),
                   )
                   .lens(ModRepo::modal),
                   StackChildPosition::new().top(Some(20.)),
                 )
                 .align(druid::UnitPoint::CENTER)
-                .on_command(ModRepo::OPEN_IN_DISCORD, |ctx, _, data| {
-                  if let Some(uri) = ModRepo::modal.get(data) {
-                    let discord_uri = uri
-                      .clone()
-                      .tap_mut(|uri| uri.replace_range(0..5, "discord"));
-
-                    if opener::open(discord_uri).is_err() {
-                      ctx.submit_command_global(OPEN_IN_BROWSER.with(uri))
-                    }
-                  }
-                })
-                .on_command(ModRepo::CLEAR_MODAL, |_, _, data| {
-                  data.modal = None;
-                })
-                .on_notification(ModRepo::OPEN_CONFIRM, |_, payload, data| {
-                  data.modal.replace(payload.clone());
-                })
                 .lens(App::mod_repo.map(
                   |data| data.clone().unwrap(),
                   |orig, new| {

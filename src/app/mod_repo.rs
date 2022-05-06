@@ -4,14 +4,15 @@ use druid::{
   widget::{Either, Flex, Label, Maybe, Painter, SizedBox, ViewSwitcher},
   Data, Lens, LensExt, RenderContext, Widget, WidgetExt, Selector,
 };
-use druid_widget_nursery::{material_icons::Icon, wrap::Wrap, Separator};
+use druid_widget_nursery::{material_icons::Icon, wrap::Wrap, Separator, WidgetExt as WidgetExtNursery};
 use im::{HashMap, Vector};
 use serde::Deserialize;
+use tap::Tap;
 
 use super::{
   controllers::HoverController,
   modal::Modal,
-  util::{hoverable_text, icons::*, LabelExt, CommandExt}, mod_description::OPEN_IN_BROWSER,
+  util::{hoverable_text, icons::*, LabelExt, CommandExt, WidgetExtEx}, mod_description::OPEN_IN_BROWSER,
 };
 
 #[derive(Deserialize, Data, Clone, Lens)]
@@ -30,7 +31,7 @@ impl ModRepo {
     "https://raw.githubusercontent.com/davidwhitman/StarsectorModRepo/main/ModRepo.json";
 
   pub const OPEN_IN_DISCORD: Selector = Selector::new("mod_repo.open.discord");
-  pub const OPEN_CONFIRM: Selector<String> = Selector::new("mod_repo.open.discord.confirm");
+  const OPEN_CONFIRM: Selector<String> = Selector::new("mod_repo.open.discord.confirm");
   pub const CLEAR_MODAL: Selector = Selector::new("mod_repo.close.clear");
 
   const CARD_MAX_WIDTH: f64 = 475.0;
@@ -60,6 +61,23 @@ impl ModRepo {
           },
         )
         .lens(ModRepo::items)
+        .on_command(ModRepo::OPEN_IN_DISCORD, |ctx, _, data| {
+          if let Some(uri) = ModRepo::modal.get(data) {
+            let discord_uri = uri
+              .clone()
+              .tap_mut(|uri| uri.replace_range(0..5, "discord"));
+
+            if opener::open(discord_uri).is_err() {
+              ctx.submit_command_global(OPEN_IN_BROWSER.with(uri))
+            }
+          }
+        })
+        .on_command(ModRepo::CLEAR_MODAL, |_, _, data| {
+          data.modal = None;
+        })
+        .on_notification(ModRepo::OPEN_CONFIRM, |_, payload, data| {
+          data.modal.replace(payload.clone());
+        })
         .boxed(),
       )
       .with_close()
