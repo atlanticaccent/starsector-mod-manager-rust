@@ -1,18 +1,19 @@
 use druid::{
   commands, theme,
   widget::{Button, Flex, Label},
-  Command, Data, Env, Target, Widget, WidgetExt, WindowConfig, WindowId,
+  Command, Data, Env, Target, Widget, WidgetExt, WindowConfig, WindowId, Selector,
 };
 use druid_widget_nursery::{AnyCtx, RequestCtx};
 use indexmap::IndexMap;
 use tap::Tap;
 
-use super::util::{h3, DragWindowController, LabelExt};
+use super::util::{h3, DragWindowController, LabelExt, WidgetExtEx};
 
 pub struct Modal<'a, T: Data> {
   title: String,
   contents: Vec<StringOrWidget<'a, T>>,
   buttons: IndexMap<String, Vec<Command>>,
+  on_close: Option<Box<dyn Fn(&mut druid::EventCtx, &mut T)>>,
 }
 
 impl<'a, T: Data> Modal<'a, T> {
@@ -21,6 +22,7 @@ impl<'a, T: Data> Modal<'a, T> {
       title: String::from(title),
       contents: Vec::new(),
       buttons: IndexMap::new(),
+      on_close: None,
     }
   }
 
@@ -54,6 +56,12 @@ impl<'a, T: Data> Modal<'a, T> {
 
   pub fn with_close_label(self, label: &str) -> Self {
     self.close(label)
+  }
+
+  pub fn with_on_close(mut self, on_close: impl Fn(&mut druid::EventCtx, &mut T) + 'static) -> Self {
+    self.on_close = Some(Box::new(on_close));
+
+    self
   }
 
   // pub fn build_no_flex(mut self, width: Option<f64>) -> impl Widget<T> {
@@ -104,6 +112,8 @@ impl<'a, T: Data> Modal<'a, T> {
   // }
 
   pub fn build(mut self) -> impl Widget<T> {
+    const CLOSE: Selector = Selector::new("modal.close");
+
     Flex::column()
       .with_child(
         h3(&self.title)
@@ -126,7 +136,7 @@ impl<'a, T: Data> Modal<'a, T> {
           })
           .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
           .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
-          .padding(20.)
+          .padding((20., 5., 20., 20.))
           .scroll()
           .vertical()
           .expand(),
@@ -136,16 +146,25 @@ impl<'a, T: Data> Modal<'a, T> {
         Flex::row()
           .with_flex_spacer(1.)
           .tap_mut(|flex| {
-            for (label, commands) in self.buttons {
+            for (label, commands) in self.buttons.drain(..) {
               flex.add_child(Button::new(label).on_click({
-                let commands = commands.clone();
                 move |ctx, _, _| {
                   for command in &commands {
                     ctx.submit_command(command.clone().to(Target::Global))
                   }
-                  ctx.submit_command(commands::CLOSE_WINDOW)
+                  ctx.submit_notification(CLOSE)
                 }
               }))
+            }
+          })
+          .on_notification(CLOSE, {
+            let on_close = self.on_close;
+            move |ctx, _, data| {
+              if let Some(on_close) = &on_close {
+                on_close(ctx, data)
+              } else {
+                ctx.submit_command(commands::CLOSE_WINDOW)
+              }
             }
           }),
       )
