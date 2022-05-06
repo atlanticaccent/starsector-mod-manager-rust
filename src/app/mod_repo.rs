@@ -2,12 +2,11 @@ use chrono::{DateTime, Utc};
 use druid::{
   lens, theme,
   widget::{Either, Flex, Label, Maybe, Painter, SizedBox, ViewSwitcher},
-  Data, Lens, LensExt, RenderContext, Widget, WidgetExt,
+  Data, Lens, LensExt, RenderContext, Widget, WidgetExt, Selector,
 };
 use druid_widget_nursery::{material_icons::Icon, wrap::Wrap, Separator};
 use im::{HashMap, Vector};
 use serde::Deserialize;
-use tap::Tap;
 
 use super::{
   controllers::HoverController,
@@ -22,11 +21,17 @@ pub struct ModRepo {
   #[data(same_fn = "PartialEq::eq")]
   #[serde(alias = "lastUpdated")]
   last_updated: DateTime<Utc>,
+  #[serde(skip)]
+  pub modal: Option<String>
 }
 
 impl ModRepo {
   const REPO_URL: &'static str =
     "https://raw.githubusercontent.com/davidwhitman/StarsectorModRepo/main/ModRepo.json";
+
+  pub const OPEN_IN_DISCORD: Selector = Selector::new("mod_repo.open.discord");
+  pub const OPEN_CONFIRM: Selector<String> = Selector::new("mod_repo.open.discord.confirm");
+  pub const CLEAR_MODAL: Selector = Selector::new("mod_repo.close.clear");
 
   const CARD_MAX_WIDTH: f64 = 475.0;
 
@@ -51,7 +56,7 @@ impl ModRepo {
               )
             });
 
-            wrap.expand_width().boxed()
+            wrap.align_horizontal(druid::UnitPoint::CENTER).expand_width().boxed()
           },
         )
         .lens(ModRepo::items)
@@ -69,6 +74,8 @@ impl ModRepo {
 
     Ok(repo)
   }
+
+  pub fn modal_open(&self) -> bool { self.modal.is_some() }
 }
 
 #[derive(Deserialize, Data, Clone, PartialEq, Lens)]
@@ -240,10 +247,8 @@ impl ModRepoItem {
                   Maybe::or_empty(|| {
                     hoverable_text(Some(druid::Color::rgb8(0x00, 0x7B, 0xFF)))
                       .controller(HoverController)
-                      .on_click(|_ctx, data, _| {
-                        // ctx.submit_command_global(OPEN_IN_BROWSER.with(data.clone()))
-                        let discord_uri = data.clone().tap_mut(|uri| uri.replace_range(0..5, "discord"));
-                        let _ = opener::open(discord_uri);
+                      .on_click(|ctx, data, _| {
+                        ctx.submit_notification(ModRepo::OPEN_CONFIRM.with(data.clone()))
                       })
                   })
                   .lens(lens::Map::new(

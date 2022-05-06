@@ -14,7 +14,8 @@ use druid::{
   Lens, LensExt, Selector, Target, Widget, WidgetExt, WidgetId, WindowDesc, WindowId, WindowLevel,
 };
 use druid_widget_nursery::{
-  material_icons::Icon, ProgressBar, Separator, WidgetExt as WidgetExtNursery, FutureWidget,
+  material_icons::Icon, FutureWidget, ProgressBar, Separator, Stack, StackChildPosition,
+  WidgetExt as WidgetExtNursery,
 };
 use lazy_static::lazy_static;
 use rand::random;
@@ -38,15 +39,17 @@ use crate::{
 use self::{
   controllers::{AppController, HoverController, InstallController, ModListController},
   installer::{HybridPath, StringOrPath, DOWNLOAD_PROGRESS, DOWNLOAD_STARTED},
-  mod_description::ModDescription,
+  mod_description::{ModDescription, OPEN_IN_BROWSER},
   mod_entry::ModEntry,
   mod_list::{EnabledMods, Filters, ModList},
+  mod_repo::ModRepo,
   modal::Modal,
   settings::{Settings, SettingsCommand},
   util::{
     button_painter, get_latest_manager, get_quoted_version, get_starsector_version, h2, h3,
-    icons::*, make_column_pair, IndyToggleState, LabelExt, Release, GET_INSTALLED_STARSECTOR,
-  }, mod_repo::ModRepo,
+    icons::*, make_column_pair, CommandExt, IndyToggleState, LabelExt, Release, WidgetExtEx,
+    GET_INSTALLED_STARSECTOR,
+  },
 };
 
 mod controllers;
@@ -54,12 +57,12 @@ pub mod installer;
 mod mod_description;
 mod mod_entry;
 mod mod_list;
+mod mod_repo;
 pub mod modal;
 mod settings;
 mod updater;
 #[path = "./util.rs"]
 pub mod util;
-mod mod_repo;
 
 const TAG: &str = env!("CARGO_PKG_VERSION");
 
@@ -227,7 +230,7 @@ impl App {
     let browse_index_button = Flex::row()
       .with_child(Label::new("Open Mod Browser").with_text_size(18.))
       .with_spacer(5.)
-      .with_child(Icon::new(OPEN_IN_BROWSER))
+      .with_child(Icon::new(OPEN_BROWSER))
       .padding((8., 4.))
       .background(button_painter())
       .controller(HoverController)
@@ -252,22 +255,68 @@ impl App {
           .padding((8., 4.))
           .background(button_painter())
           .controller(HoverController)
-          .on_click(|ctx, _, _| {
-            let modal = Maybe::new(
-              || ModRepo::ui_builder(),
-              || Label::new("Loading failed")
-            ).lens(App::mod_repo);
+          .on_click(|ctx, data: &mut App, _| {
+            if data.mod_repo.is_some() {
+              let modal = Stack::new()
+                .with_child(
+                  ModRepo::ui_builder().disabled_if(|data: &ModRepo, _| data.modal_open()),
+                )
+                .with_positioned_child(
+                  Either::new(
+                    |modal: &Option<String>, _| modal.is_some(),
+                    Modal::new("Open in Discord?")
+                      .with_content("Attempt to open this link in the Discord app?")
+                      .with_button("Open", ModRepo::OPEN_IN_DISCORD)
+                      .with_close()
+                      .with_on_close(|ctx, _| {
+                        ctx.submit_command_global(ModRepo::CLEAR_MODAL)
+                      })
+                      .build()
+                      .background(druid::theme::BACKGROUND_DARK)
+                      .border(druid::Color::BLACK, 2.)
+                      .fix_size(300., 100.),
+                    SizedBox::empty(),
+                  )
+                  .lens(ModRepo::modal),
+                  StackChildPosition::new().top(Some(20.)),
+                )
+                .align(druid::UnitPoint::CENTER)
+                .on_command(ModRepo::OPEN_IN_DISCORD, |ctx, _, data| {
+                  if let Some(uri) = ModRepo::modal.get(data) {
+                    let discord_uri = uri
+                      .clone()
+                      .tap_mut(|uri| uri.replace_range(0..5, "discord"));
 
-            let window = WindowDesc::new(modal)
-              .window_size((1000., 400.))
-              .show_titlebar(false)
-              .set_level(WindowLevel::AppWindow);
+                    if opener::open(discord_uri).is_err() {
+                      ctx.submit_command_global(OPEN_IN_BROWSER.with(uri))
+                    }
+                  }
+                })
+                .on_command(ModRepo::CLEAR_MODAL, |_, _, data| {
+                  data.modal = None;
+                })
+                .on_notification(ModRepo::OPEN_CONFIRM, |_, payload, data| {
+                  data.modal.replace(payload.clone());
+                })
+                .lens(App::mod_repo.map(
+                  |data| data.clone().unwrap(),
+                  |orig, new| {
+                    orig.replace(new);
+                  },
+                ));
 
-            ctx.new_window(window);
+              let window = WindowDesc::new(modal.boxed())
+                .window_size((1000., 400.))
+                .show_titlebar(false)
+                .set_level(WindowLevel::AppWindow);
+
+              ctx.new_window(window);
+            }
           })
           .boxed()
-      }
-    ).disabled_if(|data, _| data.mod_repo.is_none());
+      },
+    )
+    .disabled_if(|data, _| data.mod_repo.is_none());
     let mod_list = ViewSwitcher::new(
       |data: &ModList, _| data.header.headings.clone(),
       |_, _, _| mod_list::ModList::ui_builder().boxed(),
@@ -602,12 +651,10 @@ impl Delegate<App> for AppDelegate {
               install_dir.map_or_else(|| "".to_string(), |p| p.to_string_lossy().to_string()),
             );
 
-          let settings_window = WindowDesc::new(
-            settings::Settings::ui_builder()
-              .lens(App::settings),
-          )
-          .window_size((800., 400.))
-          .show_titlebar(false);
+          let settings_window =
+            WindowDesc::new(settings::Settings::ui_builder().lens(App::settings))
+              .window_size((800., 400.))
+              .show_titlebar(false);
 
           self.settings_id = Some(settings_window.id);
 
