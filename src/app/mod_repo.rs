@@ -7,6 +7,7 @@ use druid::{
 use druid_widget_nursery::{material_icons::Icon, wrap::Wrap, Separator};
 use im::{HashMap, Vector};
 use serde::Deserialize;
+use tap::Tap;
 
 use super::{
   controllers::HoverController,
@@ -239,8 +240,10 @@ impl ModRepoItem {
                   Maybe::or_empty(|| {
                     hoverable_text(Some(druid::Color::rgb8(0x00, 0x7B, 0xFF)))
                       .controller(HoverController)
-                      .on_click(|ctx, data, _| {
-                        ctx.submit_command_global(OPEN_IN_BROWSER.with(data.clone()))
+                      .on_click(|_ctx, data, _| {
+                        // ctx.submit_command_global(OPEN_IN_BROWSER.with(data.clone()))
+                        let discord_uri = data.clone().tap_mut(|uri| uri.replace_range(0..5, "discord"));
+                        let _ = opener::open(discord_uri);
                       })
                   })
                   .lens(lens::Map::new(
