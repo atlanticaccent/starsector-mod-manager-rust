@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use std::{io::Read, sync::Arc, path::PathBuf, collections::VecDeque};
 
 use druid::{
@@ -473,3 +474,46 @@ pub trait CommandExt: CommandCtx {
 }
 
 impl<T: CommandCtx> CommandExt for T {}
+
+pub fn hoverable_text(colour: Option<Color>) -> impl Widget<String> {
+  struct TextHoverController;
+
+  impl<D: Data, W: Widget<(D, bool)>> Controller<(D, bool), W> for TextHoverController {
+    fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut (D, bool), env: &druid::Env) {
+      if let Event::MouseMove(_) = event {
+        data.1 = ctx.is_hot()
+      }
+
+      child.event(ctx, event, data, env)
+    }
+  }
+
+  #[derive(Default)]
+  struct DummyTransfer<X, Y> {
+    phantom_x: PhantomData<X>,
+    phantom_y: PhantomData<Y>
+  }
+
+  impl<X: Data, Y: Data> ScopeTransfer for DummyTransfer<X, Y> {
+    type In = X;
+    type State = Y;
+  
+    fn read_input(&self, _: &mut Self::State, _: &Self::In) {}
+  
+    fn write_back_input(&self, _: &Self::State, _: &mut Self::In) {}
+  }
+
+  Scope::from_function(
+    |input: String| (input.to_string(), false),
+    DummyTransfer::default(),
+    RawLabel::new()
+      .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
+      .lens(lens::Map::new(
+        move |(text, hovered): &(String, bool)| RichText::new(text.clone().into())
+          .with_attribute(0..text.len(), Attribute::Underline(*hovered))
+          .with_attribute(0..text.len(), Attribute::TextColor(colour.clone().map(|c| c.clone().into()).unwrap_or(theme::TEXT_COLOR.into()))),
+          |_, _| {}
+      ))
+      .controller(TextHoverController)
+  )
+}
