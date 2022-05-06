@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 use std::{io::Read, sync::Arc, path::PathBuf, collections::VecDeque};
 
+use druid::widget::ControllerHost;
 use druid::{
   widget::{
     Label, LensWrap, Flex, Axis, RawLabel, Controller, ScopeTransfer, Painter, Scope
@@ -20,6 +21,7 @@ use tap::Tap;
 use lazy_static::lazy_static;
 use regex::Regex;
 
+use super::controllers::OnNotif;
 use super::mod_entry::{ModVersionMeta, GameVersion};
 
 pub(crate) mod icons;
@@ -481,7 +483,7 @@ pub fn hoverable_text(colour: Option<Color>) -> impl Widget<String> {
   impl<D: Data, W: Widget<(D, bool)>> Controller<(D, bool), W> for TextHoverController {
     fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut (D, bool), env: &druid::Env) {
       if let Event::MouseMove(_) = event {
-        data.1 = ctx.is_hot()
+        data.1 = ctx.is_hot() && !ctx.is_disabled()
       }
 
       child.event(ctx, event, data, env)
@@ -517,3 +519,15 @@ pub fn hoverable_text(colour: Option<Color>) -> impl Widget<String> {
       .controller(TextHoverController)
   )
 }
+
+pub trait WidgetExtEx<T: Data>: Widget<T> + Sized + 'static {
+  fn on_notification<CT: 'static>(
+    self,
+    selector: Selector<CT>,
+    handler: impl Fn(&mut EventCtx, &CT, &mut T) + 'static,
+  ) -> ControllerHost<Self, OnNotif<CT, T>> {
+    self.controller(OnNotif::new(selector, handler))
+  }
+}
+
+impl<T: Data, W: Widget<T> + 'static> WidgetExtEx<T> for W {}
