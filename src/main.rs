@@ -51,6 +51,8 @@ fn main() {
     // create the initial app state
     let initial_state = app::App::new(runtime.handle().clone());
     
+    let _guard = runtime.enter();
+
     // start the application
     AppLauncher::with_window(main_window)
       .configure_env(|env, _| {

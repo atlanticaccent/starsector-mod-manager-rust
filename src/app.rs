@@ -14,7 +14,8 @@ use druid::{
   Lens, LensExt, Selector, Target, Widget, WidgetExt, WidgetId, WindowDesc, WindowId, WindowLevel,
 };
 use druid_widget_nursery::{
-  material_icons::Icon, ProgressBar, Separator, WidgetExt as WidgetExtNursery,
+  material_icons::Icon, FutureWidget, ProgressBar, Separator, Stack, StackChildPosition,
+  WidgetExt as WidgetExtNursery,
 };
 use lazy_static::lazy_static;
 use rand::random;
@@ -41,11 +42,13 @@ use self::{
   mod_description::ModDescription,
   mod_entry::ModEntry,
   mod_list::{EnabledMods, Filters, ModList},
+  mod_repo::ModRepo,
   modal::Modal,
   settings::{Settings, SettingsCommand},
   util::{
     button_painter, get_latest_manager, get_quoted_version, get_starsector_version, h2, h3,
-    icons::*, make_column_pair, IndyToggleState, LabelExt, Release, GET_INSTALLED_STARSECTOR,
+    icons::*, make_column_pair, CommandExt, IndyToggleState, LabelExt, Release,
+    GET_INSTALLED_STARSECTOR,
   },
 };
 
@@ -54,6 +57,7 @@ pub mod installer;
 mod mod_description;
 mod mod_entry;
 mod mod_list;
+mod mod_repo;
 pub mod modal;
 mod settings;
 mod updater;
@@ -78,6 +82,7 @@ pub struct App {
   duplicate_log: Vector<(Arc<ModEntry>, Arc<ModEntry>)>,
   webview: Option<Rc<RefCell<Child>>>,
   downloads: OrdMap<i64, (i64, String, f64)>,
+  mod_repo: Option<ModRepo>,
 }
 
 impl App {
@@ -138,6 +143,7 @@ impl App {
       duplicate_log: Vector::new(),
       webview: None,
       downloads: OrdMap::new(),
+      mod_repo: None,
     }
   }
 
@@ -222,18 +228,78 @@ impl App {
       })
       .disabled_if(|data, _| data.settings.install_dir.is_none());
     let browse_index_button = Flex::row()
-      .with_child(
+      .with_child(Label::new("Open Mod Browser").with_text_size(18.))
+      .with_spacer(5.)
+      .with_child(Icon::new(OPEN_BROWSER))
+      .padding((8., 4.))
+      .background(button_painter())
+      .controller(HoverController)
+      .on_click(|event_ctx, _, _| event_ctx.submit_command(App::OPEN_WEBVIEW.with(None)))
+      .expand_width()
+      .disabled_if(|data: &App, _| data.settings.install_dir.is_none());
+    let mod_repo = FutureWidget::new(
+      |_, _| ModRepo::get_mod_repo(),
+      Flex::row()
+        .with_child(Label::new("Open Unofficial Mod Repo").with_text_size(18.))
+        .with_spacer(5.)
+        .with_child(Icon::new(EXTENSION))
+        .padding((8., 4.))
+        .background(button_painter()),
+      |value, data: &mut App, _| {
+        data.mod_repo = value.inspect_err(|err| eprintln!("{:?}", err)).ok();
+
         Flex::row()
-          .with_child(Label::new("Open Mod Browser").with_text_size(18.))
+          .with_child(Label::new("Open Unofficial Mod Repo").with_text_size(18.))
           .with_spacer(5.)
-          .with_child(Icon::new(OPEN_IN_BROWSER))
+          .with_child(Icon::new(EXTENSION))
           .padding((8., 4.))
           .background(button_painter())
           .controller(HoverController)
-          .on_click(|event_ctx, _, _| event_ctx.submit_command(App::OPEN_WEBVIEW.with(None))),
-      )
-      .expand_width()
-      .disabled_if(|data: &App, _| data.settings.install_dir.is_none());
+          .on_click(|ctx, data: &mut App, _| {
+            if data.mod_repo.is_some() {
+              let modal = Stack::new()
+                .with_child(
+                  ModRepo::ui_builder().disabled_if(|data: &ModRepo, _| data.modal_open()),
+                )
+                .with_positioned_child(
+                  Either::new(
+                    |modal: &Option<String>, _| modal.is_some(),
+                    Modal::new("Open in Discord?")
+                      .with_content("Attempt to open this link in the Discord app?")
+                      .with_button("Open", ModRepo::OPEN_IN_DISCORD)
+                      .with_close()
+                      .with_on_close(|ctx, _| {
+                        ctx.submit_command_global(ModRepo::CLEAR_MODAL)
+                      })
+                      .build()
+                      .background(druid::theme::BACKGROUND_DARK)
+                      .border(druid::Color::BLACK, 2.)
+                      .fix_size(300., 125.),
+                    SizedBox::empty(),
+                  )
+                  .lens(ModRepo::modal),
+                  StackChildPosition::new().top(Some(20.)),
+                )
+                .align(druid::UnitPoint::CENTER)
+                .lens(App::mod_repo.map(
+                  |data| data.clone().unwrap(),
+                  |orig, new| {
+                    orig.replace(new);
+                  },
+                ));
+
+              let window = WindowDesc::new(modal.boxed())
+                .window_size((1000., 400.))
+                .show_titlebar(false)
+                .set_level(WindowLevel::AppWindow);
+
+              ctx.new_window(window);
+            }
+          })
+          .boxed()
+      },
+    )
+    .disabled_if(|data, _| data.mod_repo.is_none());
     let mod_list = ViewSwitcher::new(
       |data: &ModList, _| data.header.headings.clone(),
       |_, _, _| mod_list::ModList::ui_builder().boxed(),
@@ -426,6 +492,8 @@ impl App {
           .with_spacer(10.)
           .with_child(browse_index_button)
           .with_spacer(10.)
+          .with_child(mod_repo)
+          .with_spacer(10.)
           .with_child(refresh)
           .with_spacer(10.)
           .with_child(
@@ -566,12 +634,10 @@ impl Delegate<App> for AppDelegate {
               install_dir.map_or_else(|| "".to_string(), |p| p.to_string_lossy().to_string()),
             );
 
-          let settings_window = WindowDesc::new(
-            settings::Settings::ui_builder()
-              .lens(App::settings),
-          )
-          .window_size((800., 400.))
-          .show_titlebar(false);
+          let settings_window =
+            WindowDesc::new(settings::Settings::ui_builder().lens(App::settings))
+              .window_size((800., 400.))
+              .show_titlebar(false);
 
           self.settings_id = Some(settings_window.id);
 
