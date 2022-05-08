@@ -10,7 +10,7 @@ use strum_macros::EnumIter;
 use crate::app::util::{LoadError, SaveError};
 
 #[derive(Debug, Clone, Data, Lens)]
-pub struct VMParams<T = PlatformDefault> {
+pub struct VMParams<T = VMParamsPathDefault> {
   pub heap_init: Value,
   pub heap_max: Value,
   pub thread_stack_size: Value,
@@ -56,18 +56,18 @@ impl Display for Unit {
   }
 }
 
-pub trait PlatformVMParamsPath {
+pub trait VMParamsPath {
   fn path() -> PathBuf {
     PathBuf::from(r"./vmparams")
   }
 }
 
 #[derive(Debug, Clone, Data)]
-pub struct PlatformDefault;
+pub struct VMParamsPathDefault;
 
-impl PlatformVMParamsPath for PlatformDefault {}
+impl VMParamsPath for VMParamsPathDefault {}
 
-impl<T: PlatformVMParamsPath> VMParams<T> {
+impl<T: VMParamsPath> VMParams<T> {
   pub fn load(install_dir: impl AsRef<Path>) -> Result<VMParams<T>, LoadError> {
     use std::fs;
     use std::io::Read;
@@ -218,7 +218,7 @@ impl<T: PlatformVMParamsPath> VMParams<T> {
 mod test {
   use std::{io::Seek, marker::PhantomData, path::PathBuf, sync::Mutex};
 
-  use crate::app::settings::vmparams::{PlatformVMParamsPath, VMParams};
+  use crate::app::settings::vmparams::{VMParamsPath, VMParams};
 
   lazy_static::lazy_static! {
     static ref TEST_FILE: tempfile::NamedTempFile = tempfile::NamedTempFile::new().expect("Couldn't create tempdir - not a real test failure");
@@ -230,13 +230,13 @@ mod test {
 
   struct TempPath;
 
-  impl PlatformVMParamsPath for TempPath {
+  impl VMParamsPath for TempPath {
     fn path() -> PathBuf {
       TEST_FILE.path().to_path_buf()
     }
   }
 
-  fn test_func<T: PlatformVMParamsPath>() {
+  fn test_func<T: VMParamsPath>() {
     let _guard = DUMB_MUTEX.lock().expect("Lock dumb mutex");
 
     let root = ROOT.as_path();
@@ -291,7 +291,7 @@ mod test {
   fn test_windows() {
     struct Windows;
 
-    impl PlatformVMParamsPath for Windows {
+    impl VMParamsPath for Windows {
       fn path() -> PathBuf {
         PathBuf::from("./vmparams_windows")
       }
@@ -304,7 +304,7 @@ mod test {
   fn test_linux() {
     struct Linux;
 
-    impl PlatformVMParamsPath for Linux {
+    impl VMParamsPath for Linux {
       fn path() -> PathBuf {
         PathBuf::from("./vmparams_linux")
       }
@@ -317,7 +317,7 @@ mod test {
   fn test_macos() {
     struct MacOS;
 
-    impl PlatformVMParamsPath for MacOS {
+    impl VMParamsPath for MacOS {
       fn path() -> PathBuf {
         PathBuf::from("./vmparams_macos")
       }
