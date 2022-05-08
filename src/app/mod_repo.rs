@@ -39,6 +39,7 @@ pub struct ModRepo {
   #[serde(skip)]
   filters: Vector<ModSource>,
   #[serde(skip)]
+  #[serde(default = "ModRepo::default_sorting")]
   sort_by: Option<Metadata>,
 }
 
@@ -119,7 +120,7 @@ impl ModRepo {
             }),
           )
           .with_default_spacer()
-          .with_child(Label::new("Seach:").with_text_size(18.))
+          .with_child(Label::new("Search:").with_text_size(18.))
           .with_default_spacer()
           .with_child(
             TextBox::new()
@@ -254,6 +255,12 @@ impl ModRepo {
       )
       .with_close()
       .build()
+      .on_command(OPEN_IN_BROWSER, |ctx, _, _| {
+        ctx.set_disabled(true)
+      })
+      .on_command(App::ENABLE, |ctx, _, _| {
+        ctx.set_disabled(false)
+      })
   }
 
   pub async fn get_mod_repo() -> anyhow::Result<Self> {
@@ -267,6 +274,10 @@ impl ModRepo {
 
   pub fn modal_open(&self) -> bool {
     self.modal.is_some()
+  }
+
+  fn default_sorting() -> Option<Metadata> {
+    Some(Metadata::Name)
   }
 }
 

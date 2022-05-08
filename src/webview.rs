@@ -25,7 +25,7 @@ pub fn fork_into_webview(handle: &Handle, ext_sink: ExtEventSink, url: Option<St
         },
         WebviewMessage::Shutdown => {
           ext_sink.submit_command(WEBVIEW_SHUTDOWN, (), Target::Auto).expect("Remove child ref from parent");
-          ext_sink.submit_command(ENABLE, (), Target::Auto).expect("Re-enable");
+          ext_sink.submit_command(ENABLE, (), Target::Global).expect("Re-enable");
           #[cfg(not(target_family = "windows"))]
           let _ = std::fs::remove_file(webview_shared::PARENT_CHILD_PATH);
           break;
