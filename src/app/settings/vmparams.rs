@@ -58,7 +58,12 @@ impl Display for Unit {
 
 pub trait VMParamsPath {
   fn path() -> PathBuf {
-    PathBuf::from(r"./vmparams")
+    #[cfg(target_os = "windows")]
+    return PathBuf::from(r"./vmparams");
+    #[cfg(target_os = "macos")]
+    return PathBuf::from("./Contents/MacOS/starsector_mac.sh");
+    #[cfg(target_os = "linux")]
+    return PathBuf::from("./starsector.sh")
   }
 }
 
