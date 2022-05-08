@@ -202,9 +202,15 @@ pub async fn get_starsector_version(ext_ctx: ExtEventSink, install_dir: PathBuf)
   use tokio::{task, fs};
   use regex::bytes::Regex;
 
-  let install_dir_clone = install_dir.clone();
+  #[cfg(target_os = "linux")]
+  let obf_jar = install_dir.join("starfarer_obf.jar");
+  #[cfg(target_os = "windows")]
+  let obf_jar = install_dir.join("starsector-core/starfarer_obf.jar");
+  #[cfg(target_os = "macos")]
+  let obf_jar = install_dir.join("Contents/Resources/Java/starfarer_obf.jar");
+
   let mut res = task::spawn_blocking(move || {
-    let mut zip = zip::ZipArchive::new(std::fs::File::open(install_dir_clone.join("starsector-core").join("starfarer_obf.jar")).unwrap()).unwrap();
+    let mut zip = zip::ZipArchive::new(std::fs::File::open(obf_jar).unwrap()).unwrap();
 
     // println!("{:?}", zip.file_names().collect::<Vec<&str>>());
     
