@@ -1,5 +1,4 @@
 use druid::{widget::Controller, Event, EventCtx, Target, Widget, Menu, MenuItem};
-use rfd::FileDialog;
 
 use crate::app::App;
 
@@ -31,12 +30,21 @@ impl<W: Widget<App>> Controller<App, W> for InstallController {
                 move |_ctx, data: &mut App, _| {
                   let ext_ctx = ext_ctx.clone();
                   data.runtime.spawn_blocking(move || {
-                    let res = FileDialog::new()
+                    #[cfg(not(target_os = "linux"))]
+                    let res = rfd::FileDialog::new()
                       .add_filter(
                         "Archives",
                         &["zip", "7z", "7zip", "rar", "rar4", "rar5", "tar"],
                       )
                       .pick_files();
+                    #[cfg(target_os = "linux")]
+                    let res = native_dialog::FileDialog::new()
+                      .add_filter(
+                        "Archives",
+                        &["zip", "7z", "7zip", "rar", "rar4", "rar5", "tar"]
+                      )
+                      .show_open_multiple_file()
+                      .ok();
 
                     ext_ctx.submit_command(App::OPEN_FILE, res, Target::Auto)
                   });
@@ -48,7 +56,10 @@ impl<W: Widget<App>> Controller<App, W> for InstallController {
                   data.runtime.spawn_blocking({
                     let ext_ctx = ext_ctx.clone();
                     move || {
-                      let res = FileDialog::new().pick_folder();
+                      #[cfg(not(target_os = "linux"))]
+                      let res = rfd::FileDialog::new().pick_folder();
+                      #[cfg(target_os = "linux")]
+                      let res = native_dialog::FileDialog::new().show_open_single_dir().ok().flatten();
 
                       ext_ctx.submit_command(App::OPEN_FOLDER, res, Target::Auto)
                     }

@@ -187,25 +187,27 @@ impl App {
       .controller(InstallController)
       .on_command(App::OPEN_FILE, |ctx, payload, data| {
         if let Some(targets) = payload {
-          ctx.submit_command(App::LOG_MESSAGE.with(format!("Installing {}",
-              targets
-                .iter()
-                .map(|t| {
-                  t.file_name().map_or_else(
-                    || String::from("unknown"),
-                    |f| f.to_string_lossy().into_owned(),
-                  )
-                })
-                .collect::<Vec<String>>()
-                .join(", "),
-            )));
-          data.runtime.spawn(
-            installer::Payload::Initial(targets.iter().map(|f| f.to_path_buf()).collect()).install(
-              ctx.get_external_handle(),
-              data.settings.install_dir.clone().unwrap(),
-              data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
-            ),
-          );
+          if targets.len() > 0 {
+            ctx.submit_command(App::LOG_MESSAGE.with(format!("Installing {}",
+                targets
+                  .iter()
+                  .map(|t| {
+                    t.file_name().map_or_else(
+                      || String::from("unknown"),
+                      |f| f.to_string_lossy().into_owned(),
+                    )
+                  })
+                  .collect::<Vec<String>>()
+                  .join(", "),
+              )));
+            data.runtime.spawn(
+              installer::Payload::Initial(targets.iter().map(|f| f.to_path_buf()).collect()).install(
+                ctx.get_external_handle(),
+                data.settings.install_dir.clone().unwrap(),
+                data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
+              ),
+            );
+          }
         }
       })
       .on_command(App::OPEN_FOLDER, |ctx, payload, data| {
