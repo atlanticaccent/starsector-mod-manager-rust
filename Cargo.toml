@@ -32,7 +32,6 @@ classfile-parser = "~0.3"
 zip = "^0.5"
 regex = "1.5"
 lazy_static = "1.4"
-rfd = "0.8"
 strum = "0.23"
 strum_macros = "0.23"
 tap = "1.0.1"
@@ -48,6 +47,12 @@ base64 = "0.13.0"
 const_format = "0.2.22"
 anyhow = "1.0.57"
 
+[target.'cfg(target_os = "linux")'.dependencies]
+native-dialog = "0.6.3"
+
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+rfd = "0.8"
+
 [dependencies.im]
 features = ["serde"]
 
@@ -57,23 +62,23 @@ path = "./webview-subsystem"
 [dependencies.webview-shared]
 path = "./webview-subsystem-shared"
 
-[patch.crates-io]
-gobject-sys = { git = "https://github.com/gtk-rs/gtk-rs-core", tag = "0.15.10" }
-atk-sys = { git = "https://github.com/gtk-rs/gtk3-rs", tag = "0.15.4" }
-cairo-rs = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
-cairo-sys-rs = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
-gdk = { git = "https://github.com/gtk-rs/gtk3-rs", tag = "0.15.4" }
-gdk-sys = { git = "https://github.com/gtk-rs/gtk3-rs", tag = "0.15.4" }
-gtk = { git = "https://github.com/gtk-rs/gtk3-rs", tag = "0.15.4" }
-glib = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
-glib-sys = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
-pangocairo = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
-pango = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
-gtk-sys = { git = "https://github.com/gtk-rs/gtk3-rs", tag = "0.15.4" }
-gio = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
-gio-sys = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
-gdk-pixbuf = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
-gdk-pixbuf-sys = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
+# [patch.crates-io]
+# gobject-sys = { git = "https://github.com/gtk-rs/gtk-rs-core", tag = "0.15.10" }
+# atk-sys = { git = "https://github.com/gtk-rs/gtk3-rs", tag = "0.15.4" }
+# cairo-rs = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
+# cairo-sys-rs = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
+# gdk = { git = "https://github.com/gtk-rs/gtk3-rs", tag = "0.15.4" }
+# gdk-sys = { git = "https://github.com/gtk-rs/gtk3-rs", tag = "0.15.4" }
+# gtk = { git = "https://github.com/gtk-rs/gtk3-rs", tag = "0.15.4" }
+# glib = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
+# glib-sys = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
+# pangocairo = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
+# pango = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
+# gtk-sys = { git = "https://github.com/gtk-rs/gtk3-rs", tag = "0.15.4" }
+# gio = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
+# gio-sys = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
+# gdk-pixbuf = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
+# gdk-pixbuf-sys = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
 
 [package.metadata.bundle]
 name = "Starsector Mod Manager"
