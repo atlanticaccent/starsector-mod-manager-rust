@@ -360,87 +360,84 @@ impl Settings {
             })
             .padding(TRAILING_PADDING),
           )
-          .tap_mut(|flex| {
-            #[cfg(target_os = "windows")]
-            flex.add_child(
-              ViewSwitcher::new(
-                |data: &Settings, _| data.vmparams_enabled,
-                |enabled, data, _| {
-                  if *enabled && data.vmparams.is_some() {
-                    let vmparam_lens = lens::Identity.then(Settings::vmparams).map(
-                      |u| u.clone().expect("This has to work..."),
-                      |u, data| *u = Some(data),
-                    );
+          .with_child(
+            ViewSwitcher::new(
+              |data: &Settings, _| data.vmparams_enabled,
+              |enabled, data, _| {
+                if *enabled && data.vmparams.is_some() {
+                  let vmparam_lens = lens::Identity.then(Settings::vmparams).map(
+                    |u| u.clone().expect("This has to work..."),
+                    |u, data| *u = Some(data),
+                  );
 
-                    return Box::new(
-                      Flex::column()
-                        .with_child(
-                          Flex::row()
-                            .with_flex_child(
-                              Label::new("Minimum RAM:").align_right().expand_width(),
-                              3.25,
-                            )
-                            .with_spacer(5.)
-                            .with_flex_child(
-                              TextBox::new()
-                                .with_formatter(ParseFormatter::new())
-                                .lens(VMParams::heap_init.then(Value::amount))
-                                .expand_width(),
-                              3.,
-                            )
-                            .with_flex_child(
-                              Button::new(|u: &Unit, _env: &druid::Env| u.to_string())
-                                .lens(VMParams::heap_init.then(Value::unit))
-                                .controller(UnitController::new(
-                                  VMParams::heap_init.then(Value::unit),
-                                ))
-                                .expand_width(),
-                              0.5,
-                            ),
-                        )
-                        .with_child(
-                          Flex::row()
-                            .with_flex_child(
-                              Label::new("Maximum RAM:").align_right().expand_width(),
-                              3.25,
-                            )
-                            .with_spacer(5.)
-                            .with_flex_child(
-                              TextBox::new()
-                                .with_formatter(ParseFormatter::new())
-                                .lens(VMParams::heap_max.then(Value::amount))
-                                .expand_width(),
-                              3.,
-                            )
-                            .with_flex_child(
-                              Button::new(|u: &Unit, _env: &druid::Env| u.to_string())
-                                .lens(VMParams::heap_max.then(Value::unit))
-                                .controller(UnitController::new(
-                                  VMParams::heap_max.then(Value::unit),
-                                ))
-                                .expand_width(),
-                              0.5,
-                            ),
-                        )
-                        .lens(vmparam_lens)
-                        .on_change(|_, _, data, _| {
-                          if_chain! {
-                            if let Some(install_dir) = data.install_dir.clone();
-                            if let Some(vmparams) = data.vmparams.clone();
-                            if let Err(err) = vmparams.save(install_dir);
-                            then {
-                              eprintln!("{:?}", err)
-                            }
+                  return Box::new(
+                    Flex::column()
+                      .with_child(
+                        Flex::row()
+                          .with_flex_child(
+                            Label::new("Minimum RAM:").align_right().expand_width(),
+                            3.25,
+                          )
+                          .with_spacer(5.)
+                          .with_flex_child(
+                            TextBox::new()
+                              .with_formatter(ParseFormatter::new())
+                              .lens(VMParams::heap_init.then(Value::amount))
+                              .expand_width(),
+                            3.,
+                          )
+                          .with_flex_child(
+                            Button::new(|u: &Unit, _env: &druid::Env| u.to_string())
+                              .lens(VMParams::heap_init.then(Value::unit))
+                              .controller(UnitController::new(
+                                VMParams::heap_init.then(Value::unit),
+                              ))
+                              .expand_width(),
+                            0.5,
+                          ),
+                      )
+                      .with_child(
+                        Flex::row()
+                          .with_flex_child(
+                            Label::new("Maximum RAM:").align_right().expand_width(),
+                            3.25,
+                          )
+                          .with_spacer(5.)
+                          .with_flex_child(
+                            TextBox::new()
+                              .with_formatter(ParseFormatter::new())
+                              .lens(VMParams::heap_max.then(Value::amount))
+                              .expand_width(),
+                            3.,
+                          )
+                          .with_flex_child(
+                            Button::new(|u: &Unit, _env: &druid::Env| u.to_string())
+                              .lens(VMParams::heap_max.then(Value::unit))
+                              .controller(UnitController::new(
+                                VMParams::heap_max.then(Value::unit),
+                              ))
+                              .expand_width(),
+                            0.5,
+                          ),
+                      )
+                      .lens(vmparam_lens)
+                      .on_change(|_, _, data, _| {
+                        if_chain! {
+                          if let Some(install_dir) = data.install_dir.clone();
+                          if let Some(vmparams) = data.vmparams.clone();
+                          if let Err(err) = vmparams.save(install_dir);
+                          then {
+                            eprintln!("{:?}", err)
                           }
-                        }),
-                    );
-                  }
-                  Box::new(SizedBox::empty())
-                },
-              )
-              .padding(TRAILING_PADDING),
+                        }
+                      }),
+                  );
+                }
+                Box::new(SizedBox::empty())
+              },
             )
-          })
+            .padding(TRAILING_PADDING),
+          )
           .with_child(
             make_flex_settings_row(
               Checkbox::new("").lens(Settings::experimental_launch),
