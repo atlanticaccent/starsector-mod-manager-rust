@@ -3,7 +3,7 @@ use std::{io::Cursor, path::{Path, PathBuf}, collections::VecDeque};
 use anyhow::Context;
 use tempfile::TempDir;
 use compress_tools::uncompress_archive;
-use tap::Tap;
+use rand::random;
 use tokio::runtime::Handle;
 
 pub enum Flavour {
@@ -19,9 +19,23 @@ impl Flavour {
     let jre = Self::find_jre(tempdir.path()).await?;
 
     let stock_jre = root.join(consts::JRE_PATH);
-    let backup = stock_jre.clone().tap_mut(|stock| {
-      stock.set_file_name("backup_jre")
+
+    let is_original = std::fs::read_to_string(stock_jre.join("release")).is_ok_and(|release| {
+      release
+        .split_ascii_whitespace()
+        .next()
+        .is_some_and(|version| version.eq_ignore_ascii_case(r#"JAVA_VERSION="1.7.0""#))
     });
+
+    let mut backup = stock_jre.with_file_name(if is_original {
+      "original_jre"
+    } else {
+      "backup_jre"
+    });
+    while backup.exists() {
+      backup.set_extension(random::<u16>().to_string());
+    }
+
     std::fs::rename(&stock_jre, backup)?;
     std::fs::rename(jre, &stock_jre)?;
 
