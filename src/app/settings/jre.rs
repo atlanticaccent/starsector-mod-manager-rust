@@ -135,7 +135,20 @@ impl Flavour {
   }
 }
 
-pub async fn revert_jre(root: PathBuf) -> anyhow::Result<bool> {
+pub async fn revert(ext_ctx: ExtEventSink, root: PathBuf) {
+  ext_ctx.submit_command(App::LOG_MESSAGE, String::from("Attempting to revert to JRE 7"), Target::Auto).expect("Send message");
+
+  let res = revert_jre(&root).await;
+
+  match res {
+    Ok(true) => ext_ctx.submit_command(App::LOG_MESSAGE, String::from("Succesfully reverted to JRE 7"), Target::Auto).expect("Send message"),
+    Ok(false) => ext_ctx.submit_command(App::LOG_MESSAGE, String::from("ERROR: Could not revert to JRE 7 - no JRE 7 backup found"), Target::Auto).expect("Send message"),
+    Err(err) => ext_ctx.submit_command(App::LOG_MESSAGE, format!("ERROR: Failed to revert JRE. Your Starsector installation may be corrupted.\nError: {:?}", err), Target::Auto).expect("Send message")
+  }
+  let _ = ext_ctx.submit_command(SWAP_COMPLETE, (), Target::Auto);
+}
+
+async fn revert_jre(root: &Path) -> anyhow::Result<bool> {
   let target = root.join(consts::JRE_PATH);
   let original = target.with_file_name("original_jre");
 
@@ -251,7 +264,7 @@ mod test {
       .build()
       .expect("Build runtime");
 
-    let res = runtime.block_on(revert_jre(test_dir.path().to_path_buf()));
+    let res = runtime.block_on(revert_jre(test_dir.path()));
 
     assert!(res.is_ok(), "{:?}", res);
 
@@ -271,7 +284,7 @@ mod test {
       .build()
       .expect("Build runtime");
 
-    let res = runtime.block_on(revert_jre(test_dir.path().to_path_buf()));
+    let res = runtime.block_on(revert_jre(test_dir.path()));
 
     assert!(res.is_ok(), "{:?}", res);
 

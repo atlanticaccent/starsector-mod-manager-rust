@@ -6,7 +6,7 @@ use druid::{
   text::ParseFormatter,
   theme,
   widget::{
-    Axis, Button, Checkbox, Controller, Either, Flex, FlexParams, Label, Maybe, Painter, SizedBox,
+    Axis, Button, Checkbox, Controller, Either, Flex, Label, Maybe, Painter, SizedBox,
     TextBox, TextBoxEvent, ValidationDelegate, ViewSwitcher, WidgetExt,
   },
   Data, Event, EventCtx, Lens, LensExt, Menu, MenuItem, RenderContext, Selector, Widget,
@@ -24,7 +24,7 @@ use crate::{
 };
 
 use self::{
-  jre::Flavour,
+  jre::{revert, Flavour},
   vmparams::{Unit, VMParams, Value},
 };
 
@@ -34,8 +34,7 @@ use super::{
   modal::Modal,
   util::{
     bold_text, button_painter, default_true, h2, icons::*, make_column_pair, make_flex_pair,
-    make_flex_settings_row, Button2, Card, CommandExt, LabelExt, LoadError,
-    SaveError,
+    make_flex_settings_row, Button2, Card, CommandExt, LabelExt, LoadError, SaveError,
   },
   App,
 };
@@ -555,12 +554,17 @@ impl Settings {
                       )
                       .expand_width(),
                   )
-                  .with_flex_child(
+                  .with_child(
                     Button2::new(Label::new("Revert to JRE 7").padding((10., 0.)))
                       .on_click(|ctx, data: &mut Settings, _| {
                         data.jre_swap_in_progress = true;
-                      }),
-                    FlexParams::new(1., druid::widget::CrossAxisAlignment::Start),
+                        tokio::runtime::Handle::current().spawn(revert(
+                          ctx.get_external_handle(),
+                          data.install_dir.as_ref().unwrap().clone(),
+                        ));
+                      })
+                      .align_left()
+                      .expand_width(),
                   )
                   .disabled_if(|data: &Settings, _| data.install_dir.is_none())
                   .on_command(jre::SWAP_COMPLETE, |_, _, data| {
