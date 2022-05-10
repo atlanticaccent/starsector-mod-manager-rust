@@ -135,6 +135,25 @@ impl Flavour {
   }
 }
 
+pub async fn revert_jre(root: PathBuf) -> anyhow::Result<bool> {
+  let target = root.join(consts::JRE_PATH);
+  let original = target.with_file_name("original_jre");
+
+  if original.exists() {
+    let mut backup = target.with_file_name("backup_jre");
+    while backup.exists() {
+      backup.set_extension(random::<u16>().to_string());
+    };
+
+    std::fs::rename(&target, backup)?;
+    std::fs::rename(original, &target)?;
+
+    Ok(true)
+  } else {
+    Ok(false)
+  }
+}
+
 #[cfg(target_os = "windows")]
 mod consts {
   pub const CORETTO: &'static str = "https://corretto.aws/downloads/resources/8.272.10.3/amazon-corretto-8.272.10.3-windows-x64-jre.zip";
@@ -167,9 +186,9 @@ mod consts {
 mod test {
   use tempfile::TempDir;
 
-  use super::{consts, Flavour};
+  use super::{consts, Flavour, revert_jre};
 
-  fn base_test(flavour: Flavour) {
+  fn base_test(flavour: Flavour, mock_original: bool) -> TempDir {
     let runtime = tokio::runtime::Builder::new_current_thread()
       .enable_all()
       .build()
@@ -181,11 +200,19 @@ mod test {
       let target_path = test_dir.path().join(consts::JRE_PATH);
       std::fs::create_dir(&target_path).expect("Create mock JRE folder");
 
+      if mock_original {
+        std::fs::write(target_path.join("release"), r#"JAVA_VERSION="1.7.0""#).expect("Write test release");
+      }
+
       let res = flavour.swap_jre(test_dir.path()).await;
 
       assert!(res.is_ok(), "{:?}", res);
 
-      assert!(test_dir.path().join("backup_jre").exists());
+      if mock_original {
+        assert!(test_dir.path().join("original_jre").exists());
+      } else {
+        assert!(test_dir.path().join("backup_jre").exists());
+      }
 
       assert!(target_path.exists());
 
@@ -195,21 +222,63 @@ mod test {
       assert!(target_path.join("bin/java.exe").exists());
       #[cfg(not(target_os = "windows"))]
       assert!(target_path.join("bin/java").exists());
-    });
+
+      test_dir
+    })
   }
 
   #[test]
   fn coretto() {
-    base_test(Flavour::Coretto)
+    base_test(Flavour::Coretto, true);
   }
 
   #[test]
   fn hotspot() {
-    base_test(Flavour::Hotspot)
+    base_test(Flavour::Hotspot, true);
   }
 
   #[test]
   fn wisp() {
-    base_test(Flavour::Wisp)
+    base_test(Flavour::Wisp, true);
+  }
+
+  #[test]
+  fn does_not_revert_when_no_original() {
+    let test_dir = base_test(Flavour::Coretto, false);
+
+    let runtime = tokio::runtime::Builder::new_current_thread()
+      .enable_all()
+      .build()
+      .expect("Build runtime");
+
+    let res = runtime.block_on(revert_jre(test_dir.path().to_path_buf()));
+
+    assert!(res.is_ok(), "{:?}", res);
+
+    if let Ok(res) = res {
+      assert!(!res);
+      assert!(test_dir.path().join("backup_jre").exists());
+      assert!(test_dir.path().join("jre").exists());
+    }
+  }
+
+  #[test]
+  fn revert_when_original_present() {
+    let test_dir = base_test(Flavour::Coretto, true);
+
+    let runtime = tokio::runtime::Builder::new_current_thread()
+      .enable_all()
+      .build()
+      .expect("Build runtime");
+
+    let res = runtime.block_on(revert_jre(test_dir.path().to_path_buf()));
+
+    assert!(res.is_ok(), "{:?}", res);
+
+    if let Ok(res) = res {
+      assert!(res);
+      assert!(test_dir.path().join("backup_jre").exists());
+      assert!(test_dir.path().join("jre").exists());
+    }
   }
 }
