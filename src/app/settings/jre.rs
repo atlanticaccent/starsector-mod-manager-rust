@@ -39,7 +39,7 @@ impl Flavour {
   async fn swap_jre(&self, root: &Path) -> anyhow::Result<()> {
     let tempdir = self.unpack(root).await?;
 
-    let jre = Self::find_jre(tempdir.path()).await?;
+    let jre_8 = Self::find_jre(tempdir.path()).await?;
 
     let stock_jre = root.join(consts::JRE_PATH);
 
@@ -60,7 +60,7 @@ impl Flavour {
     }
 
     std::fs::rename(&stock_jre, backup)?;
-    std::fs::rename(jre, &stock_jre)?;
+    std::fs::rename(jre_8, &stock_jre)?;
 
     Ok(())
   }
