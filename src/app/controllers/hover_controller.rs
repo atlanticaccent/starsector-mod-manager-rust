@@ -13,8 +13,9 @@ impl<T: Data, W: Widget<T>> Controller<T, W> for HoverController {
   ) {
     if let druid::Event::MouseMove(_) = event {
       if !ctx.is_disabled() && (ctx.is_hot() || ctx.is_active()) {
-        ctx.set_cursor(&Cursor::Pointer)
+        ctx.set_cursor(&Cursor::Pointer);
       }
+      ctx.request_paint();
     }
     child.event(ctx, event, data, env)
   }
