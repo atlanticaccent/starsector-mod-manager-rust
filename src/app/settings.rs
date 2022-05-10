@@ -37,6 +37,7 @@ use super::{
 };
 
 pub mod vmparams;
+pub mod jre;
 
 const TRAILING_PADDING: (f64, f64, f64, f64) = (0., 0., 0., 5.);
 
