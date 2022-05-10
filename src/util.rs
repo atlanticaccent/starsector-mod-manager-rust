@@ -171,28 +171,29 @@ async fn send_request(url: String) -> Result<String, String>{
     .map_err(|e| format!("{:?}", e))
 }
 
-pub fn bold_header<T: Data>(text: &str, size: f64, weight: FontWeight) -> impl Widget<T> {
+pub fn bold_text<T: Data>(text: &str, size: impl Into<KeyOrValue<f64>>, weight: FontWeight, colour: impl Into<KeyOrValue<Color>>) -> impl Widget<T> {
   RawLabel::new()
     .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
     .lens(lens::Constant(RichText::new_with_attributes(
     text.into(),
     AttributeSpans::new().tap_mut(|s| {
       s.add(0..text.len(), Attribute::Weight(weight));
-      s.add(0..text.len(), Attribute::FontSize(size.into()))
+      s.add(0..text.len(), Attribute::FontSize(size.into()));
+      s.add(0..text.len(), Attribute::TextColor(colour.into()));
     })
   )))
 }
 
 pub fn h1<T: Data>(text: &str) -> impl Widget<T> {
-  bold_header(text, 24., FontWeight::BOLD)
+  bold_text(text, 24., FontWeight::BOLD, theme::TEXT_COLOR)
 }
 
 pub fn h2<T: Data>(text: &str) -> impl Widget<T> {
-  bold_header(text, 20., FontWeight::SEMI_BOLD)
+  bold_text(text, 20., FontWeight::SEMI_BOLD, theme::TEXT_COLOR)
 }
 
 pub fn h3<T: Data>(text: &str) -> impl Widget<T> {
-  bold_header(text, 18., FontWeight::MEDIUM)
+  bold_text(text, 18., FontWeight::MEDIUM, theme::TEXT_COLOR)
 }
 
 pub const GET_INSTALLED_STARSECTOR: Selector<Result<GameVersion, LoadError>> = Selector::new("util.starsector_version.get");
@@ -481,6 +482,31 @@ pub fn button_painter<T: Data>() -> Painter<T> {
   })
 }
 
+pub struct Card;
+
+impl Card {
+  const CARD_INSET: f64 = 12.5;
+
+  pub fn new<T: Data>(widget: impl Widget<T> + 'static) -> impl Widget<T> {
+    widget
+      .padding((Self::CARD_INSET, Self::CARD_INSET, Self::CARD_INSET, Self::CARD_INSET + 5.))
+      .background(Self::card_painter())
+  }
+
+  pub fn card_painter<T: Data>() -> Painter<T> {
+    Painter::new(|ctx, _, env| {
+      let size = ctx.size();
+  
+      let rounded_rect = size
+        .to_rect()
+        .inset(-Self::CARD_INSET / 2.0)
+        .to_rounded_rect(10.);
+  
+      ctx.fill(rounded_rect, &env.get(theme::BACKGROUND_LIGHT));
+    })
+  }
+}
+
 pub trait CommandExt: CommandCtx {
   fn submit_command_global(&mut self, cmd: impl Into<Command>) {
     let cmd: Command = cmd.into();
@@ -563,7 +589,9 @@ pub struct Button2;
 
 impl Button2 {
   pub fn new<T: Data, W: Widget<T> + 'static>(label: W) -> impl Widget<T> {
-    label.background(button_painter())
+    label
+      .padding((8., 4.))
+      .background(button_painter())
       .controller(HoverController)
   }
 
@@ -571,7 +599,6 @@ impl Button2 {
     Self::new(
       Label::wrapped_into(label)
         .with_text_size(18.)
-        .padding((8., 4.))
     )
   }
 }

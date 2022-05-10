@@ -1,11 +1,22 @@
-use std::{io::Cursor, path::{Path, PathBuf}, collections::VecDeque};
+use std::{
+  collections::VecDeque,
+  io::Cursor,
+  path::{Path, PathBuf},
+};
 
 use anyhow::Context;
-use tempfile::TempDir;
 use compress_tools::uncompress_archive;
+use druid::{ExtEventSink, Target, Selector};
 use rand::random;
+use tempfile::TempDir;
 use tokio::runtime::Handle;
+use strum_macros::Display;
 
+use crate::app::App;
+
+pub const SWAP_COMPLETE: Selector = Selector::new("settings.jre.swap_complete");
+
+#[derive(Display)]
 pub enum Flavour {
   Coretto,
   Hotspot,
@@ -13,7 +24,19 @@ pub enum Flavour {
 }
 
 impl Flavour {
-  pub async fn swap_jre(&self, root: &Path) -> anyhow::Result<()> {
+  pub async fn swap(&self, ext_ctx: ExtEventSink, root: PathBuf) {
+    ext_ctx.submit_command(App::LOG_MESSAGE, format!("Beginning JRE upgrade - installing {}", self), Target::Auto).expect("Send message");
+
+    let res = self.swap_jre(&root).await;
+
+    match res {
+      Ok(_) => ext_ctx.submit_command(App::LOG_MESSAGE, String::from("JRE upgrade complete!"), Target::Auto).expect("Send message"),
+      Err(err) => ext_ctx.submit_command(App::LOG_MESSAGE, format!("ERROR: Failed to upgrade JRE. Your Starsector installation may be corrupted.\nError: {:?}", err), Target::Auto).expect("Send message")
+    }
+    let _ = ext_ctx.submit_command(SWAP_COMPLETE, (), Target::Auto);
+  }
+
+  async fn swap_jre(&self, root: &Path) -> anyhow::Result<()> {
     let tempdir = self.unpack(root).await?;
 
     let jre = Self::find_jre(tempdir.path()).await?;
@@ -56,8 +79,7 @@ impl Flavour {
 
     let tempdir = TempDir::new_in(&root).context("Create tempdir")?;
 
-    let mut res = reqwest::get(url)
-      .await?;
+    let mut res = reqwest::get(url).await?;
 
     let mut buf = Vec::new();
     while let Some(bytes) = res.chunk().await? {
@@ -65,9 +87,12 @@ impl Flavour {
     }
 
     let path = root.join(tempdir.path());
-    Handle::current().spawn_blocking(move || -> anyhow::Result<()> {
-      uncompress_archive(Cursor::new(buf), &path, compress_tools::Ownership::Ignore).context("Failed to unpack")
-    }).await??;
+    Handle::current()
+      .spawn_blocking(move || -> anyhow::Result<()> {
+        uncompress_archive(Cursor::new(buf), &path, compress_tools::Ownership::Ignore)
+          .context("Failed to unpack")
+      })
+      .await??;
 
     Ok(tempdir)
   }
@@ -75,33 +100,38 @@ impl Flavour {
   async fn find_jre(root: &Path) -> anyhow::Result<PathBuf> {
     let mut visit = VecDeque::new();
     visit.push_back(root.to_path_buf());
-    Handle::current().spawn_blocking(move || {
-      while let Some(path) = visit.pop_front() {
-        if let Ok(mut iter) = path.read_dir() {
-          while let Some(Ok(file)) = iter.next() {
-            if let Ok(file_type) = file.file_type() {
-              if file_type.is_dir() {
-                // note:
-                // windows always returns archives containing _only_ JRE, but not always named JRE - find bin then return parent
-                // macos and linux return jdks - just find jre and return that
-
-                if cfg!(target_os = "windows") && file.file_name().eq_ignore_ascii_case("bin") {
-                  return Some(file.path().parent().expect("Get parent of bin").to_path_buf())
-                } else if cfg!(not(target_os = "windows")) && file.file_name().eq_ignore_ascii_case("jre") {
-                  return Some(file.path());
-                } else {
-                  visit.push_back(file.path())
+    Handle::current()
+      .spawn_blocking(move || {
+        while let Some(path) = visit.pop_front() {
+          if let Ok(mut iter) = path.read_dir() {
+            while let Some(Ok(file)) = iter.next() {
+              if let Ok(file_type) = file.file_type() {
+                if file_type.is_dir() {
+                  if cfg!(target_os = "windows") && file.file_name().eq_ignore_ascii_case("bin") {
+                    return Some(
+                      file
+                        .path()
+                        .parent()
+                        .expect("Get parent of bin")
+                        .to_path_buf(),
+                    );
+                  } else if cfg!(not(target_os = "windows"))
+                    && file.file_name().eq_ignore_ascii_case("jre")
+                  {
+                    return Some(file.path());
+                  } else {
+                    visit.push_back(file.path())
+                  }
                 }
               }
             }
           }
         }
-      }
-      
-      None
-    })
-    .await?
-    .ok_or_else(|| anyhow::Error::msg("Could not find JRE in given folder"))
+
+        None
+      })
+      .await?
+      .ok_or_else(|| anyhow::Error::msg("Could not find JRE in given folder"))
   }
 }
 
@@ -137,7 +167,7 @@ mod consts {
 mod test {
   use tempfile::TempDir;
 
-  use super::{Flavour, consts};
+  use super::{consts, Flavour};
 
   fn base_test(flavour: Flavour) {
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -150,7 +180,7 @@ mod test {
 
       let target_path = test_dir.path().join(consts::JRE_PATH);
       std::fs::create_dir(&target_path).expect("Create mock JRE folder");
-  
+
       let res = flavour.swap_jre(test_dir.path()).await;
 
       assert!(res.is_ok(), "{:?}", res);

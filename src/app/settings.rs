@@ -6,8 +6,8 @@ use druid::{
   text::ParseFormatter,
   theme,
   widget::{
-    Axis, Button, Checkbox, Controller, Either, Flex, Label, Maybe, Painter, SizedBox, TextBox,
-    TextBoxEvent, ValidationDelegate, ViewSwitcher, WidgetExt,
+    Axis, Button, Checkbox, Controller, Either, Flex, FlexParams, Label, Maybe, Painter, SizedBox,
+    TextBox, TextBoxEvent, ValidationDelegate, ViewSwitcher, WidgetExt,
   },
   Data, Event, EventCtx, Lens, LensExt, Menu, MenuItem, RenderContext, Selector, Widget,
   WindowConfig,
@@ -23,15 +23,19 @@ use crate::{
   patch::{click::Click, tooltip::TooltipController},
 };
 
-use self::vmparams::{Unit, VMParams, Value};
+use self::{
+  jre::Flavour,
+  vmparams::{Unit, VMParams, Value},
+};
 
 use super::{
   controllers::HoverController,
   mod_list::headings::{Header, Heading},
   modal::Modal,
   util::{
-    button_painter, default_true, h2, h3, icons::*, make_column_pair, make_flex_pair,
-    make_flex_settings_row, CommandExt, DragWindowController, LabelExt, LoadError, SaveError,
+    bold_text, button_painter, default_true, h2, icons::*, make_column_pair, make_flex_pair,
+    make_flex_settings_row, Button2, Card, CommandExt, LabelExt, LoadError,
+    SaveError,
   },
   App,
 };
@@ -66,6 +70,10 @@ pub struct Settings {
   #[serde(default = "default_headers")]
   #[data(same_fn = "PartialEq::eq")]
   pub headings: Vector<Heading>,
+  #[serde(skip)]
+  show_jre_swapper: bool,
+  #[serde(skip)]
+  jre_swap_in_progress: bool,
 }
 
 fn default_headers() -> Vector<Heading> {
@@ -85,16 +93,8 @@ impl Settings {
   }
 
   pub fn ui_builder() -> impl Widget<Self> {
-    Flex::column()
-      .with_child(
-        h3("Settings")
-          .center()
-          .padding(2.)
-          .expand_width()
-          .background(theme::BACKGROUND_LIGHT)
-          .controller(DragWindowController::default()),
-      )
-      .with_flex_child(
+    Modal::new("Settings")
+      .with_content(
         Flex::column()
           .with_child(Self::install_dir_browser_builder(Axis::Horizontal).padding(TRAILING_PADDING))
           .with_child(
@@ -433,6 +433,147 @@ impl Settings {
           )
           .with_child(
             make_flex_settings_row(
+              Either::new(
+                |data, _| *data,
+                Icon::new(ARROW_DROP_DOWN),
+                Icon::new(ARROW_RIGHT),
+              )
+              .padding((-5., 0., 0., 0.)),
+              Label::new("Open JRE Switcher"),
+            )
+            .controller(HoverController)
+            .on_click(|_, data, _| *data = !*data)
+            .lens(Settings::show_jre_swapper)
+            .padding(TRAILING_PADDING.tap_mut(|padding| padding.2 = -5.)),
+          )
+          .with_child(
+            Either::new(
+              |data: &Settings, _| data.show_jre_swapper,
+              make_flex_settings_row(
+                SizedBox::empty(),
+                Flex::column()
+                  .with_child(
+                    Flex::row()
+                      .with_flex_child(
+                        Card::new(
+                          Flex::column()
+                            .with_child(h2("Wisp's Archived JRE"))
+                            .with_child(bold_text(
+                              "JRE v271",
+                              theme::TEXT_SIZE_NORMAL,
+                              druid::FontWeight::SEMI_BOLD,
+                              druid::theme::TEXT_COLOR,
+                            ))
+                            .with_child(bold_text(
+                              "(RECOMMENDED)",
+                              theme::TEXT_SIZE_NORMAL,
+                              druid::FontWeight::MEDIUM,
+                              druid::Color::GREEN,
+                            ))
+                            .with_spacer(5.)
+                            .with_child(
+                              Button2::new(Label::new("Install").padding((10., 0.))).on_click(
+                                |ctx, data: &mut Settings, _| {
+                                  data.jre_swap_in_progress = true;
+                                  tokio::runtime::Handle::current().spawn(Flavour::Wisp.swap(
+                                    ctx.get_external_handle(),
+                                    data.install_dir.as_ref().unwrap().clone(),
+                                  ));
+                                },
+                              ),
+                            )
+                            .main_axis_alignment(druid::widget::MainAxisAlignment::Center),
+                        )
+                        .expand_width(),
+                        1.,
+                      )
+                      .with_flex_child(
+                        Card::new(
+                          Flex::column()
+                            .with_child(h2("Amazon Coretto"))
+                            .with_child(bold_text(
+                              "JRE v272 (10.3)",
+                              theme::TEXT_SIZE_NORMAL,
+                              druid::FontWeight::SEMI_BOLD,
+                              druid::theme::TEXT_COLOR,
+                            ))
+                            .with_child(bold_text(
+                              "(UNSUPPORTED)",
+                              theme::TEXT_SIZE_NORMAL,
+                              druid::FontWeight::MEDIUM,
+                              druid::Color::MAROON,
+                            ))
+                            .with_spacer(5.)
+                            .with_child(
+                              Button2::new(Label::new("Install").padding((10., 0.))).on_click(
+                                |ctx, data: &mut Settings, _| {
+                                  data.jre_swap_in_progress = true;
+                                  tokio::runtime::Handle::current().spawn(Flavour::Coretto.swap(
+                                    ctx.get_external_handle(),
+                                    data.install_dir.as_ref().unwrap().clone(),
+                                  ));
+                                },
+                              ),
+                            )
+                            .main_axis_alignment(druid::widget::MainAxisAlignment::Center),
+                        )
+                        .expand_width(),
+                        1.,
+                      )
+                      .with_flex_child(
+                        Card::new(
+                          Flex::column()
+                            .with_child(h2("OpenJDK Hotspot"))
+                            .with_child(bold_text(
+                              "JRE v272 (b10)",
+                              theme::TEXT_SIZE_NORMAL,
+                              druid::FontWeight::SEMI_BOLD,
+                              druid::theme::TEXT_COLOR,
+                            ))
+                            .with_child(bold_text(
+                              "(UNSUPPORTED)",
+                              theme::TEXT_SIZE_NORMAL,
+                              druid::FontWeight::MEDIUM,
+                              druid::Color::MAROON,
+                            ))
+                            .with_spacer(5.)
+                            .with_child(
+                              Button2::new(Label::new("Install").padding((10., 0.))).on_click(
+                                |ctx, data: &mut Settings, _| {
+                                  data.jre_swap_in_progress = true;
+                                  tokio::runtime::Handle::current().spawn(Flavour::Hotspot.swap(
+                                    ctx.get_external_handle(),
+                                    data.install_dir.as_ref().unwrap().clone(),
+                                  ));
+                                },
+                              ),
+                            )
+                            .main_axis_alignment(druid::widget::MainAxisAlignment::Center),
+                        )
+                        .expand_width(),
+                        1.,
+                      )
+                      .expand_width(),
+                  )
+                  .with_flex_child(
+                    Button2::new(Label::new("Revert to JRE 7").padding((10., 0.)))
+                      .on_click(|ctx, data: &mut Settings, _| {
+                        data.jre_swap_in_progress = true;
+                      }),
+                    FlexParams::new(1., druid::widget::CrossAxisAlignment::Start),
+                  )
+                  .disabled_if(|data: &Settings, _| data.install_dir.is_none())
+                  .on_command(jre::SWAP_COMPLETE, |_, _, data| {
+                    data.jre_swap_in_progress = false
+                  })
+                  .expand_width(),
+              ),
+              SizedBox::empty(),
+            )
+            .padding(TRAILING_PADDING),
+          )
+          .with_child(
+            make_flex_settings_row(
               Checkbox::new("").lens(Settings::experimental_launch),
               Label::wrapped("Enable experimental direct launch"),
             )
@@ -489,30 +630,21 @@ impl Settings {
             .padding(TRAILING_PADDING),
           )
           .padding((10., 10.))
-          .expand(),
-        1.,
+          .expand()
+          .on_change(|_, _old, data, _| {
+            if let Err(err) = data.save() {
+              eprintln!("{:?}", err)
+            }
+          })
+          .on_command(Header::ADD_HEADING, |_, _heading, settings| {
+            if let Err(err) = settings.save() {
+              eprintln!("{:?}", err)
+            }
+          })
+          .boxed(),
       )
-      .with_child(
-        Flex::row()
-          .with_child(
-            Button::new("Close")
-              .on_click(|ctx, _, _| ctx.submit_command(druid::commands::CLOSE_WINDOW)),
-          )
-          .cross_axis_alignment(druid::widget::CrossAxisAlignment::End)
-          .main_axis_alignment(druid::widget::MainAxisAlignment::End)
-          .expand_width(),
-      )
-      .expand_height()
-      .on_change(|_, _old, data, _| {
-        if let Err(err) = data.save() {
-          eprintln!("{:?}", err)
-        }
-      })
-      .on_command(Header::ADD_HEADING, |_, _heading, settings| {
-        if let Err(err) = settings.save() {
-          eprintln!("{:?}", err)
-        }
-      })
+      .with_close()
+      .build()
   }
 
   pub fn install_dir_browser_builder(axis: Axis) -> Flex<Self> {
