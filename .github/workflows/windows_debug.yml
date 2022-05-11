@@ -12,12 +12,27 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - name: Install libarchive
-        uses: lukka/run-vcpkg@v7.4
+
+      - name: Cache vcpkg installed
+        uses: actions/cache@v1.0.3
         with:
-          vcpkgArguments: libarchive
-          vcpkgTriplet: x64-windows-static
-          vcpkgGitCommitId: 0bf3923f9fab4001c00f0f429682a0853b5749e0
+          path: $VCPKG_ROOT/installed
+          key: windows-vcpkg-cache
+        env:
+          VCPKG_ROOT: 'C:\vcpkg'
+      - name: Cache vcpkg downloads
+        uses: actions/cache@v1.0.3
+        with:
+          path: $VCPKG_ROOT/downloads
+          key: windows-vcpkg-cache
+        env:
+          VCPKG_ROOT: 'C:\vcpkg'
+
+      - name: Install dependencies Windows
+        run: vcpkg integrate install; vcpkg install libarchive:x64-windows-static
+        env:
+          VCPKG_ROOT: 'C:\vcpkg'
+
       - name: Check cache
         uses: actions/cache@v2
         with:
@@ -31,6 +46,12 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: build
+      - name: Test
+        uses: actions-rs/cargo@v1
+        timeout-minutes: 10
+        with:
+          command: test
+          args: --release --no-fail-fast -- --nocapture
       - uses: actions/upload-artifact@v2
         with:
           name: windows
