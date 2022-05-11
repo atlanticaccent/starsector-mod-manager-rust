@@ -38,7 +38,6 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Test
         uses: actions-rs/cargo@v1
-        timeout-minutes: 10
         with:
           command: test
           args: --release --all --all-features --no-fail-fast -- --nocapture

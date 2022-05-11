@@ -38,7 +38,6 @@ jobs:
           args: --release
       - name: Test
         uses: actions-rs/cargo@v1
-        timeout-minutes: 10
         with:
           command: test
           args: --release --no-fail-fast -- --nocapture

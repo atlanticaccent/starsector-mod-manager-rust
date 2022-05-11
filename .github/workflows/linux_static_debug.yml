@@ -42,7 +42,6 @@ jobs:
           args: --target=x86_64-unknown-linux-musl
       - name: Test
         uses: actions-rs/cargo@v1
-        timeout-minutes: 10
         with:
           command: test
           args: --release --target=x86_64-unknown-linux-musl --no-fail-fast -- --nocapture
