@@ -24,6 +24,9 @@ pub enum Flavour {
 }
 
 impl Flavour {
+  const STOCK_JRE: &'static str = "jre7";
+  const BACKUP_JRE: &'static str = "jre.bak";
+
   pub async fn swap(&self, ext_ctx: ExtEventSink, root: PathBuf) {
     ext_ctx.submit_command(App::LOG_MESSAGE, format!("Beginning JRE upgrade - installing {}", self), Target::Auto).expect("Send message");
 
@@ -51,9 +54,9 @@ impl Flavour {
     });
 
     let mut backup = stock_jre.with_file_name(if is_original {
-      "original_jre"
+      Self::STOCK_JRE
     } else {
-      "backup_jre"
+      Self::BACKUP_JRE
     });
     while backup.exists() {
       backup.set_extension(random::<u16>().to_string());
@@ -150,10 +153,10 @@ pub async fn revert(ext_ctx: ExtEventSink, root: PathBuf) {
 
 async fn revert_jre(root: &Path) -> anyhow::Result<bool> {
   let target = root.join(consts::JRE_PATH);
-  let original = target.with_file_name("original_jre");
+  let original = target.with_file_name(Flavour::STOCK_JRE);
 
   if original.exists() {
-    let mut backup = target.with_file_name("backup_jre");
+    let mut backup = target.with_file_name(Flavour::BACKUP_JRE);
     while backup.exists() {
       backup.set_extension(random::<u16>().to_string());
     };
@@ -222,9 +225,9 @@ mod test {
       assert!(res.is_ok(), "{:?}", res);
 
       if mock_original {
-        assert!(test_dir.path().join("original_jre").exists());
+        assert!(test_dir.path().join(Flavour::STOCK_JRE).exists());
       } else {
-        assert!(test_dir.path().join("backup_jre").exists());
+        assert!(test_dir.path().join(Flavour::BACKUP_JRE).exists());
       }
 
       assert!(target_path.exists());
@@ -270,7 +273,7 @@ mod test {
 
     if let Ok(res) = res {
       assert!(!res);
-      assert!(test_dir.path().join("backup_jre").exists());
+      assert!(test_dir.path().join(Flavour::BACKUP_JRE).exists());
       assert!(test_dir.path().join("jre").exists());
     }
   }
@@ -290,7 +293,7 @@ mod test {
 
     if let Ok(res) = res {
       assert!(res);
-      assert!(test_dir.path().join("backup_jre").exists());
+      assert!(test_dir.path().join(Flavour::BACKUP_JRE).exists());
       assert!(test_dir.path().join("jre").exists());
     }
   }
