@@ -458,7 +458,7 @@ impl Settings {
                           Flex::column()
                             .with_child(h2("Wisp's Archived JRE"))
                             .with_child(bold_text(
-                              "JRE v271",
+                              "JRE 8v271",
                               theme::TEXT_SIZE_NORMAL,
                               druid::FontWeight::SEMI_BOLD,
                               druid::theme::TEXT_COLOR,
@@ -491,7 +491,7 @@ impl Settings {
                           Flex::column()
                             .with_child(h2("Amazon Coretto"))
                             .with_child(bold_text(
-                              "JRE v272 (10.3)",
+                              "JRE 8v272 (10.3)",
                               theme::TEXT_SIZE_NORMAL,
                               druid::FontWeight::SEMI_BOLD,
                               druid::theme::TEXT_COLOR,
@@ -524,7 +524,7 @@ impl Settings {
                           Flex::column()
                             .with_child(h2("OpenJDK Hotspot"))
                             .with_child(bold_text(
-                              "JRE v272 (b10)",
+                              "JRE 8v272 (b10)",
                               theme::TEXT_SIZE_NORMAL,
                               druid::FontWeight::SEMI_BOLD,
                               druid::theme::TEXT_COLOR,
@@ -555,7 +555,7 @@ impl Settings {
                       .expand_width(),
                   )
                   .with_child(
-                    Button2::new(Label::new("Revert to JRE 7").padding((10., 0.)))
+                    Button2::new(Label::new("Revert to Vanilla/Stock JRE 7").padding((10., 0.)))
                       .on_click(|ctx, data: &mut Settings, _| {
                         data.jre_swap_in_progress = true;
                         tokio::runtime::Handle::current().spawn(revert(
