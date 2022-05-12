@@ -37,6 +37,7 @@ fn main() {
   let args = Args::parse();
 
   std::fs::create_dir_all(PROJECT.cache_dir()).expect("Create cache dir");
+  std::fs::create_dir_all(PROJECT.data_dir()).expect("Create cache dir");
 
   if !args.webview {
     let main_window = WindowDesc::new(app::App::ui_builder())
