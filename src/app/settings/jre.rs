@@ -17,17 +17,17 @@ use crate::app::App;
 
 pub const SWAP_COMPLETE: Selector = Selector::new("settings.jre.swap_complete");
 
-#[derive(Copy, Clone, Display, Serialize, Deserialize)]
+#[derive(Copy, Clone, Display, Serialize, Deserialize, PartialEq)]
 pub enum Flavour {
   Coretto,
   Hotspot,
   Wisp,
 }
 
-impl Flavour {
-  const STOCK_JRE: &'static str = "jre7";
-  const BACKUP_JRE: &'static str = "jre.bak";
+const ORIGINAL_JRE_BACKUP: &'static str = "jre7";
+const JRE_BACKUP: &'static str = "jre.bak";
 
+impl Flavour {
   pub async fn swap(&self, ext_ctx: ExtEventSink, root: PathBuf, managed: bool) {
     ext_ctx
       .submit_command(
@@ -53,31 +53,6 @@ impl Flavour {
     let stock_jre = root.join(consts::JRE_PATH);
 
     let tempdir: TempDir;
-
-    let create_backup = || -> anyhow::Result<PathBuf> {
-      let is_original = std::fs::read_to_string(stock_jre.join("release")).is_ok_and(|release| {
-        release
-          .split_ascii_whitespace()
-          .next()
-          .is_some_and(|version| version.eq_ignore_ascii_case(r#"JAVA_VERSION="1.7.0""#))
-      });
-
-      let mut backup = stock_jre.with_file_name(if is_original {
-        Self::STOCK_JRE.to_string()
-      } else if stock_jre.join(".moss").exists() {
-        let flavour: Flavour =
-          serde_json::from_str(&std::fs::read_to_string(stock_jre.join(".moss"))?)?;
-        flavour.to_string()
-      } else {
-        Self::BACKUP_JRE.to_string()
-      });
-      while backup.exists() {
-        backup.set_extension(random::<u16>().to_string());
-      }
-
-      Ok(backup)
-    };
-
     let jre_8 = if !cached_jre.exists() {
       tempdir = self
         .unpack(if managed { project_data } else { root })
@@ -101,13 +76,12 @@ impl Flavour {
     };
 
     if !managed {
-      std::fs::rename(&stock_jre, create_backup()?)?;
+      std::fs::rename(&stock_jre, get_backup_path(&stock_jre)?)?;
       std::fs::rename(jre_8, &stock_jre)?;
     } else {
       if stock_jre.exists() {
-        if !std::fs::symlink_metadata(&stock_jre)?.is_symlink()
-        {
-          std::fs::rename(&stock_jre, create_backup()?)?;
+        if !std::fs::symlink_metadata(&stock_jre)?.is_symlink() {
+          std::fs::rename(&stock_jre, get_backup_path(&stock_jre)?)?;
         } else {
           #[cfg(target_os = "windows")]
           std::fs::remove_dir(&stock_jre)?;
@@ -195,6 +169,30 @@ impl Flavour {
   }
 }
 
+fn get_backup_path(stock_jre: &Path) -> Result<PathBuf, anyhow::Error> {
+  let is_original = std::fs::read_to_string(stock_jre.join("release")).is_ok_and(|release| {
+    release
+      .split_ascii_whitespace()
+      .next()
+      .is_some_and(|version| version.eq_ignore_ascii_case(r#"JAVA_VERSION="1.7.0""#))
+  });
+
+  let mut backup = stock_jre.with_file_name(if is_original {
+    ORIGINAL_JRE_BACKUP.to_string()
+  } else if stock_jre.join(".moss").exists() {
+    let flavour: Flavour =
+      serde_json::from_str(&std::fs::read_to_string(stock_jre.join(".moss"))?)?;
+    format!("jre_{}", flavour)
+  } else {
+    JRE_BACKUP.to_string()
+  });
+  while backup.exists() {
+    backup.set_extension(random::<u16>().to_string());
+  }
+
+  Ok(backup)
+}
+
 pub async fn revert(ext_ctx: ExtEventSink, root: PathBuf) {
   ext_ctx
     .submit_command(
@@ -215,17 +213,20 @@ pub async fn revert(ext_ctx: ExtEventSink, root: PathBuf) {
 }
 
 async fn revert_jre(root: &Path) -> anyhow::Result<bool> {
-  let target = root.join(consts::JRE_PATH);
-  let original = target.with_file_name(Flavour::STOCK_JRE);
+  let current_jre = root.join(consts::JRE_PATH);
+  let original_backup = current_jre.with_file_name(ORIGINAL_JRE_BACKUP);
 
-  if original.exists() {
-    let mut backup = target.with_file_name(Flavour::BACKUP_JRE);
-    while backup.exists() {
-      backup.set_extension(random::<u16>().to_string());
+  if original_backup.exists() {
+    if !std::fs::symlink_metadata(&current_jre)?.is_symlink() {
+      std::fs::rename(&current_jre, get_backup_path(&current_jre)?)?;
+    } else {
+      #[cfg(target_os = "windows")]
+      std::fs::remove_dir(&current_jre)?;
+      #[cfg(target_family = "unix")]
+      std::fs::remove_file(&current_jre)?;
     }
 
-    std::fs::rename(&target, backup)?;
-    std::fs::rename(original, &target)?;
+    std::fs::rename(original_backup, &current_jre)?;
 
     Ok(true)
   } else {
@@ -263,11 +264,9 @@ mod consts {
 
 #[cfg(test)]
 mod test {
-  use std::path::PathBuf;
-
   use tempfile::TempDir;
 
-  use super::{consts, revert_jre, Flavour};
+  use super::{consts, revert_jre, Flavour, JRE_BACKUP, ORIGINAL_JRE_BACKUP};
 
   fn base_test(
     flavour: Flavour,
@@ -300,9 +299,9 @@ mod test {
         .expect("Swap JRE");
 
       if mock_original {
-        assert!(test_dir.path().join(Flavour::STOCK_JRE).exists());
+        assert!(test_dir.path().join(ORIGINAL_JRE_BACKUP).exists());
       } else {
-        assert!(test_dir.path().join(Flavour::BACKUP_JRE).exists());
+        assert!(test_dir.path().join(JRE_BACKUP).exists());
       }
 
       assert!(target_path.exists());
@@ -342,19 +341,15 @@ mod test {
       .build()
       .expect("Build runtime");
 
-    let res = runtime.block_on(revert_jre(test_dir.path()));
+    let res = runtime.block_on(revert_jre(test_dir.path())).unwrap();
 
-    assert!(res.is_ok(), "{:?}", res);
-
-    if let Ok(res) = res {
-      assert!(!res);
-      assert!(test_dir.path().join(Flavour::BACKUP_JRE).exists());
-      assert!(test_dir.path().join("jre").exists());
-    }
+    assert!(!res);
+    assert!(test_dir.path().join(JRE_BACKUP).exists());
+    assert!(test_dir.path().join(consts::JRE_PATH).exists());
   }
 
   #[test]
-  fn revert_when_original_present() {
+  fn revert_when_original_present_and_unmanaged() {
     let (test_dir, _) = base_test(Flavour::Coretto, true, None, false);
 
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -362,15 +357,28 @@ mod test {
       .build()
       .expect("Build runtime");
 
-    let res = runtime.block_on(revert_jre(test_dir.path()));
+    let res = runtime.block_on(revert_jre(test_dir.path())).unwrap();
 
-    assert!(res.is_ok(), "{:?}", res);
+    assert!(res);
+    assert!(test_dir.path().join(format!("jre_{}", Flavour::Coretto)).exists());
+    assert!(test_dir.path().join(consts::JRE_PATH).exists());
+  }
 
-    if let Ok(res) = res {
-      assert!(res);
-      assert!(test_dir.path().join(Flavour::BACKUP_JRE).exists());
-      assert!(test_dir.path().join("jre").exists());
-    }
+  #[test]
+  fn revert_when_original_present_and_managed() {
+    let (test_dir, project_data) = base_test(Flavour::Coretto, true, None, true);
+
+    let runtime = tokio::runtime::Builder::new_current_thread()
+      .enable_all()
+      .build()
+      .expect("Build runtime");
+
+    let res = runtime.block_on(revert_jre(test_dir.path())).unwrap();
+
+    assert!(res);
+    assert!(!test_dir.path().join(format!("jre_{}", Flavour::Coretto)).exists());
+    assert!(project_data.path().join(format!("jre_{}", Flavour::Coretto)).exists());
+    assert!(test_dir.path().join(consts::JRE_PATH).exists());
   }
 
   #[test]
@@ -386,7 +394,15 @@ mod test {
     std::fs::OpenOptions::new()
       .create_new(true)
       .write(true)
-      .open(project_test_dir.path().join(format!("jre_{}/bin/{}", flavour, if cfg!(target_os = "windows") { "java.exe" } else { "java" })))
+      .open(project_test_dir.path().join(format!(
+        "jre_{}/bin/{}",
+        flavour,
+        if cfg!(target_os = "windows") {
+          "java.exe"
+        } else {
+          "java"
+        }
+      )))
       .expect("Created mock cached JRE");
 
     base_test(flavour, true, Some(project_test_dir), true);
@@ -398,11 +414,17 @@ mod test {
 
     let project_test_dir = TempDir::new().expect("Create project test dir");
 
-    let (test_dir, _) = base_test(flavour, true, Some(project_test_dir), true);
+    let (test_dir, _project_data) = base_test(flavour, true, Some(project_test_dir), true);
 
-    eprintln!("{:?}", test_dir.path().join("jre").read_dir().unwrap().map(|entry| entry.unwrap().path()).collect::<Vec<PathBuf>>());
+    let jre_path = test_dir.path().join(consts::JRE_PATH);
+    assert!(jre_path.is_symlink());
+    assert!(jre_path.join(".moss").exists());
 
-    assert!(test_dir.path().join("jre").join(".moss").exists())
+    let dot_moss_string =
+      std::fs::read_to_string(jre_path.join(".moss")).expect("Read moss dotfile");
+    let installed_flavour =
+      serde_json::from_str::<Flavour>(&dot_moss_string).expect("Deserialise installed flavour");
+    assert!(installed_flavour == flavour)
   }
 
   #[test]
@@ -415,6 +437,9 @@ mod test {
 
     let (_, project_test_dir) = base_test(flavour, true, Some(project_test_dir), true);
 
-    assert!(project_test_dir.path().join(format!("jre_{}", flavour)).exists())
+    assert!(project_test_dir
+      .path()
+      .join(format!("jre_{}", flavour))
+      .exists())
   }
 }
