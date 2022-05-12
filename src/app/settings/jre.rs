@@ -76,7 +76,9 @@ impl Flavour {
     };
 
     if !managed {
-      std::fs::rename(&stock_jre, get_backup_path(&stock_jre)?)?;
+      if stock_jre.exists() {
+        std::fs::rename(&stock_jre, get_backup_path(&stock_jre)?)?;
+      }
       std::fs::rename(jre_8, &stock_jre)?;
     } else {
       if stock_jre.exists() {
@@ -217,13 +219,15 @@ async fn revert_jre(root: &Path) -> anyhow::Result<bool> {
   let original_backup = current_jre.with_file_name(ORIGINAL_JRE_BACKUP);
 
   if original_backup.exists() {
-    if !std::fs::symlink_metadata(&current_jre)?.is_symlink() {
-      std::fs::rename(&current_jre, get_backup_path(&current_jre)?)?;
-    } else {
-      #[cfg(target_os = "windows")]
-      std::fs::remove_dir(&current_jre)?;
-      #[cfg(target_family = "unix")]
-      std::fs::remove_file(&current_jre)?;
+    if current_jre.exists() {
+      if !std::fs::symlink_metadata(&current_jre)?.is_symlink() {
+        std::fs::rename(&current_jre, get_backup_path(&current_jre)?)?;
+      } else {
+        #[cfg(target_os = "windows")]
+        std::fs::remove_dir(&current_jre)?;
+        #[cfg(target_family = "unix")]
+        std::fs::remove_file(&current_jre)?;
+      }
     }
 
     std::fs::rename(original_backup, &current_jre)?;
@@ -270,10 +274,11 @@ mod test {
 
   fn base_test(
     flavour: Flavour,
-    mock_original: bool,
+    mock_original: impl Into<Option<bool>>,
     project_test_dir: Option<TempDir>,
     managed: bool,
   ) -> (TempDir, TempDir) {
+    let mock_original: Option<bool> = mock_original.into();
     let runtime = tokio::runtime::Builder::new_current_thread()
       .enable_all()
       .build()
@@ -286,11 +291,13 @@ mod test {
         project_test_dir.unwrap_or_else(|| TempDir::new().expect("Create project test dir"));
 
       let target_path = test_dir.path().join(consts::JRE_PATH);
-      std::fs::create_dir(&target_path).expect("Create mock JRE folder");
-
-      if mock_original {
-        std::fs::write(target_path.join("release"), r#"JAVA_VERSION="1.7.0""#)
-          .expect("Write test release");
+      if let Some(mock_original) = mock_original {
+        std::fs::create_dir(&target_path).expect("Create mock JRE folder");
+  
+        if mock_original {
+          std::fs::write(target_path.join("release"), r#"JAVA_VERSION="1.7.0""#)
+            .expect("Write test release");
+        }
       }
 
       flavour
@@ -298,10 +305,12 @@ mod test {
         .await
         .expect("Swap JRE");
 
-      if mock_original {
-        assert!(test_dir.path().join(ORIGINAL_JRE_BACKUP).exists());
-      } else {
-        assert!(test_dir.path().join(JRE_BACKUP).exists());
+      if let Some(mock_original) = mock_original {
+        if mock_original {
+          assert!(test_dir.path().join(ORIGINAL_JRE_BACKUP).exists());
+        } else {
+          assert!(test_dir.path().join(JRE_BACKUP).exists());
+        }
       }
 
       assert!(target_path.exists());
@@ -330,6 +339,16 @@ mod test {
   #[test]
   fn wisp() {
     base_test(Flavour::Wisp, true, None, false);
+  }
+
+  #[test]
+  fn installs_even_if_actual_is_missing_and_unmanaged() {
+    base_test(Flavour::Coretto, None, None, false);
+  }
+
+  #[test]
+  fn installs_even_if_actual_is_missing_and_managed() {
+    base_test(Flavour::Coretto, None, None, true);
   }
 
   #[test]
@@ -378,6 +397,23 @@ mod test {
     assert!(res);
     assert!(!test_dir.path().join(format!("jre_{}", Flavour::Coretto)).exists());
     assert!(project_data.path().join(format!("jre_{}", Flavour::Coretto)).exists());
+    assert!(test_dir.path().join(consts::JRE_PATH).exists());
+  }
+
+  #[test]
+  fn revert_when_original_present_but_actual_missing() {
+    let test_dir = TempDir::new().expect("Create tempdir");
+
+    std::fs::create_dir_all(test_dir.path().join(ORIGINAL_JRE_BACKUP)).expect("Create mock original backup");
+
+    let runtime = tokio::runtime::Builder::new_current_thread()
+      .enable_all()
+      .build()
+      .expect("Build runtime");
+
+    let res = runtime.block_on(revert_jre(test_dir.path())).unwrap();
+
+    assert!(res);
     assert!(test_dir.path().join(consts::JRE_PATH).exists());
   }
 
