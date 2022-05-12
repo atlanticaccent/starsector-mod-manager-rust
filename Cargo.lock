@@ -1672,6 +1672,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "74190e6ca5b06c0195f067f7a565b17103c5e82cd56497533f6ddfeb9f44af7e"
 
 [[package]]
+name = "junction"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be39922b087cecaba4e2d5592dedfc8bda5d4a5a1231f143337cca207950b61d"
+dependencies = [
+ "scopeguard",
+ "winapi",
+]
+
+[[package]]
 name = "keyboard-types"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2985,6 +2995,7 @@ dependencies = [
  "interprocess",
  "json5",
  "json_comments",
+ "junction",
  "lazy_static",
  "native-dialog",
  "opener",

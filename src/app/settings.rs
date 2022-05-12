@@ -477,6 +477,7 @@ impl Settings {
                                   tokio::runtime::Handle::current().spawn(Flavour::Wisp.swap(
                                     ctx.get_external_handle(),
                                     data.install_dir.as_ref().unwrap().clone(),
+                                    false
                                   ));
                                 },
                               ),
@@ -510,6 +511,7 @@ impl Settings {
                                   tokio::runtime::Handle::current().spawn(Flavour::Coretto.swap(
                                     ctx.get_external_handle(),
                                     data.install_dir.as_ref().unwrap().clone(),
+                                    false
                                   ));
                                 },
                               ),
@@ -543,6 +545,7 @@ impl Settings {
                                   tokio::runtime::Handle::current().spawn(Flavour::Hotspot.swap(
                                     ctx.get_external_handle(),
                                     data.install_dir.as_ref().unwrap().clone(),
+                                    false
                                   ));
                                 },
                               ),
