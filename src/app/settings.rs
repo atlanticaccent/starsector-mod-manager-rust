@@ -73,6 +73,7 @@ pub struct Settings {
   show_jre_swapper: bool,
   #[serde(skip)]
   jre_swap_in_progress: bool,
+  jre_managed_mode: bool,
 }
 
 fn default_headers() -> Vector<Heading> {
@@ -477,7 +478,7 @@ impl Settings {
                                   tokio::runtime::Handle::current().spawn(Flavour::Wisp.swap(
                                     ctx.get_external_handle(),
                                     data.install_dir.as_ref().unwrap().clone(),
-                                    false
+                                    data.jre_managed_mode
                                   ));
                                 },
                               ),
@@ -511,7 +512,7 @@ impl Settings {
                                   tokio::runtime::Handle::current().spawn(Flavour::Coretto.swap(
                                     ctx.get_external_handle(),
                                     data.install_dir.as_ref().unwrap().clone(),
-                                    false
+                                    data.jre_managed_mode
                                   ));
                                 },
                               ),
@@ -545,7 +546,7 @@ impl Settings {
                                   tokio::runtime::Handle::current().spawn(Flavour::Hotspot.swap(
                                     ctx.get_external_handle(),
                                     data.install_dir.as_ref().unwrap().clone(),
-                                    false
+                                    data.jre_managed_mode
                                   ));
                                 },
                               ),
@@ -567,8 +568,21 @@ impl Settings {
                         ));
                       })
                       .align_left()
+                      .padding(TRAILING_PADDING)
                       .expand_width(),
                   )
+                  .with_child(make_flex_settings_row(
+                    Checkbox::new("").lens(Settings::jre_managed_mode),
+                    Label::wrapped("Enable 'Managed' mode.")
+                  ))
+                  .with_child(make_flex_settings_row(
+                    SizedBox::empty(),
+                    Label::wrapped("\
+                      'Managed' mode stores JRE updates in a MOSS managed data folder, \
+                      keeping your Starsector install folder clutter free.\n\
+                      Unfortunately, if you're on Windows, MOSS must be run with administrator privileges for this mode to work.\
+                    ")
+                  ))
                   .disabled_if(|data: &Settings, _| data.install_dir.is_none())
                   .on_command(jre::SWAP_COMPLETE, |_, _, data| {
                     data.jre_swap_in_progress = false
