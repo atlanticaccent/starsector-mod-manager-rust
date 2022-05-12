@@ -32,7 +32,7 @@ impl Flavour {
     ext_ctx
       .submit_command(
         App::LOG_MESSAGE,
-        format!("Beginning JRE upgrade - installing {}", self),
+        format!("Beginning JRE upgrade - installing {}. This may take a while...", self),
         Target::Auto,
       )
       .expect("Send message");
