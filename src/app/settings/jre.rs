@@ -7,10 +7,12 @@ use std::{
 use anyhow::Context;
 use compress_tools::uncompress_archive;
 use druid::{ExtEventSink, Selector, Target};
+use flate2::read::GzDecoder;
 use rand::random;
 use serde::{Deserialize, Serialize};
 use strum_macros::Display;
 use tap::Pipe;
+use tar::Archive;
 use tempfile::TempDir;
 use tokio::runtime::Handle;
 
@@ -152,8 +154,14 @@ impl Flavour {
     let path = root.join(tempdir.path());
     Handle::current()
       .spawn_blocking(move || -> anyhow::Result<()> {
-        uncompress_archive(Cursor::new(buf), &path, compress_tools::Ownership::Ignore)
-          .context("Failed to unpack")
+        if infer::archive::is_gz(&buf) {
+          let tar = GzDecoder::new(Cursor::new(buf));
+          let mut archive = Archive::new(tar);
+          archive.unpack(&path).context("Unpack tarball")
+        } else {
+          uncompress_archive(Cursor::new(buf), &path, compress_tools::Ownership::Ignore)
+            .context("Failed to unpack")
+        }
       })
       .await??;
 
