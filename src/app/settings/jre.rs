@@ -6,63 +6,128 @@ use std::{
 
 use anyhow::Context;
 use compress_tools::uncompress_archive;
-use druid::{ExtEventSink, Target, Selector};
+use druid::{ExtEventSink, Selector, Target};
+use flate2::read::GzDecoder;
 use rand::random;
+use serde::{Deserialize, Serialize};
+use strum_macros::Display;
+use tap::Pipe;
+use tar::Archive;
 use tempfile::TempDir;
 use tokio::runtime::Handle;
-use strum_macros::Display;
 
 use crate::app::App;
 
 pub const SWAP_COMPLETE: Selector = Selector::new("settings.jre.swap_complete");
 
-#[derive(Display)]
+#[derive(Copy, Clone, Display, Serialize, Deserialize, PartialEq)]
 pub enum Flavour {
   Coretto,
   Hotspot,
   Wisp,
 }
 
-impl Flavour {
-  pub async fn swap(&self, ext_ctx: ExtEventSink, root: PathBuf) {
-    ext_ctx.submit_command(App::LOG_MESSAGE, format!("Beginning JRE upgrade - installing {}", self), Target::Auto).expect("Send message");
+const ORIGINAL_JRE_BACKUP: &'static str = "jre7";
+const JRE_BACKUP: &'static str = "jre.bak";
 
-    let res = self.swap_jre(&root).await;
+impl Flavour {
+  pub async fn swap(&self, ext_ctx: ExtEventSink, root: PathBuf, managed: bool) {
+    ext_ctx
+      .submit_command(
+        App::LOG_MESSAGE,
+        format!(
+          "Beginning JRE upgrade - installing {}. This may take a while...",
+          self
+        ),
+        Target::Auto,
+      )
+      .expect("Send message");
+
+    let res = self
+      .swap_jre(&root, managed, webview_shared::PROJECT.data_dir())
+      .await;
 
     match res {
-      Ok(_) => ext_ctx.submit_command(App::LOG_MESSAGE, String::from("JRE upgrade complete!"), Target::Auto).expect("Send message"),
+      Ok(true) => ext_ctx.submit_command(App::LOG_MESSAGE, format!("JRE {} already installed!", self), Target::Auto).expect("Send message"),
+      Ok(false) => ext_ctx.submit_command(App::LOG_MESSAGE, String::from("JRE upgrade complete!"), Target::Auto).expect("Send message"),
       Err(err) => ext_ctx.submit_command(App::LOG_MESSAGE, format!("ERROR: Failed to upgrade JRE. Your Starsector installation may be corrupted.\nError: {:?}", err), Target::Auto).expect("Send message")
     }
     let _ = ext_ctx.submit_command(SWAP_COMPLETE, (), Target::Auto);
   }
 
-  async fn swap_jre(&self, root: &Path) -> anyhow::Result<()> {
-    let tempdir = self.unpack(root).await?;
-
-    let jre_8 = Self::find_jre(tempdir.path()).await?;
-
+  async fn swap_jre(
+    &self,
+    root: &Path,
+    managed: bool,
+    project_data: &Path,
+  ) -> anyhow::Result<bool> {
+    let cached_jre = if managed { project_data } else { root }.join(format!("jre_{}", self));
     let stock_jre = root.join(consts::JRE_PATH);
 
-    let is_original = std::fs::read_to_string(stock_jre.join("release")).is_ok_and(|release| {
-      release
-        .split_ascii_whitespace()
-        .next()
-        .is_some_and(|version| version.eq_ignore_ascii_case(r#"JAVA_VERSION="1.7.0""#))
-    });
+    let already_installed = stock_jre
+      .join(".moss")
+      .pipe(|dot_file| -> anyhow::Result<bool> {
+        if dot_file.exists() {
+          let flavour: Flavour = serde_json::from_str(&std::fs::read_to_string(dot_file)?)?;
 
-    let mut backup = stock_jre.with_file_name(if is_original {
-      "original_jre"
-    } else {
-      "backup_jre"
-    });
-    while backup.exists() {
-      backup.set_extension(random::<u16>().to_string());
+          if flavour == *self {
+            return Ok(true);
+          }
+        }
+
+        Ok(false)
+      });
+    if already_installed.is_ok_and(|val| *val) {
+      return already_installed;
     }
 
-    std::fs::rename(&stock_jre, backup)?;
-    std::fs::rename(jre_8, &stock_jre)?;
+    let tempdir: TempDir;
+    let jre_8 = if !cached_jre.exists() {
+      tempdir = self
+        .unpack(if managed { project_data } else { root })
+        .await?;
 
-    Ok(())
+      let jre_8 = Self::find_jre(tempdir.path()).await?;
+
+      serde_json::to_writer_pretty(
+        std::fs::OpenOptions::new()
+          .create(true)
+          .write(true)
+          .open(jre_8.join(".moss"))?,
+        &self,
+      )?;
+
+      std::fs::rename(jre_8, &cached_jre)?;
+
+      cached_jre
+    } else {
+      cached_jre
+    };
+
+    if !managed {
+      if stock_jre.exists() {
+        std::fs::rename(&stock_jre, get_backup_path(&stock_jre)?)?;
+      }
+      std::fs::rename(jre_8, &stock_jre)?;
+    } else {
+      if stock_jre.exists() {
+        if !std::fs::symlink_metadata(&stock_jre)?.is_symlink() {
+          std::fs::rename(&stock_jre, get_backup_path(&stock_jre)?)?;
+        } else {
+          #[cfg(target_os = "windows")]
+          std::fs::remove_dir(&stock_jre)?;
+          #[cfg(target_family = "unix")]
+          std::fs::remove_file(&stock_jre)?;
+        }
+      }
+
+      #[cfg(target_os = "windows")]
+      std::os::windows::fs::symlink_dir(jre_8, &stock_jre)?;
+      #[cfg(target_family = "unix")]
+      std::os::unix::fs::symlink(jre_8, &stock_jre)?;
+    }
+
+    Ok(false)
   }
 
   fn get_url(&self) -> String {
@@ -89,8 +154,17 @@ impl Flavour {
     let path = root.join(tempdir.path());
     Handle::current()
       .spawn_blocking(move || -> anyhow::Result<()> {
-        uncompress_archive(Cursor::new(buf), &path, compress_tools::Ownership::Ignore)
-          .context("Failed to unpack")
+        if infer::archive::is_gz(&buf) {
+          let tar = GzDecoder::new(Cursor::new(buf));
+          let mut archive = Archive::new(tar);
+          archive.unpack(&path).context("Unpack tarball")
+        } else if infer::archive::is_zip(&buf) {
+          let mut zip = zip::ZipArchive::new(Cursor::new(buf))?;
+          zip.extract(&path).context("Unpack zip")
+        } else {
+          uncompress_archive(Cursor::new(buf), &path, compress_tools::Ownership::Ignore)
+            .context("Failed to unpack")
+        }
       })
       .await??;
 
@@ -135,8 +209,38 @@ impl Flavour {
   }
 }
 
+fn get_backup_path(stock_jre: &Path) -> Result<PathBuf, anyhow::Error> {
+  let is_original = std::fs::read_to_string(stock_jre.join("release")).is_ok_and(|release| {
+    release
+      .split_ascii_whitespace()
+      .next()
+      .is_some_and(|version| version.eq_ignore_ascii_case(r#"JAVA_VERSION="1.7.0""#))
+  });
+
+  let mut backup = stock_jre.with_file_name(if is_original {
+    ORIGINAL_JRE_BACKUP.to_string()
+  } else if stock_jre.join(".moss").exists() {
+    let flavour: Flavour =
+      serde_json::from_str(&std::fs::read_to_string(stock_jre.join(".moss"))?)?;
+    format!("jre_{}", flavour)
+  } else {
+    JRE_BACKUP.to_string()
+  });
+  while backup.exists() {
+    backup.set_extension(random::<u16>().to_string());
+  }
+
+  Ok(backup)
+}
+
 pub async fn revert(ext_ctx: ExtEventSink, root: PathBuf) {
-  ext_ctx.submit_command(App::LOG_MESSAGE, String::from("Attempting to revert to JRE 7"), Target::Auto).expect("Send message");
+  ext_ctx
+    .submit_command(
+      App::LOG_MESSAGE,
+      String::from("Attempting to revert to JRE 7"),
+      Target::Auto,
+    )
+    .expect("Send message");
 
   let res = revert_jre(&root).await;
 
@@ -149,17 +253,22 @@ pub async fn revert(ext_ctx: ExtEventSink, root: PathBuf) {
 }
 
 async fn revert_jre(root: &Path) -> anyhow::Result<bool> {
-  let target = root.join(consts::JRE_PATH);
-  let original = target.with_file_name("original_jre");
+  let current_jre = root.join(consts::JRE_PATH);
+  let original_backup = current_jre.with_file_name(ORIGINAL_JRE_BACKUP);
 
-  if original.exists() {
-    let mut backup = target.with_file_name("backup_jre");
-    while backup.exists() {
-      backup.set_extension(random::<u16>().to_string());
-    };
+  if original_backup.exists() {
+    if current_jre.exists() {
+      if !std::fs::symlink_metadata(&current_jre)?.is_symlink() {
+        std::fs::rename(&current_jre, get_backup_path(&current_jre)?)?;
+      } else {
+        #[cfg(target_os = "windows")]
+        std::fs::remove_dir(&current_jre)?;
+        #[cfg(target_family = "unix")]
+        std::fs::remove_file(&current_jre)?;
+      }
+    }
 
-    std::fs::rename(&target, backup)?;
-    std::fs::rename(original, &target)?;
+    std::fs::rename(original_backup, &current_jre)?;
 
     Ok(true)
   } else {
@@ -199,32 +308,53 @@ mod consts {
 mod test {
   use tempfile::TempDir;
 
-  use super::{consts, Flavour, revert_jre};
+  use super::{consts, revert_jre, Flavour, JRE_BACKUP, ORIGINAL_JRE_BACKUP};
 
-  fn base_test(flavour: Flavour, mock_original: bool) -> TempDir {
+  fn base_test(
+    flavour: Flavour,
+    mock_original: impl Into<Option<bool>>,
+    test_dir: impl Into<Option<TempDir>>,
+    project_test_dir: Option<TempDir>,
+    managed: bool,
+    expected: bool,
+  ) -> (TempDir, TempDir) {
+    let mock_original: Option<bool> = mock_original.into();
     let runtime = tokio::runtime::Builder::new_current_thread()
       .enable_all()
       .build()
       .expect("Build runtime");
 
     runtime.block_on(async {
-      let test_dir = TempDir::new().expect("Create tempdir");
+      let test_dir = test_dir
+        .into()
+        .unwrap_or_else(|| TempDir::new().expect("Create tempdir"));
+
+      let project_test_dir =
+        project_test_dir.unwrap_or_else(|| TempDir::new().expect("Create project test dir"));
 
       let target_path = test_dir.path().join(consts::JRE_PATH);
-      std::fs::create_dir(&target_path).expect("Create mock JRE folder");
+      if let Some(mock_original) = mock_original {
+        std::fs::create_dir(&target_path).expect("Create mock JRE folder");
 
-      if mock_original {
-        std::fs::write(target_path.join("release"), r#"JAVA_VERSION="1.7.0""#).expect("Write test release");
+        if mock_original {
+          std::fs::write(target_path.join("release"), r#"JAVA_VERSION="1.7.0""#)
+            .expect("Write test release");
+        }
       }
 
-      let res = flavour.swap_jre(test_dir.path()).await;
+      let res = flavour
+        .swap_jre(test_dir.path(), managed, project_test_dir.path())
+        .await
+        .expect("Swap JRE");
 
-      assert!(res.is_ok(), "{:?}", res);
+      assert_eq!(res, expected);
 
-      if mock_original {
-        assert!(test_dir.path().join("original_jre").exists());
-      } else {
-        assert!(test_dir.path().join("backup_jre").exists());
+      if let Some(mock_original) = mock_original {
+        if mock_original {
+          assert!(test_dir.path().join(ORIGINAL_JRE_BACKUP).exists());
+        } else {
+          assert!(test_dir.path().join(JRE_BACKUP).exists());
+        }
       }
 
       assert!(target_path.exists());
@@ -236,62 +366,213 @@ mod test {
       #[cfg(not(target_os = "windows"))]
       assert!(target_path.join("bin/java").exists());
 
-      test_dir
+      (test_dir, project_test_dir)
     })
   }
 
   #[test]
   fn coretto() {
-    base_test(Flavour::Coretto, true);
+    base_test(Flavour::Coretto, true, None, None, false, false);
   }
 
   #[test]
   fn hotspot() {
-    base_test(Flavour::Hotspot, true);
+    base_test(Flavour::Hotspot, true, None, None, false, false);
   }
 
   #[test]
   fn wisp() {
-    base_test(Flavour::Wisp, true);
+    base_test(Flavour::Wisp, true, None, None, false, false);
+  }
+
+  #[test]
+  fn installs_even_if_actual_is_missing_and_unmanaged() {
+    base_test(Flavour::Coretto, None, None, None, false, false);
+  }
+
+  #[test]
+  fn installs_even_if_actual_is_missing_and_managed() {
+    base_test(Flavour::Coretto, None, None, None, true, false);
   }
 
   #[test]
   fn does_not_revert_when_no_original() {
-    let test_dir = base_test(Flavour::Coretto, false);
+    let (test_dir, _) = base_test(Flavour::Coretto, false, None, None, false, false);
 
     let runtime = tokio::runtime::Builder::new_current_thread()
       .enable_all()
       .build()
       .expect("Build runtime");
 
-    let res = runtime.block_on(revert_jre(test_dir.path()));
+    let res = runtime.block_on(revert_jre(test_dir.path())).unwrap();
 
-    assert!(res.is_ok(), "{:?}", res);
-
-    if let Ok(res) = res {
-      assert!(!res);
-      assert!(test_dir.path().join("backup_jre").exists());
-      assert!(test_dir.path().join("jre").exists());
-    }
+    assert!(!res);
+    assert!(test_dir.path().join(JRE_BACKUP).exists());
+    assert!(test_dir.path().join(consts::JRE_PATH).exists());
   }
 
   #[test]
-  fn revert_when_original_present() {
-    let test_dir = base_test(Flavour::Coretto, true);
+  fn revert_when_original_present_and_unmanaged() {
+    let (test_dir, _) = base_test(Flavour::Coretto, true, None, None, false, false);
 
     let runtime = tokio::runtime::Builder::new_current_thread()
       .enable_all()
       .build()
       .expect("Build runtime");
 
-    let res = runtime.block_on(revert_jre(test_dir.path()));
+    let res = runtime.block_on(revert_jre(test_dir.path())).unwrap();
 
-    assert!(res.is_ok(), "{:?}", res);
+    assert!(res);
+    assert!(test_dir
+      .path()
+      .join(format!("jre_{}", Flavour::Coretto))
+      .exists());
+    assert!(test_dir.path().join(consts::JRE_PATH).exists());
+  }
 
-    if let Ok(res) = res {
-      assert!(res);
-      assert!(test_dir.path().join("backup_jre").exists());
-      assert!(test_dir.path().join("jre").exists());
-    }
+  #[test]
+  fn revert_when_original_present_and_managed() {
+    let (test_dir, project_data) = base_test(Flavour::Coretto, true, None, None, true, false);
+
+    let runtime = tokio::runtime::Builder::new_current_thread()
+      .enable_all()
+      .build()
+      .expect("Build runtime");
+
+    let res = runtime.block_on(revert_jre(test_dir.path())).unwrap();
+
+    assert!(res);
+    assert!(!test_dir
+      .path()
+      .join(format!("jre_{}", Flavour::Coretto))
+      .exists());
+    assert!(project_data
+      .path()
+      .join(format!("jre_{}", Flavour::Coretto))
+      .exists());
+    assert!(test_dir.path().join(consts::JRE_PATH).exists());
+  }
+
+  #[test]
+  fn revert_when_original_present_but_actual_missing() {
+    let test_dir = TempDir::new().expect("Create tempdir");
+
+    std::fs::create_dir_all(test_dir.path().join(ORIGINAL_JRE_BACKUP))
+      .expect("Create mock original backup");
+
+    let runtime = tokio::runtime::Builder::new_current_thread()
+      .enable_all()
+      .build()
+      .expect("Build runtime");
+
+    let res = runtime.block_on(revert_jre(test_dir.path())).unwrap();
+
+    assert!(res);
+    assert!(test_dir.path().join(consts::JRE_PATH).exists());
+  }
+
+  #[test]
+  fn use_cached_when_managed() {
+    let flavour = Flavour::Coretto;
+
+    let project_test_dir = TempDir::new().expect("Create project test dir");
+
+    std::fs::create_dir_all(project_test_dir.path().join(format!("jre_{}", flavour)))
+      .expect("Created mock cached JRE");
+    std::fs::create_dir_all(project_test_dir.path().join(format!("jre_{}/bin", flavour)))
+      .expect("Created mock cached JRE");
+    std::fs::OpenOptions::new()
+      .create_new(true)
+      .write(true)
+      .open(project_test_dir.path().join(format!(
+        "jre_{}/bin/{}",
+        flavour,
+        if cfg!(target_os = "windows") {
+          "java.exe"
+        } else {
+          "java"
+        }
+      )))
+      .expect("Created mock cached JRE");
+
+    base_test(flavour, true, None, Some(project_test_dir), true, false);
+  }
+
+  #[test]
+  fn downloads_when_managed_if_no_cache() {
+    let flavour = Flavour::Coretto;
+
+    let project_test_dir = TempDir::new().expect("Create project test dir");
+
+    let (test_dir, _project_data) =
+      base_test(flavour, true, None, Some(project_test_dir), true, false);
+
+    let jre_path = test_dir.path().join(consts::JRE_PATH);
+    assert!(jre_path.is_symlink());
+    assert!(jre_path.join(".moss").exists());
+
+    let dot_moss_string =
+      std::fs::read_to_string(jre_path.join(".moss")).expect("Read moss dotfile");
+    let installed_flavour =
+      serde_json::from_str::<Flavour>(&dot_moss_string).expect("Deserialise installed flavour");
+    assert!(installed_flavour == flavour)
+  }
+
+  #[test]
+  fn saves_to_cache_when_unmanaged() {
+    let flavour = Flavour::Coretto;
+
+    let project_test_dir = TempDir::new().expect("Create project test dir");
+
+    let (_, project_test_dir) = base_test(flavour, true, None, Some(project_test_dir), true, false);
+
+    let (_, project_test_dir) = base_test(flavour, true, None, Some(project_test_dir), true, false);
+
+    assert!(project_test_dir
+      .path()
+      .join(format!("jre_{}", flavour))
+      .exists())
+  }
+
+  #[test]
+  fn returns_early_if_flavour_already_installed() {
+    let flavour = Flavour::Coretto;
+
+    let project_test_dir = TempDir::new().expect("Create project test dir");
+
+    std::fs::create_dir_all(project_test_dir.path().join(format!("jre_{}", flavour)))
+      .expect("Created mock cached JRE");
+    std::fs::create_dir_all(project_test_dir.path().join(format!("jre_{}/bin", flavour)))
+      .expect("Created mock cached JRE");
+    std::fs::OpenOptions::new()
+      .create_new(true)
+      .write(true)
+      .open(project_test_dir.path().join(format!(
+        "jre_{}/bin/{}",
+        flavour,
+        if cfg!(target_os = "windows") {
+          "java.exe"
+        } else {
+          "java"
+        }
+      )))
+      .expect("Created mock cached JRE");
+    serde_json::to_writer(
+      std::fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(
+          project_test_dir
+            .path()
+            .join(format!("jre_{}/.moss", flavour)),
+        )
+        .expect("Created mock cached JRE"),
+      &flavour,
+    )
+    .expect("Write installed flavour to dot file");
+
+    let (test_dir, _) = base_test(flavour, true, None, Some(project_test_dir), false, false);
+
+    base_test(flavour, None, test_dir, None, false, true);
   }
 }

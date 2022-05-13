@@ -46,6 +46,9 @@ rand = "0.8.5"
 base64 = "0.13.0"
 const_format = "0.2.22"
 anyhow = "1.0.57"
+junction = "0.2.0"
+flate2 = "1.0"
+tar = "0.4"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 native-dialog = "0.6.3"
