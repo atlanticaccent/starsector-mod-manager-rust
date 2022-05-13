@@ -158,6 +158,9 @@ impl Flavour {
           let tar = GzDecoder::new(Cursor::new(buf));
           let mut archive = Archive::new(tar);
           archive.unpack(&path).context("Unpack tarball")
+        } else if infer::archive::is_zip(&buf) {
+          let mut zip = zip::ZipArchive::new(Cursor::new(buf))?;
+          zip.extract(&path).context("Unpack zip")
         } else {
           uncompress_archive(Cursor::new(buf), &path, compress_tools::Ownership::Ignore)
             .context("Failed to unpack")
