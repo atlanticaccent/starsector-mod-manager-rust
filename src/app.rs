@@ -17,7 +17,6 @@ use druid_widget_nursery::{
   material_icons::Icon, FutureWidget, ProgressBar, Separator, Stack, StackChildPosition,
   WidgetExt as WidgetExtNursery,
 };
-use lazy_static::lazy_static;
 use rand::random;
 use remove_dir_all::remove_dir_all;
 use reqwest::Url;
@@ -201,11 +200,12 @@ impl App {
                   .join(", "),
               )));
             data.runtime.spawn(
-              installer::Payload::Initial(targets.iter().map(|f| f.to_path_buf()).collect()).install(
-                ctx.get_external_handle(),
-                data.settings.install_dir.clone().unwrap(),
-                data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
-              ),
+              installer::Payload::Initial(targets.iter().map(|f| f.to_path_buf()).collect())
+                .install(
+                  ctx.get_external_handle(),
+                  data.settings.install_dir.clone().unwrap(),
+                  data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
+                ),
             );
           }
         }
@@ -270,9 +270,7 @@ impl App {
                       .with_content("Attempt to open this link in the Discord app?")
                       .with_button("Open", ModRepo::OPEN_IN_DISCORD)
                       .with_close()
-                      .with_on_close(|ctx, _| {
-                        ctx.submit_command_global(ModRepo::CLEAR_MODAL)
-                      })
+                      .with_on_close(|ctx, _| ctx.submit_command_global(ModRepo::CLEAR_MODAL))
                       .build()
                       .background(druid::theme::BACKGROUND_DARK)
                       .border(druid::Color::BLACK, 2.)
@@ -542,24 +540,44 @@ impl App {
     install_dir: PathBuf,
     experimental_launch: bool,
     resolution: (u32, u32),
-  ) -> Result<(), String> {
+  ) -> anyhow::Result<()> {
+    let child = Self::launch(&install_dir, experimental_launch, resolution).await?;
+
+    child.wait_with_output().await?;
+
+    Ok(())
+  }
+
+  #[cfg(any(target_os = "windows", target_os = "linux"))]
+  async fn launch(
+    install_dir: &PathBuf,
+    experimental_launch: bool,
+    resolution: (u32, u32),
+  ) -> anyhow::Result<tokio::process::Child> {
     use tokio::fs::read_to_string;
     use tokio::process::Command;
 
-    lazy_static! {
-      static ref JAVA_REGEX: regex::Regex = regex::Regex::new(r"java\.exe").expect("compile regex");
-    }
+    Ok(if experimental_launch {
+      #[cfg(target_os = "windows")]
+      let vmparams_path = install_dir.join("vmparams");
+      #[cfg(target_os = "linux")]
+      let vmparams_path = install_dir.join("starsector.sh");
 
-    let child = if experimental_launch {
-      // let mut args_raw = String::from(r"java.exe -XX:CompilerThreadPriority=1 -XX:+CompilerThreadHintNoPreempt -XX:+DisableExplicitGC -XX:+UnlockExperimentalVMOptions -XX:+AggressiveOpts -XX:+TieredCompilation -XX:+UseG1GC -XX:InitialHeapSize=2048m -XX:MaxMetaspaceSize=2048m -XX:MaxNewSize=2048m -XX:+ParallelRefProcEnabled -XX:G1NewSizePercent=5 -XX:G1MaxNewSizePercent=10 -XX:G1ReservePercent=5 -XX:G1MixedGCLiveThresholdPercent=70 -XX:InitiatingHeapOccupancyPercent=90 -XX:G1HeapWastePercent=5 -XX:MaxGCPauseMillis=50 -XX:G1HeapRegionSize=2M -XX:+UseStringDeduplication -Djava.library.path=native\windows -Xms1536m -Xmx1536m -Xss2048k -classpath janino.jar;commons-compiler.jar;commons-compiler-jdk.jar;starfarer.api.jar;starfarer_obf.jar;jogg-0.0.7.jar;jorbis-0.0.15.jar;json.jar;lwjgl.jar;jinput.jar;log4j-1.2.9.jar;lwjgl_util.jar;fs.sound_obf.jar;fs.common_obf.jar;xstream-1.4.10.jar -Dcom.fs.starfarer.settings.paths.saves=..\\saves -Dcom.fs.starfarer.settings.paths.screenshots=..\\screenshots -Dcom.fs.starfarer.settings.paths.mods=..\\mods -Dcom.fs.starfarer.settings.paths.logs=. com.fs.starfarer.StarfarerLauncher");
-      let mut args_raw = read_to_string(install_dir.join("vmparams"))
-        .await
-        .map_err(|err| err.to_string())?;
-      args_raw = JAVA_REGEX.replace(&args_raw, "").to_string();
-      let args: Vec<&str> = args_raw.split_ascii_whitespace().collect();
+      let args_raw = read_to_string(vmparams_path).await?;
+      let args: Vec<&str> = args_raw.split_ascii_whitespace().skip(1).collect();
 
-      Command::new(install_dir.join("jre").join("bin").join("java.exe"))
-        .current_dir(install_dir.join("starsector-core"))
+      #[cfg(target_os = "windows")]
+      let executable = install_dir.join("jre/bin/java.exe");
+      #[cfg(target_os = "linux")]
+      let executable = install_dir.join("jre_linux/bin/java");
+
+      #[cfg(target_os = "windows")]
+      let current_dir = install_dir.join("starsector-core");
+      #[cfg(target_os = "linux")]
+      let current_dir = install_dir.clone();
+
+      Command::new(executable)
+        .current_dir(current_dir)
         .args([
           "-DlaunchDirect=true",
           &format!("-DstartRes={}x{}", resolution.0, resolution.1),
@@ -570,16 +588,48 @@ impl App {
         .spawn()
         .expect("Execute Starsector")
     } else {
-      Command::new(install_dir.join("starsector.exe"))
+      #[cfg(target_os = "windows")]
+      let executable = install_dir.join("starsector.exe");
+      #[cfg(target_os = "linux")]
+      let executable = install_dir.join("starsector.sh");
+
+      Command::new(executable)
         .current_dir(install_dir)
         .spawn()
         .expect("Execute Starsector")
-    };
+    })
+  }
 
-    child
-      .wait_with_output()
-      .await
-      .map_or_else(|err| Err(err.to_string()), |_| Ok(()))
+  #[cfg(target_os = "macos")]
+  async fn launch(
+    install_dir: &PathBuf,
+    experimental_launch: bool,
+    resolution: (u32, u32),
+  ) -> anyhow::Result<tokio::process::Child> {
+    use anyhow::Context;
+    use tokio::process::Command;
+
+    Ok(if experimental_launch {
+      Command::new(install_dir.join("Contents/MacOS/starsector_macos.sh"))
+        .current_dir(install_dir.join("Contents/MacOS"))
+        .env(
+          "EXTRAARGS",
+          format!(
+            "-DlaunchDirect=true -DstartRes={}x{} -DstartFS=false -DstartSound=true",
+            resolution.0, resolution.1
+          ),
+        )
+        .spawn()
+        .expect("Execute Starsector")
+    } else {
+      let executable = install_dir.parent().context("Get install_dir parent")?;
+      let current_dir = executable.parent().context("Get install_dir parent")?;
+
+      Command::new(executable)
+        .current_dir(current_dir)
+        .spawn()
+        .expect("Execute Starsector")
+    })
   }
 
   fn log_message(&mut self, message: &str) {
