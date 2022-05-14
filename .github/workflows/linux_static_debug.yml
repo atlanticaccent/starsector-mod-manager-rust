@@ -1,12 +1,6 @@
 name: Build-Linux-Static-Debug
 
 on:
-  push:
-    branches:
-      - release
-  pull_request:
-    branches:
-      - release
   workflow_dispatch:
 
 jobs:
