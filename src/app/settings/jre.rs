@@ -355,7 +355,7 @@ mod test {
 
       let target_path = test_dir.path().join(consts::JRE_PATH);
       if let Some(mock_original) = mock_original {
-        std::fs::create_dir(&target_path).expect("Create mock JRE folder");
+        std::fs::create_dir_all(&target_path).expect("Create mock JRE folder");
 
         if mock_original {
           std::fs::write(target_path.join("release"), r#"JAVA_VERSION="1.7.0""#)
