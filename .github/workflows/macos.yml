@@ -7,6 +7,7 @@ on:
   pull_request:
     branches:
       - release
+      - master
   workflow_dispatch:
 
 jobs:
@@ -36,6 +37,11 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release --all --all-features --no-fail-fast -- --nocapture
       - name: Install cargo-bundle
         run: (cargo install cargo-bundle || true)
       - name: Emit target macOS version env variable

@@ -20,6 +20,6 @@ jobs:
           tagFormat: ${version}
           failBuild: true
         id: version_check
-      - name:
+      - name: Print detected version
         run: |
           echo "Version ${{steps.version_check.outputs.releaseVersion}}"
