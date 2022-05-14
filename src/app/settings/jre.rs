@@ -302,7 +302,7 @@ mod consts {
 
   pub const JRE_PATH: &'static str = "jre";
 }
-#[cfg(target_os = "macos")]
+#[cfg(target_os = "linux")]
 mod consts {
   use super::FindBy;
 
@@ -313,11 +313,11 @@ mod consts {
 
   pub const JRE_PATH: &'static str = "jre_linux";
 }
-#[cfg(target_os = "linux")]
+#[cfg(target_os = "macos")]
 mod consts {
   use super::FindBy;
 
-  pub const CORETTO: (&'static str, FindBy) = ("https://corretto.aws/downloads/resources/8.272.10.3/amazon-corretto-8.272.10.3-macosx-x64.tar.gz", FindBy::Bin);
+  pub const CORETTO: (&'static str, FindBy) = ("https://corretto.aws/downloads/resources/8.272.10.3/amazon-corretto-8.272.10.3-macosx-x64.tar.gz", FindBy::Jre);
   pub const HOTSPOT: (&'static str, FindBy) = ("https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u272-b10/OpenJDK8U-jre_x64_mac_hotspot_8u272b10.tar.gz", FindBy::Bin);
   pub const WISP: (&'static str, FindBy) =
     ("https://drive.google.com/uc?export=download&id=1TRHjle6-MOpn1zJhtSA9yvwXIQip_F_n&confirm=t", FindBy::Bin);
