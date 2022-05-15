@@ -87,7 +87,8 @@ impl Flavour {
         .unpack(if managed { project_data } else { root })
         .await?;
 
-      let jre_8 = Self::find_jre(tempdir.path()).await?;
+      let search_stratgey = self.get_search_strategy();
+      let jre_8 = Self::find_jre(tempdir.path(), search_stratgey).await?;
 
       serde_json::to_writer_pretty(
         std::fs::OpenOptions::new()
@@ -130,13 +131,20 @@ impl Flavour {
     Ok(false)
   }
 
-  fn get_url(&self) -> String {
+  fn get_url(&self) -> &'static str {
     match self {
       Flavour::Coretto => consts::CORETTO,
       Flavour::Hotspot => consts::HOTSPOT,
       Flavour::Wisp => consts::WISP,
-    }
-    .to_string()
+    }.0
+  }
+
+  fn get_search_strategy(&self) -> FindBy {
+    match self {
+      Flavour::Coretto => consts::CORETTO,
+      Flavour::Hotspot => consts::HOTSPOT,
+      Flavour::Wisp => consts::WISP,
+    }.1
   }
 
   async fn unpack(&self, root: &Path) -> anyhow::Result<TempDir> {
@@ -171,7 +179,7 @@ impl Flavour {
     Ok(tempdir)
   }
 
-  async fn find_jre(root: &Path) -> anyhow::Result<PathBuf> {
+  async fn find_jre(root: &Path, search_strategy: FindBy) -> anyhow::Result<PathBuf> {
     let mut visit = VecDeque::new();
     visit.push_back(root.to_path_buf());
     Handle::current()
@@ -181,7 +189,7 @@ impl Flavour {
             while let Some(Ok(file)) = iter.next() {
               if let Ok(file_type) = file.file_type() {
                 if file_type.is_dir() {
-                  if cfg!(target_os = "windows") && file.file_name().eq_ignore_ascii_case("bin") {
+                  if matches!(search_strategy, FindBy::Bin) && file.file_name().eq_ignore_ascii_case("bin") {
                     return Some(
                       file
                         .path()
@@ -189,7 +197,7 @@ impl Flavour {
                         .expect("Get parent of bin")
                         .to_path_buf(),
                     );
-                  } else if cfg!(not(target_os = "windows"))
+                  } else if matches!(search_strategy, FindBy::Jre)
                     && file.file_name().eq_ignore_ascii_case("jre")
                   {
                     return Some(file.path());
@@ -205,7 +213,7 @@ impl Flavour {
         None
       })
       .await?
-      .ok_or_else(|| anyhow::Error::msg("Could not find JRE in given folder"))
+      .with_context(|| "Could not find JRE in given folder")
   }
 }
 
@@ -276,30 +284,43 @@ async fn revert_jre(root: &Path) -> anyhow::Result<bool> {
   }
 }
 
+#[allow(dead_code)]
+#[derive(Clone, Copy)]
+pub enum FindBy {
+  Bin,
+  Jre
+}
+
 #[cfg(target_os = "windows")]
 mod consts {
-  pub const CORETTO: &'static str = "https://corretto.aws/downloads/resources/8.272.10.3/amazon-corretto-8.272.10.3-windows-x64-jre.zip";
-  pub const HOTSPOT: &'static str = "https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u272-b10/OpenJDK8U-jre_x64_windows_hotspot_8u272b10.zip";
-  pub const WISP: &'static str =
-    "https://drive.google.com/uc?export=download&id=155Lk0ml9AUGp5NwtTZGpdu7e7Ehdyeth&confirm=t";
+  use super::FindBy;
+
+  pub const CORETTO: (&'static str, FindBy) = ("https://corretto.aws/downloads/resources/8.272.10.3/amazon-corretto-8.272.10.3-windows-x64-jre.zip", FindBy::Bin);
+  pub const HOTSPOT: (&'static str, FindBy) = ("https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u272-b10/OpenJDK8U-jre_x64_windows_hotspot_8u272b10.zip", FindBy::Bin);
+  pub const WISP: (&'static str, FindBy) =
+    ("https://drive.google.com/uc?export=download&id=155Lk0ml9AUGp5NwtTZGpdu7e7Ehdyeth&confirm=t", FindBy::Bin);
 
   pub const JRE_PATH: &'static str = "jre";
 }
-#[cfg(target_os = "macos")]
+#[cfg(target_os = "linux")]
 mod consts {
-  pub const CORETTO: &'static str = "https://corretto.aws/downloads/resources/8.272.10.3/amazon-corretto-8.272.10.3-linux-x64.tar.gz";
-  pub const HOTSPOT: &'static str = "https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u272-b10/OpenJDK8U-jre_x64_linux_hotspot_8u272b10.tar.gz";
-  pub const WISP: &'static str =
-    "https://drive.google.com/uc?export=download&id=1PW9v_CL719buKHe69GaN9fCXcPIqDOIi&confirm=t";
+  use super::FindBy;
+
+  pub const CORETTO: (&'static str, FindBy) = ("https://corretto.aws/downloads/resources/8.272.10.3/amazon-corretto-8.272.10.3-linux-x64.tar.gz", FindBy::Jre);
+  pub const HOTSPOT: (&'static str, FindBy) = ("https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u272-b10/OpenJDK8U-jre_x64_linux_hotspot_8u272b10.tar.gz", FindBy::Bin);
+  pub const WISP: (&'static str, FindBy) =
+    ("https://drive.google.com/uc?export=download&id=1PW9v_CL719buKHe69GaN9fCXcPIqDOIi&confirm=t", FindBy::Bin);
 
   pub const JRE_PATH: &'static str = "jre_linux";
 }
-#[cfg(target_os = "linux")]
+#[cfg(target_os = "macos")]
 mod consts {
-  pub const CORETTO: &'static str = "https://corretto.aws/downloads/resources/8.272.10.3/amazon-corretto-8.272.10.3-macosx-x64.tar.gz";
-  pub const HOTSPOT: &'static str = "https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u272-b10/OpenJDK8U-jre_x64_mac_hotspot_8u272b10.tar.gz";
-  pub const WISP: &'static str =
-    "https://drive.google.com/uc?export=download&id=1TRHjle6-MOpn1zJhtSA9yvwXIQip_F_n&confirm=t";
+  use super::FindBy;
+
+  pub const CORETTO: (&'static str, FindBy) = ("https://corretto.aws/downloads/resources/8.272.10.3/amazon-corretto-8.272.10.3-macosx-x64.tar.gz", FindBy::Jre);
+  pub const HOTSPOT: (&'static str, FindBy) = ("https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u272-b10/OpenJDK8U-jre_x64_mac_hotspot_8u272b10.tar.gz", FindBy::Bin);
+  pub const WISP: (&'static str, FindBy) =
+    ("https://drive.google.com/uc?export=download&id=1TRHjle6-MOpn1zJhtSA9yvwXIQip_F_n&confirm=t", FindBy::Bin);
 
   pub const JRE_PATH: &'static str = "Contents/Home";
 }
@@ -334,12 +355,15 @@ mod test {
 
       let target_path = test_dir.path().join(consts::JRE_PATH);
       if let Some(mock_original) = mock_original {
-        std::fs::create_dir(&target_path).expect("Create mock JRE folder");
+        std::fs::create_dir_all(&target_path).expect("Create mock JRE folder");
 
         if mock_original {
           std::fs::write(target_path.join("release"), r#"JAVA_VERSION="1.7.0""#)
             .expect("Write test release");
         }
+      } else if cfg!(target_os = "macos") {
+        let parent = target_path.parent().expect("Get path parent");
+        std::fs::create_dir_all(parent).expect("Create parent folder");
       }
 
       let res = flavour
@@ -351,9 +375,9 @@ mod test {
 
       if let Some(mock_original) = mock_original {
         if mock_original {
-          assert!(test_dir.path().join(ORIGINAL_JRE_BACKUP).exists());
+          assert!(target_path.with_file_name(ORIGINAL_JRE_BACKUP).exists());
         } else {
-          assert!(test_dir.path().join(JRE_BACKUP).exists());
+          assert!(target_path.with_file_name(JRE_BACKUP).exists());
         }
       }
 
@@ -407,7 +431,7 @@ mod test {
     let res = runtime.block_on(revert_jre(test_dir.path())).unwrap();
 
     assert!(!res);
-    assert!(test_dir.path().join(JRE_BACKUP).exists());
+    assert!(test_dir.path().join(consts::JRE_PATH).with_file_name(JRE_BACKUP).exists());
     assert!(test_dir.path().join(consts::JRE_PATH).exists());
   }
 
@@ -425,7 +449,8 @@ mod test {
     assert!(res);
     assert!(test_dir
       .path()
-      .join(format!("jre_{}", Flavour::Coretto))
+      .join(consts::JRE_PATH)
+      .with_file_name(format!("jre_{}", Flavour::Coretto))
       .exists());
     assert!(test_dir.path().join(consts::JRE_PATH).exists());
   }
@@ -444,7 +469,8 @@ mod test {
     assert!(res);
     assert!(!test_dir
       .path()
-      .join(format!("jre_{}", Flavour::Coretto))
+      .join(consts::JRE_PATH)
+      .with_file_name(format!("jre_{}", Flavour::Coretto))
       .exists());
     assert!(project_data
       .path()
@@ -454,10 +480,14 @@ mod test {
   }
 
   #[test]
-  fn revert_when_original_present_but_actual_missing() {
+  fn revert_when_original_backup_present_but_actual_missing() {
     let test_dir = TempDir::new().expect("Create tempdir");
+    let target_path = test_dir.path().join(consts::JRE_PATH);
 
-    std::fs::create_dir_all(test_dir.path().join(ORIGINAL_JRE_BACKUP))
+    #[cfg(target_os = "macos")]
+    std::fs::create_dir_all(target_path.parent().expect("Get path parent")).expect("Create parent dir");
+
+    std::fs::create_dir_all(target_path.with_file_name(ORIGINAL_JRE_BACKUP))
       .expect("Create mock original backup");
 
     let runtime = tokio::runtime::Builder::new_current_thread()
