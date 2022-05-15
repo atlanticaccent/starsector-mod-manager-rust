@@ -361,6 +361,9 @@ mod test {
           std::fs::write(target_path.join("release"), r#"JAVA_VERSION="1.7.0""#)
             .expect("Write test release");
         }
+      } else if cfg!(target_os = "macos") {
+        let parent = target_path.parent().expect("Get path parent");
+        std::fs::create_dir_all(parent).expect("Create parent folder");
       }
 
       let res = flavour
@@ -372,9 +375,9 @@ mod test {
 
       if let Some(mock_original) = mock_original {
         if mock_original {
-          assert!(test_dir.path().join(ORIGINAL_JRE_BACKUP).exists());
+          assert!(target_path.with_file_name(ORIGINAL_JRE_BACKUP).exists());
         } else {
-          assert!(test_dir.path().join(JRE_BACKUP).exists());
+          assert!(target_path.with_file_name(JRE_BACKUP).exists());
         }
       }
 
@@ -428,7 +431,7 @@ mod test {
     let res = runtime.block_on(revert_jre(test_dir.path())).unwrap();
 
     assert!(!res);
-    assert!(test_dir.path().join(JRE_BACKUP).exists());
+    assert!(test_dir.path().join(consts::JRE_PATH).with_file_name(JRE_BACKUP).exists());
     assert!(test_dir.path().join(consts::JRE_PATH).exists());
   }
 
@@ -446,7 +449,8 @@ mod test {
     assert!(res);
     assert!(test_dir
       .path()
-      .join(format!("jre_{}", Flavour::Coretto))
+      .join(consts::JRE_PATH)
+      .with_file_name(format!("jre_{}", Flavour::Coretto))
       .exists());
     assert!(test_dir.path().join(consts::JRE_PATH).exists());
   }
@@ -465,7 +469,8 @@ mod test {
     assert!(res);
     assert!(!test_dir
       .path()
-      .join(format!("jre_{}", Flavour::Coretto))
+      .join(consts::JRE_PATH)
+      .with_file_name(format!("jre_{}", Flavour::Coretto))
       .exists());
     assert!(project_data
       .path()
@@ -475,10 +480,14 @@ mod test {
   }
 
   #[test]
-  fn revert_when_original_present_but_actual_missing() {
+  fn revert_when_original_backup_present_but_actual_missing() {
     let test_dir = TempDir::new().expect("Create tempdir");
+    let target_path = test_dir.path().join(consts::JRE_PATH);
 
-    std::fs::create_dir_all(test_dir.path().join(ORIGINAL_JRE_BACKUP))
+    #[cfg(target_os = "macos")]
+    std::fs::create_dir_all(target_path.parent().expect("Get path parent")).expect("Create parent dir");
+
+    std::fs::create_dir_all(target_path.with_file_name(ORIGINAL_JRE_BACKUP))
       .expect("Create mock original backup");
 
     let runtime = tokio::runtime::Builder::new_current_thread()
