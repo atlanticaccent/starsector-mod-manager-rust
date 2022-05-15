@@ -1,6 +1,9 @@
 name: Check Bump on Version
 
 on:
+  push:
+    tags:
+      - '*'
   pull_request:
     branches:
       - release
