@@ -163,14 +163,14 @@ pub fn decompress(path: PathBuf) -> Result<TempDir, InstallError> {
       compress_tools::uncompress_archive(
         source,
         temp_dir.path(),
-        compress_tools::Ownership::Preserve,
+        compress_tools::Ownership::Ignore,
       )
       .context(CompressTools {})?
     }
     _ => compress_tools::uncompress_archive(
       source,
       temp_dir.path(),
-      compress_tools::Ownership::Preserve,
+      compress_tools::Ownership::Ignore,
     )
     .context(CompressTools {})?,
   }
