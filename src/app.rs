@@ -186,7 +186,7 @@ impl App {
       .controller(InstallController)
       .on_command(App::OPEN_FILE, |ctx, payload, data| {
         if let Some(targets) = payload {
-          if targets.len() > 0 {
+          if !targets.is_empty() {
             ctx.submit_command(App::LOG_MESSAGE.with(format!("Installing {}",
                 targets
                   .iter()
@@ -861,7 +861,7 @@ impl Delegate<App> for AppDelegate {
                     .and_then(|segments| segments.last())
                     .map(|s| s.to_string())
                 })
-                .unwrap_or(uri.clone())
+                .unwrap_or_else(|| uri.clone())
                 .to_string();
               ext_ctx
                 .submit_command(

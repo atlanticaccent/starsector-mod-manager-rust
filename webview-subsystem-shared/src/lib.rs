@@ -28,10 +28,10 @@ lazy_static! {
   ProjectDirs::from("org", "laird", "Starsector Mod Manager").expect("Get project dirs");
 }
 
-pub const PARENT_CHILD_PATH: &'static str = "/tmp/moss_parent.sock";
-pub const PARENT_CHILD_SOCKET: &'static str = concatcp!("@", PARENT_CHILD_PATH);
-pub const CHILD_PARENT_PATH: &'static str = "/tmp/moss_child.sock";
-pub const CHILD_PARENT_SOCKET: &'static str = concatcp!("@", CHILD_PARENT_PATH);
+pub const PARENT_CHILD_PATH: &str = "/tmp/moss_parent.sock";
+pub const PARENT_CHILD_SOCKET: &str = concatcp!("@", PARENT_CHILD_PATH);
+pub const CHILD_PARENT_PATH: &str = "/tmp/moss_child.sock";
+pub const CHILD_PARENT_SOCKET: &str = concatcp!("@", CHILD_PARENT_PATH);
 
 pub fn handle_error(conn: std::io::Result<LocalSocketStream>) -> Option<LocalSocketStream> {
   match conn {

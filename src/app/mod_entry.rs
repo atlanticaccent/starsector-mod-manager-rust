@@ -223,13 +223,13 @@ impl ModEntry {
 
                       if let Some(update_status) = &data.update_status {
                         let tooltip = match update_status {
-                          UpdateStatus::Error => format!("Error\nThere was an error retrieving or parsing this mod's version information."),
+                          UpdateStatus::Error => "Error\nThere was an error retrieving or parsing this mod's version information.".to_string(),
                           UpdateStatus::UpToDate => update_status.to_string(),
-                          UpdateStatus::Discrepancy(_) => format!("\
+                          UpdateStatus::Discrepancy(_) => "\
                             Discrepancy\n\
                             The installed version of this mod is higher than the version available from the server.\n\
                             This usually means the mod author has forgotten to update their remote version file and is not a cause for alarm.\
-                          "),
+                          ".to_string(),
                           _ => update_status.to_string()
                         };
                         let text_color = color.clone();
@@ -305,7 +305,7 @@ impl ModEntry {
             .on_change(|ctx, _old, data, _| {
               ctx.submit_command(ModEntry::REPLACE.with(data.clone()))
             }),
-          recursive_split(0, children, &ratios),
+          recursive_split(0, children, ratios),
         )
         .split_point(headings::ENABLED_RATIO)
         .on_click(

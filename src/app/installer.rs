@@ -343,8 +343,8 @@ pub async fn download(
             .and_then(|segments| segments.last())
             .map(|s| s.to_string())
         })
-        .unwrap_or(url.clone())
-        .to_string()
+        .unwrap_or(url)
+        
     });
 
   let tx = {
@@ -354,7 +354,7 @@ pub async fn download(
     } else {
       let (tx, mut rx) = mpsc::unbounded_channel::<(i64, String, f64)>();
       let ext_ctx = ext_ctx.clone();
-      let tx = Arc::new(tx.clone());
+      let tx = Arc::new(tx);
       *sender = Arc::downgrade(&tx);
       task::spawn(async move {
         let sleep = sleep(Duration::from_millis(50));
@@ -369,7 +369,7 @@ pub async fn download(
                   queue.insert(message.0, message);
                 },
                 None => {
-                  if queue.len() > 0 {
+                  if !queue.is_empty() {
                     let vals: Vec<(i64, String, f64)> = queue.drain().map(|(_, val)| val).collect();
                     let _ = ext_ctx.submit_command(DOWNLOAD_PROGRESS, vals, Target::Auto);
                   }

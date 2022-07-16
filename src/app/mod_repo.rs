@@ -136,7 +136,7 @@ impl ModRepo {
       .with_content(
         ViewSwitcher::new(
           |data: &(Vector<ModRepoItem>, Vector<ModSource>, Metadata), _| {
-            (data.0.len(), data.1.clone(), data.2.clone())
+            (data.0.len(), data.1.clone(), data.2)
           },
           |_, (items, _, _): &(Vector<ModRepoItem>, Vector<ModSource>, Metadata), _| {
             let mut wrap = Wrap::new()
@@ -170,7 +170,7 @@ impl ModRepo {
             (
               data.items.clone(),
               data.filters.clone(),
-              data.sort_by.clone(),
+              data.sort_by,
             )
           },
           |orig, data| {
@@ -374,7 +374,7 @@ impl ModRepoItem {
             );
 
             if *show {
-              row.with_flex_child(Label::wrapped(&description), Self::VALUE_FLEX)
+              row.with_flex_child(Label::wrapped(description), Self::VALUE_FLEX)
             } else {
               row.with_flex_child(
                 Label::new("Click to expand...")
@@ -527,7 +527,7 @@ impl ModRepoItem {
         })
         .lens(ModRepoItem::edited.map(
           |date| {
-            date.clone().map(|date| {
+            (*date).map(|date| {
               DateTime::<Local>::from(date)
                 .format("%v %I:%M%p")
                 .to_string()
@@ -556,7 +556,7 @@ impl ModRepoItem {
         })
         .lens(ModRepoItem::created.map(
           |date| {
-            date.clone().map(|date| {
+            (*date).map(|date| {
               DateTime::<Local>::from(date)
                 .format("%v %I:%M%p")
                 .to_string()

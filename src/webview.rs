@@ -43,7 +43,7 @@ pub fn fork_into_webview(handle: &Handle, ext_sink: ExtEventSink, url: Option<St
     .arg("--webview")
     .pipe(|cmd| {
       if let Some(url) = url {
-        cmd.arg(format!("{}", url))
+        cmd.arg(&url)
       } else {
         cmd
       }

@@ -14,9 +14,9 @@ use wry::{
   webview::{WebViewBuilder, WebContext},
 };
 
-const FRACTAL_INDEX: &'static str = "https://fractalsoftworks.com/forum/index.php?topic=177.0";
-const FRACTAL_MODS_FORUM: &'static str = "https://fractalsoftworks.com/forum/index.php?board=8.0";
-const FRACTAL_MODDING_SUBFORUM: &'static str = "https://fractalsoftworks.com/forum/index.php?board=3.0";
+const FRACTAL_INDEX: &str = "https://fractalsoftworks.com/forum/index.php?topic=177.0";
+const FRACTAL_MODS_FORUM: &str = "https://fractalsoftworks.com/forum/index.php?board=8.0";
+const FRACTAL_MODDING_SUBFORUM: &str = "https://fractalsoftworks.com/forum/index.php?board=3.0";
 
 #[derive(Debug)]
 enum UserEvent {
@@ -152,9 +152,9 @@ pub fn init_webview(url: Option<String>) -> wry::Result<()> {
         },
         _ if string.starts_with("confirm_download") => {
           let mut parts = string.split(',');
-          let confirm = parts.next().expect("split ipc").split(":").nth(1).expect("split ipc");
+          let confirm = parts.next().expect("split ipc").split(':').nth(1).expect("split ipc");
           if confirm == "true" {
-            let base = parts.next().expect("split ipc").split(":").nth(1).expect("split ipc");
+            let base = parts.next().expect("split ipc").split(':').nth(1).expect("split ipc");
             let decoded = decode(base).expect("decode uri");
             let uri = String::from_utf8(decoded).expect("decode");
             let _ = proxy.send_event(UserEvent::Download(uri));
@@ -180,28 +180,26 @@ pub fn init_webview(url: Option<String>) -> wry::Result<()> {
         }
       }
       
-      let submitted = proxy.send_event(UserEvent::Navigation(uri.clone())).is_ok();
-      
-      submitted
+      proxy.send_event(UserEvent::Navigation(uri)).is_ok()
     }
   })
   .with_new_window_req_handler({
     let proxy = proxy.clone();
     move |uri: String| {
-      proxy.send_event(UserEvent::NewWindow(uri.clone())).expect("Send event");
+      proxy.send_event(UserEvent::NewWindow(uri)).expect("Send event");
       
       false
     }
   })
   .with_download_handler({
-    let proxy = proxy.clone();
+    let proxy = proxy;
     move |uri: String, _download_to: &mut String| {
       if uri.starts_with("blob:https://mega.nz") {
         let _ = proxy.send_event(UserEvent::BlobReceived(uri));
         return false
       }
       
-      proxy.send_event(UserEvent::AskDownload(uri.clone())).expect("Send event");
+      proxy.send_event(UserEvent::AskDownload(uri)).expect("Send event");
       
       false
     }}, {
@@ -301,7 +299,7 @@ pub fn init_webview(url: Option<String>) -> wry::Result<()> {
               match chunk {
                 Some(chunk) => {
                   let split = chunk.split(',').nth(1);
-                  println!("{:?}", chunk.split(',').nth(0));
+                  println!("{:?}", chunk.split(',').next());
                   if let Some(split) = split {
                     if let Ok(decoded) = decode(split) {
                       if file.write(&decoded).is_err() {

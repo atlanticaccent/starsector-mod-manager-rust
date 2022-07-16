@@ -27,8 +27,8 @@ pub enum Flavour {
   Wisp,
 }
 
-const ORIGINAL_JRE_BACKUP: &'static str = "jre7";
-const JRE_BACKUP: &'static str = "jre.bak";
+const ORIGINAL_JRE_BACKUP: &str = "jre7";
+const JRE_BACKUP: &str = "jre.bak";
 
 impl Flavour {
   pub async fn swap(&self, ext_ctx: ExtEventSink, root: PathBuf, managed: bool) {
@@ -295,12 +295,12 @@ pub enum FindBy {
 mod consts {
   use super::FindBy;
 
-  pub const CORETTO: (&'static str, FindBy) = ("https://corretto.aws/downloads/resources/8.272.10.3/amazon-corretto-8.272.10.3-windows-x64-jre.zip", FindBy::Bin);
-  pub const HOTSPOT: (&'static str, FindBy) = ("https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u272-b10/OpenJDK8U-jre_x64_windows_hotspot_8u272b10.zip", FindBy::Bin);
-  pub const WISP: (&'static str, FindBy) =
+  pub const CORETTO: (&str, FindBy) = ("https://corretto.aws/downloads/resources/8.272.10.3/amazon-corretto-8.272.10.3-windows-x64-jre.zip", FindBy::Bin);
+  pub const HOTSPOT: (&str, FindBy) = ("https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u272-b10/OpenJDK8U-jre_x64_windows_hotspot_8u272b10.zip", FindBy::Bin);
+  pub const WISP: (&str, FindBy) =
     ("https://drive.google.com/uc?export=download&id=155Lk0ml9AUGp5NwtTZGpdu7e7Ehdyeth&confirm=t", FindBy::Bin);
 
-  pub const JRE_PATH: &'static str = "jre";
+  pub const JRE_PATH: &str = "jre";
 }
 #[cfg(target_os = "linux")]
 mod consts {

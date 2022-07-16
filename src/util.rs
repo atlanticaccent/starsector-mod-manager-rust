@@ -545,14 +545,14 @@ pub fn hoverable_text(colour: Option<Color>) -> impl Widget<String> {
   }
 
   Scope::from_function(
-    |input: String| (input.to_string(), false),
+    |input: String| (input, false),
     DummyTransfer::default(),
     RawLabel::new()
       .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
       .lens(lens::Map::new(
         move |(text, hovered): &(String, bool)| RichText::new(text.clone().into())
           .with_attribute(0..text.len(), Attribute::Underline(*hovered))
-          .with_attribute(0..text.len(), Attribute::TextColor(colour.clone().map(|c| c.clone().into()).unwrap_or(theme::TEXT_COLOR.into()))),
+          .with_attribute(0..text.len(), Attribute::TextColor(colour.clone().map(|c| c.into()).unwrap_or_else(|| theme::TEXT_COLOR.into()))),
           |_, _| {}
       ))
       .controller(TextHoverController)
