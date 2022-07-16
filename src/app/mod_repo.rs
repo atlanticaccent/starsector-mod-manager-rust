@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, Utc};
 use druid::{
   lens, theme,
   widget::{Either, Flex, Label, Maybe, Painter, SizedBox, TextBox, ViewSwitcher},
@@ -40,7 +40,7 @@ pub struct ModRepo {
   filters: Vector<ModSource>,
   #[serde(skip)]
   #[serde(default = "ModRepo::default_sorting")]
-  sort_by: Option<Metadata>,
+  sort_by: Metadata,
 }
 
 impl ModRepo {
@@ -105,7 +105,7 @@ impl ModRepo {
                 for meta in Metadata::iter().filter(|m| m != &Metadata::Score) {
                   menu = menu.entry(
                     MenuItem::new(meta.to_string())
-                      .selected_if(move |data: &ModRepo, _| data.sort_by == Some(meta))
+                      .selected_if(move |data: &ModRepo, _| data.sort_by == meta)
                       .on_activate(move |ctx, _, _| {
                         ctx.submit_command(ModRepo::UPDATE_SORTING.with(meta))
                       })
@@ -135,10 +135,10 @@ impl ModRepo {
       )
       .with_content(
         ViewSwitcher::new(
-          |data: &(Vector<ModRepoItem>, Vector<ModSource>, Option<Metadata>), _| {
+          |data: &(Vector<ModRepoItem>, Vector<ModSource>, Metadata), _| {
             (data.0.len(), data.1.clone(), data.2.clone())
           },
-          |_, (items, _, _): &(Vector<ModRepoItem>, Vector<ModSource>, Option<Metadata>), _| {
+          |_, (items, _, _): &(Vector<ModRepoItem>, Vector<ModSource>, Metadata), _| {
             let mut wrap = Wrap::new()
               .direction(druid::widget::Axis::Horizontal)
               .alignment(druid_widget_nursery::wrap::WrapAlignment::SpaceAround)
@@ -150,11 +150,8 @@ impl ModRepo {
                 wrap.add_child(
                   ModRepoItem::ui_builder()
                     .lens(
-                      lens!(
-                        (Vector<ModRepoItem>, Vector<ModSource>, Option<Metadata>),
-                        0
-                      )
-                      .then(lens::Index::new(idx)),
+                      lens!((Vector<ModRepoItem>, Vector<ModSource>, Metadata), 0)
+                        .then(lens::Index::new(idx)),
                     )
                     .fix_width(Self::CARD_MAX_WIDTH)
                     .boxed(),
@@ -229,14 +226,16 @@ impl ModRepo {
                   .and_then(|description| best_match(search, description).map(|m| m.score()));
                 let author_score = item
                   .authors
-                  .iter()
-                  .map(|author| best_match(search, author).map(|m| m.score()))
-                  .max()
+                  .as_ref()
+                  .and_then(|authors| {
+                    authors
+                      .iter()
+                      .map(|author| best_match(search, author).map(|m| m.score()))
+                      .max()
+                  })
                   .flatten();
 
-                item.score = name_score
-                  .max(description_score)
-                  .max(author_score)
+                item.score = name_score.max(description_score).max(author_score)
               }
             };
 
@@ -244,30 +243,28 @@ impl ModRepo {
               && (filters.is_empty()
                 || filters
                   .iter()
-                  .any(|filter| item.sources.iter().any(|source| filter == source)))
+                  .all(|filter| item.sources.is_some_and(|source| source.contains(filter))))
           })
         })
         .on_command(ModRepo::UPDATE_SORTING, |_, sorting, data| {
-          data.sort_by = Some(*sorting);
+          data.sort_by = *sorting;
           data.items.sort_by(|a, b| sorting.comparator(a, b));
         })
         .boxed(),
       )
       .with_close()
       .build()
-      .on_command(OPEN_IN_BROWSER, |ctx, _, _| {
-        ctx.set_disabled(true)
-      })
-      .on_command(App::ENABLE, |ctx, _, _| {
-        ctx.set_disabled(false)
-      })
+      .on_command(OPEN_IN_BROWSER, |ctx, _, _| ctx.set_disabled(true))
+      .on_command(App::ENABLE, |ctx, _, _| ctx.set_disabled(false))
   }
 
   pub async fn get_mod_repo() -> anyhow::Result<Self> {
-    let repo = reqwest::get(Self::REPO_URL)
+    let mut repo = reqwest::get(Self::REPO_URL)
       .await?
       .json::<ModRepo>()
       .await?;
+
+    repo.items.sort_by(|a, b| Metadata::Name.comparator(a, b));
 
     Ok(repo)
   }
@@ -276,29 +273,27 @@ impl ModRepo {
     self.modal.is_some()
   }
 
-  fn default_sorting() -> Option<Metadata> {
-    Some(Metadata::Name)
+  fn default_sorting() -> Metadata {
+    Metadata::Name
   }
 }
 
 #[derive(Deserialize, Data, Clone, PartialEq, Lens)]
 pub struct ModRepoItem {
   name: String,
+  summary: Option<String>,
+  description: Option<String>,
   #[serde(alias = "modVersion")]
   mod_version: Option<String>,
   #[serde(alias = "gameVersionReq")]
   game_version: Option<String>,
-  summary: Option<String>,
-  description: Option<String>,
-  #[serde(skip)]
-  show_description: bool,
   #[serde(rename = "authorsList")]
   #[data(same_fn = "PartialEq::eq")]
-  authors: Vector<String>,
+  authors: Option<Vector<String>>,
   #[data(same_fn = "PartialEq::eq")]
-  urls: HashMap<ModSource, String>,
+  urls: Option<HashMap<UrlSource, String>>,
   #[data(same_fn = "PartialEq::eq")]
-  sources: Vector<ModSource>,
+  sources: Option<Vector<ModSource>>,
   #[data(same_fn = "PartialEq::eq")]
   categories: Option<Vector<String>>,
   #[data(same_fn = "PartialEq::eq")]
@@ -307,6 +302,8 @@ pub struct ModRepoItem {
   #[data(same_fn = "PartialEq::eq")]
   #[serde(alias = "dateTimeEdited")]
   edited: Option<DateTime<Utc>>,
+  #[serde(skip)]
+  show_description: bool,
   #[serde(skip)]
   #[serde(default = "default_true")]
   display: bool,
@@ -396,8 +393,12 @@ impl ModRepoItem {
         },
       ))
       .with_child(
-        Maybe::or_empty(|| Separator::new().with_width(0.5).padding(5.))
-          .lens(ModRepoItem::authors.map(|data| (!data.is_empty()).then_some(()), |_, _| {})),
+        Maybe::or_empty(|| Separator::new().with_width(0.5).padding(5.)).lens(
+          ModRepoItem::authors.map(
+            |data| (data.is_some_and(|data| !data.is_empty())).then_some(()),
+            |_, _| {},
+          ),
+        ),
       )
       .with_child(
         Maybe::or_empty(|| {
@@ -421,11 +422,22 @@ impl ModRepoItem {
             .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
             .expand_width()
         })
-        .lens(ModRepoItem::authors.map(|data| (!data.is_empty()).then(|| data.clone()), |_, _| {})),
+        .lens(ModRepoItem::authors.map(
+          |data| {
+            (data.is_some_and(|data| !data.is_empty()))
+              .then(|| data.clone())
+              .flatten()
+          },
+          |_, _| {},
+        )),
       )
       .with_child(
-        Maybe::or_empty(|| Separator::new().with_width(0.5).padding(5.))
-          .lens(ModRepoItem::urls.map(|data| (!data.is_empty()).then_some(()), |_, _| {})),
+        Maybe::or_empty(|| Separator::new().with_width(0.5).padding(5.)).lens(
+          ModRepoItem::urls.map(
+            |data| (data.is_some_and(|data| !data.is_empty())).then_some(()),
+            |_, _| {},
+          ),
+        ),
       )
       .with_child(
         Maybe::or_empty(|| {
@@ -445,7 +457,7 @@ impl ModRepoItem {
                       })
                   })
                   .lens(lens::Map::new(
-                    |data: &HashMap<ModSource, String>| data.get(&ModSource::Forum).cloned(),
+                    |data: &HashMap<UrlSource, String>| data.get(&UrlSource::Forum).cloned(),
                     |_, _| {},
                   ))
                   .align_left()
@@ -460,7 +472,7 @@ impl ModRepoItem {
                       })
                   })
                   .lens(lens::Map::new(
-                    |data: &HashMap<ModSource, String>| data.get(&ModSource::Discord).cloned(),
+                    |data: &HashMap<UrlSource, String>| data.get(&UrlSource::Discord).cloned(),
                     |_, _| {},
                   ))
                   .align_left()
@@ -475,7 +487,7 @@ impl ModRepoItem {
                       })
                   })
                   .lens(lens::Map::new(
-                    |data: &HashMap<ModSource, String>| data.get(&ModSource::NexusMods).cloned(),
+                    |data: &HashMap<UrlSource, String>| data.get(&UrlSource::NexusMods).cloned(),
                     |_, _| {},
                   ))
                   .align_left()
@@ -486,7 +498,72 @@ impl ModRepoItem {
             .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
             .expand_width()
         })
-        .lens(ModRepoItem::urls.map(|data| (!data.is_empty()).then(|| data.clone()), |_, _| {})),
+        .lens(ModRepoItem::urls.map(
+          |data| {
+            (data.is_some_and(|data| !data.is_empty()))
+              .then(|| data.clone())
+              .flatten()
+          },
+          |_, _| {},
+        )),
+      )
+      .with_child(
+        Maybe::or_empty(|| {
+          Flex::column()
+            .with_child(Separator::new().with_width(0.5).padding(5.))
+            .with_child(
+              Flex::row()
+                .with_flex_child(
+                  Label::new("Updated at:").align_right().expand_width(),
+                  Self::LABEL_FLEX,
+                )
+                .with_flex_child(
+                  Label::wrapped_func(|data: &String, _| data.to_string()),
+                  Self::VALUE_FLEX,
+                )
+                .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+                .expand_width(),
+            )
+        })
+        .lens(ModRepoItem::edited.map(
+          |date| {
+            date.clone().map(|date| {
+              DateTime::<Local>::from(date)
+                .format("%v %I:%M%p")
+                .to_string()
+            })
+          },
+          |_, _| {},
+        )),
+      )
+      .with_child(
+        Maybe::or_empty(|| {
+          Flex::column()
+            .with_child(Separator::new().with_width(0.5).padding(5.))
+            .with_child(
+              Flex::row()
+                .with_flex_child(
+                  Label::new("Created at:").align_right().expand_width(),
+                  Self::LABEL_FLEX,
+                )
+                .with_flex_child(
+                  Label::wrapped_func(|data: &String, _| data.to_string()),
+                  Self::VALUE_FLEX,
+                )
+                .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+                .expand_width(),
+            )
+        })
+        .lens(ModRepoItem::created.map(
+          |date| {
+            date.clone().map(|date| {
+              DateTime::<Local>::from(date)
+                .format("%v %I:%M%p")
+                .to_string()
+            })
+          },
+          |_, _| {},
+        )),
       )
       .padding(Self::CARD_INSET)
       .background(Painter::new(|ctx, _, env| {
@@ -503,7 +580,7 @@ impl ModRepoItem {
   }
 }
 
-#[derive(Deserialize, Clone, Copy, PartialEq, Eq, Hash, Data)]
+#[derive(Deserialize, Clone, Copy, PartialEq, Eq, Hash, Data, strum_macros::EnumString)]
 pub enum ModSource {
   Forum,
   ModdingSubforum,
@@ -521,6 +598,30 @@ impl Display for ModSource {
         ModSource::Discord => "Discord",
         ModSource::NexusMods => "Nexus Mods",
         ModSource::Index => "Fractal Mod Index",
+      }
+    ))
+  }
+}
+
+#[derive(Deserialize, Clone, Copy, PartialEq, Eq, Hash, Data)]
+pub enum UrlSource {
+  Forum,
+  Discord,
+  NexusMods,
+  DirectDownload,
+  DownloadPage,
+}
+
+impl Display for UrlSource {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.write_fmt(format_args!(
+      "{}",
+      match self {
+        UrlSource::Forum => "Fractal Mod Forums",
+        UrlSource::Discord => "Discord",
+        UrlSource::NexusMods => "Nexus Mods",
+        UrlSource::DirectDownload => "Raw Url",
+        UrlSource::DownloadPage => "Other",
       }
     ))
   }
@@ -554,8 +655,11 @@ impl Metadata {
   fn comparator(&self, left: &ModRepoItem, right: &ModRepoItem) -> std::cmp::Ordering {
     match self {
       Metadata::Name => left.name.cmp(&right.name),
-      Metadata::Created => left.created.cmp(&right.created),
-      Metadata::Updated => left.edited.cmp(&right.edited),
+      Metadata::Created => right.created.cmp(&left.created),
+      Metadata::Updated => right
+        .edited
+        .or(right.created)
+        .cmp(&left.edited.or(left.created)),
       Metadata::Authors => left.authors.cmp(&right.authors),
       Metadata::Score => right.score.cmp(&left.score),
     }
