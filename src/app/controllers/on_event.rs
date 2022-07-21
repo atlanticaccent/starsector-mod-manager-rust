@@ -6,9 +6,7 @@ pub struct OnEvent<T> {
 }
 
 impl<T> OnEvent<T> {
-  pub fn new(
-    handler: impl Fn(&mut EventCtx, &Event, &mut T) -> bool + 'static,
-  ) -> Self {
+  pub fn new(handler: impl Fn(&mut EventCtx, &Event, &mut T) -> bool + 'static) -> Self {
     Self {
       handler: Box::new(handler),
     }
@@ -16,14 +14,7 @@ impl<T> OnEvent<T> {
 }
 
 impl<T: Data, W: Widget<T>> Controller<T, W> for OnEvent<T> {
-  fn event(
-    &mut self,
-    child: &mut W,
-    ctx: &mut EventCtx,
-    event: &Event,
-    data: &mut T,
-    env: &Env,
-  ) {
+  fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
     if (self.handler)(ctx, event, data) {
       ctx.set_handled();
     }

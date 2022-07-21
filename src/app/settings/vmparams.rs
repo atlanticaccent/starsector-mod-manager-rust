@@ -63,7 +63,7 @@ pub trait VMParamsPath {
     #[cfg(target_os = "macos")]
     return PathBuf::from("./Contents/MacOS/starsector_mac.sh");
     #[cfg(target_os = "linux")]
-    return PathBuf::from("./starsector.sh")
+    return PathBuf::from("./starsector.sh");
   }
 }
 
@@ -223,7 +223,7 @@ impl<T: VMParamsPath> VMParams<T> {
 mod test {
   use std::{io::Seek, marker::PhantomData, path::PathBuf, sync::Mutex};
 
-  use crate::app::settings::vmparams::{VMParamsPath, VMParams};
+  use crate::app::settings::vmparams::{VMParams, VMParamsPath};
 
   lazy_static::lazy_static! {
     static ref TEST_FILE: tempfile::NamedTempFile = tempfile::NamedTempFile::new().expect("Couldn't create tempdir - not a real test failure");

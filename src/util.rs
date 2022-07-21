@@ -1,31 +1,28 @@
 use std::marker::PhantomData;
-use std::{io::Read, sync::Arc, path::PathBuf, collections::VecDeque};
+use std::{collections::VecDeque, io::Read, path::PathBuf, sync::Arc};
 
-use druid::{MouseEvent, Env};
 use druid::widget::{ControllerHost, LabelText};
 use druid::{
-  widget::{
-    Label, LensWrap, Flex, Axis, RawLabel, Controller, ScopeTransfer, Painter, Scope
-  },
-  text::{
-    RichText, AttributeSpans, Attribute
-  },
-  Data, Lens, WidgetExt, Widget, ExtEventSink, Selector, Target, lens,
-  FontWeight, Key, Color, KeyOrValue, Point, EventCtx, Event, theme,
-  RenderContext, UnitPoint, Command
+  lens,
+  text::{Attribute, AttributeSpans, RichText},
+  theme,
+  widget::{Axis, Controller, Flex, Label, LensWrap, Painter, RawLabel, Scope, ScopeTransfer},
+  Color, Command, Data, Event, EventCtx, ExtEventSink, FontWeight, Key, KeyOrValue, Lens, Point,
+  RenderContext, Selector, Target, UnitPoint, Widget, WidgetExt,
 };
+use druid::{Env, MouseEvent};
 use druid_widget_nursery::CommandCtx;
 use if_chain::if_chain;
 use json_comments::strip_comments;
-use serde::Deserialize;
-use tap::Tap;
 use lazy_static::lazy_static;
 use regex::Regex;
+use serde::Deserialize;
+use tap::Tap;
 
 use crate::patch::click::Click;
 
-use super::controllers::{OnNotif, HoverController, OnEvent};
-use super::mod_entry::{ModVersionMeta, GameVersion};
+use super::controllers::{HoverController, OnEvent, OnNotif};
+use super::mod_entry::{GameVersion, ModVersionMeta};
 
 pub(crate) mod icons;
 
@@ -46,7 +43,7 @@ pub const ON_ORANGE_KEY: Key<Color> = Key::new("util.colour.on_orange");
 pub enum LoadError {
   NoSuchFile,
   ReadError,
-  FormatError
+  FormatError,
 }
 
 #[derive(Debug, Clone)]
@@ -56,18 +53,26 @@ pub enum SaveError {
   Format,
 }
 
-pub fn get_quoted_version(starsector_version: &(Option<String>, Option<String>, Option<String>, Option<String>)) -> Option<String> {
+pub fn get_quoted_version(
+  starsector_version: &(
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+  ),
+) -> Option<String> {
   match starsector_version {
     (None, None, None, None) => None,
-    (major, minor, patch, rc) => {
-      Some(format!(
-        "{}.{}{}{}",
-        major.clone().unwrap_or_else(|| "0".to_string()),
-        minor.clone().unwrap_or_else(|| "".to_string()),
-        patch.clone().map_or_else(|| "".to_string(), |p| format!(".{}", p)),
-        rc.clone().map_or_else(|| "".to_string(), |rc| format!("a-RC{}", rc))
-      ))
-    }
+    (major, minor, patch, rc) => Some(format!(
+      "{}.{}{}{}",
+      major.clone().unwrap_or_else(|| "0".to_string()),
+      minor.clone().unwrap_or_else(|| "".to_string()),
+      patch
+        .clone()
+        .map_or_else(|| "".to_string(), |p| format!(".{}", p)),
+      rc.clone()
+        .map_or_else(|| "".to_string(), |rc| format!("a-RC{}", rc))
+    )),
   }
 }
 
@@ -75,15 +80,19 @@ pub trait LabelExt<T: Data> {
   fn wrapped(label: &str) -> Label<T> {
     Label::new(label).with_line_break_mode(druid::widget::LineBreaking::WordWrap)
   }
-  
+
   fn wrapped_lens<U: Data, L: Lens<T, U>>(lens: L) -> LensWrap<T, String, L, Label<String>> {
-    LensWrap::new(Label::dynamic(|t: &String, _| t.to_string()).with_line_break_mode(druid::widget::LineBreaking::WordWrap), lens)
+    LensWrap::new(
+      Label::dynamic(|t: &String, _| t.to_string())
+        .with_line_break_mode(druid::widget::LineBreaking::WordWrap),
+      lens,
+    )
   }
 
   fn wrapped_func<F, S>(func: F) -> Label<T>
-  where 
+  where
     S: Into<Arc<str>>,
-    F: Fn(&T, &druid::Env) -> S + 'static
+    F: Fn(&T, &druid::Env) -> S + 'static,
   {
     Label::new(func).with_line_break_mode(druid::widget::LineBreaking::WordWrap)
   }
@@ -95,39 +104,71 @@ pub trait LabelExt<T: Data> {
 
 impl<T: Data> LabelExt<T> for Label<T> {}
 
-pub fn make_flex_pair<T: Data>(label: impl Widget<T> + 'static, ratio_1: f64, val: impl Widget<T> + 'static, ratio_2: f64, axis: Axis) -> Flex<T> {
+pub fn make_flex_pair<T: Data>(
+  label: impl Widget<T> + 'static,
+  ratio_1: f64,
+  val: impl Widget<T> + 'static,
+  ratio_2: f64,
+  axis: Axis,
+) -> Flex<T> {
   Flex::for_axis(axis)
     .with_flex_child(label.expand_width(), ratio_1)
     .with_flex_child(val.expand_width(), ratio_2)
 }
 
-pub fn make_flex_description_row<T: Data>(label: impl Widget<T> + 'static, val: impl Widget<T> + 'static) -> Flex<T> {
+pub fn make_flex_description_row<T: Data>(
+  label: impl Widget<T> + 'static,
+  val: impl Widget<T> + 'static,
+) -> Flex<T> {
   make_flex_pair(label, 1., val, 1.5, Axis::Horizontal)
 }
 
-pub fn make_flex_settings_row<T: Data>(widget: impl Widget<T> + 'static, label: impl Widget<T> + 'static) -> Flex<T> {
-  make_flex_pair(widget.align_horizontal(UnitPoint::CENTER), 1., label, 10., Axis::Horizontal)
+pub fn make_flex_settings_row<T: Data>(
+  widget: impl Widget<T> + 'static,
+  label: impl Widget<T> + 'static,
+) -> Flex<T> {
+  make_flex_pair(
+    widget.align_horizontal(UnitPoint::CENTER),
+    1.,
+    label,
+    10.,
+    Axis::Horizontal,
+  )
 }
 
-pub fn make_flex_column_pair<T: Data>(label: impl Widget<T> + 'static, val: impl Widget<T> + 'static) -> Flex<T> {
+pub fn make_flex_column_pair<T: Data>(
+  label: impl Widget<T> + 'static,
+  val: impl Widget<T> + 'static,
+) -> Flex<T> {
   make_flex_pair(label, 1., val, 1., Axis::Vertical)
 }
 
-pub fn make_pair<T: Data>(label: impl Widget<T> + 'static, val: impl Widget<T> + 'static, axis: Axis) -> Flex<T> {
+pub fn make_pair<T: Data>(
+  label: impl Widget<T> + 'static,
+  val: impl Widget<T> + 'static,
+  axis: Axis,
+) -> Flex<T> {
   Flex::for_axis(axis)
     .with_child(label.expand_width())
     .with_child(val.expand_width())
 }
 
-pub fn make_description_row<T: Data>(label: impl Widget<T> + 'static, val: impl Widget<T> + 'static) -> Flex<T> {
+pub fn make_description_row<T: Data>(
+  label: impl Widget<T> + 'static,
+  val: impl Widget<T> + 'static,
+) -> Flex<T> {
   make_pair(label, val, Axis::Horizontal)
 }
 
-pub fn make_column_pair<T: Data>(label: impl Widget<T> + 'static, val: impl Widget<T> + 'static) -> Flex<T> {
+pub fn make_column_pair<T: Data>(
+  label: impl Widget<T> + 'static,
+  val: impl Widget<T> + 'static,
+) -> Flex<T> {
   make_pair(label, val, Axis::Vertical)
 }
 
-pub const MASTER_VERSION_RECEIVED: Selector<(String, Result<ModVersionMeta, String>)> = Selector::new("remote_version_received");
+pub const MASTER_VERSION_RECEIVED: Selector<(String, Result<ModVersionMeta, String>)> =
+  Selector::new("remote_version_received");
 
 pub async fn get_master_version(ext_sink: ExtEventSink, local: ModVersionMeta) {
   let res = send_request(local.remote_url.clone()).await;
@@ -160,7 +201,7 @@ pub async fn get_master_version(ext_sink: ExtEventSink, local: ModVersionMeta) {
   };
 }
 
-async fn send_request(url: String) -> Result<String, String>{
+async fn send_request(url: String) -> Result<String, String> {
   reqwest::get(url)
     .await
     .map_err(|e| format!("{:?}", e))?
@@ -171,17 +212,22 @@ async fn send_request(url: String) -> Result<String, String>{
     .map_err(|e| format!("{:?}", e))
 }
 
-pub fn bold_text<T: Data>(text: &str, size: impl Into<KeyOrValue<f64>>, weight: FontWeight, colour: impl Into<KeyOrValue<Color>>) -> impl Widget<T> {
+pub fn bold_text<T: Data>(
+  text: &str,
+  size: impl Into<KeyOrValue<f64>>,
+  weight: FontWeight,
+  colour: impl Into<KeyOrValue<Color>>,
+) -> impl Widget<T> {
   RawLabel::new()
     .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
     .lens(lens::Constant(RichText::new_with_attributes(
-    text.into(),
-    AttributeSpans::new().tap_mut(|s| {
-      s.add(0..text.len(), Attribute::Weight(weight));
-      s.add(0..text.len(), Attribute::FontSize(size.into()));
-      s.add(0..text.len(), Attribute::TextColor(colour.into()));
-    })
-  )))
+      text.into(),
+      AttributeSpans::new().tap_mut(|s| {
+        s.add(0..text.len(), Attribute::Weight(weight));
+        s.add(0..text.len(), Attribute::FontSize(size.into()));
+        s.add(0..text.len(), Attribute::TextColor(colour.into()));
+      }),
+    )))
 }
 
 pub fn h1<T: Data>(text: &str) -> impl Widget<T> {
@@ -196,12 +242,13 @@ pub fn h3<T: Data>(text: &str) -> impl Widget<T> {
   bold_text(text, 18., FontWeight::MEDIUM, theme::TEXT_COLOR)
 }
 
-pub const GET_INSTALLED_STARSECTOR: Selector<Result<GameVersion, LoadError>> = Selector::new("util.starsector_version.get");
+pub const GET_INSTALLED_STARSECTOR: Selector<Result<GameVersion, LoadError>> =
+  Selector::new("util.starsector_version.get");
 
 pub async fn get_starsector_version(ext_ctx: ExtEventSink, install_dir: PathBuf) {
   use classfile_parser::class_parser;
-  use tokio::{task, fs};
   use regex::bytes::Regex;
+  use tokio::{fs, task};
 
   #[cfg(target_os = "linux")]
   let obf_jar = install_dir.join("starfarer_obf.jar");
@@ -214,7 +261,7 @@ pub async fn get_starsector_version(ext_ctx: ExtEventSink, install_dir: PathBuf)
     let mut zip = zip::ZipArchive::new(std::fs::File::open(obf_jar).unwrap()).unwrap();
 
     // println!("{:?}", zip.file_names().collect::<Vec<&str>>());
-    
+
     let mut version_class = zip.by_name("com/fs/starfarer/Version.class").map_err(|_| LoadError::NoSuchFile)?;
 
     let mut buf: Vec<u8> = Vec::new();
@@ -246,37 +293,53 @@ pub async fn get_starsector_version(ext_ctx: ExtEventSink, install_dir: PathBuf)
     lazy_static! {
       static ref RE: Regex = Regex::new(r"Starting Starsector (.*) launcher").unwrap();
     }
-    res = fs::read(install_dir.join("starsector-core").join("starsector.log")).await
+    res = fs::read(install_dir.join("starsector-core").join("starsector.log"))
+      .await
       .map_err(|_| LoadError::ReadError)
       .and_then(|file| {
         RE.captures(&file)
           .and_then(|captures| captures.get(1))
           .ok_or(LoadError::FormatError)
-          .and_then(|m| String::from_utf8(m.as_bytes().to_vec()).map_err(|_| LoadError::FormatError))
+          .and_then(|m| {
+            String::from_utf8(m.as_bytes().to_vec()).map_err(|_| LoadError::FormatError)
+          })
       })
   };
 
   let parsed = res.map(|text| parse_game_version(&text));
 
-  if ext_ctx.submit_command(GET_INSTALLED_STARSECTOR, parsed, Target::Auto).is_err() {
+  if ext_ctx
+    .submit_command(GET_INSTALLED_STARSECTOR, parsed, Target::Auto)
+    .is_err()
+  {
     eprintln!("Failed to submit starsector version back to main thread")
   };
 }
 
 /**
- * Parses a given version into a four-tuple of the assumed components.
- * Assumptions:
- * - The first component is always EITHER 0 and thus the major component OR it has been omitted and the first component is the minor component
- * - If there are two components it is either the major and minor components OR minor and patch OR minor and RC (release candidate)
- * - If there are three components it is either the major, minor and patch OR major, minor and RC OR minor, patch and RC
- * - If there are four components then the first components MUST be 0 and MUST be the major component, and the following components 
-      are the minor, patch and RC components
-  */
-pub fn parse_game_version(text: &str) -> (Option<String>, Option<String>, Option<String>, Option<String>) {
+* Parses a given version into a four-tuple of the assumed components.
+* Assumptions:
+* - The first component is always EITHER 0 and thus the major component OR it has been omitted and the first component is the minor component
+* - If there are two components it is either the major and minor components OR minor and patch OR minor and RC (release candidate)
+* - If there are three components it is either the major, minor and patch OR major, minor and RC OR minor, patch and RC
+* - If there are four components then the first components MUST be 0 and MUST be the major component, and the following components
+     are the minor, patch and RC components
+ */
+pub fn parse_game_version(
+  text: &str,
+) -> (
+  Option<String>,
+  Option<String>,
+  Option<String>,
+  Option<String>,
+) {
   lazy_static! {
     static ref VERSION_REGEX: Regex = Regex::new(r"\.|a-RC|A-RC|a-rc|a").unwrap();
   }
-  let components: Vec<&str> = VERSION_REGEX.split(text).filter(|c| !c.is_empty()).collect();
+  let components: Vec<&str> = VERSION_REGEX
+    .split(text)
+    .filter(|c| !c.is_empty())
+    .collect();
 
   match components.as_slice() {
     [major, minor] if major == &"0" => {
@@ -286,26 +349,56 @@ pub fn parse_game_version(text: &str) -> (Option<String>, Option<String>, Option
     [minor, patch_rc] => {
       // text = format!("0.{}a-RC{}", minor, rc);
       if text.contains("a-RC") {
-        (Some("0".to_string()), Some(minor.to_string()), None, Some(patch_rc.to_string()))
+        (
+          Some("0".to_string()),
+          Some(minor.to_string()),
+          None,
+          Some(patch_rc.to_string()),
+        )
       } else {
-        (Some("0".to_string()), Some(minor.to_string()), Some(patch_rc.to_string()), None)
+        (
+          Some("0".to_string()),
+          Some(minor.to_string()),
+          Some(patch_rc.to_string()),
+          None,
+        )
       }
     }
     [major, minor, patch_rc] if major == &"0" => {
       // text = format!("{}.{}a-RC{}", major, minor, rc);
       if text.contains("a-RC") {
-        (Some(major.to_string()), Some(minor.to_string()), None, Some(patch_rc.to_string()))
+        (
+          Some(major.to_string()),
+          Some(minor.to_string()),
+          None,
+          Some(patch_rc.to_string()),
+        )
       } else {
-        (Some(major.to_string()), Some(minor.to_string()), Some(patch_rc.to_string()), None)
+        (
+          Some(major.to_string()),
+          Some(minor.to_string()),
+          Some(patch_rc.to_string()),
+          None,
+        )
       }
     }
     [minor, patch, rc] => {
       // text = format!("0.{}.{}a-RC{}", minor, patch, rc);
-      (Some("0".to_string()), Some(minor.to_string()), Some(patch.to_string()), Some(rc.to_string()))
+      (
+        Some("0".to_string()),
+        Some(minor.to_string()),
+        Some(patch.to_string()),
+        Some(rc.to_string()),
+      )
     }
     [major, minor, patch, rc] if major == &"0" => {
       // text = format!("{}.{}.{}a-RC{}", major, minor, patch, rc);
-      (Some(major.to_string()), Some(minor.to_string()), Some(patch.to_string()), Some(rc.to_string()))
+      (
+        Some(major.to_string()),
+        Some(minor.to_string()),
+        Some(patch.to_string()),
+        Some(rc.to_string()),
+      )
     }
     _ => {
       dbg!("Failed to normalise mod's quoted game version");
@@ -319,7 +412,7 @@ pub enum StarsectorVersionDiff {
   Minor,
   Patch,
   RC,
-  None
+  None,
 }
 
 impl From<(&GameVersion, &GameVersion)> for StarsectorVersionDiff {
@@ -327,19 +420,15 @@ impl From<(&GameVersion, &GameVersion)> for StarsectorVersionDiff {
     match vals {
       ((mod_major, ..), (game_major, ..)) if mod_major != game_major => {
         StarsectorVersionDiff::Major
-      },
+      }
       ((_, mod_minor, ..), (_, game_minor, ..)) if mod_minor != game_minor => {
         StarsectorVersionDiff::Minor
-      },
+      }
       ((.., mod_patch, _), (.., game_patch, _)) if mod_patch != game_patch => {
         StarsectorVersionDiff::Patch
-      },
-      ((.., mod_rc), (.., game_rc)) if mod_rc != game_rc => {
-        StarsectorVersionDiff::RC
-      },
-      _ => {
-        StarsectorVersionDiff::None
       }
+      ((.., mod_rc), (.., game_rc)) if mod_rc != game_rc => StarsectorVersionDiff::RC,
+      _ => StarsectorVersionDiff::None,
     }
   }
 }
@@ -351,7 +440,7 @@ impl From<StarsectorVersionDiff> for KeyOrValue<Color> {
       StarsectorVersionDiff::Minor => ORANGE_KEY.into(),
       StarsectorVersionDiff::Patch => YELLOW_KEY.into(),
       StarsectorVersionDiff::RC => BLUE_KEY.into(),
-      StarsectorVersionDiff::None => GREEN_KEY.into()
+      StarsectorVersionDiff::None => GREEN_KEY.into(),
     }
   }
 }
@@ -398,13 +487,13 @@ impl<T, W: Widget<T>> Controller<T, W> for DragWindowController {
 pub struct Release {
   pub name: String,
   pub tag_name: String,
-  pub assets: Vec<Asset>
+  pub assets: Vec<Asset>,
 }
 
 #[derive(Deserialize, Clone)]
 pub struct Asset {
   pub name: String,
-  pub browser_download_url: String
+  pub browser_download_url: String,
 }
 
 pub async fn get_latest_manager() -> Result<Release, String> {
@@ -413,7 +502,8 @@ pub async fn get_latest_manager() -> Result<Release, String> {
     .build()
     .map_err(|e| e.to_string())?;
 
-  let mut res = client.get("https://api.github.com/repos/atlanticaccent/starsector-mod-manager-rust/releases")
+  let mut res = client
+    .get("https://api.github.com/repos/atlanticaccent/starsector-mod-manager-rust/releases")
     .send()
     .await
     .map_err(|e| e.to_string())?
@@ -428,7 +518,9 @@ pub async fn get_latest_manager() -> Result<Release, String> {
   }
 }
 
-pub fn default_true() -> bool { true }
+pub fn default_true() -> bool {
+  true
+}
 
 #[derive(Clone, Data, Lens)]
 pub struct IndyToggleState {
@@ -489,19 +581,24 @@ impl Card {
 
   pub fn new<T: Data>(widget: impl Widget<T> + 'static) -> impl Widget<T> {
     widget
-      .padding((Self::CARD_INSET, Self::CARD_INSET, Self::CARD_INSET, Self::CARD_INSET + 5.))
+      .padding((
+        Self::CARD_INSET,
+        Self::CARD_INSET,
+        Self::CARD_INSET,
+        Self::CARD_INSET + 5.,
+      ))
       .background(Self::card_painter())
   }
 
   pub fn card_painter<T: Data>() -> Painter<T> {
     Painter::new(|ctx, _, env| {
       let size = ctx.size();
-  
+
       let rounded_rect = size
         .to_rect()
         .inset(-Self::CARD_INSET / 2.0)
         .to_rounded_rect(10.);
-  
+
       ctx.fill(rounded_rect, &env.get(theme::BACKGROUND_LIGHT));
     })
   }
@@ -519,7 +616,7 @@ impl<T: CommandCtx> CommandExt for T {}
 #[derive(Default)]
 pub struct DummyTransfer<X, Y> {
   phantom_x: PhantomData<X>,
-  phantom_y: PhantomData<Y>
+  phantom_y: PhantomData<Y>,
 }
 
 impl<X: Data, Y: Data> ScopeTransfer for DummyTransfer<X, Y> {
@@ -535,7 +632,14 @@ pub fn hoverable_text(colour: Option<Color>) -> impl Widget<String> {
   struct TextHoverController;
 
   impl<D: Data, W: Widget<(D, bool)>> Controller<(D, bool), W> for TextHoverController {
-    fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut (D, bool), env: &druid::Env) {
+    fn event(
+      &mut self,
+      child: &mut W,
+      ctx: &mut EventCtx,
+      event: &Event,
+      data: &mut (D, bool),
+      env: &druid::Env,
+    ) {
       if let Event::MouseMove(_) = event {
         data.1 = ctx.is_hot() && !ctx.is_disabled()
       }
@@ -550,12 +654,22 @@ pub fn hoverable_text(colour: Option<Color>) -> impl Widget<String> {
     RawLabel::new()
       .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
       .lens(lens::Map::new(
-        move |(text, hovered): &(String, bool)| RichText::new(text.clone().into())
-          .with_attribute(0..text.len(), Attribute::Underline(*hovered))
-          .with_attribute(0..text.len(), Attribute::TextColor(colour.clone().map(|c| c.into()).unwrap_or_else(|| theme::TEXT_COLOR.into()))),
-          |_, _| {}
+        move |(text, hovered): &(String, bool)| {
+          RichText::new(text.clone().into())
+            .with_attribute(0..text.len(), Attribute::Underline(*hovered))
+            .with_attribute(
+              0..text.len(),
+              Attribute::TextColor(
+                colour
+                  .clone()
+                  .map(|c| c.into())
+                  .unwrap_or_else(|| theme::TEXT_COLOR.into()),
+              ),
+            )
+        },
+        |_, _| {},
       ))
-      .controller(TextHoverController)
+      .controller(TextHoverController),
   )
 }
 
@@ -596,9 +710,6 @@ impl Button2 {
   }
 
   pub fn from_label<T: Data>(label: impl Into<LabelText<T>>) -> impl Widget<T> {
-    Self::new(
-      Label::wrapped_into(label)
-        .with_text_size(18.)
-    )
+    Self::new(Label::wrapped_into(label).with_text_size(18.))
   }
 }

@@ -20,14 +20,7 @@ impl<CT, WT> OnNotif<CT, WT> {
 }
 
 impl<WT: Data, W: Widget<WT>, CT: 'static> Controller<WT, W> for OnNotif<CT, WT> {
-  fn event(
-    &mut self,
-    child: &mut W,
-    ctx: &mut EventCtx,
-    event: &Event,
-    data: &mut WT,
-    env: &Env,
-  ) {
+  fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut WT, env: &Env) {
     match event {
       Event::Notification(notif) if notif.is(self.selector) => {
         (self.handler)(ctx, notif.get(self.selector).unwrap(), data);

@@ -1,17 +1,20 @@
-use std::{io::Write, fs::File};
+use std::{fs::File, io::Write};
 
 use base64::{decode, encode};
 use interprocess::local_socket::LocalSocketListener;
 use rand::random;
 use url::Url;
-use webview_shared::{WebviewMessage, CHILD_PARENT_SOCKET, handle_error, connect_parent, connect_child, PROJECT};
+use webview_shared::{
+  connect_child, connect_parent, handle_error, WebviewMessage, CHILD_PARENT_SOCKET, PROJECT,
+};
 use wry::{
   application::{
     event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder, menu::{MenuBar, MenuItemAttributes, MenuType},
+    menu::{MenuBar, MenuItemAttributes, MenuType},
+    window::WindowBuilder,
   },
-  webview::{WebViewBuilder, WebContext},
+  webview::{WebContext, WebViewBuilder},
 };
 
 const FRACTAL_INDEX: &str = "https://fractalsoftworks.com/forum/index.php?topic=177.0";
@@ -34,23 +37,24 @@ enum UserEvent {
 pub fn init_webview(url: Option<String>) -> wry::Result<()> {
   let event_loop: EventLoop<UserEvent> = EventLoop::with_user_event();
   let proxy = event_loop.create_proxy();
-  
+
   let runtime = tokio::runtime::Builder::new_multi_thread()
-  .enable_all()
-  .build()
-  .expect("Build tokio runtime");
-  
+    .enable_all()
+    .build()
+    .expect("Build tokio runtime");
+
   runtime.spawn_blocking({
     let proxy = proxy.clone();
     move || {
       let listener = LocalSocketListener::bind(CHILD_PARENT_SOCKET).expect("Open socket");
-      
+
       for conn in listener.incoming().filter_map(handle_error) {
-        let message: WebviewMessage = bincode::deserialize_from(conn).expect("Read from connection");
+        let message: WebviewMessage =
+          bincode::deserialize_from(conn).expect("Read from connection");
         match message {
           WebviewMessage::Maximize => {
             let _ = proxy.send_event(UserEvent::Maximize);
-          },
+          }
           WebviewMessage::Minimize => {
             let _ = proxy.send_event(UserEvent::Minimize);
           }
@@ -59,34 +63,34 @@ pub fn init_webview(url: Option<String>) -> wry::Result<()> {
             #[cfg(not(target_family = "windows"))]
             let _ = std::fs::remove_file(webview_shared::CHILD_PARENT_PATH);
             break;
-          },
+          }
           _ => {}
         }
       }
     }
   });
-  
+
   let mut menu_bar = MenuBar::new();
   let back = menu_bar.add_item(MenuItemAttributes::new("< Back"));
   let forward = menu_bar.add_item(MenuItemAttributes::new("Forward >"));
-  
+
   menu_bar.add_item(MenuItemAttributes::new("|").with_enabled(false));
-  
+
   let mut bookmarks = MenuBar::new();
   let mod_index = bookmarks.add_item(MenuItemAttributes::new("Mod Index"));
   let mods_forum = bookmarks.add_item(MenuItemAttributes::new("Mods Forum"));
   let modding_subforum = bookmarks.add_item(MenuItemAttributes::new("Modding Sub-Forum"));
   let cursed_discord = bookmarks.add_item(MenuItemAttributes::new("Starsector Discord"));
   menu_bar.add_submenu("Bookmarks", true, bookmarks);
-  
+
   let window = WindowBuilder::new()
-  .with_title("MOSS | Browser")
-  .with_menu(menu_bar)
-  .build(&event_loop)?;
-  
+    .with_title("MOSS | Browser")
+    .with_menu(menu_bar)
+    .build(&event_loop)?;
+
   let mut webcontext = WebContext::default();
   webcontext.set_allows_automation(true);
-  
+
   let init_script = r"
   // Adds an URL.getFromObjectURL( <blob:// URI> ) method
   // returns the original object (<Blob> or <MediaSource>) the URI points to or null
@@ -136,87 +140,101 @@ pub fn init_webview(url: Option<String>) -> wry::Result<()> {
     }
   })();
   ";
-  
+
   let webview = WebViewBuilder::new(window)?
-  .with_url(url.as_deref().unwrap_or(FRACTAL_INDEX))?
-  .with_initialization_script(init_script)
-  .with_ipc_handler({
-    let proxy = proxy.clone();
-    move |_, string| {
-      match string.as_str() {
+    .with_url(url.as_deref().unwrap_or(FRACTAL_INDEX))?
+    .with_initialization_script(init_script)
+    .with_ipc_handler({
+      let proxy = proxy.clone();
+      move |_, string| match string.as_str() {
         _ if string.starts_with("data:") => {
           let _ = proxy.send_event(UserEvent::BlobChunk(Some(string)));
-        },
+        }
         "#EOF" => {
           let _ = proxy.send_event(UserEvent::BlobChunk(None));
-        },
+        }
         _ if string.starts_with("confirm_download") => {
           let mut parts = string.split(',');
-          let confirm = parts.next().expect("split ipc").split(':').nth(1).expect("split ipc");
+          let confirm = parts
+            .next()
+            .expect("split ipc")
+            .split(':')
+            .nth(1)
+            .expect("split ipc");
           if confirm == "true" {
-            let base = parts.next().expect("split ipc").split(':').nth(1).expect("split ipc");
+            let base = parts
+              .next()
+              .expect("split ipc")
+              .split(':')
+              .nth(1)
+              .expect("split ipc");
             let decoded = decode(base).expect("decode uri");
             let uri = String::from_utf8(decoded).expect("decode");
             let _ = proxy.send_event(UserEvent::Download(uri));
           } else {
             let _ = proxy.send_event(UserEvent::CancelDownload);
           }
-        },
+        }
         _ => {}
       }
-    }
-  })
-  .with_navigation_handler({
-    let proxy = proxy.clone();
-    move |uri: String| {
-      if &uri == "about:blank" {
-        return false
-      }
-      
-      if let Ok(url) = Url::parse(&uri) {
-        if url.host_str() == Some("drive.google.com") && url.query().map_or(false, |q| q.contains("export=download")) {
-          let _ = proxy.send_event(UserEvent::AskDownload(uri + "&confirm=t"));
-          return false
-        }
-      }
-      
-      proxy.send_event(UserEvent::Navigation(uri)).is_ok()
-    }
-  })
-  .with_new_window_req_handler({
-    let proxy = proxy.clone();
-    move |uri: String| {
-      proxy.send_event(UserEvent::NewWindow(uri)).expect("Send event");
-      
-      false
-    }
-  })
-  .with_download_handler({
-    let proxy = proxy;
-    move |uri: String, _download_to: &mut String| {
-      if uri.starts_with("blob:https://mega.nz") {
-        let _ = proxy.send_event(UserEvent::BlobReceived(uri));
-        return false
-      }
-      
-      proxy.send_event(UserEvent::AskDownload(uri)).expect("Send event");
-      
-      false
-    }}, {
-      move || Box::new(move |_path, _success| {})
     })
+    .with_navigation_handler({
+      let proxy = proxy.clone();
+      move |uri: String| {
+        if &uri == "about:blank" {
+          return false;
+        }
+
+        if let Ok(url) = Url::parse(&uri) {
+          if url.host_str() == Some("drive.google.com")
+            && url.query().map_or(false, |q| q.contains("export=download"))
+          {
+            let _ = proxy.send_event(UserEvent::AskDownload(uri + "&confirm=t"));
+            return false;
+          }
+        }
+
+        proxy.send_event(UserEvent::Navigation(uri)).is_ok()
+      }
+    })
+    .with_new_window_req_handler({
+      let proxy = proxy.clone();
+      move |uri: String| {
+        proxy
+          .send_event(UserEvent::NewWindow(uri))
+          .expect("Send event");
+
+        false
+      }
+    })
+    .with_download_handler(
+      {
+        let proxy = proxy;
+        move |uri: String, _download_to: &mut String| {
+          if uri.starts_with("blob:https://mega.nz") {
+            let _ = proxy.send_event(UserEvent::BlobReceived(uri));
+            return false;
+          }
+
+          proxy
+            .send_event(UserEvent::AskDownload(uri))
+            .expect("Send event");
+
+          false
+        }
+      },
+      { move || Box::new(move |_path, _success| {}) },
+    )
     .build()?;
-    
-    #[cfg(debug_assertions)]
-    webview.devtool();
-    
-    let mut mega_file = None;
-    let connect = || {
-      connect_parent().expect("Connect")
-    };
-    event_loop.run(move |event, _, control_flow| {
+
+  #[cfg(debug_assertions)]
+  webview.devtool();
+
+  let mut mega_file = None;
+  let connect = || connect_parent().expect("Connect");
+  event_loop.run(move |event, _, control_flow| {
       *control_flow = ControlFlow::Wait;
-      
+
       match event {
         Event::NewEvents(StartCause::Init) => println!("Wry has started!"),
         Event::WindowEvent {
@@ -327,4 +345,4 @@ pub fn init_webview(url: Option<String>) -> wry::Result<()> {
         }
       }
     });
-  }
+}

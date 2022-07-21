@@ -160,19 +160,13 @@ pub fn decompress(path: PathBuf) -> Result<TempDir, InstallError> {
         })?;
       // trust me I tried to de-dupe this and it's buggered
       #[cfg(target_env = "musl")]
-      compress_tools::uncompress_archive(
-        source,
-        temp_dir.path(),
-        compress_tools::Ownership::Ignore,
-      )
-      .context(CompressTools {})?
+      compress_tools::uncompress_archive(source, temp_dir.path(), compress_tools::Ownership::Ignore)
+        .context(CompressTools {})?
     }
-    _ => compress_tools::uncompress_archive(
-      source,
-      temp_dir.path(),
-      compress_tools::Ownership::Ignore,
-    )
-    .context(CompressTools {})?,
+    _ => {
+      compress_tools::uncompress_archive(source, temp_dir.path(), compress_tools::Ownership::Ignore)
+        .context(CompressTools {})?
+    }
   }
 
   Ok(temp_dir)
@@ -344,7 +338,6 @@ pub async fn download(
             .map(|s| s.to_string())
         })
         .unwrap_or(url)
-        
     });
 
   let tx = {
@@ -434,11 +427,21 @@ pub enum InstallError {
     source: std::io::Error,
     detail: String,
   },
-  Mime { detail: String },
-  CompressTools { source: compress_tools::Error },
-  Unrar { detail: String },
-  Network { source: reqwest::Error },
-  Any { detail: String },
+  Mime {
+    detail: String,
+  },
+  CompressTools {
+    source: compress_tools::Error,
+  },
+  Unrar {
+    detail: String,
+  },
+  Network {
+    source: reqwest::Error,
+  },
+  Any {
+    detail: String,
+  },
 }
 
 #[derive(Debug, Clone)]

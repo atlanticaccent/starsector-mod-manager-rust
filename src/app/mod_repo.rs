@@ -166,13 +166,7 @@ impl ModRepo {
           },
         )
         .lens(lens::Map::new(
-          |data: &ModRepo| {
-            (
-              data.items.clone(),
-              data.filters.clone(),
-              data.sort_by,
-            )
-          },
+          |data: &ModRepo| (data.items.clone(), data.filters.clone(), data.sort_by),
           |orig, data| {
             orig.items = data.0;
             orig.filters = data.1;

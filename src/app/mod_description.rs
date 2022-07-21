@@ -3,14 +3,18 @@ use std::sync::Arc;
 use chrono::{DateTime, Local};
 use druid::{
   widget::{Button, Flex, Label, Maybe, Scroll},
-  LensExt, Widget, WidgetExt, Selector,
+  LensExt, Selector, Widget, WidgetExt,
 };
 
-use super::{mod_entry::{ModVersionMeta, ModMetadata}, ModEntry};
+use super::{
+  mod_entry::{ModMetadata, ModVersionMeta},
+  ModEntry,
+};
 
 use super::util::{make_flex_description_row, LabelExt};
 
-pub const OPEN_IN_BROWSER: Selector<String> = Selector::new("mod_description.forum.open_in_webview");
+pub const OPEN_IN_BROWSER: Selector<String> =
+  Selector::new("mod_description.forum.open_in_webview");
 
 #[derive(Default)]
 pub struct ModDescription;
@@ -48,12 +52,17 @@ impl ModDescription {
               .with_child(
                 make_flex_description_row(
                   Label::wrapped("Installed at:"),
-                  Label::wrapped_func(|data: &ModMetadata, _| if let Some(date) = data.install_date {
-                    DateTime::<Local>::from(date).format("%v %I:%M%p").to_string()
-                  } else {
-                    String::from("Unknown")
-                  })
-                ).lens(ModEntry::manager_metadata.in_arc())
+                  Label::wrapped_func(|data: &ModMetadata, _| {
+                    if let Some(date) = data.install_date {
+                      DateTime::<Local>::from(date)
+                        .format("%v %I:%M%p")
+                        .to_string()
+                    } else {
+                      String::from("Unknown")
+                    }
+                  }),
+                )
+                .lens(ModEntry::manager_metadata.in_arc()),
               )
               .with_child(
                 Maybe::or_empty(|| {
@@ -64,7 +73,11 @@ impl ModDescription {
                         format!("{}{}", ModDescription::FRACTAL_URL, data.clone())
                       }))
                       .on_click(|ctx, data, _| {
-                        ctx.submit_command(OPEN_IN_BROWSER.with(format!("{}{}", ModDescription::FRACTAL_URL, data)))
+                        ctx.submit_command(OPEN_IN_BROWSER.with(format!(
+                          "{}{}",
+                          ModDescription::FRACTAL_URL,
+                          data
+                        )))
                       }),
                     )
                   })
@@ -90,7 +103,11 @@ impl ModDescription {
                         format!("{}{}", ModDescription::NEXUS_URL, data.clone())
                       }))
                       .on_click(|ctx, data, _| {
-                        ctx.submit_command(OPEN_IN_BROWSER.with(format!("{}{}", ModDescription::NEXUS_URL, data)))
+                        ctx.submit_command(OPEN_IN_BROWSER.with(format!(
+                          "{}{}",
+                          ModDescription::NEXUS_URL,
+                          data
+                        )))
                       }),
                     )
                   })

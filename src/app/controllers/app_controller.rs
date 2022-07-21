@@ -1,13 +1,14 @@
 use std::process;
 
-use druid::{widget::Controller, Env, Event, EventCtx, Target, Widget, commands};
+use druid::{commands, widget::Controller, Env, Event, EventCtx, Target, Widget};
 use self_update::version::bump_is_greater;
 
 use crate::app::{
+  mod_list::ModList,
   modal::Modal,
   settings::{self, Settings, SettingsCommand},
   updater::{open_in_browser, self_update, support_self_update},
-  App, TAG, mod_list::ModList,
+  App, TAG,
 };
 
 pub struct AppController;
@@ -22,7 +23,10 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
           #[cfg(not(target_os = "linux"))]
           let res = rfd::FileDialog::new().pick_folder();
           #[cfg(target_os = "linux")]
-          let res = native_dialog::FileDialog::new().show_open_single_dir().ok().flatten();
+          let res = native_dialog::FileDialog::new()
+            .show_open_single_dir()
+            .ok()
+            .flatten();
 
           if let Some(handle) = res {
             ext_ctx.submit_command(
