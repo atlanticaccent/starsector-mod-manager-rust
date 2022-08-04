@@ -22,9 +22,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
-          override: true
-          minimal: true
+          profile: minimal
 
       - name: Cache vcpkg installed
         uses: actions/cache@v1.0.3
