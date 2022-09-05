@@ -20,7 +20,9 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
         let ext_ctx = ctx.get_external_handle();
         ctx.set_disabled(true);
         data.runtime.spawn_blocking(move || {
-          #[cfg(not(target_os = "linux"))]
+          #[cfg(target_os = "macos")]
+          let res = rfd::FileDialog::new().add_filter("*.app", &["app"]).pick_file();
+          #[cfg(target_os = "windows")]
           let res = rfd::FileDialog::new().pick_folder();
           #[cfg(target_os = "linux")]
           let res = native_dialog::FileDialog::new()
