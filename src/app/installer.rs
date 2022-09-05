@@ -2,9 +2,8 @@ use std::{
   collections::HashMap,
   fs::{copy, create_dir_all, read_dir},
   io::{self, Write},
-  lazy::SyncLazy,
   path::{Path, PathBuf},
-  sync::{Arc, Mutex, Weak},
+  sync::{Arc, Mutex, Weak, LazyLock},
 };
 
 use chrono::Local;
@@ -308,8 +307,8 @@ pub async fn download(
 ) -> Result<tempfile::NamedTempFile, InstallError> {
   static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
 
-  static UPDATE_BALANCER: SyncLazy<Mutex<Weak<mpsc::UnboundedSender<(i64, String, f64)>>>> =
-    SyncLazy::new(|| Mutex::new(Weak::new()));
+  static UPDATE_BALANCER: LazyLock<Mutex<Weak<mpsc::UnboundedSender<(i64, String, f64)>>>> =
+    LazyLock::new(|| Mutex::new(Weak::new()));
 
   let mut file = tempfile::NamedTempFile::new().context(Io {
     detail: String::from("Failed to create named temp file to write to"),
