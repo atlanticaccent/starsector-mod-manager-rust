@@ -1,7 +1,7 @@
 use druid::{
   commands, theme,
   widget::{Button, Flex, Label},
-  Command, Data, Env, Target, Widget, WidgetExt, WindowConfig, WindowId, Selector,
+  Command, Data, Env, Selector, Target, Widget, WidgetExt, WindowConfig, WindowId,
 };
 use druid_widget_nursery::{AnyCtx, RequestCtx};
 use indexmap::IndexMap;
@@ -58,7 +58,10 @@ impl<'a, T: Data> Modal<'a, T> {
     self.close(label)
   }
 
-  pub fn with_on_close(mut self, on_close: impl Fn(&mut druid::EventCtx, &mut T) + 'static) -> Self {
+  pub fn with_on_close(
+    mut self,
+    on_close: impl Fn(&mut druid::EventCtx, &mut T) + 'static,
+  ) -> Self {
     self.on_close = Some(Box::new(on_close));
 
     self
@@ -140,7 +143,7 @@ impl<'a, T: Data> Modal<'a, T> {
           .scroll()
           .vertical()
           .expand(),
-          1.
+        1.,
       )
       .with_child(
         Flex::row()
