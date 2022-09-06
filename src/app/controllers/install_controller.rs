@@ -1,4 +1,4 @@
-use druid::{widget::Controller, Event, EventCtx, Target, Widget, Menu, MenuItem};
+use druid::{widget::Controller, Event, EventCtx, Menu, MenuItem, Target, Widget};
 
 use crate::app::App;
 
@@ -41,7 +41,7 @@ impl<W: Widget<App>> Controller<App, W> for InstallController {
                     let res = native_dialog::FileDialog::new()
                       .add_filter(
                         "Archives",
-                        &["zip", "7z", "7zip", "rar", "rar4", "rar5", "tar"]
+                        &["zip", "7z", "7zip", "rar", "rar4", "rar5", "tar"],
                       )
                       .show_open_multiple_file()
                       .ok();
@@ -59,7 +59,10 @@ impl<W: Widget<App>> Controller<App, W> for InstallController {
                       #[cfg(not(target_os = "linux"))]
                       let res = rfd::FileDialog::new().pick_folder();
                       #[cfg(target_os = "linux")]
-                      let res = native_dialog::FileDialog::new().show_open_single_dir().ok().flatten();
+                      let res = native_dialog::FileDialog::new()
+                        .show_open_single_dir()
+                        .ok()
+                        .flatten();
 
                       ext_ctx.submit_command(App::OPEN_FOLDER, res, Target::Auto)
                     }

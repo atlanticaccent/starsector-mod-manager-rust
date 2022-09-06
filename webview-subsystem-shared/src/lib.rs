@@ -25,7 +25,7 @@ pub enum WebviewMessage {
 
 lazy_static! {
   pub static ref PROJECT: ProjectDirs =
-  ProjectDirs::from("org", "laird", "Starsector Mod Manager").expect("Get project dirs");
+    ProjectDirs::from("org", "laird", "Starsector Mod Manager").expect("Get project dirs");
 }
 
 pub const PARENT_CHILD_PATH: &str = "/tmp/moss_parent.sock";

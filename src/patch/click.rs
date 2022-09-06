@@ -16,7 +16,10 @@
 //!
 //! [`Controller`]: struct.Controller.html
 
-use druid::{Data, Env, Event, EventCtx, LifeCycle, LifeCycleCtx, MouseButton, Widget, widget::Controller, MouseEvent};
+use druid::{
+  widget::Controller, Data, Env, Event, EventCtx, LifeCycle, LifeCycleCtx, MouseButton, MouseEvent,
+  Widget,
+};
 
 /// A clickable [`Controller`] widget. Pass this and a child widget to a
 /// [`ControllerHost`] to make the child interactive. More conveniently, this is

@@ -6,8 +6,8 @@ use druid::{
   text::ParseFormatter,
   theme,
   widget::{
-    Axis, Button, Checkbox, Controller, Either, Flex, Label, Maybe, Painter, SizedBox,
-    TextBox, TextBoxEvent, ValidationDelegate, ViewSwitcher, WidgetExt,
+    Axis, Button, Checkbox, Controller, Either, Flex, Label, Maybe, Painter, SizedBox, TextBox,
+    TextBoxEvent, ValidationDelegate, ViewSwitcher, WidgetExt,
   },
   Data, Event, EventCtx, Lens, LensExt, Menu, MenuItem, RenderContext, Selector, Widget,
   WindowConfig,

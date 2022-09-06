@@ -8,12 +8,12 @@ use std::{
   sync::Arc,
 };
 
-use chrono::{Utc, DateTime, Local};
+use chrono::{DateTime, Local, Utc};
 use druid::{
   im::Vector,
   lens,
   widget::{Button, Checkbox, Controller, Flex, Label, SizedBox, ViewSwitcher},
-  Color, Data, KeyOrValue, Lens, LensExt, Selector, Widget, WidgetExt, ExtEventSink,
+  Color, Data, ExtEventSink, KeyOrValue, Lens, LensExt, Selector, Widget, WidgetExt,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
 use json_comments::strip_comments;
@@ -137,22 +137,13 @@ impl ModEntry {
     ) -> impl Widget<Arc<ModEntry>> {
       if widgets.len() > 2 {
         Split::columns(
-          widgets
-            .pop_front()
-            .unwrap()
-            .padding((0., 5., 0., 5.)),
+          widgets.pop_front().unwrap().padding((0., 5., 0., 5.)),
           recursive_split(idx + 1, widgets, ratios),
         )
       } else {
         Split::columns(
-          widgets
-            .pop_front()
-            .unwrap()
-            .padding((0., 5., 0., 5.)),
-          widgets
-            .pop_front()
-            .unwrap()
-            .padding((0., 5., 0., 5.)),
+          widgets.pop_front().unwrap().padding((0., 5., 0., 5.)),
+          widgets.pop_front().unwrap().padding((0., 5., 0., 5.)),
         )
       }
       .split_point(ratios[idx])
@@ -310,7 +301,9 @@ impl ModEntry {
         .split_point(headings::ENABLED_RATIO)
         .on_click(
           |ctx: &mut druid::EventCtx, data: &mut Arc<ModEntry>, _env: &druid::Env| {
-            ctx.submit_command(App::SELECTOR.with(AppCommands::UpdateModDescription(data.id.clone())))
+            ctx.submit_command(
+              App::SELECTOR.with(AppCommands::UpdateModDescription(data.id.clone())),
+            )
           },
         )
         .controller(ModEntryClickController)
@@ -533,11 +526,12 @@ pub struct ModMetadata {
 impl ModMetadata {
   const FILE_NAME: &'static str = ".moss";
 
-  pub const SUBMIT_MOD_METADATA: Selector<(String, ModMetadata)> = Selector::new("mod_metadata.submit");
+  pub const SUBMIT_MOD_METADATA: Selector<(String, ModMetadata)> =
+    Selector::new("mod_metadata.submit");
 
   pub fn new() -> Self {
     Self {
-      install_date: Some(Utc::now())
+      install_date: Some(Utc::now()),
     }
   }
 

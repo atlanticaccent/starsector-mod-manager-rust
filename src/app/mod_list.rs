@@ -6,10 +6,11 @@ use std::{
 };
 
 use druid::{
+  im::{HashMap, Vector},
   lens, theme,
   widget::{Either, Flex, Label, List, ListIter, Painter, Scroll},
   Color, Data, ExtEventSink, KeyOrValue, Lens, LensExt, Rect, RenderContext, Selector, Target,
-  Widget, WidgetExt, im::{Vector, HashMap},
+  Widget, WidgetExt,
 };
 use druid_widget_nursery::WidgetExt as WidgetExtNursery;
 use if_chain::if_chain;
@@ -22,7 +23,7 @@ use crate::app::util::StarsectorVersionDiff;
 
 use super::{
   installer::HybridPath,
-  mod_entry::{GameVersion, ModEntry, UpdateStatus, ModMetadata},
+  mod_entry::{GameVersion, ModEntry, ModMetadata, UpdateStatus},
   util::{self, SaveError},
 };
 
@@ -47,7 +48,8 @@ impl ModList {
   pub const AUTO_UPDATE: Selector<Arc<ModEntry>> = Selector::new("mod_list.install.auto_update");
   pub const SEARCH_UPDATE: Selector<()> = Selector::new("mod_list.filter.search.update");
   pub const FILTER_UPDATE: Selector<(Filters, bool)> = Selector::new("mod_list.filter.update");
-  pub const DUPLICATE: Selector<(Arc<ModEntry>, Arc<ModEntry>)> = Selector::new("mod_list.submit_entry.duplicate");
+  pub const DUPLICATE: Selector<(Arc<ModEntry>, Arc<ModEntry>)> =
+    Selector::new("mod_list.submit_entry.duplicate");
 
   pub fn new(headings: Vector<Heading>) -> Self {
     Self {
@@ -61,9 +63,7 @@ impl ModList {
 
   pub fn ui_builder() -> impl Widget<Self> {
     Flex::column()
-      .with_child(
-        headings::Header::ui_builder().lens(ModList::header)
-      )
+      .with_child(headings::Header::ui_builder().lens(ModList::header))
       .with_flex_child(
         Either::new(
           |data: &ModList, _| !data.mods.is_empty(),
@@ -73,7 +73,7 @@ impl ModList {
                 .expand_width()
                 .lens(lens::Map::new(
                   |val: &EntryAlias| (val.0.clone(), val.2.clone(), val.3.clone()),
-                  |_, _| {}
+                  |_, _| {},
                 ))
                 .background(Painter::new(
                   |ctx, (entry, i, ratios, headings, game_version): &EntryAlias, env| {
@@ -101,13 +101,14 @@ impl ModList {
                     if let Some(idx) = headings.index_of(&Heading::Version) {
                       if let Some(local) = &entry.version_checker {
                         let update_status = UpdateStatus::from((local, &entry.remote_version));
-  
+
                         let enabled_shift = (headings::ENABLED_RATIO) * rect.width();
                         let mut row_origin = rect.origin();
                         row_origin.x += enabled_shift + 3.;
                         let row_rect = rect.with_origin(row_origin).intersect(rect);
-  
-                        let cell_left = row_rect.origin().x + calc_pos(idx, ratios, row_rect.width());
+
+                        let cell_left =
+                          row_rect.origin().x + calc_pos(idx, ratios, row_rect.width());
                         let cell_right = if idx < ratios.len() {
                           row_rect.origin().x + calc_pos(idx + 1, ratios, row_rect.width())
                         } else {
@@ -117,7 +118,7 @@ impl ModList {
                           (cell_left, row_rect.origin().y),
                           (cell_right, row_rect.height()),
                         );
-  
+
                         let color = <KeyOrValue<Color>>::from(&update_status).resolve(env);
                         ctx.fill(cell_0_rect, &color)
                       }
@@ -130,7 +131,8 @@ impl ModList {
                         row_origin.x += enabled_shift + 3.;
                         let row_rect = rect.with_origin(row_origin).intersect(rect);
 
-                        let cell_left = row_rect.origin().x + calc_pos(idx, ratios, row_rect.width());
+                        let cell_left =
+                          row_rect.origin().x + calc_pos(idx, ratios, row_rect.width());
                         let cell_right = if idx < ratios.len() {
                           row_rect.origin().x + calc_pos(idx + 1, ratios, row_rect.width())
                         } else {
@@ -148,7 +150,7 @@ impl ModList {
                   },
                 ))
             })
-            .lens(lens::Identity)
+            // .lens(lens::Identity)
             .background(theme::BACKGROUND_LIGHT)
             .on_command(ModEntry::REPLACE, |ctx, payload, data: &mut ModList| {
               data.mods.insert(payload.id.clone(), payload.clone());
@@ -175,7 +177,11 @@ impl ModList {
         1.,
       )
       .on_command(ModList::SUBMIT_ENTRY, |ctx, payload, data| {
-        if let Some(existing) = data.mods.values().find(|existing| existing.id == payload.id) {
+        if let Some(existing) = data
+          .mods
+          .values()
+          .find(|existing| existing.id == payload.id)
+        {
           ctx.submit_command(ModList::DUPLICATE.with((existing.clone(), payload.clone())))
         } else {
           data.mods.insert(payload.id.clone(), payload.clone());
@@ -204,15 +210,18 @@ impl ModList {
           data.mods.insert(entry.id.clone(), entry);
         };
       })
-      .on_command(ModMetadata::SUBMIT_MOD_METADATA, |_ctx, (id, metadata), data| {
-        if let Some(mut entry) = data.mods.remove(id) {
-          ModEntry::manager_metadata
-            .in_arc()
-            .put(&mut entry, metadata.clone());
+      .on_command(
+        ModMetadata::SUBMIT_MOD_METADATA,
+        |_ctx, (id, metadata), data| {
+          if let Some(mut entry) = data.mods.remove(id) {
+            ModEntry::manager_metadata
+              .in_arc()
+              .put(&mut entry, metadata.clone());
 
-          data.mods.insert(id.clone(), entry);
-        }
-      })
+            data.mods.insert(id.clone(), entry);
+          }
+        },
+      )
   }
 
   pub async fn parse_mod_folder(event_sink: ExtEventSink, root_dir: Option<PathBuf>) {
@@ -264,7 +273,8 @@ impl ModList {
             }
           })
           .for_each(|entry| {
-            if let Err(err) = event_sink.submit_command(ModList::SUBMIT_ENTRY, entry.clone(), Target::Auto)
+            if let Err(err) =
+              event_sink.submit_command(ModList::SUBMIT_ENTRY, entry.clone(), Target::Auto)
             {
               eprintln!("Failed to submit found mod {}", err);
             };
@@ -272,36 +282,49 @@ impl ModList {
               handle.spawn(util::get_master_version(event_sink.clone(), version));
             }
             if ModMetadata::path(&entry.path).exists() {
-              handle.spawn(ModMetadata::parse_and_send(entry.id.clone(), entry.path.clone(), event_sink.clone()));
+              handle.spawn(ModMetadata::parse_and_send(
+                entry.id.clone(),
+                entry.path.clone(),
+                event_sink.clone(),
+              ));
             }
           });
       }
     }
 
-    if event_sink.submit_command(super::App::ENABLE, (), Target::Auto).is_err() {
-      event_sink.submit_command(super::App::ENABLE, (), Target::Auto).unwrap();
+    if event_sink
+      .submit_command(super::App::ENABLE, (), Target::Auto)
+      .is_err()
+    {
+      event_sink
+        .submit_command(super::App::ENABLE, (), Target::Auto)
+        .unwrap();
     };
   }
 
   fn sorted_vals(&self) -> Vec<Arc<ModEntry>> {
-    let mut values: Vec<Arc<ModEntry>> = self.mods.iter().filter_map(|(_, entry)| {
-      let search = if let Heading::Score = self.header.sort_by.0 {
-        if !self.search_text.is_empty() {
-          let id_score = best_match(&self.search_text, &entry.id).map(|m| m.score());
-          let name_score = best_match(&self.search_text, &entry.name).map(|m| m.score());
-          let author_score = best_match(&self.search_text, &entry.author).map(|m| m.score());
+    let mut values: Vec<Arc<ModEntry>> = self
+      .mods
+      .iter()
+      .filter_map(|(_, entry)| {
+        let search = if let Heading::Score = self.header.sort_by.0 {
+          if !self.search_text.is_empty() {
+            let id_score = best_match(&self.search_text, &entry.id).map(|m| m.score());
+            let name_score = best_match(&self.search_text, &entry.name).map(|m| m.score());
+            let author_score = best_match(&self.search_text, &entry.author).map(|m| m.score());
 
-          id_score.is_some() || name_score.is_some() || author_score.is_some()
+            id_score.is_some() || name_score.is_some() || author_score.is_some()
+          } else {
+            true
+          }
         } else {
           true
-        }
-      } else {
-        true
-      };
-      let filters = self.active_filters.par_iter().all(|f| f.as_fn()(entry));
+        };
+        let filters = self.active_filters.par_iter().all(|f| f.as_fn()(entry));
 
-      (search && filters).then(|| entry.clone())
-    }).collect();
+        (search && filters).then(|| entry.clone())
+      })
+      .collect();
 
     values.par_sort_unstable_by(|a, b| {
       let ord = match self.header.sort_by.0 {
@@ -339,7 +362,10 @@ impl ModList {
               .and_then(|r| r.direct_download_url.as_ref())
               .is_some(),
           ),
-          Heading::InstallDate => a.manager_metadata.install_date.cmp(&b.manager_metadata.install_date),
+        Heading::InstallDate => a
+          .manager_metadata
+          .install_date
+          .cmp(&b.manager_metadata.install_date),
       };
 
       if self.header.sort_by.1 {
@@ -352,7 +378,13 @@ impl ModList {
   }
 }
 
-type EntryAlias = (Arc<ModEntry>, usize, Rc<Vec<f64>>, Rc<Vector<Heading>>, Rc<Option<GameVersion>>);
+type EntryAlias = (
+  Arc<ModEntry>,
+  usize,
+  Rc<Vec<f64>>,
+  Rc<Vector<Heading>>,
+  Rc<Option<GameVersion>>,
+);
 
 impl ListIter<EntryAlias> for ModList {
   fn for_each(&self, mut cb: impl FnMut(&EntryAlias, usize)) {
@@ -361,7 +393,16 @@ impl ListIter<EntryAlias> for ModList {
     let game_version = Rc::new(self.starsector_version.clone());
 
     for (i, item) in self.sorted_vals().into_iter().enumerate() {
-      cb(&(item, i, ratios.clone(), headers.clone(), game_version.clone()), i);
+      cb(
+        &(
+          item,
+          i,
+          ratios.clone(),
+          headers.clone(),
+          game_version.clone(),
+        ),
+        i,
+      );
     }
   }
 
@@ -372,7 +413,13 @@ impl ListIter<EntryAlias> for ModList {
 
     for (i, item) in self.sorted_vals().iter_mut().enumerate() {
       cb(
-        &mut (item.clone(), i, ratios.clone(), headers.clone(), game_version.clone()),
+        &mut (
+          item.clone(),
+          i,
+          ratios.clone(),
+          headers.clone(),
+          game_version.clone(),
+        ),
         i,
       );
     }

@@ -1,9 +1,13 @@
 use std::sync::Arc;
 
-use druid::{widget::Controller, Event, EventCtx, Widget, Menu, MenuItem};
+use druid::{widget::Controller, Event, EventCtx, Menu, MenuItem, Widget};
 use tap::Pipe;
 
-use crate::app::{App, mod_entry::ModEntry, mod_description::{OPEN_IN_BROWSER, ModDescription}};
+use crate::app::{
+  mod_description::{ModDescription, OPEN_IN_BROWSER},
+  mod_entry::ModEntry,
+  App,
+};
 
 pub struct ModEntryClickController;
 
@@ -37,18 +41,34 @@ impl<W: Widget<Arc<ModEntry>>> Controller<Arc<ModEntry>, W> for ModEntryClickCon
                 }
               }))
               .pipe(|mut menu| {
-                if let Some(fractal_id) = data.version_checker.as_ref().map(|v| v.fractal_id.clone()) {
+                if let Some(fractal_id) =
+                  data.version_checker.as_ref().map(|v| v.fractal_id.clone())
+                {
                   if !fractal_id.is_empty() {
-                    menu = menu.entry(MenuItem::new("Open post on Fractalsoftworks Forum").on_activate(move |ctx, _, _| {
-                      ctx.submit_command(OPEN_IN_BROWSER.with(format!("{}{}", ModDescription::FRACTAL_URL, fractal_id)))
-                    }))
+                    menu = menu.entry(
+                      MenuItem::new("Open post on Fractalsoftworks Forum").on_activate(
+                        move |ctx, _, _| {
+                          ctx.submit_command(OPEN_IN_BROWSER.with(format!(
+                            "{}{}",
+                            ModDescription::FRACTAL_URL,
+                            fractal_id
+                          )))
+                        },
+                      ),
+                    )
                   }
                 }
                 if let Some(nexus_id) = data.version_checker.as_ref().map(|v| v.nexus_id.clone()) {
                   if !nexus_id.is_empty() {
-                    menu = menu.entry(MenuItem::new("Open post on Nexusmods").on_activate(move |ctx, _, _| {
-                      ctx.submit_command(OPEN_IN_BROWSER.with(format!("{}{}", ModDescription::NEXUS_URL, nexus_id)))
-                    }))
+                    menu = menu.entry(MenuItem::new("Open post on Nexusmods").on_activate(
+                      move |ctx, _, _| {
+                        ctx.submit_command(OPEN_IN_BROWSER.with(format!(
+                          "{}{}",
+                          ModDescription::NEXUS_URL,
+                          nexus_id
+                        )))
+                      },
+                    ))
                   }
                 }
 
@@ -56,9 +76,7 @@ impl<W: Widget<Arc<ModEntry>>> Controller<Arc<ModEntry>, W> for ModEntryClickCon
               })
               .entry(MenuItem::new("Delete").on_activate({
                 let entry = data.clone();
-                move |ctx, _, _| {
-                  ctx.submit_command(ModEntry::ASK_DELETE_MOD.with(entry.clone()))
-                }
+                move |ctx, _, _| ctx.submit_command(ModEntry::ASK_DELETE_MOD.with(entry.clone()))
               }));
 
             ctx.show_context_menu::<App>(menu, ctx.to_window(mouse_event.pos))

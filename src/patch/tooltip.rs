@@ -1,10 +1,8 @@
 use std::time::{Duration, Instant};
 
 use druid::{
-  commands::CLOSE_WINDOW,
-  widget::Controller,
-  Env, Event, EventCtx, LifeCycle, LifeCycleCtx, Point, Size, TimerToken, Widget, WindowConfig,
-  WindowId, WindowLevel, WindowSizePolicy,
+  commands::CLOSE_WINDOW, widget::Controller, Env, Event, EventCtx, LifeCycle, LifeCycleCtx, Point,
+  Size, TimerToken, Widget, WindowConfig, WindowId, WindowLevel, WindowSizePolicy,
 };
 
 enum TooltipState {
