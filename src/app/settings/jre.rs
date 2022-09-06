@@ -309,7 +309,7 @@ mod consts {
   pub const CORETTO: (&'static str, FindBy) = ("https://corretto.aws/downloads/resources/8.272.10.3/amazon-corretto-8.272.10.3-linux-x64.tar.gz", FindBy::Jre);
   pub const HOTSPOT: (&'static str, FindBy) = ("https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u272-b10/OpenJDK8U-jre_x64_linux_hotspot_8u272b10.tar.gz", FindBy::Bin);
   pub const WISP: (&'static str, FindBy) =
-    ("https://drive.google.com/uc?export=download&id=1PW9v_CL719buKHe69GaN9fCXcPIqDOIi&confirm=t", FindBy::Bin);
+    ("https://drive.google.com/uc?export=download&id=1TRHjle6-MOpn1zJhtSA9yvwXIQip_F_n&confirm=t", FindBy::Bin);
 
   pub const JRE_PATH: &'static str = "jre_linux";
 }
@@ -320,7 +320,7 @@ mod consts {
   pub const CORETTO: (&'static str, FindBy) = ("https://corretto.aws/downloads/resources/8.272.10.3/amazon-corretto-8.272.10.3-macosx-x64.tar.gz", FindBy::Jre);
   pub const HOTSPOT: (&'static str, FindBy) = ("https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u272-b10/OpenJDK8U-jre_x64_mac_hotspot_8u272b10.tar.gz", FindBy::Bin);
   pub const WISP: (&'static str, FindBy) =
-    ("https://drive.google.com/uc?export=download&id=1TRHjle6-MOpn1zJhtSA9yvwXIQip_F_n&confirm=t", FindBy::Bin);
+    ("https://drive.google.com/uc?export=download&id=1PW9v_CL719buKHe69GaN9fCXcPIqDOIi&confirm=t", FindBy::Bin);
 
   pub const JRE_PATH: &'static str = "Contents/Home";
 }
