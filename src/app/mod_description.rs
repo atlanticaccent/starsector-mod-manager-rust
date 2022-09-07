@@ -28,103 +28,106 @@ impl ModDescription {
       .with_flex_child(
         Flex::row()
           .with_flex_child(
-            Flex::column()
-              .with_child(make_flex_description_row(
-                Label::wrapped("Name:"),
-                Label::wrapped_lens(ModEntry::name.in_arc()),
-              ))
-              .with_child(make_flex_description_row(
-                Label::wrapped("ID:"),
-                Label::wrapped_lens(ModEntry::id.in_arc()),
-              ))
-              .with_child(make_flex_description_row(
-                Label::wrapped("Author(s):"),
-                Label::wrapped_lens(ModEntry::author.in_arc()),
-              ))
-              .with_child(make_flex_description_row(
-                Label::wrapped("Enabled:"),
-                Label::wrapped_lens(ModEntry::enabled.in_arc().map(|e| e.to_string(), |_, _| {})),
-              ))
-              .with_child(make_flex_description_row(
-                Label::wrapped("Version:"),
-                Label::wrapped_lens(ModEntry::version.in_arc().map(|v| v.to_string(), |_, _| {})),
-              ))
-              .with_child(
-                make_flex_description_row(
-                  Label::wrapped("Installed at:"),
-                  Label::wrapped_func(|data: &ModMetadata, _| {
-                    if let Some(date) = data.install_date {
-                      DateTime::<Local>::from(date)
-                        .format("%v %I:%M%p")
-                        .to_string()
-                    } else {
-                      String::from("Unknown")
-                    }
-                  }),
+            Scroll::new(
+              Flex::column()
+                .with_child(make_flex_description_row(
+                  Label::wrapped("Name:"),
+                  Label::wrapped_lens(ModEntry::name.in_arc()),
+                ))
+                .with_child(make_flex_description_row(
+                  Label::wrapped("ID:"),
+                  Label::wrapped_lens(ModEntry::id.in_arc()),
+                ))
+                .with_child(make_flex_description_row(
+                  Label::wrapped("Author(s):"),
+                  Label::wrapped_lens(ModEntry::author.in_arc()),
+                ))
+                .with_child(make_flex_description_row(
+                  Label::wrapped("Enabled:"),
+                  Label::wrapped_lens(ModEntry::enabled.in_arc().map(|e| e.to_string(), |_, _| {})),
+                ))
+                .with_child(make_flex_description_row(
+                  Label::wrapped("Version:"),
+                  Label::wrapped_lens(ModEntry::version.in_arc().map(|v| v.to_string(), |_, _| {})),
+                ))
+                .with_child(
+                  make_flex_description_row(
+                    Label::wrapped("Installed at:"),
+                    Label::wrapped_func(|data: &ModMetadata, _| {
+                      if let Some(date) = data.install_date {
+                        DateTime::<Local>::from(date)
+                          .format("%v %I:%M%p")
+                          .to_string()
+                      } else {
+                        String::from("Unknown")
+                      }
+                    }),
+                  )
+                  .lens(ModEntry::manager_metadata.in_arc()),
                 )
-                .lens(ModEntry::manager_metadata.in_arc()),
-              )
-              .with_child(
-                Maybe::or_empty(|| {
+                .with_child(
                   Maybe::or_empty(|| {
-                    make_flex_description_row(
-                      Label::wrapped("Fractal link:"),
-                      Button::from_label(Label::wrapped_func(|data: &String, _: &druid::Env| {
-                        format!("{}{}", ModDescription::FRACTAL_URL, data.clone())
-                      }))
-                      .on_click(|ctx, data, _| {
-                        ctx.submit_command(OPEN_IN_BROWSER.with(format!(
-                          "{}{}",
-                          ModDescription::FRACTAL_URL,
-                          data
-                        )))
-                      }),
-                    )
+                    Maybe::or_empty(|| {
+                      make_flex_description_row(
+                        Label::wrapped("Fractal link:"),
+                        Button::from_label(Label::wrapped_func(|data: &String, _: &druid::Env| {
+                          format!("{}{}", ModDescription::FRACTAL_URL, data.clone())
+                        }))
+                        .on_click(|ctx, data, _| {
+                          ctx.submit_command(OPEN_IN_BROWSER.with(format!(
+                            "{}{}",
+                            ModDescription::FRACTAL_URL,
+                            data
+                          )))
+                        }),
+                      )
+                    })
+                    .lens(ModVersionMeta::fractal_id.map(
+                      |id| {
+                        if !id.is_empty() {
+                          Some(id.clone())
+                        } else {
+                          None
+                        }
+                      },
+                      |_, _| {},
+                    ))
                   })
-                  .lens(ModVersionMeta::fractal_id.map(
-                    |id| {
-                      if !id.is_empty() {
-                        Some(id.clone())
-                      } else {
-                        None
-                      }
-                    },
-                    |_, _| {},
-                  ))
-                })
-                .lens(ModEntry::version_checker.in_arc()),
-              )
-              .with_child(
-                Maybe::or_empty(|| {
+                  .lens(ModEntry::version_checker.in_arc()),
+                )
+                .with_child(
                   Maybe::or_empty(|| {
-                    make_flex_description_row(
-                      Label::wrapped("Nexus link:"),
-                      Button::from_label(Label::wrapped_func(|data: &String, _: &druid::Env| {
-                        format!("{}{}", ModDescription::NEXUS_URL, data.clone())
-                      }))
-                      .on_click(|ctx, data, _| {
-                        ctx.submit_command(OPEN_IN_BROWSER.with(format!(
-                          "{}{}",
-                          ModDescription::NEXUS_URL,
-                          data
-                        )))
-                      }),
-                    )
+                    Maybe::or_empty(|| {
+                      make_flex_description_row(
+                        Label::wrapped("Nexus link:"),
+                        Button::from_label(Label::wrapped_func(|data: &String, _: &druid::Env| {
+                          format!("{}{}", ModDescription::NEXUS_URL, data.clone())
+                        }))
+                        .on_click(|ctx, data, _| {
+                          ctx.submit_command(OPEN_IN_BROWSER.with(format!(
+                            "{}{}",
+                            ModDescription::NEXUS_URL,
+                            data
+                          )))
+                        }),
+                      )
+                    })
+                    .lens(ModVersionMeta::nexus_id.map(
+                      |id| {
+                        if !id.is_empty() {
+                          Some(id.clone())
+                        } else {
+                          None
+                        }
+                      },
+                      |_, _| {},
+                    ))
                   })
-                  .lens(ModVersionMeta::nexus_id.map(
-                    |id| {
-                      if !id.is_empty() {
-                        Some(id.clone())
-                      } else {
-                        None
-                      }
-                    },
-                    |_, _| {},
-                  ))
-                })
-                .lens(ModEntry::version_checker.in_arc()),
-              )
-              .expand(),
+                  .lens(ModEntry::version_checker.in_arc()),
+                ),
+            )
+            .vertical()
+            .expand(),
             1.,
           )
           .with_flex_child(
@@ -143,11 +146,9 @@ impl ModDescription {
                 .vertical()
                 .expand(),
                 1.,
-              )
-              .expand(),
+              ),
             1.,
-          )
-          .expand_height(),
+          ),
         1.,
       )
       .with_child(
