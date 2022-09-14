@@ -1023,7 +1023,8 @@ impl Delegate<App> for AppDelegate {
       key: Key::Escape, ..
     }) = event
     {
-      ctx.submit_command(App::DUMB_UNIVERSAL_ESCAPE)
+      ctx.submit_command(App::DUMB_UNIVERSAL_ESCAPE);
+      return None;
     }
 
     Some(event)
