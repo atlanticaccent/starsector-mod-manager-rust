@@ -14,6 +14,7 @@
 extern crate webview_subsystem;
 
 use clap::Parser;
+use const_format::concatcp;
 use druid::{theme, AppLauncher, Color, WindowDesc};
 use tokio::runtime::Builder;
 use webview_shared::PROJECT;
@@ -40,7 +41,7 @@ fn main() {
 
   if !args.webview {
     let main_window = WindowDesc::new(app::App::ui_builder())
-      .title("MOSS | Mod Organizer for StarSector")
+      .title(concatcp!("MOSS | Mod Organizer for StarSector v", env!("CARGO_PKG_VERSION")))
       .window_size((1280., 1024.));
 
     let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
