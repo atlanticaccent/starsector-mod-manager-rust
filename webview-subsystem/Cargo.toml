@@ -9,7 +9,7 @@ edition = "2021"
 crate-type = ["rlib"]
 
 [dependencies]
-wry = { git = "https://github.com/atlanticaccent/wry.git", branch = "implement-download-event" }
+wry = { git = "https://github.com/atlanticaccent/wry.git", rev = "94287fbf1dfc5836c3ac9f1c20d2ecadd1f966ae" }
 tokio = { version = "1.6.0", features = ["fs", "io-util", "rt-multi-thread", "process", "macros"] }
 serde = { version = "1.0.126", features = ["derive"] }
 interprocess = { git = "https://github.com/kotauskas/interprocess", rev = "5a16b3a" }
