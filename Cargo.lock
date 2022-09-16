@@ -819,6 +819,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "dunce"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "453440c271cf5577fd2a40e4942540cb7d0d2f85e27c8d07dd0023c925a67541"
+
+[[package]]
 name = "dwrote"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4455,13 +4461,14 @@ dependencies = [
 [[package]]
 name = "wry"
 version = "0.21.0"
-source = "git+https://github.com/atlanticaccent/wry.git?rev=94287fbf1dfc5836c3ac9f1c20d2ecadd1f966ae#94287fbf1dfc5836c3ac9f1c20d2ecadd1f966ae"
+source = "git+https://github.com/atlanticaccent/wry.git?rev=b600926d269763037f5741310d2afe315f8be0c2#b600926d269763037f5741310d2afe315f8be0c2"
 dependencies = [
  "base64",
  "block",
  "cocoa",
  "core-graphics",
  "crossbeam-channel",
+ "dunce",
  "gdk",
  "gio",
  "glib",
