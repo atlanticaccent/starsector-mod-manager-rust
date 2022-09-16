@@ -41,7 +41,10 @@ fn main() {
 
   if !args.webview {
     let main_window = WindowDesc::new(app::App::ui_builder())
-      .title(concatcp!("MOSS | Mod Organizer for StarSector v", env!("CARGO_PKG_VERSION")))
+      .title(concatcp!(
+        "MOSS | Mod Organizer for StarSector v",
+        env!("CARGO_PKG_VERSION")
+      ))
       .window_size((1280., 1024.));
 
     let runtime = Builder::new_multi_thread().enable_all().build().unwrap();

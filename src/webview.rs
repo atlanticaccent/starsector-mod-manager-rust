@@ -1,11 +1,15 @@
-use std::process::{Child, Command};
+use std::{
+  path::Path,
+  process::{Child, Command},
+};
 
 use druid::{ExtEventSink, Selector, Target};
 use interprocess::local_socket::LocalSocketListener;
 use tap::Pipe;
 use tokio::runtime::Handle;
 use webview_shared::{
-  connect_child, connect_parent, handle_error, InstallType, WebviewMessage, PARENT_CHILD_SOCKET,
+  connect_child, connect_parent, handle_error, InstallType, WebviewMessage, CHILD_PARENT_PATH,
+  PARENT_CHILD_PATH, PARENT_CHILD_SOCKET,
 };
 
 pub const WEBVIEW_SHUTDOWN: Selector = Selector::new("webview.shutdown");
