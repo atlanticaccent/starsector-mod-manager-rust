@@ -91,62 +91,14 @@ pub fn init_webview(url: Option<String>) -> wry::Result<()> {
   let mut webcontext = WebContext::default();
   webcontext.set_allows_automation(true);
 
-  let init_script = r"
-  // Adds an URL.getFromObjectURL( <blob:// URI> ) method
-  // returns the original object (<Blob> or <MediaSource>) the URI points to or null
-  (() => {
-    // overrides URL methods to be able to retrieve the original blobs later on
-    const old_create = URL.createObjectURL;
-    const old_revoke = URL.revokeObjectURL;
-    Object.defineProperty(URL, 'createObjectURL', {
-      get: () => storeAndCreate
-    });
-    Object.defineProperty(URL, 'revokeObjectURL', {
-      get: () => forgetAndRevoke
-    });
-    Object.defineProperty(URL, 'getFromObjectURL', {
-      get: () => getBlob
-    });
-    Object.defineProperty(URL, 'getObjectURLDict', {
-      get: () => getDict
-    });
-    Object.defineProperty(URL, 'clearURLDict', {
-      get: () => clearDict
-    });
-    const dict = {};
-    
-    function storeAndCreate(blob) {
-      const url = old_create(blob); // let it throw if it has to
-      dict[url] = blob;
-      console.log(blob)
-      return url
-    }
-    
-    function forgetAndRevoke(url) {
-      console.log(`revoke ${url}`)
-      old_revoke(url);
-    }
-    
-    function getBlob(url) {
-      return dict[url] || null;
-    }
-    
-    function getDict() {
-      return dict;
-    }
-    
-    function clearDict() {
-      dict = {};
-    }
-  })();
-  ";
+  let init_script = include_str!("init.js");
 
   let webview = WebViewBuilder::new(window)?
     .with_url(url.as_deref().unwrap_or(FRACTAL_INDEX))?
     .with_initialization_script(init_script)
     .with_ipc_handler({
       let proxy = proxy.clone();
-      move |_, string| match string.as_str() {
+      move |_, string| match dbg!(string.as_str()) {
         _ if string.starts_with("data:") => {
           let _ = proxy.send_event(UserEvent::BlobChunk(Some(string)));
         }
@@ -207,28 +159,26 @@ pub fn init_webview(url: Option<String>) -> wry::Result<()> {
         false
       }
     })
-    .with_download_handler(
-      {
-        let proxy = proxy;
-        move |uri: String, _download_to: &mut String| {
-          if uri.starts_with("blob:https://mega.nz") {
-            let _ = proxy.send_event(UserEvent::BlobReceived(uri));
-            return false;
-          }
-
-          proxy
-            .send_event(UserEvent::AskDownload(uri))
-            .expect("Send event");
-
-          false
+    .with_download_handler({
+      let proxy = proxy;
+      move |uri, _| {
+        if uri.starts_with("blob:https://mega.nz") {
+          let _ = proxy.send_event(UserEvent::BlobReceived(uri));
+          return false;
         }
-      },
-      move || Box::new(move |_path, _success| {}),
-    )
+
+        proxy
+          .send_event(UserEvent::AskDownload(uri))
+          .expect("Send event");
+
+        false
+      }
+    })
+    .with_devtools(true)
     .build()?;
 
   #[cfg(debug_assertions)]
-  webview.devtool();
+  webview.open_devtools();
 
   let mut mega_file = None;
   let connect = || connect_parent().expect("Connect");
@@ -270,14 +220,21 @@ pub fn init_webview(url: Option<String>) -> wry::Result<()> {
             }
           },
           UserEvent::AskDownload(uri) => {
+            #[cfg(not(target_os = "macos"))]
             let _ = webview.evaluate_script(&format!(r"
             let res = window.confirm('Detected an attempted download.\nDo you want to try and install a mod using this download?')
             window.ipc.postMessage(`confirm_download:${{res}},uri:{}`)
             ", encode(uri)));
+            #[cfg(target_os = "macos")]
+            let _ = webview.evaluate_script(&format!(r"
+            let dialog = new Dialog();
+            let res = dialog.confirm('Detected an attempted download.\nDo you want to try and install a mod using this download?', {{}})
+              .then(res => window.ipc.postMessage(`confirm_download:${{res}},uri:{}`))
+            ", encode(uri)));
           },
           UserEvent::Download(uri) => {
             let _ = webview.evaluate_script("location.reload();");
-            bincode::serialize_into(connect(), &WebviewMessage::Download(uri)).expect("");
+            bincode::serialize_into(connect(), &WebviewMessage::Download(uri)).expect("Send message to manager");
           },
           UserEvent::CancelDownload => {},
           UserEvent::NewWindow(uri) => {
@@ -340,9 +297,7 @@ pub fn init_webview(url: Option<String>) -> wry::Result<()> {
             webview.window().set_minimized(true)
           }
         }
-        _ => {
-          let _ = webview.resize();
-        }
+        _ => ()
       }
     });
 }

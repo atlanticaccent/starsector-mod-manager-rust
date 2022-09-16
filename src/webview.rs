@@ -15,6 +15,13 @@ pub const ENABLE: Selector<()> = Selector::new("app.enable");
 pub fn fork_into_webview(handle: &Handle, ext_sink: ExtEventSink, url: Option<String>) -> Child {
   let exe = std::env::current_exe().expect("Get current executable path");
 
+  if Path::new(PARENT_CHILD_PATH).exists() {
+    std::fs::remove_file(PARENT_CHILD_PATH).expect("Remove existing socket pipe")
+  };
+  if Path::new(CHILD_PARENT_PATH).exists() {
+    std::fs::remove_file(CHILD_PARENT_PATH).expect("Remove existing socket pipe")
+  };
+
   let listener = LocalSocketListener::bind(PARENT_CHILD_SOCKET).expect("Open socket");
 
   handle.spawn_blocking(move || {
