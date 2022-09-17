@@ -10,6 +10,7 @@
 #![feature(hash_set_entry)]
 #![feature(string_remove_matches)]
 #![feature(once_cell)]
+#![feature(io_error_more)]
 
 extern crate webview_subsystem;
 
