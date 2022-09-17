@@ -653,6 +653,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "deunicode"
+version = "1.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08ff6a4480d42625e59bc4e8b5dc3723279fd24d83afe8aa20df217276261cd6"
+
+[[package]]
 name = "digest"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3294,6 +3300,7 @@ dependencies = [
  "classfile-parser",
  "compress-tools",
  "const_format",
+ "deunicode",
  "directories",
  "druid",
  "druid-widget-nursery",
