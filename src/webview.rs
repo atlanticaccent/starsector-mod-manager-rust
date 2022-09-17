@@ -1,11 +1,15 @@
-use std::process::{Child, Command};
+use std::{
+  path::Path,
+  process::{Child, Command},
+};
 
 use druid::{ExtEventSink, Selector, Target};
 use interprocess::local_socket::LocalSocketListener;
 use tap::Pipe;
 use tokio::runtime::Handle;
 use webview_shared::{
-  connect_child, connect_parent, handle_error, InstallType, WebviewMessage, PARENT_CHILD_SOCKET,
+  connect_child, connect_parent, handle_error, InstallType, WebviewMessage, CHILD_PARENT_PATH,
+  PARENT_CHILD_PATH, PARENT_CHILD_SOCKET,
 };
 
 pub const WEBVIEW_SHUTDOWN: Selector = Selector::new("webview.shutdown");
@@ -14,6 +18,13 @@ pub const ENABLE: Selector<()> = Selector::new("app.enable");
 
 pub fn fork_into_webview(handle: &Handle, ext_sink: ExtEventSink, url: Option<String>) -> Child {
   let exe = std::env::current_exe().expect("Get current executable path");
+
+  if Path::new(PARENT_CHILD_PATH).exists() {
+    std::fs::remove_file(PARENT_CHILD_PATH).expect("Remove existing socket pipe")
+  };
+  if Path::new(CHILD_PARENT_PATH).exists() {
+    std::fs::remove_file(CHILD_PARENT_PATH).expect("Remove existing socket pipe")
+  };
 
   let listener = LocalSocketListener::bind(PARENT_CHILD_SOCKET).expect("Open socket");
 

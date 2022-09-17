@@ -1081,7 +1081,9 @@ impl AppDelegate {
           let (conflict, to_install, entry) = val.as_ref();
           modal = modal
             .with_content(match conflict {
-              StringOrPath::String(id) => format!("A mod with ID {} alread exists.", id),
+              StringOrPath::String(id) => {
+                format!("A mod with ID {} alread exists.", id)
+              }
               StringOrPath::Path(path) => format!(
                 "Found a folder at the path {} when trying to install {}.",
                 path.to_string_lossy(),
