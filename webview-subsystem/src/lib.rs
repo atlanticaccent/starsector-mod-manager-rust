@@ -244,29 +244,32 @@ pub fn init_webview(url: Option<String>) -> wry::Result<()> {
             let path = PROJECT.cache_dir().join(format!("{}", random::<u16>()));
             mega_file = Some((File::create(&path).expect("Create file"), path));
             webview.evaluate_script(&format!(r#"
-            /**
-            * @type Blob
-            */
-            let blob = URL.getObjectURLDict()['{}']
-            
-            var increment = 1024;
-            var index = 0;
-            var reader = new FileReader();
-            let func = function() {{
-              let res = reader.result;
-              window.ipc.postMessage(`${{res}}`);
-              index += increment;
-              if (index < blob.size) {{
-                let slice = blob.slice(index, index + increment);
-                reader = new FileReader();
-                reader.onloadend = func;
-                reader.readAsDataURL(slice);
-              }} else {{
-                window.ipc.postMessage('#EOF');
-              }}
-            }};
-            reader.onloadend = func;
-            reader.readAsDataURL(blob.slice(index, increment))
+            (() => {{
+              /**
+              * @type Blob
+              */
+              let blob = URL.getObjectURLDict()['{}']
+                || Object.values(URL.getObjectURLDict())[0]
+
+              var increment = 1024;
+              var index = 0;
+              var reader = new FileReader();
+              let func = function() {{
+                let res = reader.result;
+                window.ipc.postMessage(`${{res}}`);
+                index += increment;
+                if (index < blob.size) {{
+                  let slice = blob.slice(index, index + increment);
+                  reader = new FileReader();
+                  reader.onloadend = func;
+                  reader.readAsDataURL(slice);
+                }} else {{
+                  window.ipc.postMessage('#EOF');
+                }}
+              }};
+              reader.onloadend = func;
+              reader.readAsDataURL(blob.slice(index, increment))
+            }})();
             "#, uri)).expect("Eval script");
           },
           UserEvent::BlobChunk(chunk) => {
