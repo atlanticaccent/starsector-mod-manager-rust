@@ -16,6 +16,7 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use sublime_fuzzy::best_match;
 use tap::{Pipe, Tap};
+use deunicode::deunicode;
 
 use super::{
   controllers::HoverController,
@@ -25,7 +26,7 @@ use super::{
   App,
 };
 
-#[derive(Deserialize, Data, Clone, Lens)]
+#[derive(Deserialize, Data, Clone, Lens, Debug)]
 pub struct ModRepo {
   #[data(same_fn = "PartialEq::eq")]
   items: Vector<ModRepoItem>,
@@ -258,6 +259,12 @@ impl ModRepo {
       .json::<ModRepo>()
       .await?;
 
+    repo.items.iter_mut().for_each(|item| {
+      item.summary = item.summary.as_ref().map(|summary| deunicode(summary));
+      item.description = item.description.as_ref().map(|description| deunicode(description));
+      item.name = deunicode(&item.name);
+    });
+
     repo.items.sort_by(|a, b| Metadata::Name.comparator(a, b));
 
     Ok(repo)
@@ -272,7 +279,7 @@ impl ModRepo {
   }
 }
 
-#[derive(Deserialize, Data, Clone, PartialEq, Lens)]
+#[derive(Deserialize, Data, Clone, PartialEq, Lens, Debug)]
 pub struct ModRepoItem {
   name: String,
   summary: Option<String>,
@@ -574,7 +581,7 @@ impl ModRepoItem {
   }
 }
 
-#[derive(Deserialize, Clone, Copy, PartialEq, Eq, Hash, Data, strum_macros::EnumString)]
+#[derive(Deserialize, Clone, Copy, PartialEq, Eq, Hash, Data, strum_macros::EnumString, Debug)]
 pub enum ModSource {
   Forum,
   ModdingSubforum,
@@ -597,7 +604,7 @@ impl Display for ModSource {
   }
 }
 
-#[derive(Deserialize, Clone, Copy, PartialEq, Eq, Hash, Data)]
+#[derive(Deserialize, Clone, Copy, PartialEq, Eq, Hash, Data, Debug)]
 pub enum UrlSource {
   Forum,
   Discord,
@@ -636,7 +643,7 @@ impl Display for Filter {
   }
 }
 
-#[derive(Clone, Copy, Data, PartialEq, EnumIter)]
+#[derive(Clone, Copy, Data, PartialEq, EnumIter, Debug)]
 enum Metadata {
   Name,
   Created,
