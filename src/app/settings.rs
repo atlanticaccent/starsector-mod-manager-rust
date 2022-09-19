@@ -381,6 +381,7 @@ impl Settings {
                       .with_flex_child(
                         TextBox::new()
                           .with_formatter(ParseFormatter::new())
+                          .update_data_while_editing(true)
                           .lens(VMParams::heap_init.then(Value::amount))
                           .expand_width(),
                         3.,
@@ -403,6 +404,7 @@ impl Settings {
                       .with_flex_child(
                         TextBox::new()
                           .with_formatter(ParseFormatter::new())
+                          .update_data_while_editing(true)
                           .lens(VMParams::heap_max.then(Value::amount))
                           .expand_width(),
                         3.,
@@ -621,6 +623,7 @@ impl Settings {
                           .with_flex_child(
                             TextBox::new()
                               .with_formatter(ParseFormatter::new())
+                              .update_data_while_editing(true)
                               .lens(res_lens.clone().then(lens!((u32, u32), 0)))
                               .expand_width(),
                             3.5,
@@ -638,6 +641,7 @@ impl Settings {
                           .with_flex_child(
                             TextBox::new()
                               .with_formatter(ParseFormatter::new())
+                              .update_data_while_editing(true)
                               .lens(res_lens.then(lens!((u32, u32), 1)))
                               .expand_width(),
                             3.5,
