@@ -74,6 +74,7 @@ pub struct Settings {
   #[serde(skip)]
   jre_swap_in_progress: bool,
   jre_managed_mode: bool,
+  pub show_auto_update_for_discrepancy: bool,
 }
 
 fn default_headers() -> Vector<Heading> {
@@ -100,21 +101,21 @@ impl Settings {
           .with_child(
             make_flex_settings_row(
               Checkbox::new("").lens(Settings::git_warn),
-              Label::wrapped("Warn when overwriting '.git' folders:"),
+              Label::wrapped("Warn when overwriting '.git' folders"),
             )
             .padding(TRAILING_PADDING),
           )
           .with_child(
             make_flex_settings_row(
               Checkbox::new("").lens(Settings::hide_webview_on_conflict),
-              Label::wrapped("Minimize browser when installation encounters conflict:"),
+              Label::wrapped("Minimize browser when installation encounters conflict"),
             )
             .padding(TRAILING_PADDING),
           )
           .with_child(
             make_flex_settings_row(
               Checkbox::new("").lens(Settings::open_forum_link_in_webview),
-              Label::wrapped("Use bundled browser when opening forum links:").controller(
+              Label::wrapped("Use bundled browser when opening forum links").controller(
                 TooltipController::new(|| {
                   Label::new("This allows installing mods directly from links in forum posts")
                     .padding(5.)
@@ -124,6 +125,16 @@ impl Settings {
               ),
             )
             .padding(TRAILING_PADDING),
+          )
+          .with_child(
+            make_flex_settings_row(
+              Checkbox::new("").lens(Settings::show_auto_update_for_discrepancy),
+              Flex::column()
+                .with_child(Label::wrapped("Show automatic updates even for mods that have a version discrepancy"))
+                .with_child(Label::wrapped("(Recommended Off)"))
+                .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+            )
+            .padding(TRAILING_PADDING)
           )
           .with_child(
             make_flex_settings_row(
