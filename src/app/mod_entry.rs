@@ -12,7 +12,7 @@ use chrono::{DateTime, Local, Utc};
 use druid::{
   im::Vector,
   lens,
-  widget::{Button, Checkbox, Controller, Flex, Label, SizedBox, ViewSwitcher},
+  widget::{Button, Checkbox, Controller, Either, Flex, Label, ViewSwitcher},
   Color, Data, ExtEventSink, KeyOrValue, Lens, LensExt, Selector, Widget, WidgetExt,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
@@ -133,7 +133,7 @@ impl ModEntry {
   pub fn ui_builder() -> impl Widget<(Arc<Self>, Rc<Vec<f64>>, Rc<Vector<Heading>>)> {
     fn recursive_split(
       idx: usize,
-      mut widgets: VecDeque<SizedBox<Arc<ModEntry>>>,
+      mut widgets: VecDeque<Box<dyn Widget<Arc<ModEntry>>>>,
       ratios: &[f64],
     ) -> impl Widget<Arc<ModEntry>> {
       if widgets.len() > 2 {
@@ -155,7 +155,7 @@ impl ModEntry {
     ViewSwitcher::new(
       |data: &(Arc<Self>, Rc<Vec<f64>>, Rc<Vector<Heading>>), _| data.1.clone(),
       |_, (_, ratios, headings), _| {
-        let mut children: VecDeque<SizedBox<Arc<ModEntry>>> = VecDeque::new();
+        let mut children = VecDeque::new();
 
         let iter = headings.iter();
         for heading in iter {
@@ -173,14 +173,15 @@ impl ModEntry {
                   .padding(5.)
                   .expand_width(),
                 _ => unreachable!(),
-              }
+              }.boxed()
             }
             Heading::GameVersion => Label::wrapped_func(|version: &GameVersion, _| {
               util::get_quoted_version(version).unwrap_or_else(|| "".to_string())
             })
             .lens(ModEntry::game_version.in_arc())
             .padding(5.)
-            .expand_width(),
+            .expand_width()
+            .boxed(),
             Heading::Version => ViewSwitcher::new(
               |entry: &Arc<ModEntry>, _| entry.clone(),
               |data, _, env| {
@@ -243,37 +244,29 @@ impl ModEntry {
               },
             )
             .padding(5.)
-            .expand_width(),
-            Heading::AutoUpdateSupport => ViewSwitcher::new(
-              |entry: &Arc<ModEntry>, _| {
-                if entry.version_checker.is_some()
-                  && entry
-                    .remote_version
-                    .as_ref()
-                    .and_then(|r| r.direct_download_url.as_ref())
-                    .is_some()
-                {
-                  if let Some(status) = &entry.update_status {
-                    return status.clone();
-                  }
-                }
-
-                UpdateStatus::Error
-              },
-              |status, _, _| match status {
-                UpdateStatus::Error => Box::new(Label::wrapped("Unsupported")),
-                UpdateStatus::UpToDate => Box::new(Label::wrapped("No update available")),
-                _ => Box::new(
+            .expand_width()
+            .boxed(),
+            Heading::AutoUpdateSupport => Either::new(
+              |entry: &Arc<ModEntry>, _| entry.remote_version
+                .as_ref()
+                .and_then(|r| r.direct_download_url.as_ref())
+                .is_some(),
+              Either::new(
+                |entry: &Arc<ModEntry>, _| entry.update_status.is_some_and(|status| status != &UpdateStatus::Error),
+                Either::new(
+                  |entry: &Arc<ModEntry>, _| entry.update_status.is_some_and(|status| !matches!(status, &UpdateStatus::UpToDate | &UpdateStatus::Discrepancy(_))),
                   Button::from_label(Label::wrapped("Update available!")).on_click(
                     |ctx: &mut druid::EventCtx, data: &mut Arc<ModEntry>, _| {
                       ctx.submit_notification(ModEntry::AUTO_UPDATE.with(data.clone()))
                     },
                   ),
-                ),
-              },
+                  Label::wrapped("No update available")),
+                Label::wrapped("Unsupported")),
+              Label::wrapped("Unsupported"),
             )
             .padding(5.)
-            .expand_width(),
+            .expand_width()
+            .boxed(),
             Heading::InstallDate => Label::wrapped_func(|data: &ModMetadata, _| if let Some(date) = data.install_date {
                 DateTime::<Local>::from(date).format("%v %I:%M%p").to_string()
               } else {
@@ -281,7 +274,8 @@ impl ModEntry {
               })
               .lens(ModEntry::manager_metadata.in_arc())
               .padding(5.)
-              .expand_width(),
+              .expand_width()
+              .boxed(),
             Heading::Enabled | Heading::Score => continue,
           };
 

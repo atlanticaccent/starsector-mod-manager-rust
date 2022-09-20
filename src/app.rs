@@ -880,7 +880,8 @@ impl Delegate<App> for AppDelegate {
               }
               if let Err(err) = download.persist(&persist_path) {
                 if err.error.kind() == std::io::ErrorKind::CrossesDevices {
-                  std::fs::copy(err.file.path(), &persist_path).expect("Copy download across devices");
+                  std::fs::copy(err.file.path(), &persist_path)
+                    .expect("Copy download across devices");
                 } else {
                   panic!("{}", err)
                 }
