@@ -11,6 +11,7 @@
 #![feature(string_remove_matches)]
 #![feature(once_cell)]
 #![feature(io_error_more)]
+#![feature(try_blocks)]
 
 extern crate webview_subsystem;
 

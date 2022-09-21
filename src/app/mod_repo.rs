@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use chrono::{DateTime, Local, Utc};
+use deunicode::deunicode;
 use druid::{
   lens, theme,
   widget::{Either, Flex, Label, Maybe, Painter, SizedBox, TextBox, ViewSwitcher},
@@ -16,7 +17,6 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use sublime_fuzzy::best_match;
 use tap::{Pipe, Tap};
-use deunicode::deunicode;
 
 use super::{
   controllers::HoverController,
@@ -261,7 +261,10 @@ impl ModRepo {
 
     repo.items.iter_mut().for_each(|item| {
       item.summary = item.summary.as_ref().map(|summary| deunicode(summary));
-      item.description = item.description.as_ref().map(|description| deunicode(description));
+      item.description = item
+        .description
+        .as_ref()
+        .map(|description| deunicode(description));
       item.name = deunicode(&item.name);
     });
 

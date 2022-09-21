@@ -1,7 +1,8 @@
 use std::{
-  collections::HashMap,
-  fs::{copy, create_dir_all, read_dir},
+  collections::{HashMap, VecDeque},
+  fs::{copy, create_dir_all},
   io::{self, Write},
+  iter::FusedIterator,
   path::{Path, PathBuf},
   sync::{Arc, LazyLock, Mutex, Weak},
 };
@@ -99,10 +100,13 @@ async fn handle_path(
 
   let dir = mod_folder.get_path_copy();
   if_chain! {
-    if let Ok(Some(mod_path)) = task::spawn_blocking(move || find_nested_mod(&dir)).await.expect("Find mod in given folder");
+    if let Ok(mod_paths) = task::spawn_blocking(move || ModSearch::new(&dir).exhaustive()).await.expect("Find mod in given folder");
+    // todo!();
+    if mod_paths.len() == 1;
+    let mod_path = &mod_paths[0];
     let mod_metadata = ModMetadata::new();
-    if mod_metadata.save(&mod_path).await.is_ok();
-    if let Ok(mut mod_info) = ModEntry::from_file(&mod_path, mod_metadata);
+    if mod_metadata.save(mod_path).await.is_ok();
+    if let Ok(mut mod_info) = ModEntry::from_file(mod_path, mod_metadata);
     then {
       let rewrite = || {
         match mod_folder {
@@ -111,12 +115,16 @@ async fn handle_path(
         }
       };
       if let Some(id) = installed.iter().find(|existing| **existing == mod_info.id) {
+        // note: this is probably the way wrong way of doing this
+        // instead, just submit the new entry if it doesn't conflict with an existing path, _then_ detect the conflict
+        // that way there's less chance an existing ID gets missed due to the ID list effectively getting cached when
+        // this function starts
         ext_ctx.submit_command(INSTALL, ChannelMessage::Duplicate(id.clone().into(), rewrite(), Arc::new(mod_info)), Target::Auto).expect("Send query over async channel");
       } else if mods_dir.join(mod_info.id.clone()).exists() {
         let mod_folder = rewrite();
         ext_ctx.submit_command(INSTALL, ChannelMessage::Duplicate(mods_dir.join(mod_info.id.clone()).into(), mod_folder, Arc::new(mod_info)), Target::Auto).expect("Send query over async channel");
       } else {
-        move_or_copy(mod_path, mods_dir.join(&mod_info.id)).await;
+        move_or_copy(mod_path.clone(), mods_dir.join(&mod_info.id)).await;
 
         mod_info.set_path(mods_dir.join(&mod_info.id));
         ext_ctx.submit_command(INSTALL, ChannelMessage::Success(Arc::new(mod_info)), Target::Auto).expect("Send success over async channel");
@@ -171,21 +179,68 @@ pub fn decompress(path: PathBuf) -> Result<TempDir, InstallError> {
   Ok(temp_dir)
 }
 
-fn find_nested_mod(dest: &PathBuf) -> std::io::Result<Option<PathBuf>> {
-  for entry in read_dir(dest)? {
-    let entry = entry?;
-    if entry.file_type()?.is_dir() {
-      let res = find_nested_mod(&entry.path())?;
-      if res.is_some() {
-        return Ok(res);
+// fn find_nested_mod(dest: &PathBuf) -> std::io::Result<Option<PathBuf>> {
+//   for entry in read_dir(dest)? {
+//     let entry = entry?;
+//     if entry.file_type()?.is_dir() {
+//       return find_nested_mod(&entry.path());
+//     } else if entry.file_type()?.is_file() && entry.file_name() == "mod_info.json" {
+//       return Ok(Some(dest.to_path_buf()));
+//     }
+//   }
+
+//   Ok(None)
+// }
+
+struct ModSearch {
+  paths: VecDeque<PathBuf>,
+}
+
+impl Iterator for ModSearch {
+  type Item = std::io::Result<PathBuf>;
+
+  fn next(&mut self) -> Option<Self::Item> {
+    while let Some(path) = self.paths.pop_front() {
+      if path.join("mod_info.json").is_file() {
+        return Some(Ok(path));
+      } else if path.is_dir() {
+        let res: std::io::Result<()> = try {
+          for entry in path.read_dir()? {
+            let entry = entry?;
+            if entry.file_type()?.is_dir() {
+              self.paths.push_back(entry.path());
+            }
+          }
+        };
+
+        if let Err(err) = res {
+          return Some(Err(err));
+        }
       }
-    } else if entry.file_type()?.is_file() && entry.file_name() == "mod_info.json" {
-      return Ok(Some(dest.to_path_buf()));
     }
+
+    None
+  }
+}
+
+impl ModSearch {
+  pub fn new(path: impl AsRef<Path>) -> Self {
+    let mut paths = VecDeque::new();
+    paths.push_front(path.as_ref().to_path_buf());
+
+    ModSearch { paths }
   }
 
-  Ok(None)
+  pub fn first(&mut self) -> std::io::Result<Option<PathBuf>> {
+    self.next().transpose()
+  }
+
+  pub fn exhaustive(&mut self) -> std::io::Result<Vec<PathBuf>> {
+    self.collect()
+  }
 }
+
+impl FusedIterator for ModSearch {}
 
 async fn move_or_copy(from: PathBuf, to: PathBuf) {
   // let mount_from = find_mountpoint(&from).expect("Find origin mount point");
@@ -254,10 +309,10 @@ async fn handle_auto(ext_ctx: ExtEventSink, entry: Arc<ModEntry>) {
           let hybrid = HybridPath::Temp(Arc::new(temp), None);
           let path = hybrid.get_path_copy();
           if_chain! {
-            if let Ok(Some(path)) = task::spawn_blocking(move || find_nested_mod(&path))
+            if let Ok(Some(path)) = task::spawn_blocking(move || ModSearch::new(&path).first())
               .await
               .expect("Run blocking search")
-              .context(Io { detail: String::from("Failed to find mod during recursive folder search") });
+              .context(Io { detail: "File IO error when searching for mod" });
             let mod_metadata = ModMetadata::new();
             if mod_metadata.save(&path).await.is_ok();
             if let Ok(mod_info) = ModEntry::from_file(&path, mod_metadata);
@@ -467,5 +522,67 @@ impl From<String> for StringOrPath {
 impl From<PathBuf> for StringOrPath {
   fn from(path: PathBuf) -> Self {
     StringOrPath::Path(path)
+  }
+}
+
+#[cfg(test)]
+mod test {
+  use std::fs;
+
+  use self_update::TempDir;
+  use tempfile::tempdir;
+
+  use super::ModSearch;
+
+  fn create_folder_with_n_mods<const N: usize>() -> TempDir {
+    let temp_dir = tempdir().expect("Create temp dir");
+
+    for i in 0..N {
+      fs::create_dir(temp_dir.path().join(format!("{}", i))).expect("Create fake mod dir");
+      fs::File::create(temp_dir.path().join(format!("{}", i)).join("mod_info.json"))
+        .expect("Create fake mod_info.json");
+    }
+
+    temp_dir
+  }
+
+  #[test]
+  fn find_first_valid_mod() {
+    let mods_dir = create_folder_with_n_mods::<1>();
+
+    let mut iter = ModSearch::new(mods_dir.path());
+
+    assert_eq!(
+      iter
+        .next()
+        .transpose()
+        .ok()
+        .flatten()
+        .expect("Find first mod"),
+      mods_dir.path().join("0")
+    );
+
+    assert!(iter.next().is_none());
+  }
+
+  #[test]
+  fn find_all_mods() {
+    let mods_dir = create_folder_with_n_mods::<5>();
+
+    let mut iter = ModSearch::new(mods_dir.path());
+
+    for i in 0..5 {
+      assert_eq!(
+        iter
+          .next()
+          .transpose()
+          .ok()
+          .flatten()
+          .expect(&format!("Failed to find mod {}", i)),
+        mods_dir.path().join(i.to_string())
+      );
+    }
+
+    assert!(iter.next().is_none());
   }
 }
