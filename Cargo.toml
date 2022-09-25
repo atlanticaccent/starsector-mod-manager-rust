@@ -49,6 +49,7 @@ anyhow = "1.0.57"
 junction = "0.2.0"
 flate2 = "1.0"
 tar = "0.4"
+deunicode = "1.3.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 native-dialog = "0.6.3"

@@ -878,7 +878,14 @@ impl Delegate<App> for AppDelegate {
               if persist_path.exists() {
                 persist_path = download_dir.join(format!("{}({})", file_name, random::<u8>()))
               }
-              download.persist(&persist_path).expect("Persist download");
+              if let Err(err) = download.persist(&persist_path) {
+                if err.error.kind() == std::io::ErrorKind::CrossesDevices {
+                  std::fs::copy(err.file.path(), &persist_path)
+                    .expect("Copy download across devices");
+                } else {
+                  panic!("{}", err)
+                }
+              }
 
               persist_path
             }
