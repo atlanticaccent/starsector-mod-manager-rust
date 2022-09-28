@@ -1,8 +1,7 @@
 use std::{
   collections::VecDeque,
   fmt::Display,
-  fs::File,
-  io::{BufRead, BufReader, Read},
+  io::Read,
   path::{Path, PathBuf},
   rc::Rc,
   sync::Arc,
@@ -107,22 +106,18 @@ impl ModEntry {
   }
 
   fn parse_version_checker(path: &Path, id: &str) -> Option<ModVersionMeta> {
-    if_chain! {
-      if let Ok(version_loc_file) = File::open(path.join("data").join("config").join("version").join("version_files.csv"));
-      let mut lines = BufReader::new(version_loc_file).lines();
-      if let Some(Ok(version_filename)) = lines.nth(1);
-      if let Some(version_filename) = version_filename.split(',').nth(0);
-      if let Ok(version_data) = std::fs::read_to_string(path.join(version_filename));
-      let mut no_comments = String::new();
-      if strip_comments(version_data.as_bytes()).read_to_string(&mut no_comments).is_ok();
-      if let Ok(normalized) = handwritten_json::normalize(&no_comments);
-      if let Ok(mut version) = json5::from_str::<ModVersionMeta>(&normalized);
-      then {
-        version.id = id.to_string();
-        Some(version)
-      } else {
-        None
-      }
+    if let Ok(mut version_path_file) = csv::Reader::from_path(path.join("data").join("config").join("version").join("version_files.csv"))
+      && let Some(Ok(version_path)) = version_path_file.deserialize::<VersionPath>().next()
+      && let Ok(version_data) = std::fs::read_to_string(path.join(version_path.path))
+      && let mut buf = String::new()
+      && strip_comments(version_data.as_bytes()).read_to_string(&mut buf).is_ok()
+      && let Ok(normalized) = handwritten_json::normalize(&buf)
+      && let Ok(mut version) = json5::from_str::<ModVersionMeta>(&normalized)
+    {
+      version.id = id.to_string();
+      Some(version)
+    } else {
+      None
     }
   }
 
@@ -312,6 +307,12 @@ impl ModEntry {
   pub fn set_path(&mut self, path: PathBuf) {
     self.path = path;
   }
+}
+
+#[derive(Deserialize)]
+struct VersionPath {
+  #[serde(rename(deserialize = "version file"))]
+  path: String,
 }
 
 struct RowController {
