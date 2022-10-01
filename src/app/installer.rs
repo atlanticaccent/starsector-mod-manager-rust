@@ -529,7 +529,7 @@ pub enum ChannelMessage {
   Error(String, String),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StringOrPath {
   String(String),
   Path(PathBuf),
@@ -600,7 +600,7 @@ mod test {
           .transpose()
           .ok()
           .flatten()
-          .expect(&format!("Failed to find mod {}", i)),
+          .unwrap_or_else(|| panic!("Failed to find mod {}", i)),
         mods_dir.path().join(i.to_string())
       );
     }

@@ -20,7 +20,7 @@ use crate::app::App;
 
 pub const SWAP_COMPLETE: Selector = Selector::new("settings.jre.swap_complete");
 
-#[derive(Copy, Clone, Display, Serialize, Deserialize, PartialEq)]
+#[derive(Copy, Clone, Display, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Flavour {
   Coretto,
   Hotspot,

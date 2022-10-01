@@ -13,7 +13,7 @@ pub enum InstallType {
   Path(PathBuf),
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub enum WebviewMessage {
   Navigation(String),
   Download(String),

@@ -47,7 +47,7 @@ pub type GameVersion = (
   Option<String>,
 );
 
-#[derive(Debug, Clone, Deserialize, Data, Lens, PartialEq, Default)]
+#[derive(Debug, Clone, Deserialize, Data, Lens, PartialEq, Eq, Default)]
 pub struct ModEntry {
   pub id: String,
   pub name: String,
@@ -111,7 +111,7 @@ impl ModEntry {
       if let Ok(version_loc_file) = File::open(path.join("data").join("config").join("version").join("version_files.csv"));
       let mut lines = BufReader::new(version_loc_file).lines();
       if let Some(Ok(version_filename)) = lines.nth(1);
-      if let Some(version_filename) = version_filename.split(',').nth(0);
+      if let Some(version_filename) = version_filename.split(',').next();
       if let Ok(version_data) = std::fs::read_to_string(path.join(version_filename));
       let mut no_comments = String::new();
       if strip_comments(version_data.as_bytes()).read_to_string(&mut no_comments).is_ok();
@@ -518,7 +518,7 @@ impl UpdateStatus {
   }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Data, Lens, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Data, Lens, Default)]
 pub struct ModMetadata {
   #[data(same_fn = "PartialEq::eq")]
   pub install_date: Option<DateTime<Utc>>,

@@ -14,6 +14,7 @@
 #![feature(try_blocks)]
 #![feature(let_chains)]
 #![feature(iterator_try_collect)]
+#![allow(clippy::new_ret_no_self)]
 
 extern crate webview_subsystem;
 
