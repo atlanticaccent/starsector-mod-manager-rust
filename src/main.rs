@@ -12,6 +12,8 @@
 #![feature(once_cell)]
 #![feature(io_error_more)]
 #![feature(try_blocks)]
+#![feature(let_chains)]
+#![feature(iterator_try_collect)]
 
 extern crate webview_subsystem;
 

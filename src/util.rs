@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use std::{collections::VecDeque, io::Read, path::PathBuf, sync::Arc};
 
-use druid::widget::{ControllerHost, LabelText};
+use druid::widget::{ControllerHost, Either, LabelText, SizedBox};
 use druid::{
   lens,
   text::{Attribute, AttributeSpans, RichText},
@@ -66,7 +66,7 @@ pub fn get_quoted_version(
     (major, minor, patch, rc) => Some(format!(
       "{}.{}{}{}",
       major.clone().unwrap_or_else(|| "0".to_string()),
-      minor.clone().unwrap_or_else(|| "".to_string()),
+      minor.clone().unwrap_or_default(),
       patch
         .clone()
         .map_or_else(|| "".to_string(), |p| format!(".{}", p)),
@@ -77,8 +77,8 @@ pub fn get_quoted_version(
 }
 
 pub trait LabelExt<T: Data> {
-  fn wrapped(label: &str) -> Label<T> {
-    Label::new(label).with_line_break_mode(druid::widget::LineBreaking::WordWrap)
+  fn wrapped(label: impl AsRef<str>) -> Label<T> {
+    Label::new(label.as_ref()).with_line_break_mode(druid::widget::LineBreaking::WordWrap)
   }
 
   fn wrapped_lens<U: Data, L: Lens<T, U>>(lens: L) -> LensWrap<T, String, L, Label<String>> {
@@ -613,7 +613,6 @@ pub trait CommandExt: CommandCtx {
 
 impl<T: CommandCtx> CommandExt for T {}
 
-#[derive(Default)]
 pub struct DummyTransfer<X, Y> {
   phantom_x: PhantomData<X>,
   phantom_y: PhantomData<Y>,
@@ -626,6 +625,15 @@ impl<X: Data, Y: Data> ScopeTransfer for DummyTransfer<X, Y> {
   fn read_input(&self, _: &mut Self::State, _: &Self::In) {}
 
   fn write_back_input(&self, _: &Self::State, _: &mut Self::In) {}
+}
+
+impl<X, Y> Default for DummyTransfer<X, Y> {
+  fn default() -> Self {
+    Self {
+      phantom_x: PhantomData::default(),
+      phantom_y: PhantomData::default(),
+    }
+  }
 }
 
 pub fn hoverable_text(colour: Option<Color>) -> impl Widget<String> {
@@ -694,6 +702,10 @@ pub trait WidgetExtEx<T: Data>: Widget<T> + Sized + 'static {
     f: impl Fn(&mut EventCtx, &Event, &mut T) -> bool + 'static,
   ) -> ControllerHost<Self, OnEvent<T>> {
     ControllerHost::new(self, OnEvent::new(f))
+  }
+
+  fn or_empty(self, f: impl Fn(&T, &Env) -> bool + 'static) -> Either<T> {
+    Either::new(f, self, SizedBox::empty())
   }
 }
 

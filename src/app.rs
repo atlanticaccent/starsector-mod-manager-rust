@@ -11,7 +11,8 @@ use druid::{
     TabsPolicy, TextBox, ViewSwitcher,
   },
   AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Event, EventCtx, Handled, KeyEvent,
-  Lens, LensExt, Selector, Target, Widget, WidgetExt, WidgetId, WindowDesc, WindowId, WindowLevel,
+  Lens, LensExt, Selector, SingleUse, Target, Widget, WidgetExt, WidgetId, WindowDesc, WindowId,
+  WindowLevel,
 };
 use druid_widget_nursery::{
   material_icons::Icon, FutureWidget, ProgressBar, Separator, Stack, StackChildPosition,
@@ -26,6 +27,7 @@ use tokio::runtime::Handle;
 use webview_shared::{InstallType, PROJECT};
 
 use crate::{
+  app::util::WidgetExtEx,
   patch::{
     split::Split,
     tabs_policy::{InitialTab, StaticTabsForked},
@@ -37,17 +39,17 @@ use crate::{
 
 use self::{
   controllers::{AppController, HoverController, InstallController, ModListController},
-  installer::{HybridPath, StringOrPath, DOWNLOAD_PROGRESS, DOWNLOAD_STARTED},
+  installer::{HybridPath, StringOrPath, DOWNLOAD_PROGRESS, DOWNLOAD_STARTED, INSTALL_ALL},
   mod_description::ModDescription,
-  mod_entry::ModEntry,
+  mod_entry::{ModEntry, ModMetadata},
   mod_list::{EnabledMods, Filters, ModList},
   mod_repo::ModRepo,
   modal::Modal,
   settings::{Settings, SettingsCommand},
   util::{
     button_painter, get_latest_manager, get_quoted_version, get_starsector_version, h2, h3,
-    icons::*, make_column_pair, CommandExt, IndyToggleState, LabelExt, Release,
-    GET_INSTALLED_STARSECTOR,
+    icons::*, make_column_pair, Button2, CommandExt, DummyTransfer, IndyToggleState, LabelExt,
+    Release, GET_INSTALLED_STARSECTOR,
   },
 };
 
@@ -112,6 +114,8 @@ impl App {
   pub const OPEN_WEBVIEW: Selector<Option<String>> = Selector::new("app.webview.open");
   const CONFIRM_DELETE_MOD: Selector<Arc<ModEntry>> = Selector::new("app.mod_entry.delete");
   const REMOVE_DOWNLOAD_BAR: Selector<i64> = Selector::new("app.download.bar.remove");
+  const FOUND_MULTIPLE: Selector<(HybridPath, Vec<PathBuf>)> =
+    Selector::new("app.install.found_multiple");
 
   pub fn new(runtime: Handle) -> Self {
     let settings = settings::Settings::load()
@@ -270,7 +274,9 @@ impl App {
                       .with_content("Attempt to open this link in the Discord app?")
                       .with_button("Open", ModRepo::OPEN_IN_DISCORD)
                       .with_close()
-                      .with_on_close(|ctx, _| ctx.submit_command_global(ModRepo::CLEAR_MODAL))
+                      .with_on_close_override(|ctx, _| {
+                        ctx.submit_command_global(ModRepo::CLEAR_MODAL)
+                      })
                       .build()
                       .background(druid::theme::BACKGROUND_DARK)
                       .border(druid::Color::BLACK, 2.)
@@ -411,7 +417,7 @@ impl App {
             Scope::from_function(
               |state: bool| state,
               IndyToggleState::default(),
-              Checkbox::from_label(Label::wrapped(&filter.to_string())).on_change(
+              Checkbox::from_label(Label::wrapped(filter.to_string())).on_change(
                 move |ctx, _, new, _| {
                   ctx.submit_command(ModList::FILTER_UPDATE.with((filter, !*new)))
                 },
@@ -969,6 +975,32 @@ impl Delegate<App> for AppDelegate {
       }
 
       return Handled::Yes;
+    } else if let Some((source, found_paths)) = cmd.get(App::FOUND_MULTIPLE) {
+      let modal = Self::build_found_multiple(source.clone(), found_paths.clone());
+
+      let window = WindowDesc::new(modal)
+        .window_size((500., 400.))
+        .show_titlebar(false)
+        .set_level(WindowLevel::AppWindow);
+
+      ctx.new_window(window);
+
+      return Handled::Yes;
+    } else if let Some((to_install, source)) =
+      cmd.get(installer::INSTALL_ALL).and_then(SingleUse::take)
+    {
+      let ext_ctx = ctx.get_external_handle();
+      let install_dir = data.settings.install_dir.as_ref().unwrap().clone();
+      let ids = data.mod_list.mods.values().map(|v| v.id.clone()).collect();
+      data.runtime.spawn(async move {
+        installer::Payload::Initial(to_install.into_iter().collect())
+          .install(ext_ctx, install_dir, ids)
+          .await;
+
+        drop(source);
+      });
+
+      return Handled::Yes;
     }
 
     Handled::No
@@ -1237,12 +1269,12 @@ impl AppDelegate {
   fn make_dupe_col(dupe_a: &Arc<ModEntry>, dupe_b: &Arc<ModEntry>) -> Flex<App> {
     let meta = metadata(&dupe_a.path);
     Flex::column()
-      .with_child(Label::wrapped(&format!("Version: {}", dupe_a.version)))
-      .with_child(Label::wrapped(&format!(
+      .with_child(Label::wrapped(format!("Version: {}", dupe_a.version)))
+      .with_child(Label::wrapped(format!(
         "Path: {}",
         dupe_a.path.to_string_lossy()
       )))
-      .with_child(Label::wrapped(&format!(
+      .with_child(Label::wrapped(format!(
         "Last modified: {}",
         if let Ok(Ok(time)) = meta.as_ref().map(|meta| meta.modified()) {
           DateTime::<Local>::from(time).format("%F:%R").to_string()
@@ -1250,7 +1282,7 @@ impl AppDelegate {
           "Failed to retrieve last modified".to_string()
         }
       )))
-      .with_child(Label::wrapped(&format!(
+      .with_child(Label::wrapped(format!(
         "Created at: {}",
         meta.and_then(|meta| meta.created()).map_or_else(
           |_| "Failed to retrieve creation time".to_string(),
@@ -1331,6 +1363,92 @@ impl AppDelegate {
       )
       .with_close()
       .build()
+  }
+
+  fn build_found_multiple(source: HybridPath, found_paths: Vec<PathBuf>) -> impl Widget<App> {
+    let title = format!(
+      "Found multiple mods in {}",
+      match source {
+        HybridPath::PathBuf(_) => "folder",
+        HybridPath::Temp(_, _, _) => "archive",
+      }
+    );
+
+    let mods = found_paths
+      .iter()
+      .filter_map(|path| ModEntry::from_file(path, ModMetadata::default()).ok())
+      .map(|entry| (true, entry))
+      .collect::<Vector<_>>();
+
+    let modal = Modal::new(&title)
+      .pipe(|mut modal| {
+        for (idx, (_, mod_)) in mods.iter().enumerate() {
+          modal = modal
+            .with_content(
+              Label::wrapped(format!("Found mod with ID: {}", mod_.id))
+                .or_empty(|(data, _): &(bool, ModEntry), _| *data)
+                .lens(lens::Index::new(idx))
+                .boxed(),
+            )
+            .with_content(
+              Flex::row()
+                .with_flex_child(
+                  Label::wrapped(format!("At path: {}", mod_.path.to_string_lossy()))
+                    .expand_width(),
+                  1.,
+                )
+                .with_child(
+                  Button2::new(Label::new("Open path").with_text_size(14.)).on_click({
+                    let path = mod_.path.clone();
+                    move |_, _, _| {
+                      let _ = opener::open(path.clone());
+                    }
+                  }),
+                )
+                .or_empty(|(data, _): &(bool, ModEntry), _| *data)
+                .lens(lens::Index::new(idx))
+                .boxed(),
+            )
+            .with_content(
+              Button2::from_label("Install")
+                .on_click({
+                  let source = source.clone();
+                  move |ctx, (show, entry): &mut (bool, ModEntry), _| {
+                    *show = false;
+
+                    let mut vec = Vector::new();
+                    vec.push_back(entry.path.clone());
+                    ctx.submit_command_global(
+                      INSTALL_ALL.with(SingleUse::new((vec, source.clone()))),
+                    )
+                  }
+                })
+                .or_empty(|(data, _): &(bool, ModEntry), _| *data)
+                .lens(lens::Index::new(idx))
+                .boxed(),
+            )
+        }
+
+        modal
+      })
+      .with_button("Install All", {
+        let source = source.clone();
+        move |ctx: &mut EventCtx, data: &mut Vector<(bool, ModEntry)>| {
+          ctx.submit_command_global(
+            INSTALL_ALL.with(SingleUse::new((
+              data
+                .iter()
+                .filter_map(|(install, entry)| install.then(|| entry.path.clone()))
+                .collect(),
+              source,
+            ))),
+          )
+        }
+      })
+      .with_close_label("Ignore All")
+      .build();
+
+    Scope::from_function(move |_| mods, DummyTransfer::default(), modal)
   }
 }
 

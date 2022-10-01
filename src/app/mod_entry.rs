@@ -176,7 +176,7 @@ impl ModEntry {
               }
             }
             Heading::GameVersion => Label::wrapped_func(|version: &GameVersion, _| {
-              util::get_quoted_version(version).unwrap_or_else(|| "".to_string())
+              util::get_quoted_version(version).unwrap_or_default()
             })
             .lens(ModEntry::game_version.in_arc())
             .padding(5.)
@@ -192,7 +192,7 @@ impl ModEntry {
                 Box::new(
                   Flex::row()
                     .with_child(
-                      Label::wrapped(&data.version.to_string()).with_text_color(color.clone()),
+                      Label::wrapped(data.version.to_string()).with_text_color(color.clone()),
                     )
                     .with_flex_spacer(1.)
                     .tap_mut(|row| {

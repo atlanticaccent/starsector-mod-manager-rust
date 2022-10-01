@@ -152,7 +152,7 @@ impl Flavour {
   async fn unpack(&self, root: &Path) -> anyhow::Result<TempDir> {
     let url = Self::get_url(self);
 
-    let tempdir = TempDir::new_in(&root).context("Create tempdir")?;
+    let tempdir = TempDir::new_in(root).context("Create tempdir")?;
 
     let mut res = reqwest::get(url).await?;
 
