@@ -549,7 +549,7 @@ impl From<PathBuf> for StringOrPath {
 
 #[cfg(test)]
 mod test {
-  use std::fs;
+  use std::{collections::HashSet, fs};
 
   use self_update::TempDir;
   use tempfile::tempdir;
@@ -593,18 +593,22 @@ mod test {
 
     let mut iter = ModSearch::new(mods_dir.path());
 
+    let mut path_set = HashSet::new();
+
     for i in 0..5 {
-      assert_eq!(
-        iter
-          .next()
-          .transpose()
-          .ok()
-          .flatten()
-          .unwrap_or_else(|| panic!("Failed to find mod {}", i)),
-        mods_dir.path().join(i.to_string())
-      );
+      let mod_path = iter
+        .next()
+        .transpose()
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| panic!("Failed to find mod {}", i));
+
+      assert!(mod_path.starts_with(mods_dir.path()));
+
+      path_set.insert(mod_path);
     }
 
     assert!(iter.next().is_none());
+    assert_eq!(path_set.len(), 5)
   }
 }
