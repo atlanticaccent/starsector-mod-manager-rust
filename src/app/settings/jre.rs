@@ -20,7 +20,7 @@ use crate::app::App;
 
 pub const SWAP_COMPLETE: Selector = Selector::new("settings.jre.swap_complete");
 
-#[derive(Copy, Clone, Display, Serialize, Deserialize, PartialEq)]
+#[derive(Copy, Clone, Display, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Flavour {
   Coretto,
   Hotspot,
@@ -152,7 +152,7 @@ impl Flavour {
   async fn unpack(&self, root: &Path) -> anyhow::Result<TempDir> {
     let url = Self::get_url(self);
 
-    let tempdir = TempDir::new_in(&root).context("Create tempdir")?;
+    let tempdir = TempDir::new_in(root).context("Create tempdir")?;
 
     let mut res = reqwest::get(url).await?;
 

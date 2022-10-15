@@ -70,6 +70,9 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
               entry.clone(),
             )))
           }
+          ChannelMessage::FoundMultiple(source, found_paths) => {
+            ctx.submit_command(App::FOUND_MULTIPLE.with((source.clone(), found_paths.clone())));
+          }
           ChannelMessage::Error(name, err) => {
             ctx.submit_command(App::LOG_ERROR.with((name.clone(), err.clone())));
             eprintln!("Failed to install {}", err);

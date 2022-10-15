@@ -282,7 +282,7 @@ impl ModRepo {
   }
 }
 
-#[derive(Deserialize, Data, Clone, PartialEq, Lens, Debug)]
+#[derive(Deserialize, Data, Clone, PartialEq, Eq, Lens, Debug)]
 pub struct ModRepoItem {
   name: String,
   summary: Option<String>,
