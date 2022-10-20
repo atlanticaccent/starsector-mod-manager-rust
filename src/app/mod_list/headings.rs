@@ -112,7 +112,11 @@ impl Header {
       |_, data, _| {
         Split::columns(
           heading_builder(Heading::Enabled),
-          recursive_split(0, &data.headings),
+          if data.headings.len() > 1 {
+            recursive_split(0, &data.headings).boxed()
+          } else {
+            heading_builder(data.headings[0]).boxed()
+          }
         )
         .split_point(ENABLED_RATIO)
         .controller(ResizeController::new(0))

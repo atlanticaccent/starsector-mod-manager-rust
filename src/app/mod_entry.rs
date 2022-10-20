@@ -291,7 +291,11 @@ impl ModEntry {
             .on_change(|ctx, _old, data, _| {
               ctx.submit_command(ModEntry::REPLACE.with(data.clone()))
             }),
-          recursive_split(0, children, ratios),
+          if children.len() > 1 {
+            recursive_split(0, children, ratios).boxed()
+          } else {
+            children.pop_front().unwrap().padding((0., 5., 0., 5.)).boxed()
+          }
         )
         .split_point(headings::ENABLED_RATIO)
         .on_click(
