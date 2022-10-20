@@ -179,10 +179,19 @@ impl Settings {
                                     .with_child(
                                       Icon::new(CLOSE)
                                         .on_click(move |ctx, data: &mut Vector<Heading>, _| {
-                                          data.retain(|existing| existing != &heading);
-                                          ctx.submit_command_global(
-                                            Header::REMOVE_HEADING.with(heading),
-                                          );
+                                          if data.len() > 1 {
+                                            data.retain(|existing| existing != &heading);
+                                            ctx.submit_command_global(
+                                              Header::REMOVE_HEADING.with(heading),
+                                            );
+                                          }
+                                        })
+                                        .pipe(|icon| {
+                                          if headings.len() <= 1 {
+                                            icon.disabled_if(|_, _| true).boxed()
+                                          } else {
+                                            icon.boxed()
+                                          }
                                         })
                                         .controller(HoverController),
                                     )

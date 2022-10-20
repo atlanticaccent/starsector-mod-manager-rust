@@ -66,24 +66,6 @@ path = "./webview-subsystem"
 [dependencies.webview-shared]
 path = "./webview-subsystem-shared"
 
-# [patch.crates-io]
-# gobject-sys = { git = "https://github.com/gtk-rs/gtk-rs-core", tag = "0.15.10" }
-# atk-sys = { git = "https://github.com/gtk-rs/gtk3-rs", tag = "0.15.4" }
-# cairo-rs = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
-# cairo-sys-rs = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
-# gdk = { git = "https://github.com/gtk-rs/gtk3-rs", tag = "0.15.4" }
-# gdk-sys = { git = "https://github.com/gtk-rs/gtk3-rs", tag = "0.15.4" }
-# gtk = { git = "https://github.com/gtk-rs/gtk3-rs", tag = "0.15.4" }
-# glib = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
-# glib-sys = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
-# pangocairo = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
-# pango = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
-# gtk-sys = { git = "https://github.com/gtk-rs/gtk3-rs", tag = "0.15.4" }
-# gio = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
-# gio-sys = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
-# gdk-pixbuf = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
-# gdk-pixbuf-sys = { git = "https://github.com/gtk-rs/gtk-rs-core", branch = "0.15" }
-
 [package.metadata.bundle]
 name = "Starsector Mod Manager"
 id = "org.laird.starsector_mod_manager"
