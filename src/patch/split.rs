@@ -36,6 +36,7 @@ pub struct Split<T> {
   child2: WidgetPod<T, Box<dyn Widget<T>>>,
 }
 
+#[allow(dead_code)]
 impl<T> Split<T> {
   /// Create a new split panel, with the specified axis being split in two.
   ///

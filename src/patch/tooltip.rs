@@ -21,6 +21,7 @@ pub struct TooltipController {
   state: TooltipState,
 }
 
+#[allow(dead_code)]
 impl TooltipController {
   pub fn new(tip: impl Fn() -> Box<dyn Widget<()>> + 'static) -> Self {
     TooltipController {

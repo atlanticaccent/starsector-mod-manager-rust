@@ -5,6 +5,7 @@ pub struct OnEvent<T> {
   handler: Box<dyn Fn(&mut EventCtx, &Event, &mut T) -> bool>,
 }
 
+#[allow(dead_code)]
 impl<T> OnEvent<T> {
   pub fn new(handler: impl Fn(&mut EventCtx, &Event, &mut T) -> bool + 'static) -> Self {
     Self {
