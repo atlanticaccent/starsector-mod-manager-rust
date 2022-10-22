@@ -47,7 +47,7 @@ impl From<Heading> for &str {
 #[derive(Clone, Data, Lens)]
 pub struct Header {
   #[data(same_fn = "PartialEq::eq")]
-  pub ratios: Vec<f64>,
+  pub ratios: Vector<f64>,
   #[data(same_fn = "PartialEq::eq")]
   pub headings: Vector<Heading>,
   pub sort_by: (Heading, bool),
@@ -76,7 +76,7 @@ impl Header {
     }
   }
 
-  fn calculate_ratios(num_headings: usize) -> Vec<f64> {
+  fn calculate_ratios(num_headings: usize) -> Vector<f64> {
     (0..num_headings - 1)
       .rev()
       .map(|idx| 1. / (idx + 2) as f64)

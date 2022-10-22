@@ -82,7 +82,7 @@ impl ModList {
                     // set ratios in ModList through a command listener on this widget
                     // implement update status parser
                     // calculate cell widths using ratios and paint appropriately
-                    fn calc_pos(idx: usize, ratios: &Rc<Vec<f64>>, width: f64) -> f64 {
+                    fn calc_pos(idx: usize, ratios: &Vector<f64>, width: f64) -> f64 {
                       if idx == 0 {
                         0.
                       } else if idx == 1 {
@@ -381,15 +381,15 @@ impl ModList {
 type EntryAlias = (
   Arc<ModEntry>,
   usize,
-  Rc<Vec<f64>>,
-  Rc<Vector<Heading>>,
+  Vector<f64>,
+  Vector<Heading>,
   Rc<Option<GameVersion>>,
 );
 
 impl ListIter<EntryAlias> for ModList {
   fn for_each(&self, mut cb: impl FnMut(&EntryAlias, usize)) {
-    let ratios = Rc::new(self.header.ratios.clone());
-    let headers = Rc::new(self.header.headings.clone());
+    let ratios = self.header.ratios.clone();
+    let headers = self.header.headings.clone();
     let game_version = Rc::new(self.starsector_version.clone());
 
     for (i, item) in self.sorted_vals().into_iter().enumerate() {
@@ -407,8 +407,8 @@ impl ListIter<EntryAlias> for ModList {
   }
 
   fn for_each_mut(&mut self, mut cb: impl FnMut(&mut EntryAlias, usize)) {
-    let ratios = Rc::new(self.header.ratios.clone());
-    let headers = Rc::new(self.header.headings.clone());
+    let ratios = self.header.ratios.clone();
+    let headers = self.header.headings.clone();
     let game_version = Rc::new(self.starsector_version.clone());
 
     for (i, item) in self.sorted_vals().iter_mut().enumerate() {

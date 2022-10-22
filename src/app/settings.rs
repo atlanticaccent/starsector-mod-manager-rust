@@ -20,7 +20,7 @@ use tap::{Pipe, Tap};
 
 use crate::{
   app::PROJECT,
-  patch::{click::Click, tooltip::TooltipController},
+  patch::click::Click,
 };
 
 use self::{
@@ -115,14 +115,9 @@ impl Settings {
           .with_child(
             make_flex_settings_row(
               Checkbox::new("").lens(Settings::open_forum_link_in_webview),
-              Label::wrapped("Use bundled browser when opening forum links").controller(
-                TooltipController::new(|| {
-                  Label::new("This allows installing mods directly from links in forum posts")
-                    .padding(5.)
-                    .border(druid::Color::GRAY, 2.)
-                    .boxed()
-                }),
-              ),
+              Label::wrapped("Use bundled browser when opening forum links")
+                .stack_tooltip("This allows installing mods directly from links in forum posts")
+                .with_crosshair(true),
             )
             .padding(TRAILING_PADDING),
           )

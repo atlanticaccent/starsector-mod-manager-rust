@@ -4,7 +4,6 @@ use std::{
   fs::File,
   io::{BufRead, BufReader, Read},
   path::{Path, PathBuf},
-  rc::Rc,
   sync::Arc,
 };
 
@@ -29,7 +28,7 @@ use crate::{
     util::{default_true, parse_game_version, LabelExt},
     App, AppCommands,
   },
-  patch::{split::Split, tooltip::TooltipController},
+  patch::split::Split,
 };
 
 use super::{
@@ -130,11 +129,11 @@ impl ModEntry {
     self.enabled = enabled;
   }
 
-  pub fn ui_builder() -> impl Widget<(Arc<Self>, Rc<Vec<f64>>, Rc<Vector<Heading>>)> {
+  pub fn ui_builder() -> impl Widget<(Arc<Self>, Vector<f64>, Vector<Heading>)> {
     fn recursive_split(
       idx: usize,
       mut widgets: VecDeque<Box<dyn Widget<Arc<ModEntry>>>>,
-      ratios: &[f64],
+      ratios: &Vector<f64>,
     ) -> impl Widget<Arc<ModEntry>> {
       if widgets.len() > 2 {
         Split::columns(
@@ -153,7 +152,7 @@ impl ModEntry {
     }
 
     ViewSwitcher::new(
-      |data: &(Arc<Self>, Rc<Vec<f64>>, Rc<Vector<Heading>>), _| data.1.clone(),
+      |data: &(Arc<Self>, Vector<f64>, Vector<Heading>), _| data.1.clone(),
       |_, (_, ratios, headings), _| {
         let mut children = VecDeque::new();
 
@@ -183,8 +182,8 @@ impl ModEntry {
             .expand_width()
             .boxed(),
             Heading::Version => ViewSwitcher::new(
-              |entry: &Arc<ModEntry>, _| entry.clone(),
-              |data, _, env| {
+              |entry: &Arc<ModEntry>, _| entry.update_status.clone(),
+              |_, data, env| {
                 let color = data
                   .update_status
                   .as_ref()
@@ -228,14 +227,12 @@ impl ModEntry {
                         let text_color = color.clone();
                         let background_color =
                           <KeyOrValue<Color>>::from(update_status).resolve(env);
-                        row.add_child(icon_row.controller(TooltipController::new(move || {
-                          Label::wrapped(&tooltip)
-                            .with_text_color(text_color.clone())
-                            .padding(5.)
-                            .background(background_color.clone())
-                            .border(text_color.clone(), 2.)
-                            .boxed()
-                        })))
+                        row.add_child(
+                          icon_row.stack_tooltip(tooltip)
+                            .with_text_attribute(druid::text::Attribute::TextColor(text_color))
+                            .with_background_color(background_color)
+                            .with_crosshair(true)
+                        )
                       } else {
                         row.add_child(icon_row)
                       }
@@ -292,10 +289,14 @@ impl ModEntry {
               ctx.submit_command(ModEntry::REPLACE.with(data.clone()))
             }),
           if children.len() > 1 {
-            recursive_split(0, children, ratios).boxed()
+            recursive_split(0, children, &ratios).boxed()
           } else {
-            children.pop_front().unwrap().padding((0., 5., 0., 5.)).boxed()
-          }
+            children
+              .pop_front()
+              .unwrap()
+              .padding((0., 5., 0., 5.))
+              .boxed()
+          },
         )
         .split_point(headings::ENABLED_RATIO)
         .on_click(
@@ -306,7 +307,7 @@ impl ModEntry {
           },
         )
         .controller(ModEntryClickController)
-        .lens(lens!((Arc<ModEntry>, Rc<Vec<f64>>, Rc<Vector<Heading>>), 0))
+        .lens(lens!((Arc<ModEntry>, Vector<f64>, Vector<Heading>), 0))
         .boxed()
       },
     )
