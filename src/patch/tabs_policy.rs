@@ -17,6 +17,7 @@ pub struct StaticTabsForked<T> {
   label_height: f64,
 }
 
+#[allow(dead_code)]
 impl<T> StaticTabsForked<T> {
   /// Set the static tabs forked's text size.
   pub fn set_text_size(mut self, text_size: KeyOrValue<f64>) -> Self {

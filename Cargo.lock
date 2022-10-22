@@ -852,7 +852,7 @@ dependencies = [
 [[package]]
 name = "druid-widget-nursery"
 version = "0.1.0"
-source = "git+https://github.com/atlanticaccent/druid-widget-nursery?branch=switch-to-druid-fork#77742d28954f0edc998fb4d42f02b972a1dcc472"
+source = "git+https://github.com/atlanticaccent/druid-widget-nursery?branch=switch-to-druid-fork#d754d51147047366ebc84576f6465eac2957ec83"
 dependencies = [
  "druid",
  "druid-material-icons",
@@ -953,14 +953,14 @@ dependencies = [
 
 [[package]]
 name = "filetime"
-version = "0.2.17"
+version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e94a7bbaa59354bc20dd75b67f23e2797b4490e9d6928203fb105c79e448c86c"
+checksum = "4b9663d381d07ae25dc88dbdf27df458faa83a9b25336bcac83d5e452b5fc9d3"
 dependencies = [
  "cfg-if",
  "libc",
  "redox_syscall",
- "windows-sys 0.36.1",
+ "windows-sys 0.42.0",
 ]
 
 [[package]]

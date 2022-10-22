@@ -62,6 +62,7 @@ mod mod_repo;
 pub mod modal;
 mod settings;
 mod updater;
+#[allow(dead_code)]
 #[path = "./util.rs"]
 pub mod util;
 
