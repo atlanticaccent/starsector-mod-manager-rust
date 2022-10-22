@@ -4,9 +4,7 @@ on:
   push:
     tags:
       - '*'
-  pull_request:
-    branches:
-      - release
+  workflow_dispatch:
 
 jobs:
   check_version:
@@ -16,13 +14,18 @@ jobs:
 
       - run: git fetch --all --tags
 
-      - name: Check Release Version
-        uses: thebongy/version-check@v1
-        with:
-          file: Cargo.toml
-          tagFormat: ${version}
-          failBuild: true
-        id: version_check
+      - name: Get package version
+        run: |
+          echo "PACKAGE_VERSION=$(cargo pkgid | cut -d# -f2 | cut -d: -f2)" >> $GITHUB_ENV
+
+      - name: Get current tag
+        run: |
+          echo "TAG_VERSION=$(git describe --tags)" >> $GITHUB_ENV
+
+      - name: Fail if version not equal
+        if: env.PACKAGE_VERSION != env.TAG_VERSION
+        run: exit 1
+
       - name: Print detected version
         run: |
-          echo "Version ${{steps.version_check.outputs.releaseVersion}}"
+          echo "Version ${{ env.PACKAGE_VERSION }}"
