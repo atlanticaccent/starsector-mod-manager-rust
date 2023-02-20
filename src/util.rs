@@ -1,4 +1,8 @@
+use std::any::Any;
+use std::collections::HashMap;
+use std::hash::Hash;
 use std::marker::PhantomData;
+use std::sync::{Mutex, Weak};
 use std::{collections::VecDeque, io::Read, path::PathBuf, sync::Arc};
 
 use druid::widget::{ControllerHost, Either, LabelText, SizedBox};
@@ -18,6 +22,8 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use serde::Deserialize;
 use tap::Tap;
+use tokio::select;
+use tokio::sync::mpsc;
 
 use crate::patch::click::Click;
 
@@ -723,5 +729,105 @@ impl Button2 {
 
   pub fn from_label<T: Data>(label: impl Into<LabelText<T>>) -> impl Widget<T> {
     Self::new(Label::wrapped_into(label).with_text_size(18.))
+  }
+}
+
+/// A bad trait
+pub trait Collection<T> {
+  fn insert(&mut self, item: T);
+
+  fn len(&self) -> usize;
+
+  fn is_empty(&self) -> bool {
+    self.len() == 0
+  }
+
+  fn to_vec(&mut self) -> Vec<T>;
+}
+
+impl<A: Clone + Hash + Eq, B, C> Collection<(A, B, C)> for HashMap<A, (A, B, C)> {
+  fn insert(&mut self, item: (A, B, C)) {
+    HashMap::insert(self, item.0.clone(), item);
+  }
+
+  fn len(&self) -> usize {
+    self.len()
+  }
+
+  fn to_vec(&mut self) -> Vec<(A, B, C)> {
+    self.drain().map(|(_, v)| v).collect()
+  }
+}
+
+impl<T> Collection<T> for Vec<T> {
+  fn insert(&mut self, item: T) {
+    self.push(item);
+  }
+
+  fn len(&self) -> usize {
+    self.len()
+  }
+
+  fn to_vec(&mut self) -> Vec<T> {
+    self.split_off(0)
+  }
+}
+
+pub struct LoadBalancer<T: Any + Send, SINK: Default + Collection<T>> {
+  tx: std::sync::LazyLock<Mutex<Weak<mpsc::UnboundedSender<T>>>>,
+  sink: PhantomData<SINK>,
+  selector: Selector<Vec<T>>,
+}
+
+impl<T: Any + Send, SINK: Default + Collection<T> + Send> LoadBalancer<T, SINK> {
+  pub const fn new(selector: Selector<Vec<T>>) -> Self {
+    Self {
+      tx: std::sync::LazyLock::new(Default::default),
+      sink: PhantomData,
+      selector,
+    }
+  }
+
+  pub fn sender(&self, ext_ctx: ExtEventSink) -> Arc<mpsc::UnboundedSender<T>> {
+    let mut sender = self.tx.lock().unwrap();
+    if let Some(tx) = sender.upgrade() {
+      tx
+    } else {
+      let (tx, mut rx) = mpsc::unbounded_channel::<T>();
+      let tx = Arc::new(tx);
+      *sender = Arc::downgrade(&tx);
+      let selector = self.selector;
+      tokio::task::spawn(async move {
+        let sleep = tokio::time::sleep(std::time::Duration::from_millis(50));
+        tokio::pin!(sleep);
+
+        let mut sink = SINK::default();
+        loop {
+          select! {
+            message = rx.recv() => {
+              match message {
+                Some(message) => {
+                  sink.insert(message);
+                },
+                None => {
+                  if !sink.is_empty() {
+                    let vals = sink.to_vec();
+                    let _ = ext_ctx.submit_command(selector, vals, Target::Auto);
+                  }
+                  break
+                },
+              }
+            },
+            _ = &mut sleep => {
+              let vals = sink.to_vec();
+              let _ = ext_ctx.submit_command(selector, vals, Target::Auto);
+              sleep.as_mut().reset(tokio::time::Instant::now() + std::time::Duration::from_millis(50));
+            }
+          }
+        }
+      });
+
+      tx
+    }
   }
 }

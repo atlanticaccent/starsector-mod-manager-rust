@@ -24,11 +24,14 @@ use crate::app::util::StarsectorVersionDiff;
 use super::{
   installer::HybridPath,
   mod_entry::{GameVersion, ModEntry, ModMetadata, UpdateStatus},
-  util::{self, SaveError},
+  util::{self, LoadBalancer, SaveError},
 };
 
 pub mod headings;
 use self::headings::{Header, Heading};
+
+static UPDATE_BALANCER: LoadBalancer<Arc<ModEntry>, Vec<Arc<ModEntry>>> =
+  LoadBalancer::new(ModList::SUBMIT_ENTRY);
 
 #[derive(Clone, Data, Lens)]
 pub struct ModList {
@@ -42,7 +45,7 @@ pub struct ModList {
 }
 
 impl ModList {
-  pub const SUBMIT_ENTRY: Selector<Arc<ModEntry>> = Selector::new("mod_list.submit_entry");
+  pub const SUBMIT_ENTRY: Selector<Vec<Arc<ModEntry>>> = Selector::new("mod_list.submit_entry");
   pub const OVERWRITE: Selector<(PathBuf, HybridPath, Arc<ModEntry>)> =
     Selector::new("mod_list.install.overwrite");
   pub const AUTO_UPDATE: Selector<Arc<ModEntry>> = Selector::new("mod_list.install.auto_update");
@@ -177,14 +180,16 @@ impl ModList {
         1.,
       )
       .on_command(ModList::SUBMIT_ENTRY, |ctx, payload, data| {
-        if let Some(existing) = data
-          .mods
-          .values()
-          .find(|existing| existing.id == payload.id)
-        {
-          ctx.submit_command(ModList::DUPLICATE.with((existing.clone(), payload.clone())))
-        } else {
-          data.mods.insert(payload.id.clone(), payload.clone());
+        for submission in payload {
+          if let Some(existing) = data
+            .mods
+            .values()
+            .find(|existing| existing.id == submission.id)
+          {
+            ctx.submit_command(ModList::DUPLICATE.with((existing.clone(), submission.clone())))
+          } else {
+            data.mods.insert(submission.id.clone(), submission.clone());
+          }
         }
       })
       .on_command(Header::SORT_CHANGED, |ctx, payload, data| {
@@ -273,9 +278,13 @@ impl ModList {
             }
           })
           .for_each(|entry| {
-            if let Err(err) =
-              event_sink.submit_command(ModList::SUBMIT_ENTRY, entry.clone(), Target::Auto)
-            {
+            let tx = {
+              let _guard = handle.enter();
+
+              UPDATE_BALANCER.sender(event_sink.clone())
+            };
+
+            if let Err(err) = tx.send(entry.clone()) {
               eprintln!("Failed to submit found mod {}", err);
             };
             if let Some(version) = entry.version_checker.clone() {
