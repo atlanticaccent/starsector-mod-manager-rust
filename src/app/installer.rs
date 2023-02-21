@@ -10,7 +10,7 @@ use std::{
 use chrono::Local;
 use druid::{ExtEventSink, Selector, SingleUse, Target};
 use if_chain::if_chain;
-use im::Vector;
+use druid::im::Vector;
 use remove_dir_all::remove_dir_all;
 use reqwest::Url;
 use snafu::{OptionExt, ResultExt, Snafu};
