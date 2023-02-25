@@ -1846,6 +1846,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a53776d271cfb873b17c618af0298445c88afc52837f3e948fa3fafd131f449"
 dependencies = [
  "arrayvec",
+ "serde",
 ]
 
 [[package]]
@@ -3401,7 +3402,6 @@ dependencies = [
  "flate2",
  "handwritten-json",
  "if_chain",
- "im",
  "indexmap",
  "infer",
  "interprocess",

@@ -10,7 +10,7 @@ use druid::{
 use druid_widget_nursery::{
   material_icons::Icon, wrap::Wrap, Separator, WidgetExt as WidgetExtNursery,
 };
-use im::{HashMap, Vector};
+use druid::im::{HashMap, Vector};
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use serde::Deserialize;
 use strum::IntoEnumIterator;
