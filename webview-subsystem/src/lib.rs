@@ -159,7 +159,7 @@ pub fn init_webview(url: Option<String>) -> wry::Result<()> {
         false
       }
     })
-    .with_download_handler({
+    .with_download_started_handler({
       let proxy = proxy;
       move |uri, _| {
         if uri.starts_with("blob:https://mega.nz") {
