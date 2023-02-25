@@ -6,7 +6,7 @@ use std::{
 };
 
 use druid::{
-  im::{HashMap, Vector},
+  im::Vector,
   lens, theme,
   widget::{Either, Flex, Label, List, ListIter, Painter, Scroll},
   Color, Data, ExtEventSink, KeyOrValue, Lens, LensExt, Rect, RenderContext, Selector, Target,
@@ -24,19 +24,18 @@ use crate::app::util::StarsectorVersionDiff;
 use super::{
   installer::HybridPath,
   mod_entry::{GameVersion, ModEntry, ModMetadata, UpdateStatus},
-  util::{self, LoadBalancer, SaveError},
+  util::{self, xxHashMap, LoadBalancer, SaveError},
 };
 
 pub mod headings;
 use self::headings::{Header, Heading};
 
-static UPDATE_BALANCER: LoadBalancer<Arc<ModEntry>, Vec<Arc<ModEntry>>> =
+static UPDATE_BALANCER: LoadBalancer<Arc<ModEntry>, Vec<Arc<ModEntry>>, Vec<Arc<ModEntry>>> =
   LoadBalancer::new(ModList::SUBMIT_ENTRY);
 
 #[derive(Clone, Data, Lens)]
 pub struct ModList {
-  #[data(same_fn = "PartialEq::eq")]
-  pub mods: HashMap<String, Arc<ModEntry>>,
+  pub mods: xxHashMap<String, Arc<ModEntry>>,
   pub header: Header,
   search_text: String,
   #[data(same_fn = "PartialEq::eq")]
@@ -56,7 +55,7 @@ impl ModList {
 
   pub fn new(headings: Vector<Heading>) -> Self {
     Self {
-      mods: HashMap::new(),
+      mods: xxHashMap::new(),
       header: Header::new(headings),
       search_text: String::new(),
       active_filters: HashSet::new(),
@@ -153,7 +152,6 @@ impl ModList {
                   },
                 ))
             })
-            // .lens(lens::Identity)
             .background(theme::BACKGROUND_LIGHT)
             .on_command(ModEntry::REPLACE, |ctx, payload, data: &mut ModList| {
               data.mods.insert(payload.id.clone(), payload.clone());
@@ -180,16 +178,21 @@ impl ModList {
         1.,
       )
       .on_command(ModList::SUBMIT_ENTRY, |ctx, payload, data| {
-        for submission in payload {
-          if let Some(existing) = data
+        for entry in payload {
+          *data.mods = data
             .mods
-            .values()
-            .find(|existing| existing.id == submission.id)
-          {
-            ctx.submit_command(ModList::DUPLICATE.with((existing.clone(), submission.clone())))
-          } else {
-            data.mods.insert(submission.id.clone(), submission.clone());
-          }
+            .alter(
+              |existing| {
+                if let Some(inner) = &existing {
+                  ctx.submit_command(ModList::DUPLICATE.with((inner.clone(), entry.clone())));
+                  existing
+                } else {
+                  Some(entry.clone())
+                }
+              },
+              entry.id.clone(),
+            )
+            .into();
         }
       })
       .on_command(Header::SORT_CHANGED, |ctx, payload, data| {

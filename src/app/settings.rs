@@ -18,10 +18,7 @@ use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use tap::{Pipe, Tap};
 
-use crate::{
-  app::PROJECT,
-  patch::click::Click,
-};
+use crate::{app::PROJECT, patch::click::Click};
 
 use self::{
   jre::{revert, Flavour},

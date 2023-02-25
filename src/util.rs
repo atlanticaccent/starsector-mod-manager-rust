@@ -2,6 +2,7 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
 use std::sync::{Mutex, Weak};
 use std::{collections::VecDeque, io::Read, path::PathBuf, sync::Arc};
 
@@ -24,11 +25,12 @@ use serde::Deserialize;
 use tap::Tap;
 use tokio::select;
 use tokio::sync::mpsc;
+use xxhash_rust::xxh3::Xxh3Builder;
 
 use crate::patch::click::Click;
 
 use super::controllers::{HoverController, OnEvent, OnNotif};
-use super::mod_entry::{GameVersion, ModVersionMeta};
+use super::mod_entry::{GameVersion, ModEntry, ModVersionMeta};
 
 pub(crate) mod icons;
 
@@ -733,7 +735,7 @@ impl Button2 {
 }
 
 /// A bad trait
-pub trait Collection<T> {
+pub trait Collection<T, U> {
   fn insert(&mut self, item: T);
 
   fn len(&self) -> usize;
@@ -742,10 +744,10 @@ pub trait Collection<T> {
     self.len() == 0
   }
 
-  fn to_vec(&mut self) -> Vec<T>;
+  fn drain(&mut self) -> U;
 }
 
-impl<A: Clone + Hash + Eq, B, C> Collection<(A, B, C)> for HashMap<A, (A, B, C)> {
+impl<A: Clone + Hash + Eq, B, C> Collection<(A, B, C), Vec<(A, B, C)>> for HashMap<A, (A, B, C)> {
   fn insert(&mut self, item: (A, B, C)) {
     HashMap::insert(self, item.0.clone(), item);
   }
@@ -754,13 +756,13 @@ impl<A: Clone + Hash + Eq, B, C> Collection<(A, B, C)> for HashMap<A, (A, B, C)>
     self.len()
   }
 
-  fn to_vec(&mut self) -> Vec<(A, B, C)> {
+  fn drain(&mut self) -> Vec<(A, B, C)> {
     self.drain().map(|(_, v)| v).collect()
   }
 }
 
-impl<T> Collection<T> for Vec<T> {
-  fn insert(&mut self, item: T) {
+impl Collection<Arc<ModEntry>, Vec<Arc<ModEntry>>> for Vec<Arc<ModEntry>> {
+  fn insert(&mut self, item: Arc<ModEntry>) {
     self.push(item);
   }
 
@@ -768,19 +770,21 @@ impl<T> Collection<T> for Vec<T> {
     self.len()
   }
 
-  fn to_vec(&mut self) -> Vec<T> {
+  fn drain(&mut self) -> Vec<Arc<ModEntry>> {
     self.split_off(0)
   }
 }
 
-pub struct LoadBalancer<T: Any + Send, SINK: Default + Collection<T>> {
+pub struct LoadBalancer<T: Any + Send, U: Any + Send, SINK: Default + Collection<T, U>> {
   tx: std::sync::LazyLock<Mutex<Weak<mpsc::UnboundedSender<T>>>>,
   sink: PhantomData<SINK>,
-  selector: Selector<Vec<T>>,
+  selector: Selector<U>,
 }
 
-impl<T: Any + Send, SINK: Default + Collection<T> + Send> LoadBalancer<T, SINK> {
-  pub const fn new(selector: Selector<Vec<T>>) -> Self {
+impl<T: Any + Send, U: Any + Send, SINK: Default + Collection<T, U> + Send>
+  LoadBalancer<T, U, SINK>
+{
+  pub const fn new(selector: Selector<U>) -> Self {
     Self {
       tx: std::sync::LazyLock::new(Default::default),
       sink: PhantomData,
@@ -795,7 +799,6 @@ impl<T: Any + Send, SINK: Default + Collection<T> + Send> LoadBalancer<T, SINK> 
     } else {
       let (tx, mut rx) = mpsc::unbounded_channel::<T>();
       let tx = Arc::new(tx);
-      *sender = Arc::downgrade(&tx);
       let selector = self.selector;
       tokio::task::spawn(async move {
         let sleep = tokio::time::sleep(std::time::Duration::from_millis(50));
@@ -811,7 +814,7 @@ impl<T: Any + Send, SINK: Default + Collection<T> + Send> LoadBalancer<T, SINK> 
                 },
                 None => {
                   if !sink.is_empty() {
-                    let vals = sink.to_vec();
+                    let vals = sink.drain();
                     let _ = ext_ctx.submit_command(selector, vals, Target::Auto);
                   }
                   break
@@ -819,7 +822,7 @@ impl<T: Any + Send, SINK: Default + Collection<T> + Send> LoadBalancer<T, SINK> 
               }
             },
             _ = &mut sleep => {
-              let vals = sink.to_vec();
+              let vals = sink.drain();
               let _ = ext_ctx.submit_command(selector, vals, Target::Auto);
               sleep.as_mut().reset(tokio::time::Instant::now() + std::time::Duration::from_millis(50));
             }
@@ -827,7 +830,51 @@ impl<T: Any + Send, SINK: Default + Collection<T> + Send> LoadBalancer<T, SINK> 
         }
       });
 
+      *sender = Arc::downgrade(&tx);
+
       tx
     }
+  }
+}
+
+#[allow(non_camel_case_types)]
+#[derive(Clone)]
+pub struct xxHashMap<K: Clone, V: Clone>(druid::im::HashMap<K, V, Xxh3Builder>);
+
+impl<K: Clone, V: Clone> xxHashMap<K, V> {
+  pub fn new() -> Self {
+    Self(druid::im::HashMap::with_hasher(Xxh3Builder::new()))
+  }
+}
+
+impl<K: Clone, V: Clone> Deref for xxHashMap<K, V> {
+  type Target = druid::im::HashMap<K, V, Xxh3Builder>;
+
+  fn deref(&self) -> &Self::Target {
+    &self.0
+  }
+}
+
+impl<K: Clone, V: Clone> DerefMut for xxHashMap<K, V> {
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    &mut self.0
+  }
+}
+
+impl<K: Clone + 'static, V: Clone + 'static> Data for xxHashMap<K, V> {
+  fn same(&self, other: &Self) -> bool {
+    self.ptr_eq(other)
+  }
+}
+
+impl<K: Clone, V: Clone> From<druid::im::HashMap<K, V, Xxh3Builder>> for xxHashMap<K, V> {
+  fn from(other: druid::im::HashMap<K, V, Xxh3Builder>) -> Self {
+    Self(other)
+  }
+}
+
+impl<K: Clone, V: Clone> From<xxHashMap<K, V>> for druid::im::HashMap<K, V, Xxh3Builder> {
+  fn from(other: xxHashMap<K, V>) -> Self {
+    other.0
   }
 }
