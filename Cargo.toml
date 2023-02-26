@@ -8,8 +8,8 @@ description = "A mod manager for the game Starsector"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-druid = { git = "https://github.com/atlanticaccent/druid", rev = "2a54eb360aa171db133816c369144714221e345b", features = ["im", "serde"] }
-druid-widget-nursery = { git = "https://github.com/atlanticaccent/druid-widget-nursery", branch = "switch-to-druid-fork", features = ["material-icons", "async"] }
+druid = { version = "0.8.2", features = ["im", "serde"] }
+druid-widget-nursery = { git = "https://github.com/linebender/druid-widget-nursery", branch = "master", features = ["material-icons", "async"] }
 infer = "0.3.4"
 tokio = { version = "1.6.0", features = ["fs", "io-util", "rt-multi-thread", "process", "macros"] }
 serde = { version = "1.0.126", features = ["derive"] }
@@ -55,7 +55,7 @@ deunicode = "1.3.2"
 native-dialog = "0.6.3"
 
 [target.'cfg(not(target_os = "linux"))'.dependencies]
-rfd = "0.8"
+rfd = "0.11.1"
 
 [dependencies.webview-subsystem]
 path = "./webview-subsystem"

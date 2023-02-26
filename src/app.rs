@@ -1319,7 +1319,7 @@ impl AppDelegate {
             .with_child(Label::wrapped_lens(lens!((i64, String, f64), 1)))
             .with_child(
               Label::wrapped_func(|data, _| {
-                let start_time = Local.timestamp(*data, 0).format("%I:%M%p");
+                let start_time = Local.timestamp_opt(*data, 0).unwrap().format("%I:%M%p");
 
                 format!("Started at: {}", start_time)
               })
