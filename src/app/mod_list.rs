@@ -191,8 +191,7 @@ impl ModList {
                 }
               },
               entry.id.clone(),
-            )
-            .into();
+            );
         }
       })
       .on_command(Header::SORT_CHANGED, |ctx, payload, data| {

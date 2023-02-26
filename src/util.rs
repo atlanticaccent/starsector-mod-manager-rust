@@ -677,7 +677,6 @@ pub fn hoverable_text(colour: Option<Color>) -> impl Widget<String> {
               0..text.len(),
               Attribute::TextColor(
                 colour
-                  .clone()
                   .map(|c| c.into())
                   .unwrap_or_else(|| theme::TEXT_COLOR.into()),
               ),
@@ -838,7 +837,7 @@ impl<T: Any + Send, U: Any + Send, SINK: Default + Collection<T, U> + Send>
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct xxHashMap<K: Clone, V: Clone>(druid::im::HashMap<K, V, Xxh3Builder>);
 
 impl<K: Clone, V: Clone> xxHashMap<K, V> {

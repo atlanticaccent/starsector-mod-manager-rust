@@ -289,7 +289,7 @@ impl ModEntry {
               ctx.submit_command(ModEntry::REPLACE.with(data.clone()))
             }),
           if children.len() > 1 {
-            recursive_split(0, children, &ratios).boxed()
+            recursive_split(0, children, ratios).boxed()
           } else {
             children
               .pop_front()
