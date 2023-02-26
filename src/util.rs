@@ -775,10 +775,10 @@ impl Collection<Arc<ModEntry>, Vec<Arc<ModEntry>>> for Vec<Arc<ModEntry>> {
   }
 }
 
-pub struct LoadBalancer<T: Any + Send, U: Any + Send, SINK: Default + Collection<T, U>> {
+pub struct LoadBalancer<T: Any + Send, DRAIN: Any + Send, SINK: Default + Collection<T, DRAIN>> {
   tx: std::sync::LazyLock<Mutex<Weak<mpsc::UnboundedSender<T>>>>,
   sink: PhantomData<SINK>,
-  selector: Selector<U>,
+  selector: Selector<DRAIN>,
 }
 
 impl<T: Any + Send, U: Any + Send, SINK: Default + Collection<T, U> + Send>
