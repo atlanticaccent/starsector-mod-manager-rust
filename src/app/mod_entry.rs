@@ -192,7 +192,10 @@ impl ModEntry {
                 Box::new(
                   Flex::row()
                     .with_child(
-                      Label::wrapped(data.version.to_string()).with_text_color(color.clone()),
+                      Label::dynamic(|t: &String, _| t.to_string())
+                        .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
+                        .with_text_color(color.clone())
+                        .lens(ModEntry::version.in_arc().map(|v| v.to_string(), |_, _| {})),
                     )
                     .with_flex_spacer(1.)
                     .tap_mut(|row| {
@@ -360,11 +363,10 @@ pub enum VersionUnion {
 
 impl Display for VersionUnion {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-    let output: String = match self {
-      VersionUnion::String(s) => s.to_string(),
-      VersionUnion::Object(o) => o.to_string(),
-    };
-    write!(f, "{}", output)
+    match self {
+      VersionUnion::String(s) => write!(f, "{}", s),
+      VersionUnion::Object(o) => write!(f, "{}", o.to_string()),
+    }
   }
 }
 
