@@ -25,6 +25,7 @@ pub enum Flavour {
   Coretto,
   Hotspot,
   Wisp,
+  Azul,
 }
 
 const ORIGINAL_JRE_BACKUP: &str = "jre7";
@@ -77,7 +78,7 @@ impl Flavour {
 
         Ok(false)
       });
-    if already_installed.is_ok_and(|val| *val) {
+    if let Ok(true) = already_installed {
       return already_installed;
     }
 
@@ -131,22 +132,21 @@ impl Flavour {
     Ok(false)
   }
 
-  fn get_url(&self) -> &'static str {
+  fn to_const(&self) -> (&'static str, FindBy) {
     match self {
       Flavour::Coretto => consts::CORETTO,
       Flavour::Hotspot => consts::HOTSPOT,
       Flavour::Wisp => consts::WISP,
+      Flavour::Azul => consts::AZUL,
     }
-    .0
+  }
+
+  fn get_url(&self) -> &'static str {
+    self.to_const().0
   }
 
   fn get_search_strategy(&self) -> FindBy {
-    match self {
-      Flavour::Coretto => consts::CORETTO,
-      Flavour::Hotspot => consts::HOTSPOT,
-      Flavour::Wisp => consts::WISP,
-    }
-    .1
+    self.to_const().1
   }
 
   async fn unpack(&self, root: &Path) -> anyhow::Result<TempDir> {
@@ -191,17 +191,11 @@ impl Flavour {
             while let Some(Ok(file)) = iter.next() {
               if let Ok(file_type) = file.file_type() {
                 if file_type.is_dir() {
-                  if matches!(search_strategy, FindBy::Bin)
+                  if search_strategy == FindBy::Bin
                     && file.file_name().eq_ignore_ascii_case("bin")
                   {
-                    return Some(
-                      file
-                        .path()
-                        .parent()
-                        .expect("Get parent of bin")
-                        .to_path_buf(),
-                    );
-                  } else if matches!(search_strategy, FindBy::Jre)
+                    return Some(path);
+                  } else if search_strategy == FindBy::Jre
                     && file.file_name().eq_ignore_ascii_case("jre")
                   {
                     return Some(file.path());
@@ -289,7 +283,7 @@ async fn revert_jre(root: &Path) -> anyhow::Result<bool> {
 }
 
 #[allow(dead_code)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum FindBy {
   Bin,
   Jre,
@@ -305,6 +299,7 @@ mod consts {
     "https://drive.google.com/uc?export=download&id=155Lk0ml9AUGp5NwtTZGpdu7e7Ehdyeth&confirm=t",
     FindBy::Bin,
   );
+  pub const AZUL: (&str, FindBy) = ("https://cdn.azul.com/zulu/bin/zulu8.68.0.21-ca-jre8.0.362-win_x64.zip", FindBy::Bin);
 
   pub const JRE_PATH: &str = "jre";
 }
@@ -318,6 +313,7 @@ mod consts {
     "https://drive.google.com/uc?export=download&id=1TRHjle6-MOpn1zJhtSA9yvwXIQip_F_n&confirm=t",
     FindBy::Bin,
   );
+  pub const AZUL: (&str, FindBy) = ("https://cdn.azul.com/zulu/bin/zulu8.68.0.21-ca-jre8.0.362-linux_x64.zip", FindBy::Bin);
 
   pub const JRE_PATH: &'static str = "jre_linux";
 }
@@ -331,6 +327,7 @@ mod consts {
     "https://drive.google.com/uc?export=download&id=1PW9v_CL719buKHe69GaN9fCXcPIqDOIi&confirm=t",
     FindBy::Bin,
   );
+  pub const AZUL: (&str, FindBy) = ("https://cdn.azul.com/zulu/bin/zulu8.68.0.21-ca-jre8.0.362-macosx_x64.zip", FindBy::Bin);
 
   pub const JRE_PATH: &'static str = "Contents/Home";
 }
@@ -417,6 +414,11 @@ mod test {
   #[test]
   fn wisp() {
     base_test(Flavour::Wisp, true, None, None, false, false);
+  }
+
+  #[test]
+  fn azul() {
+    base_test(Flavour::Azul, true, None, None, false, false);
   }
 
   #[test]

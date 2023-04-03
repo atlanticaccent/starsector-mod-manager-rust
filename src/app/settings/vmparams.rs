@@ -1,19 +1,21 @@
 use druid::{Data, Lens};
-use if_chain::if_chain;
+use regex::{Captures, Regex, RegexBuilder};
 use std::iter::Peekable;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::str::Chars;
+use std::sync::LazyLock;
 use std::{fmt::Display, path::Path};
 use strum_macros::EnumIter;
 
 use crate::app::util::{LoadError, SaveError};
 
 #[derive(Debug, Clone, Data, Lens)]
-pub struct VMParams<T = VMParamsPathDefault> {
+pub struct VMParams<T: VMParamsPath = VMParamsPathDefault> {
   pub heap_init: Value,
   pub heap_max: Value,
   pub thread_stack_size: Value,
+  pub verify_none: bool,
   _phantom: PhantomData<T>,
 }
 
@@ -72,6 +74,13 @@ pub struct VMParamsPathDefault;
 
 impl VMParamsPath for VMParamsPathDefault {}
 
+static XVERIFY_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+  RegexBuilder::new(r"-xverify(?::([^\s]+))?")
+    .case_insensitive(true)
+    .build()
+    .unwrap()
+});
+
 impl<T: VMParamsPath> VMParams<T> {
   pub fn load(install_dir: impl AsRef<Path>) -> Result<VMParams<T>, LoadError> {
     use std::fs;
@@ -84,6 +93,14 @@ impl<T: VMParamsPath> VMParams<T> {
     params_file
       .read_to_string(&mut params_string)
       .map_err(|_| LoadError::ReadError)?;
+
+    let verify_none = XVERIFY_REGEX
+      .captures(&params_string)
+      .is_some_and(|captures| {
+        captures
+          .get(1)
+          .is_some_and(|val| val.as_str().eq_ignore_ascii_case("none"))
+      });
 
     let (mut heap_init, mut heap_max, mut thread_stack_size) = (None, None, None);
     for param in params_string.split_ascii_whitespace() {
@@ -127,6 +144,7 @@ impl<T: VMParamsPath> VMParams<T> {
         heap_init,
         heap_max,
         thread_stack_size,
+        verify_none,
         _phantom: PhantomData::default(),
       })
     } else {
@@ -134,7 +152,7 @@ impl<T: VMParamsPath> VMParams<T> {
     }
   }
 
-  pub fn save(self, install_dir: impl AsRef<Path>) -> Result<(), SaveError> {
+  pub fn save(&self, install_dir: impl AsRef<Path>) -> Result<(), SaveError> {
     use std::fs;
     use std::io::{Read, Write};
 
@@ -146,35 +164,60 @@ impl<T: VMParamsPath> VMParams<T> {
       .read_to_string(&mut params_string)
       .map_err(|_| SaveError::Format)?;
 
+    let write_verify_manually = if self.verify_none {
+      let mut replaced = false;
+      XVERIFY_REGEX.replace(&params_string, |_: &Captures| {
+        replaced = true;
+        "-Xverify:none"
+      });
+      !replaced
+    } else {
+      false
+    };
+
     let mut output = String::new();
     let mut input_iter = params_string.chars().peekable();
-    while let Some(ch) = input_iter.peek().cloned() {
-      match ch {
-        '-' => match input_iter.clone().take(4).collect::<String>().as_str() {
-          key @ "-Xms" | key @ "-xms" => {
-            VMParams::<T>::consume_value(&mut input_iter)?;
-            output.push_str(key);
+    while let Some(ch) = input_iter.next() {
+      output.push(ch);
+      if ch == '-' {
+        let key: String = input_iter
+          .next_chunk::<3>()
+          .map_or_else(|iter| iter.collect(), |arr| arr.iter().collect());
+
+        if write_verify_manually && key.eq_ignore_ascii_case("ser") {
+          let rem: String = input_iter
+            .next_chunk::<3>()
+            .map_or_else(|iter| iter.collect(), |arr| arr.iter().collect());
+          if rem.eq_ignore_ascii_case("ver") {
+            #[cfg(target_os = "macos")]
+            output.push_str(r"Xverify:none \\n\t-");
+            #[cfg(not(target_os = "macos"))]
+            output.push_str("Xverify:none -");
+          }
+
+          output.push_str(&key);
+          output.push_str(&rem);
+        } else {
+          output.push_str(&key);
+          if key.eq_ignore_ascii_case("xms") {
+            VMParams::<T>::advance(&mut input_iter)?;
             output.push_str(&self.heap_init.to_string())
-          }
-          key @ "-Xmx" | key @ "-xmx" => {
-            VMParams::<T>::consume_value(&mut input_iter)?;
-            output.push_str(key);
+          } else if key.eq_ignore_ascii_case("xmx") {
+            VMParams::<T>::advance(&mut input_iter)?;
             output.push_str(&self.heap_max.to_string())
-          }
-          key @ "-Xss" | key @ "-xss" => {
-            VMParams::<T>::consume_value(&mut input_iter)?;
-            output.push_str(key);
+          } else if key.eq_ignore_ascii_case("xss") {
+            VMParams::<T>::advance(&mut input_iter)?;
             output.push_str(&self.thread_stack_size.to_string())
           }
-          _ => {
-            output.push(ch);
-            input_iter.next();
-          }
-        },
-        _ => {
-          if let Some(next) = input_iter.next() {
-            output.push(next)
-          }
+        }
+      } else if ch == 'j' {
+        let chunk: String = input_iter
+          .next_chunk::<7>()
+          .map_or_else(|iter| iter.collect(), |arr| arr.iter().collect());
+        output.push_str(&chunk);
+
+        if chunk == "ava.exe" {
+          output.push_str(" -Xverify:none ")
         }
       }
     }
@@ -192,9 +235,7 @@ impl<T: VMParamsPath> VMParams<T> {
    * consume - if the pattern is not met throw error.
    * Pattern is [any number of digits][k | K | m | M | g | G][space | EOF]
    */
-  fn consume_value(iter: &mut Peekable<Chars>) -> Result<(), SaveError> {
-    iter.nth(3);
-
+  fn advance(iter: &mut Peekable<Chars>) -> Result<(), SaveError> {
     let mut count = 0;
     while let Some(ch) = iter.peek() {
       if ch.is_numeric() {
@@ -205,16 +246,14 @@ impl<T: VMParamsPath> VMParams<T> {
       }
     }
 
-    if_chain! {
-      if count > 0;
-      if let Some(ch) = iter.next();
-      if vec!['k', 'K', 'm', 'M', 'g', 'G'].iter().any(|t| *t == ch);
-      if let Some(' ') | None = iter.peek();
-      then {
-        Ok(())
-      } else {
-        Err(SaveError::Format)
-      }
+    if count > 0
+      && let Some(ch) = iter.next()
+      && vec!['k', 'm', 'g'].iter().any(|t| t.eq_ignore_ascii_case(&ch))
+      && let Some(' ') | None = iter.peek()
+    {
+      Ok(())
+    } else {
+      Err(SaveError::Format)
     }
   }
 }
@@ -241,7 +280,7 @@ mod test {
     }
   }
 
-  fn test_func<T: VMParamsPath>() {
+  fn test_func<T: VMParamsPath>(verify_none: bool) {
     let _guard = DUMB_MUTEX.lock().expect("Lock dumb mutex");
 
     let root = ROOT.as_path();
@@ -273,22 +312,21 @@ mod test {
         heap_init: vmparams.heap_init,
         heap_max: vmparams.heap_max,
         thread_stack_size: vmparams.thread_stack_size,
+        verify_none,
         _phantom: PhantomData::default(),
       };
 
       let res = edited_vmparams.save(PathBuf::from("/"));
 
-      assert!(res.is_ok());
+      res.expect("Save edited vmparams");
 
-      let edited_vmparams = VMParams::<TempPath>::load(PathBuf::from("/"));
+      let edited_vmparams =
+        VMParams::<TempPath>::load(PathBuf::from("/")).expect("Load edited vmparams");
 
-      assert!(edited_vmparams.is_ok());
-
-      if let Ok(edited_vmparams) = edited_vmparams {
-        assert!(edited_vmparams.heap_init.amount == 2048);
-        assert!(edited_vmparams.heap_max.amount == 2048);
-        assert!(edited_vmparams.thread_stack_size.amount == 4096);
-      }
+      assert!(edited_vmparams.heap_init.amount == 2048);
+      assert!(edited_vmparams.heap_max.amount == 2048);
+      assert!(edited_vmparams.thread_stack_size.amount == 4096);
+      assert!(edited_vmparams.verify_none == verify_none);
     }
   }
 
@@ -302,7 +340,7 @@ mod test {
       }
     }
 
-    test_func::<Windows>();
+    test_func::<Windows>(false);
   }
 
   #[test]
@@ -315,7 +353,7 @@ mod test {
       }
     }
 
-    test_func::<Linux>();
+    test_func::<Linux>(false);
   }
 
   #[test]
@@ -328,6 +366,19 @@ mod test {
       }
     }
 
-    test_func::<MacOS>();
+    test_func::<MacOS>(false);
+  }
+
+  #[test]
+  fn test_azul() {
+    struct Azul;
+
+    impl VMParamsPath for Azul {
+      fn path() -> PathBuf {
+        PathBuf::from("./vmparams_windows")
+      }
+    }
+
+    test_func::<Azul>(true)
   }
 }
