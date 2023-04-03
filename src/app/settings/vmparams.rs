@@ -210,7 +210,7 @@ impl<T: VMParamsPath> VMParams<T> {
             output.push_str(&self.thread_stack_size.to_string())
           }
         }
-      } else if ch == 'j' {
+      } else if write_verify_manually && ch == 'j' {
         let chunk: String = input_iter
           .next_chunk::<7>()
           .map_or_else(|iter| iter.collect(), |arr| arr.iter().collect());
