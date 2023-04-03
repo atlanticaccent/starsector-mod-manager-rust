@@ -20,27 +20,16 @@ jobs:
       VCPKG_DEFAULT_TRIPLET: x64-windows-static
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
 
-      - name: Cache vcpkg installed
-        uses: actions/cache@v1.0.3
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@main
+        id: runvcpkg
         with:
-          path: $VCPKG_ROOT/installed
-          key: windows-vcpkg-cache
-        env:
-          VCPKG_ROOT: 'C:\vcpkg'
-      - name: Cache vcpkg downloads
-        uses: actions/cache@v1.0.3
-        with:
-          path: $VCPKG_ROOT/downloads
-          key: windows-vcpkg-cache
-        env:
-          VCPKG_ROOT: 'C:\vcpkg'
+          # This specifies the location of vcpkg, where it is going to be restored from cache, or create from scratch.
+          vcpkgDirectory: '${{ runner.workspace }}/vcpkg'
 
       - name: Install dependencies Windows
-        run: vcpkg integrate install; vcpkg install libarchive:x64-windows-static
+        run: ${{ runner.workspace }}/vcpkg integrate install; ${{ runner.workspace }}/vcpkg install libarchive:x64-windows-static
         env:
           VCPKG_ROOT: 'C:\vcpkg'
 
@@ -54,6 +43,9 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
       - uses: actions-rs/cargo@v1
         with:
           command: build
