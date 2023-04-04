@@ -38,6 +38,7 @@ jobs:
         with:
           vcpkgGitCommitId: 69efe9cc2df0015f0bb2d37d55acde4a75c9a25b
           runVcpkgInstall: true
+          vcpkgDirectory: C:\vcpkg
 
       - uses: actions-rs/toolchain@v1
         with:
