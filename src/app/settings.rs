@@ -570,6 +570,44 @@ impl Settings {
                         .expand_width(),
                         1.,
                       )
+                      .with_flex_child(
+                        Card::new(
+                          Flex::column()
+                            .with_child(h2("Azul Zulu"))
+                            .with_child(bold_text(
+                              "JRE 8v362 (b09)",
+                              theme::TEXT_SIZE_NORMAL,
+                              druid::FontWeight::SEMI_BOLD,
+                              druid::theme::TEXT_COLOR,
+                            ))
+                            .with_child(bold_text(
+                              "(RESEARCH)",
+                              theme::TEXT_SIZE_NORMAL,
+                              druid::FontWeight::MEDIUM,
+                              druid::Color::rgb8(236, 188, 0),
+                            ))
+                            .with_spacer(5.)
+                            .with_child(
+                              Button2::new(Label::new("Install").padding((10., 0.))).on_click(
+                                |ctx, data: &mut Settings, _| {
+                                  data.jre_swap_in_progress = true;
+                                  if let Some(vmparams) = data.vmparams.as_mut() {
+                                    vmparams.verify_none = true;
+                                    let _ = vmparams.save(data.install_dir.as_ref().unwrap().clone());
+                                  }
+                                  tokio::runtime::Handle::current().spawn(Flavour::Azul.swap(
+                                    ctx.get_external_handle(),
+                                    data.install_dir.as_ref().unwrap().clone(),
+                                    data.jre_managed_mode
+                                  ));
+                                },
+                              ),
+                            )
+                            .main_axis_alignment(druid::widget::MainAxisAlignment::Center),
+                        )
+                        .expand_width(),
+                        1.,
+                      )
                       .expand_width(),
                   )
                   .with_child(

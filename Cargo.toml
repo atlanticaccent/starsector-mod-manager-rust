@@ -69,6 +69,11 @@ name = "Starsector Mod Manager"
 id = "org.laird.starsector_mod_manager"
 osx_minimum_system_version = "10.10"
 
+[package.metadata.vcpkg]
+git = "https://github.com/microsoft/vcpkg"
+rev = "69efe9cc2df0015f0bb2d37d55acde4a75c9a25b"
+dependencies = ["libarchive"]
+
 [workspace]
 members = [
   "webview-subsystem",
