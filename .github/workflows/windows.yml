@@ -34,12 +34,9 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Setup vcpkg
-        uses: lukka/run-vcpkg@main
-        id: runvcpkg
-        with:
-          vcpkgGitCommitId: 69efe9cc2df0015f0bb2d37d55acde4a75c9a25b
-          runVcpkgInstall: true
-          vcpkgDirectory: C:\vcpkg
+        run: |
+          (cargo install cargo-vcpkg || true)
+          cargo vcpkg build
 
       - uses: actions-rs/toolchain@v1
         with:
