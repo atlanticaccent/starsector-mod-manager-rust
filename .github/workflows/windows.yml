@@ -24,9 +24,6 @@ jobs:
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@main
         id: runvcpkg
-        with:
-          # This specifies the location of vcpkg, where it is going to be restored from cache, or create from scratch.
-          vcpkgDirectory: '${{ runner.workspace }}/vcpkg'
 
       - name: Install dependencies Windows
         run: ${{ runner.workspace }}/vcpkg integrate install; ${{ runner.workspace }}/vcpkg install libarchive:x64-windows-static
