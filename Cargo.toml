@@ -8,8 +8,8 @@ description = "A mod manager for the game Starsector"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-druid = { git = "https://github.com/atlanticaccent/druid", rev = "2a54eb360aa171db133816c369144714221e345b" }
-druid-widget-nursery = { git = "https://github.com/atlanticaccent/druid-widget-nursery", branch = "switch-to-druid-fork", features = ["material-icons", "async"] }
+druid = { version = "0.8.2", features = ["im", "serde"] }
+druid-widget-nursery = { git = "https://github.com/linebender/druid-widget-nursery", branch = "master", features = ["material-icons", "async"] }
 infer = "0.3.4"
 tokio = { version = "1.6.0", features = ["fs", "io-util", "rt-multi-thread", "process", "macros"] }
 serde = { version = "1.0.126", features = ["derive"] }
@@ -50,15 +50,13 @@ junction = "0.2.0"
 flate2 = "1.0"
 tar = "0.4"
 deunicode = "1.3.2"
+xxhash-rust = { version = "0.8.6", features = ["xxh3"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 native-dialog = "0.6.3"
 
 [target.'cfg(not(target_os = "linux"))'.dependencies]
-rfd = "0.8"
-
-[dependencies.im]
-features = ["serde"]
+rfd = "0.11.1"
 
 [dependencies.webview-subsystem]
 path = "./webview-subsystem"
@@ -71,8 +69,16 @@ name = "Starsector Mod Manager"
 id = "org.laird.starsector_mod_manager"
 osx_minimum_system_version = "10.10"
 
+[package.metadata.vcpkg]
+git = "https://github.com/microsoft/vcpkg"
+rev = "69efe9cc2df0015f0bb2d37d55acde4a75c9a25b"
+dependencies = ["libarchive"]
+
 [workspace]
 members = [
   "webview-subsystem",
   "webview-subsystem-shared"
 ]
+
+[profile.dev.package."*"]
+opt-level = 3

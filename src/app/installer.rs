@@ -4,26 +4,24 @@ use std::{
   io::{self, Write},
   iter::FusedIterator,
   path::{Path, PathBuf},
-  sync::{Arc, LazyLock, Mutex, Weak},
+  sync::Arc,
 };
 
 use chrono::Local;
+use druid::im::Vector;
 use druid::{ExtEventSink, Selector, SingleUse, Target};
 use if_chain::if_chain;
-use im::Vector;
 use remove_dir_all::remove_dir_all;
 use reqwest::Url;
 use snafu::{OptionExt, ResultExt, Snafu};
 use tempfile::{tempdir, TempDir};
 use tokio::{
   fs::rename,
-  select,
-  sync::mpsc,
   task::{self, JoinSet},
-  time::{sleep, timeout, Duration, Instant},
+  time::timeout,
 };
 
-use crate::app::mod_entry::ModEntry;
+use crate::app::{mod_entry::ModEntry, util::LoadBalancer};
 
 use super::mod_entry::ModMetadata;
 
@@ -377,8 +375,11 @@ pub async fn download(
 ) -> Result<tempfile::NamedTempFile, InstallError> {
   static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
 
-  static UPDATE_BALANCER: LazyLock<Mutex<Weak<mpsc::UnboundedSender<(i64, String, f64)>>>> =
-    LazyLock::new(|| Mutex::new(Weak::new()));
+  static UPDATE_BALANCER: LoadBalancer<
+    (i64, String, f64),
+    Vec<(i64, String, f64)>,
+    HashMap<i64, (i64, String, f64)>,
+  > = LoadBalancer::new(DOWNLOAD_PROGRESS);
 
   let mut file = tempfile::NamedTempFile::new().context(Io {
     detail: String::from("Failed to create named temp file to write to"),
@@ -409,48 +410,7 @@ pub async fn download(
         .unwrap_or(url)
     });
 
-  let tx = {
-    let mut sender = UPDATE_BALANCER.lock().unwrap();
-    if let Some(tx) = sender.upgrade() {
-      tx
-    } else {
-      let (tx, mut rx) = mpsc::unbounded_channel::<(i64, String, f64)>();
-      let ext_ctx = ext_ctx.clone();
-      let tx = Arc::new(tx);
-      *sender = Arc::downgrade(&tx);
-      task::spawn(async move {
-        let sleep = sleep(Duration::from_millis(50));
-        tokio::pin!(sleep);
-
-        let mut queue: HashMap<i64, (i64, String, f64)> = HashMap::new();
-        loop {
-          select! {
-            message = rx.recv() => {
-              match message {
-                Some(message) => {
-                  queue.insert(message.0, message);
-                },
-                None => {
-                  if !queue.is_empty() {
-                    let vals: Vec<(i64, String, f64)> = queue.drain().map(|(_, val)| val).collect();
-                    let _ = ext_ctx.submit_command(DOWNLOAD_PROGRESS, vals, Target::Auto);
-                  }
-                  break
-                },
-              }
-            },
-            _ = &mut sleep => {
-              let vals: Vec<(i64, String, f64)> = queue.drain().map(|(_, val)| val).collect();
-              let _ = ext_ctx.submit_command(DOWNLOAD_PROGRESS, vals, Target::Auto);
-              sleep.as_mut().reset(Instant::now() + Duration::from_millis(50));
-            }
-          }
-        }
-      });
-
-      tx
-    }
-  };
+  let tx = UPDATE_BALANCER.sender(ext_ctx.clone());
 
   let start = Local::now().timestamp();
   let _ = ext_ctx.submit_command(DOWNLOAD_STARTED, (start, name.clone()), Target::Auto);

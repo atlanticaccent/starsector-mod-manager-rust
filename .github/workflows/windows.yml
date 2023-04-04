@@ -18,31 +18,9 @@ jobs:
     runs-on: windows-latest
     env:
       VCPKG_DEFAULT_TRIPLET: x64-windows-static
+      VCPKG_ROOT: 'C:\vcpkg'
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-
-      - name: Cache vcpkg installed
-        uses: actions/cache@v1.0.3
-        with:
-          path: $VCPKG_ROOT/installed
-          key: windows-vcpkg-cache
-        env:
-          VCPKG_ROOT: 'C:\vcpkg'
-      - name: Cache vcpkg downloads
-        uses: actions/cache@v1.0.3
-        with:
-          path: $VCPKG_ROOT/downloads
-          key: windows-vcpkg-cache
-        env:
-          VCPKG_ROOT: 'C:\vcpkg'
-
-      - name: Install dependencies Windows
-        run: vcpkg integrate install; vcpkg install libarchive:x64-windows-static
-        env:
-          VCPKG_ROOT: 'C:\vcpkg'
 
       - name: Check cache
         uses: actions/cache@v2
@@ -54,6 +32,16 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Setup vcpkg
+        run: |
+          (cargo install cargo-vcpkg || true)
+          cargo vcpkg build
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+
       - uses: actions-rs/cargo@v1
         with:
           command: build

@@ -1,4 +1,9 @@
+use std::any::Any;
+use std::collections::HashMap;
+use std::hash::Hash;
 use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
+use std::sync::{Mutex, Weak};
 use std::{collections::VecDeque, io::Read, path::PathBuf, sync::Arc};
 
 use druid::widget::{ControllerHost, Either, LabelText, SizedBox};
@@ -18,11 +23,14 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use serde::Deserialize;
 use tap::Tap;
+use tokio::select;
+use tokio::sync::mpsc;
+use xxhash_rust::xxh3::Xxh3Builder;
 
 use crate::patch::click::Click;
 
 use super::controllers::{HoverController, OnEvent, OnNotif};
-use super::mod_entry::{GameVersion, ModVersionMeta};
+use super::mod_entry::{GameVersion, ModEntry, ModVersionMeta};
 
 pub(crate) mod icons;
 
@@ -669,7 +677,6 @@ pub fn hoverable_text(colour: Option<Color>) -> impl Widget<String> {
               0..text.len(),
               Attribute::TextColor(
                 colour
-                  .clone()
                   .map(|c| c.into())
                   .unwrap_or_else(|| theme::TEXT_COLOR.into()),
               ),
@@ -723,5 +730,150 @@ impl Button2 {
 
   pub fn from_label<T: Data>(label: impl Into<LabelText<T>>) -> impl Widget<T> {
     Self::new(Label::wrapped_into(label).with_text_size(18.))
+  }
+}
+
+/// A bad trait
+pub trait Collection<T, U> {
+  fn insert(&mut self, item: T);
+
+  fn len(&self) -> usize;
+
+  fn is_empty(&self) -> bool {
+    self.len() == 0
+  }
+
+  fn drain(&mut self) -> U;
+}
+
+impl<A: Clone + Hash + Eq, B, C> Collection<(A, B, C), Vec<(A, B, C)>> for HashMap<A, (A, B, C)> {
+  fn insert(&mut self, item: (A, B, C)) {
+    HashMap::insert(self, item.0.clone(), item);
+  }
+
+  fn len(&self) -> usize {
+    self.len()
+  }
+
+  fn drain(&mut self) -> Vec<(A, B, C)> {
+    self.drain().map(|(_, v)| v).collect()
+  }
+}
+
+impl Collection<Arc<ModEntry>, Vec<Arc<ModEntry>>> for Vec<Arc<ModEntry>> {
+  fn insert(&mut self, item: Arc<ModEntry>) {
+    self.push(item);
+  }
+
+  fn len(&self) -> usize {
+    self.len()
+  }
+
+  fn drain(&mut self) -> Vec<Arc<ModEntry>> {
+    self.split_off(0)
+  }
+}
+
+pub struct LoadBalancer<T: Any + Send, DRAIN: Any + Send, SINK: Default + Collection<T, DRAIN>> {
+  tx: std::sync::LazyLock<Mutex<Weak<mpsc::UnboundedSender<T>>>>,
+  sink: PhantomData<SINK>,
+  selector: Selector<DRAIN>,
+}
+
+impl<T: Any + Send, U: Any + Send, SINK: Default + Collection<T, U> + Send>
+  LoadBalancer<T, U, SINK>
+{
+  pub const fn new(selector: Selector<U>) -> Self {
+    Self {
+      tx: std::sync::LazyLock::new(Default::default),
+      sink: PhantomData,
+      selector,
+    }
+  }
+
+  pub fn sender(&self, ext_ctx: ExtEventSink) -> Arc<mpsc::UnboundedSender<T>> {
+    let mut sender = self.tx.lock().unwrap();
+    if let Some(tx) = sender.upgrade() {
+      tx
+    } else {
+      let (tx, mut rx) = mpsc::unbounded_channel::<T>();
+      let tx = Arc::new(tx);
+      let selector = self.selector;
+      tokio::task::spawn(async move {
+        let sleep = tokio::time::sleep(std::time::Duration::from_millis(50));
+        tokio::pin!(sleep);
+
+        let mut sink = SINK::default();
+        loop {
+          select! {
+            message = rx.recv() => {
+              match message {
+                Some(message) => {
+                  sink.insert(message);
+                },
+                None => {
+                  if !sink.is_empty() {
+                    let vals = sink.drain();
+                    let _ = ext_ctx.submit_command(selector, vals, Target::Auto);
+                  }
+                  break
+                },
+              }
+            },
+            _ = &mut sleep => {
+              let vals = sink.drain();
+              let _ = ext_ctx.submit_command(selector, vals, Target::Auto);
+              sleep.as_mut().reset(tokio::time::Instant::now() + std::time::Duration::from_millis(50));
+            }
+          }
+        }
+      });
+
+      *sender = Arc::downgrade(&tx);
+
+      tx
+    }
+  }
+}
+
+#[allow(non_camel_case_types)]
+#[derive(Clone, Default)]
+pub struct xxHashMap<K: Clone, V: Clone>(druid::im::HashMap<K, V, Xxh3Builder>);
+
+impl<K: Clone, V: Clone> xxHashMap<K, V> {
+  pub fn new() -> Self {
+    Self(druid::im::HashMap::with_hasher(Xxh3Builder::new()))
+  }
+}
+
+impl<K: Clone, V: Clone> Deref for xxHashMap<K, V> {
+  type Target = druid::im::HashMap<K, V, Xxh3Builder>;
+
+  fn deref(&self) -> &Self::Target {
+    &self.0
+  }
+}
+
+impl<K: Clone, V: Clone> DerefMut for xxHashMap<K, V> {
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    &mut self.0
+  }
+}
+
+impl<K: Clone + 'static, V: Clone + 'static> Data for xxHashMap<K, V> {
+  fn same(&self, other: &Self) -> bool {
+    self.ptr_eq(other)
+  }
+}
+
+impl<K: Clone, V: Clone> From<druid::im::HashMap<K, V, Xxh3Builder>> for xxHashMap<K, V> {
+  fn from(other: druid::im::HashMap<K, V, Xxh3Builder>) -> Self {
+    Self(other)
+  }
+}
+
+impl<K: Clone, V: Clone> From<xxHashMap<K, V>> for druid::im::HashMap<K, V, Xxh3Builder> {
+  fn from(other: xxHashMap<K, V>) -> Self {
+    other.0
   }
 }
