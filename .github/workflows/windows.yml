@@ -21,15 +21,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Setup vcpkg
-        uses: lukka/run-vcpkg@main
-        id: runvcpkg
-        with:
-          vcpkgGitCommitId: 69efe9cc2df0015f0bb2d37d55acde4a75c9a25b
-
-      - name: Install dependencies Windows
-        run: vcpkg integrate install; vcpkg install libarchive:x64-windows-static
-
       - name: Check cache
         uses: actions/cache@v2
         with:
@@ -40,9 +31,19 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@main
+        id: runvcpkg
+        with:
+          vcpkgGitCommitId: 69efe9cc2df0015f0bb2d37d55acde4a75c9a25b
+
+      - name: Install dependencies Windows
+        run: vcpkg integrate install; vcpkg install libarchive:x64-windows-static
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
+
       - uses: actions-rs/cargo@v1
         with:
           command: build
