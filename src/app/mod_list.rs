@@ -179,19 +179,17 @@ impl ModList {
       )
       .on_command(ModList::SUBMIT_ENTRY, |ctx, payload, data| {
         for entry in payload {
-          *data.mods = data
-            .mods
-            .alter(
-              |existing| {
-                if let Some(inner) = &existing {
-                  ctx.submit_command(ModList::DUPLICATE.with((inner.clone(), entry.clone())));
-                  existing
-                } else {
-                  Some(entry.clone())
-                }
-              },
-              entry.id.clone(),
-            );
+          *data.mods = data.mods.alter(
+            |existing| {
+              if let Some(inner) = &existing {
+                ctx.submit_command(ModList::DUPLICATE.with((inner.clone(), entry.clone())));
+                existing
+              } else {
+                Some(entry.clone())
+              }
+            },
+            entry.id.clone(),
+          );
         }
       })
       .on_command(Header::SORT_CHANGED, |ctx, payload, data| {
@@ -472,7 +470,7 @@ impl EnabledMods {
 impl From<Vec<Arc<ModEntry>>> for EnabledMods {
   fn from(from: Vec<Arc<ModEntry>>) -> Self {
     Self {
-      enabled_mods: from.iter().into_iter().map(|v| v.id.clone()).collect(),
+      enabled_mods: from.iter().map(|v| v.id.clone()).collect(),
     }
   }
 }
@@ -507,43 +505,32 @@ impl Filters {
       Filters::Enabled => |entry: &Arc<ModEntry>| !entry.enabled,
       Filters::Disabled => |entry: &Arc<ModEntry>| entry.enabled,
       Filters::Unimplemented => |entry: &Arc<ModEntry>| entry.version_checker.is_some(),
-      Filters::Error => |entry: &Arc<ModEntry>| {
-        !entry
-          .update_status
-          .is_some_and(|s| s == &UpdateStatus::Error)
-      },
-      Filters::UpToDate => |entry: &Arc<ModEntry>| {
-        !entry
-          .update_status
-          .is_some_and(|s| s == &UpdateStatus::UpToDate)
-      },
-      Filters::Discrepancy => |entry: &Arc<ModEntry>| {
-        !entry
-          .update_status
-          .is_some_and(|s| matches!(s, &UpdateStatus::Discrepancy(_)))
-      },
-      Filters::Patch => |entry: &Arc<ModEntry>| {
-        !entry
-          .update_status
-          .is_some_and(|s| matches!(s, &UpdateStatus::Patch(_)))
-      },
-      Filters::Minor => |entry: &Arc<ModEntry>| {
-        !entry
-          .update_status
-          .is_some_and(|s| matches!(s, &UpdateStatus::Minor(_)))
-      },
-      Filters::Major => |entry: &Arc<ModEntry>| {
-        !entry
-          .update_status
-          .is_some_and(|s| matches!(s, &UpdateStatus::Major(_)))
-      },
+      Filters::Error => |entry: &Arc<ModEntry>| entry.update_status != Some(UpdateStatus::Error),
+      Filters::UpToDate => {
+        |entry: &Arc<ModEntry>| entry.update_status != Some(UpdateStatus::UpToDate)
+      }
+      Filters::Discrepancy => {
+        |entry: &Arc<ModEntry>| !matches!(entry.update_status, Some(UpdateStatus::Discrepancy(_)))
+      }
+      Filters::Patch => {
+        |entry: &Arc<ModEntry>| !matches!(entry.update_status, Some(UpdateStatus::Patch(_)))
+      }
+      Filters::Minor => {
+        |entry: &Arc<ModEntry>| !matches!(entry.update_status, Some(UpdateStatus::Minor(_)))
+      }
+      Filters::Major => {
+        |entry: &Arc<ModEntry>| !matches!(entry.update_status, Some(UpdateStatus::Major(_)))
+      }
       Filters::AutoUpdateAvailable => |entry: &Arc<ModEntry>| {
-        !(entry.update_status.is_some_and(|s| {
-          matches!(
-            s,
-            UpdateStatus::Patch(_) | UpdateStatus::Minor(_) | UpdateStatus::Major(_)
-          )
-        }) && entry
+        matches!(
+          entry.update_status,
+          None | Some(UpdateStatus::Error) | Some(UpdateStatus::UpToDate)
+        ) || (matches!(
+          entry.update_status,
+          Some(UpdateStatus::Patch(_))
+            | Some(UpdateStatus::Minor(_))
+            | Some(UpdateStatus::Major(_))
+        ) ^ entry
           .remote_version
           .as_ref()
           .and_then(|r| r.direct_download_url.as_ref())

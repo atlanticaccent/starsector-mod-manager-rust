@@ -1,4 +1,11 @@
-use std::{cell::RefCell, fs::metadata, path::PathBuf, process::Child, rc::Rc, sync::Arc};
+use std::{
+  cell::RefCell,
+  fs::metadata,
+  path::{Path, PathBuf},
+  process::Child,
+  rc::Rc,
+  sync::Arc,
+};
 
 use chrono::{DateTime, Local, TimeZone};
 use druid::{
@@ -609,7 +616,7 @@ impl App {
 
   #[cfg(target_os = "macos")]
   async fn launch(
-    install_dir: &PathBuf,
+    install_dir: &Path,
     experimental_launch: bool,
     resolution: (u32, u32),
   ) -> anyhow::Result<tokio::process::Child> {

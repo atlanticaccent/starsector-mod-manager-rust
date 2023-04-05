@@ -2,6 +2,7 @@ use std::fmt::Display;
 
 use chrono::{DateTime, Local, Utc};
 use deunicode::deunicode;
+use druid::im::{HashMap, Vector};
 use druid::{
   lens, theme,
   widget::{Either, Flex, Label, Maybe, Painter, SizedBox, TextBox, ViewSwitcher},
@@ -10,7 +11,6 @@ use druid::{
 use druid_widget_nursery::{
   material_icons::Icon, wrap::Wrap, Separator, WidgetExt as WidgetExtNursery,
 };
-use druid::im::{HashMap, Vector};
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use serde::Deserialize;
 use strum::IntoEnumIterator;
@@ -236,9 +236,12 @@ impl ModRepo {
 
             item.display = (search.is_empty() || item.score.is_some())
               && (filters.is_empty()
-                || filters
-                  .iter()
-                  .all(|filter| item.sources.is_some_and(|source| source.contains(filter))))
+                || filters.iter().all(|filter| {
+                  item
+                    .sources
+                    .as_ref()
+                    .is_some_and(|source| source.contains(filter))
+                }))
           })
         })
         .on_command(ModRepo::UPDATE_SORTING, |_, sorting, data| {
@@ -399,7 +402,7 @@ impl ModRepoItem {
       .with_child(
         Maybe::or_empty(|| Separator::new().with_width(0.5).padding(5.)).lens(
           ModRepoItem::authors.map(
-            |data| (data.is_some_and(|data| !data.is_empty())).then_some(()),
+            |data| (data.as_ref().is_some_and(|data| !data.is_empty())).then_some(()),
             |_, _| {},
           ),
         ),
@@ -428,7 +431,7 @@ impl ModRepoItem {
         })
         .lens(ModRepoItem::authors.map(
           |data| {
-            (data.is_some_and(|data| !data.is_empty()))
+            (data.as_ref().is_some_and(|data| !data.is_empty()))
               .then(|| data.clone())
               .flatten()
           },
@@ -438,7 +441,7 @@ impl ModRepoItem {
       .with_child(
         Maybe::or_empty(|| Separator::new().with_width(0.5).padding(5.)).lens(
           ModRepoItem::urls.map(
-            |data| (data.is_some_and(|data| !data.is_empty())).then_some(()),
+            |data| (data.as_ref().is_some_and(|data| !data.is_empty())).then_some(()),
             |_, _| {},
           ),
         ),
@@ -504,7 +507,7 @@ impl ModRepoItem {
         })
         .lens(ModRepoItem::urls.map(
           |data| {
-            (data.is_some_and(|data| !data.is_empty()))
+            (data.as_ref().is_some_and(|data| !data.is_empty()))
               .then(|| data.clone())
               .flatten()
           },

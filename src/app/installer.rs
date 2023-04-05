@@ -105,7 +105,7 @@ async fn handle_path(
   match timeout(
     std::time::Duration::from_millis(500),
     task::spawn_blocking(move || {
-      ModSearch::new(&dir).exhaustive().context(Io {
+      ModSearch::new(dir).exhaustive().context(Io {
         detail: "IO error searching for mods",
       })
     }),
@@ -326,7 +326,7 @@ async fn handle_auto(ext_ctx: ExtEventSink, entry: Arc<ModEntry>) {
           let path = temp.path().to_owned();
           let source = url.clone();
           if_chain! {
-            if let Ok(Some(path)) = task::spawn_blocking(move || ModSearch::new(&path).first())
+            if let Ok(Some(path)) = task::spawn_blocking(move || ModSearch::new(path).first())
               .await
               .expect("Run blocking search")
               .context(Io { detail: "File IO error when searching for mod" });

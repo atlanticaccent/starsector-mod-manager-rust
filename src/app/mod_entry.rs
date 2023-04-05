@@ -252,9 +252,9 @@ impl ModEntry {
                 .and_then(|r| r.direct_download_url.as_ref())
                 .is_some(),
               Either::new(
-                |entry: &Arc<ModEntry>, _| entry.update_status.is_some_and(|status| status != &UpdateStatus::Error),
+                |entry: &Arc<ModEntry>, _| entry.update_status.as_ref().is_some_and(|status| status != &UpdateStatus::Error),
                 Either::new(
-                  |entry: &Arc<ModEntry>, _| entry.update_status.is_some_and(|status| !matches!(status, &UpdateStatus::UpToDate | &UpdateStatus::Discrepancy(_))),
+                  |entry: &Arc<ModEntry>, _| entry.update_status.as_ref().is_some_and(|status| !matches!(status, &UpdateStatus::UpToDate | &UpdateStatus::Discrepancy(_))),
                   Button::from_label(Label::wrapped("Update available!")).on_click(
                     |ctx: &mut druid::EventCtx, data: &mut Arc<ModEntry>, _| {
                       ctx.submit_notification(ModEntry::AUTO_UPDATE.with(data.clone()))
@@ -363,10 +363,12 @@ pub enum VersionUnion {
 
 impl Display for VersionUnion {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-    match self {
-      VersionUnion::String(s) => write!(f, "{}", s),
-      VersionUnion::Object(o) => write!(f, "{}", o.to_string()),
-    }
+    let display: &dyn Display = match self {
+      VersionUnion::String(s) => s,
+      VersionUnion::Object(o) => o,
+    };
+
+    write!(f, "{}", display)
   }
 }
 
