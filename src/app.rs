@@ -1014,6 +1014,7 @@ impl Delegate<App> for AppDelegate {
     Handled::No
   }
 
+  #[allow(unused_variables)]
   fn window_removed(&mut self, id: WindowId, data: &mut App, _env: &Env, ctx: &mut DelegateCtx) {
     match Some(id) {
       a if a == self.settings_id => self.settings_id = None,
