@@ -10,7 +10,6 @@ use std::{
 use chrono::Local;
 use druid::im::Vector;
 use druid::{ExtEventSink, Selector, SingleUse, Target};
-use if_chain::if_chain;
 use remove_dir_all::remove_dir_all;
 use reqwest::Url;
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -325,24 +324,22 @@ async fn handle_auto(ext_ctx: ExtEventSink, entry: Arc<ModEntry>) {
           let temp = Arc::new(temp);
           let path = temp.path().to_owned();
           let source = url.clone();
-          if_chain! {
-            if let Ok(Some(path)) = task::spawn_blocking(move || ModSearch::new(path).first())
-              .await
-              .expect("Run blocking search")
-              .context(Io { detail: "File IO error when searching for mod" });
-            let mod_metadata = ModMetadata::new();
-            if mod_metadata.save(&path).await.is_ok();
-            if let Ok(mod_info) = ModEntry::from_file(&path, mod_metadata);
-            then {
-              let hybrid = HybridPath::Temp(temp, source, Some(path));
-              if &mod_info.version_checker.as_ref().unwrap().version != target_version {
-                ext_ctx.submit_command(INSTALL, ChannelMessage::Error(mod_info.name.clone(), "Downloaded version does not match expected version".to_string()), Target::Auto).expect("Send error over async channel");
-              } else {
-                handle_delete(ext_ctx, Arc::new(mod_info), hybrid, entry.path.clone()).await;
-              }
+          let mod_metadata = ModMetadata::new();
+          if let Ok(Some(path)) = task::spawn_blocking(move || ModSearch::new(path).first())
+            .await
+            .expect("Run blocking search")
+            .context(Io { detail: "File IO error when searching for mod" })
+            && mod_metadata.save(&path).await.is_ok()
+            && let Ok(mod_info) = ModEntry::from_file(&path, mod_metadata)
+          {
+            let hybrid = HybridPath::Temp(temp, source, Some(path));
+            if &mod_info.version_checker.as_ref().unwrap().version != target_version {
+              ext_ctx.submit_command(INSTALL, ChannelMessage::Error(mod_info.name.clone(), "Downloaded version does not match expected version".to_string()), Target::Auto).expect("Send error over async channel");
             } else {
-              ext_ctx.submit_command(INSTALL, ChannelMessage::Error(entry.id.clone(), "Some kind of unpack error".to_string()), Target::Auto).expect("Send error over async channel");
+              handle_delete(ext_ctx, Arc::new(mod_info), hybrid, entry.path.clone()).await;
             }
+          } else {
+            ext_ctx.submit_command(INSTALL, ChannelMessage::Error(entry.id.clone(), "Some kind of unpack error".to_string()), Target::Auto).expect("Send error over async channel");
           }
         }
         Err(err) => {

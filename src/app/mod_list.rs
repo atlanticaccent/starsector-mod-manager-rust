@@ -13,7 +13,6 @@ use druid::{
   Widget, WidgetExt,
 };
 use druid_widget_nursery::WidgetExt as WidgetExtNursery;
-use if_chain::if_chain;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter};
@@ -238,16 +237,12 @@ impl ModList {
 
       let enabled_mods = if !enabled_mods_filename.exists() {
         vec![]
+      } else if let Ok(enabled_mods_text) = std::fs::read_to_string(enabled_mods_filename)
+        && let Ok(EnabledMods { enabled_mods }) = serde_json::from_str::<EnabledMods>(&enabled_mods_text)
+      {
+        enabled_mods
       } else {
-        if_chain! {
-          if let Ok(enabled_mods_text) = std::fs::read_to_string(enabled_mods_filename);
-          if let Ok(EnabledMods { enabled_mods }) = serde_json::from_str::<EnabledMods>(&enabled_mods_text);
-          then {
-            enabled_mods
-          } else {
-            return
-          }
-        }
+        return
       };
 
       if let Ok(dir_iter) = std::fs::read_dir(mod_dir) {

@@ -1,11 +1,4 @@
-use std::{
-  cell::RefCell,
-  fs::metadata,
-  path::PathBuf,
-  process::Child,
-  rc::Rc,
-  sync::Arc,
-};
+use std::{cell::RefCell, fs::metadata, path::PathBuf, process::Child, rc::Rc, sync::Arc};
 
 use chrono::{DateTime, Local, TimeZone};
 use druid::{
