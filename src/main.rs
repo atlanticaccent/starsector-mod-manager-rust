@@ -15,7 +15,9 @@
 #![feature(iterator_try_collect)]
 #![feature(iter_next_chunk)]
 #![feature(lazy_cell)]
+
 #![allow(clippy::new_ret_no_self)]
+#![allow(clippy::type_complexity)]
 
 extern crate webview_subsystem;
 
