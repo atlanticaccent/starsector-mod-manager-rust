@@ -18,7 +18,6 @@ use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
 use json_comments::strip_comments;
 use serde::{Deserialize, Serialize};
 
-use if_chain::if_chain;
 use serde_aux::prelude::*;
 use tap::Tap;
 
@@ -86,19 +85,17 @@ impl ModEntry {
 
   pub fn from_file(path: &Path, manager_metadata: ModMetadata) -> Result<ModEntry, ModEntryError> {
     if let Ok(mod_info_file) = std::fs::read_to_string(path.join("mod_info.json")) {
-      if_chain! {
-        let mut stripped = String::new();
-        if strip_comments(mod_info_file.as_bytes()).read_to_string(&mut stripped).is_ok();
-        if let Ok(mut mod_info) = json5::from_str::<ModEntry>(&stripped);
-        then {
-          mod_info.version_checker = ModEntry::parse_version_checker(path, &mod_info.id);
-          mod_info.path = path.to_path_buf();
-          mod_info.game_version = parse_game_version(&mod_info.raw_game_version);
-          mod_info.manager_metadata = manager_metadata;
-          Ok(mod_info)
-        } else {
-          Err(ModEntryError::ParseError)
-        }
+      let mut stripped = String::new();
+      if strip_comments(mod_info_file.as_bytes()).read_to_string(&mut stripped).is_ok()
+        && let Ok(mut mod_info) = json5::from_str::<ModEntry>(&stripped)
+      {
+        mod_info.version_checker = ModEntry::parse_version_checker(path, &mod_info.id);
+        mod_info.path = path.to_path_buf();
+        mod_info.game_version = parse_game_version(&mod_info.raw_game_version);
+        mod_info.manager_metadata = manager_metadata;
+        Ok(mod_info)
+      } else {
+        Err(ModEntryError::ParseError)
       }
     } else {
       Err(ModEntryError::FileError)
@@ -106,22 +103,19 @@ impl ModEntry {
   }
 
   fn parse_version_checker(path: &Path, id: &str) -> Option<ModVersionMeta> {
-    if_chain! {
-      if let Ok(version_loc_file) = File::open(path.join("data").join("config").join("version").join("version_files.csv"));
-      let mut lines = BufReader::new(version_loc_file).lines();
-      if let Some(Ok(version_filename)) = lines.nth(1);
-      if let Some(version_filename) = version_filename.split(',').next();
-      if let Ok(version_data) = std::fs::read_to_string(path.join(version_filename));
-      let mut no_comments = String::new();
-      if strip_comments(version_data.as_bytes()).read_to_string(&mut no_comments).is_ok();
-      if let Ok(normalized) = handwritten_json::normalize(&no_comments);
-      if let Ok(mut version) = json5::from_str::<ModVersionMeta>(&normalized);
-      then {
-        version.id = id.to_string();
-        Some(version)
-      } else {
-        None
-      }
+    let mut no_comments = String::new();
+    if let Ok(version_loc_file) = File::open(path.join("data").join("config").join("version").join("version_files.csv"))
+      && let Some(Ok(version_filename)) = BufReader::new(version_loc_file).lines().nth(1)
+      && let Some(version_filename) = version_filename.split(',').next()
+      && let Ok(version_data) = std::fs::read_to_string(path.join(version_filename))
+      && strip_comments(version_data.as_bytes()).read_to_string(&mut no_comments).is_ok()
+      && let Ok(normalized) = handwritten_json::normalize(&no_comments)
+      && let Ok(mut version) = json5::from_str::<ModVersionMeta>(&normalized)
+    {
+      version.id = id.to_string();
+      Some(version)
+    } else {
+      None
     }
   }
 
@@ -252,9 +246,9 @@ impl ModEntry {
                 .and_then(|r| r.direct_download_url.as_ref())
                 .is_some(),
               Either::new(
-                |entry: &Arc<ModEntry>, _| entry.update_status.is_some_and(|status| status != &UpdateStatus::Error),
+                |entry: &Arc<ModEntry>, _| entry.update_status.as_ref().is_some_and(|status| status != &UpdateStatus::Error),
                 Either::new(
-                  |entry: &Arc<ModEntry>, _| entry.update_status.is_some_and(|status| !matches!(status, &UpdateStatus::UpToDate | &UpdateStatus::Discrepancy(_))),
+                  |entry: &Arc<ModEntry>, _| entry.update_status.as_ref().is_some_and(|status| !matches!(status, &UpdateStatus::UpToDate | &UpdateStatus::Discrepancy(_))),
                   Button::from_label(Label::wrapped("Update available!")).on_click(
                     |ctx: &mut druid::EventCtx, data: &mut Arc<ModEntry>, _| {
                       ctx.submit_notification(ModEntry::AUTO_UPDATE.with(data.clone()))
@@ -363,10 +357,12 @@ pub enum VersionUnion {
 
 impl Display for VersionUnion {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-    match self {
-      VersionUnion::String(s) => write!(f, "{}", s),
-      VersionUnion::Object(o) => write!(f, "{}", o.to_string()),
-    }
+    let display: &dyn Display = match self {
+      VersionUnion::String(s) => s,
+      VersionUnion::Object(o) => o,
+    };
+
+    write!(f, "{}", display)
   }
 }
 

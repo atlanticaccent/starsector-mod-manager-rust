@@ -609,7 +609,7 @@ impl App {
 
   #[cfg(target_os = "macos")]
   async fn launch(
-    install_dir: &PathBuf,
+    install_dir: &std::path::Path,
     experimental_launch: bool,
     resolution: (u32, u32),
   ) -> anyhow::Result<tokio::process::Child> {
@@ -1007,6 +1007,7 @@ impl Delegate<App> for AppDelegate {
     Handled::No
   }
 
+  #[allow(unused_variables)]
   fn window_removed(&mut self, id: WindowId, data: &mut App, _env: &Env, ctx: &mut DelegateCtx) {
     match Some(id) {
       a if a == self.settings_id => self.settings_id = None,

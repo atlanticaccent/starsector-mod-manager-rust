@@ -13,7 +13,6 @@ use druid::{
   WindowConfig,
 };
 use druid_widget_nursery::{material_icons::Icon, DynLens, WidgetExt as WidgetExtNursery};
-use if_chain::if_chain;
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use tap::{Pipe, Tap};
@@ -432,13 +431,11 @@ impl Settings {
               })
               .lens(Settings::vmparams)
               .on_change(|_, _, data, _| {
-                if_chain! {
-                  if let Some(install_dir) = data.install_dir.clone();
-                  if let Some(vmparams) = data.vmparams.clone();
-                  if let Err(err) = vmparams.save(install_dir);
-                  then {
-                    eprintln!("{:?}", err)
-                  }
+                if let Some(install_dir) = data.install_dir.clone()
+                  && let Some(vmparams) = data.vmparams.clone()
+                  && let Err(err) = vmparams.save(install_dir)
+                {
+                  eprintln!("{:?}", err)
                 }
               }),
               SizedBox::empty(),
@@ -872,13 +869,11 @@ impl<W: Widget<VMParams>> Controller<VMParams, W> for UnitController<VMParams, U
                     move |_, d: &mut super::App, _| {
                       if let Some(vmparams) = d.settings.vmparams.as_mut() {
                         lens.with_mut(vmparams, |data| *data = unit);
-                        if_chain! {
-                          if let Some(install_dir) = d.settings.install_dir.clone();
-                          let vmparams = vmparams.clone();
-                          if let Err(err) = vmparams.save(install_dir);
-                          then {
-                            eprintln!("{:?}", err)
-                          }
+                        let vmparams = vmparams.clone();
+                        if let Some(install_dir) = d.settings.install_dir.as_ref()
+                          && let Err(err) = vmparams.save(install_dir)
+                        {
+                          eprintln!("{:?}", err)
                         }
                       }
                     }

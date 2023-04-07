@@ -9,14 +9,13 @@ description = "A mod manager for the game Starsector"
 
 [dependencies]
 druid = { version = "0.8.2", features = ["im", "serde"] }
-druid-widget-nursery = { git = "https://github.com/linebender/druid-widget-nursery", branch = "master", features = ["material-icons", "async"] }
+druid-widget-nursery = { git = "https://github.com/linebender/druid-widget-nursery", rev = "4427a99a99417420651ea45a334f499a14224cf8", features = ["material-icons", "async"] }
 infer = "0.3.4"
 tokio = { version = "1.6.0", features = ["fs", "io-util", "rt-multi-thread", "process", "macros"] }
 serde = { version = "1.0.126", features = ["derive"] }
 serde_json = "1.0"
 json5 = "0.3.0"
 json_comments = "0.1.0"
-if_chain = "1.0.1"
 reqwest = { version = "0.11.7", default-features = false, features = ["rustls-tls", "json"]}
 serde-aux = "2.1.1"
 handwritten-json = { git = "https://github.com/atlanticaccent/rust-handwritten-json.git" }
@@ -24,7 +23,7 @@ unrar = "0.4.4"
 opener = "0.5"
 directories = "3.0"
 tempfile = "^3.2"
-compress-tools = { git = "https://github.com/OSSystems/compress-tools-rs.git" }
+compress-tools = "0.14.1"
 snafu = "^0.6.10"
 remove_dir_all = "^0.7.0"
 sublime_fuzzy = "0.7.0"

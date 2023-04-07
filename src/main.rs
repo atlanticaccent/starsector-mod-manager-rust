@@ -6,16 +6,18 @@
 #![feature(btree_drain_filter)]
 #![feature(array_zip)]
 #![feature(result_option_inspect)]
-#![feature(is_some_with)]
+#![feature(is_some_and)]
 #![feature(hash_set_entry)]
 #![feature(string_remove_matches)]
-#![feature(once_cell)]
 #![feature(io_error_more)]
 #![feature(try_blocks)]
 #![feature(let_chains)]
 #![feature(iterator_try_collect)]
 #![feature(iter_next_chunk)]
+#![feature(lazy_cell)]
+
 #![allow(clippy::new_ret_no_self)]
+#![allow(clippy::type_complexity)]
 
 extern crate webview_subsystem;
 

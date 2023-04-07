@@ -17,7 +17,6 @@ use druid::{
 };
 use druid::{Env, MouseEvent};
 use druid_widget_nursery::CommandCtx;
-use if_chain::if_chain;
 use json_comments::strip_comments;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -184,22 +183,20 @@ pub async fn get_master_version(ext_sink: ExtEventSink, local: ModVersionMeta) {
   let payload = match res {
     Err(err) => (local.id.clone(), Err(err)),
     Ok(remote) => {
-      if_chain! {
-        let mut stripped = String::new();
-        if strip_comments(remote.as_bytes()).read_to_string(&mut stripped).is_ok();
-        if let Ok(normalized) = handwritten_json::normalize(&stripped);
-        if let Ok(remote) = json5::from_str::<ModVersionMeta>(&normalized);
-        then {
-          (
-            local.id.clone(),
-            Ok(remote)
-          )
-        } else {
-          (
-            local.id.clone(),
-            Err(format!("Parse error. Payload:\n{}", remote))
-          )
-        }
+      let mut stripped = String::new();
+      if strip_comments(remote.as_bytes()).read_to_string(&mut stripped).is_ok()
+        && let Ok(normalized) = handwritten_json::normalize(&stripped)
+        && let Ok(remote) = json5::from_str::<ModVersionMeta>(&normalized)
+      {
+        (
+          local.id.clone(),
+          Ok(remote)
+        )
+      } else {
+        (
+          local.id.clone(),
+          Err(format!("Parse error. Payload:\n{}", remote))
+        )
       }
     }
   };
@@ -280,16 +277,14 @@ pub async fn get_starsector_version(ext_ctx: ExtEventSink, install_dir: PathBuf)
       })
       .and_then(|class_file| {
         class_file.fields.iter().find_map(|f| {
-          if_chain! {
-            if let classfile_parser::constant_info::ConstantInfo::Utf8(name) =  &class_file.const_pool[(f.name_index - 1) as usize];
-            if name.utf8_string == "versionOnly";
-            if let Ok((_, attr)) = classfile_parser::attribute_info::constant_value_attribute_parser(&f.attributes.first().unwrap().info);
-            if let classfile_parser::constant_info::ConstantInfo::Utf8(utf_const) = &class_file.const_pool[attr.constant_value_index as usize];
-            then {
-              Some(utf_const.utf8_string.clone())
-            } else {
-              None
-            }
+          if let classfile_parser::constant_info::ConstantInfo::Utf8(name) = &class_file.const_pool[(f.name_index - 1) as usize]
+            && name.utf8_string == "versionOnly"
+            && let Ok((_, attr)) = classfile_parser::attribute_info::constant_value_attribute_parser(&f.attributes.first().unwrap().info)
+            && let classfile_parser::constant_info::ConstantInfo::Utf8(utf_const) = &class_file.const_pool[attr.constant_value_index as usize]
+          {
+            Some(utf_const.utf8_string.clone())
+          } else {
+            None
           }
         }).ok_or(LoadError::FormatError)
       })

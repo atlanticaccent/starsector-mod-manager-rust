@@ -132,7 +132,7 @@ impl Flavour {
     Ok(false)
   }
 
-  fn to_const(&self) -> (&'static str, FindBy) {
+  fn as_const(&self) -> (&'static str, FindBy) {
     match self {
       Flavour::Coretto => consts::CORETTO,
       Flavour::Hotspot => consts::HOTSPOT,
@@ -142,11 +142,11 @@ impl Flavour {
   }
 
   fn get_url(&self) -> &'static str {
-    self.to_const().0
+    self.as_const().0
   }
 
   fn get_search_strategy(&self) -> FindBy {
-    self.to_const().1
+    self.as_const().1
   }
 
   async fn unpack(&self, root: &Path) -> anyhow::Result<TempDir> {
@@ -191,8 +191,7 @@ impl Flavour {
             while let Some(Ok(file)) = iter.next() {
               if let Ok(file_type) = file.file_type() {
                 if file_type.is_dir() {
-                  if search_strategy == FindBy::Bin
-                    && file.file_name().eq_ignore_ascii_case("bin")
+                  if search_strategy == FindBy::Bin && file.file_name().eq_ignore_ascii_case("bin")
                   {
                     return Some(path);
                   } else if search_strategy == FindBy::Jre
@@ -299,7 +298,10 @@ mod consts {
     "https://drive.google.com/uc?export=download&id=155Lk0ml9AUGp5NwtTZGpdu7e7Ehdyeth&confirm=t",
     FindBy::Bin,
   );
-  pub const AZUL: (&str, FindBy) = ("https://cdn.azul.com/zulu/bin/zulu8.68.0.21-ca-jre8.0.362-win_x64.zip", FindBy::Bin);
+  pub const AZUL: (&str, FindBy) = (
+    "https://cdn.azul.com/zulu/bin/zulu8.68.0.21-ca-jre8.0.362-win_x64.zip",
+    FindBy::Bin,
+  );
 
   pub const JRE_PATH: &str = "jre";
 }
@@ -307,29 +309,35 @@ mod consts {
 mod consts {
   use super::FindBy;
 
-  pub const CORETTO: (&'static str, FindBy) = ("https://corretto.aws/downloads/resources/8.272.10.3/amazon-corretto-8.272.10.3-linux-x64.tar.gz", FindBy::Jre);
-  pub const HOTSPOT: (&'static str, FindBy) = ("https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u272-b10/OpenJDK8U-jre_x64_linux_hotspot_8u272b10.tar.gz", FindBy::Bin);
-  pub const WISP: (&'static str, FindBy) = (
+  pub const CORETTO: (&str, FindBy) = ("https://corretto.aws/downloads/resources/8.272.10.3/amazon-corretto-8.272.10.3-linux-x64.tar.gz", FindBy::Jre);
+  pub const HOTSPOT: (&str, FindBy) = ("https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u272-b10/OpenJDK8U-jre_x64_linux_hotspot_8u272b10.tar.gz", FindBy::Bin);
+  pub const WISP: (&str, FindBy) = (
     "https://drive.google.com/uc?export=download&id=1TRHjle6-MOpn1zJhtSA9yvwXIQip_F_n&confirm=t",
     FindBy::Bin,
   );
-  pub const AZUL: (&str, FindBy) = ("https://cdn.azul.com/zulu/bin/zulu8.68.0.21-ca-jre8.0.362-linux_x64.zip", FindBy::Bin);
+  pub const AZUL: (&str, FindBy) = (
+    "https://cdn.azul.com/zulu/bin/zulu8.68.0.21-ca-jre8.0.362-linux_x64.zip",
+    FindBy::Bin,
+  );
 
-  pub const JRE_PATH: &'static str = "jre_linux";
+  pub const JRE_PATH: &str = "jre_linux";
 }
 #[cfg(target_os = "macos")]
 mod consts {
   use super::FindBy;
 
-  pub const CORETTO: (&'static str, FindBy) = ("https://corretto.aws/downloads/resources/8.272.10.3/amazon-corretto-8.272.10.3-macosx-x64.tar.gz", FindBy::Jre);
-  pub const HOTSPOT: (&'static str, FindBy) = ("https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u272-b10/OpenJDK8U-jre_x64_mac_hotspot_8u272b10.tar.gz", FindBy::Bin);
-  pub const WISP: (&'static str, FindBy) = (
+  pub const CORETTO: (&str, FindBy) = ("https://corretto.aws/downloads/resources/8.272.10.3/amazon-corretto-8.272.10.3-macosx-x64.tar.gz", FindBy::Jre);
+  pub const HOTSPOT: (&str, FindBy) = ("https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u272-b10/OpenJDK8U-jre_x64_mac_hotspot_8u272b10.tar.gz", FindBy::Bin);
+  pub const WISP: (&str, FindBy) = (
     "https://drive.google.com/uc?export=download&id=1PW9v_CL719buKHe69GaN9fCXcPIqDOIi&confirm=t",
     FindBy::Bin,
   );
-  pub const AZUL: (&str, FindBy) = ("https://cdn.azul.com/zulu/bin/zulu8.68.0.21-ca-jre8.0.362-macosx_x64.zip", FindBy::Bin);
+  pub const AZUL: (&str, FindBy) = (
+    "https://cdn.azul.com/zulu/bin/zulu8.68.0.21-ca-jre8.0.362-macosx_x64.zip",
+    FindBy::Bin,
+  );
 
-  pub const JRE_PATH: &'static str = "Contents/Home";
+  pub const JRE_PATH: &str = "Contents/Home";
 }
 
 #[cfg(test)]

@@ -417,8 +417,9 @@ dependencies = [
 
 [[package]]
 name = "compress-tools"
-version = "0.14.0"
-source = "git+https://github.com/OSSystems/compress-tools-rs.git#2c86cfa5947f4daea25c7c058c4108dbbfcb96a0"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "537b7d54356f29ce8e3fc8fdf89ab1ad752ac22987ff4cb9841e2bcf55785134"
 dependencies = [
  "derive_more",
  "libc",
@@ -858,7 +859,7 @@ dependencies = [
 [[package]]
 name = "druid-widget-nursery"
 version = "0.1.0"
-source = "git+https://github.com/linebender/druid-widget-nursery?branch=master#4427a99a99417420651ea45a334f499a14224cf8"
+source = "git+https://github.com/linebender/druid-widget-nursery?rev=4427a99a99417420651ea45a334f499a14224cf8#4427a99a99417420651ea45a334f499a14224cf8"
 dependencies = [
  "druid",
  "druid-material-icons",
@@ -1656,12 +1657,6 @@ dependencies = [
  "unicode-bidi",
  "unicode-normalization",
 ]
-
-[[package]]
-name = "if_chain"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb56e1aa765b4b4f3aadfab769793b7087bb03a4ea4920644a6d238e2df5b9ed"
 
 [[package]]
 name = "im"
@@ -3472,7 +3467,6 @@ dependencies = [
  "druid-widget-nursery",
  "flate2",
  "handwritten-json",
- "if_chain",
  "indexmap",
  "infer",
  "interprocess",

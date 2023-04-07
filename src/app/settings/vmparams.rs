@@ -31,17 +31,12 @@ impl Display for Value {
   }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Data, EnumIter)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Default, Data, EnumIter)]
 pub enum Unit {
   Giga,
   Mega,
+  #[default]
   Kilo,
-}
-
-impl Default for Unit {
-  fn default() -> Unit {
-    Unit::Kilo
-  }
 }
 
 impl Display for Unit {
