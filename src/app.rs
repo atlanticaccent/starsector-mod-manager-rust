@@ -1,7 +1,7 @@
 use std::{
   cell::RefCell,
   fs::metadata,
-  path::{Path, PathBuf},
+  path::PathBuf,
   process::Child,
   rc::Rc,
   sync::Arc,
@@ -616,7 +616,7 @@ impl App {
 
   #[cfg(target_os = "macos")]
   async fn launch(
-    install_dir: &Path,
+    install_dir: &std::path::Path,
     experimental_launch: bool,
     resolution: (u32, u32),
   ) -> anyhow::Result<tokio::process::Child> {
