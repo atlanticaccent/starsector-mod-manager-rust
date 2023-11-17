@@ -9,7 +9,7 @@ edition = "2021"
 crate-type = ["rlib"]
 
 [dependencies]
-wry = "0.27.0"
+wry = { git = "https://github.com/tauri-apps/wry.git", rev = "a9ad1c5c6a85001aac8de64ebb0395e8d647598a" }
 tokio = { version = "1.6.0", features = ["fs", "io-util", "rt-multi-thread", "process", "macros"] }
 serde = { version = "1.0.126", features = ["derive"] }
 interprocess = { git = "https://github.com/kotauskas/interprocess", rev = "5a16b3a" }

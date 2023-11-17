@@ -8,13 +8,7 @@ use webview_shared::{
   connect_child, connect_parent, handle_error, WebviewMessage, CHILD_PARENT_SOCKET, PROJECT,
 };
 use wry::{
-  application::{
-    event::{Event, StartCause, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    menu::{MenuBar, MenuItemAttributes, MenuType},
-    window::WindowBuilder,
-  },
-  webview::{WebContext, WebViewBuilder},
+  WebContext, WebViewBuilder,
 };
 
 const FRACTAL_INDEX: &str = "https://fractalsoftworks.com/forum/index.php?topic=177.0";
