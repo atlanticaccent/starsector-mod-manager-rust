@@ -8,8 +8,8 @@ description = "A mod manager for the game Starsector"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-druid = { git = "https://github.com/atlanticaccent/druid", branch = "update-gtk", default-features = false, features = ["im", "serde", "x11"] }
-druid-widget-nursery = { path = "../druid-widget-nursery", default-features = false, features = ["material-icons", "async"] }
+druid = { workspace = true, default-features = true, features = ["im", "serde", "raw-win-handle"] }
+druid-widget-nursery = { git = "https://github.com/atlanticaccent/druid-widget-nursery", default-features = false, features = ["material-icons", "async"] }
 infer = "0.3.4"
 tokio = { version = "1.6.0", features = ["fs", "io-util", "rt-multi-thread", "process", "macros"] }
 serde = { version = "1.0.126", features = ["derive"] }
@@ -50,6 +50,7 @@ flate2 = "1.0"
 tar = "0.4"
 deunicode = "1.3.2"
 xxhash-rust = { version = "0.8.6", features = ["xxh3"] }
+wry = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 native-dialog = "0.6.3"
@@ -73,11 +74,15 @@ git = "https://github.com/microsoft/vcpkg"
 rev = "69efe9cc2df0015f0bb2d37d55acde4a75c9a25b"
 dependencies = ["libarchive"]
 
+[profile.dev.package."*"]
+opt-level = 3
+
 [workspace]
 members = [
   "webview-subsystem",
   "webview-subsystem-shared"
 ]
 
-[profile.dev.package."*"]
-opt-level = 3
+[workspace.dependencies]
+wry = { git = "https://github.com/tauri-apps/wry.git", rev = "a9ad1c5c6a85001aac8de64ebb0395e8d647598a" }
+druid = { git = "https://github.com/atlanticaccent/druid", default-features = false, branch = "update-gtk" }

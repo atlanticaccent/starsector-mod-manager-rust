@@ -6,16 +6,13 @@ use druid::{
   Env, Event, EventCtx, Widget, WidgetExt,
 };
 
-use crate::{
-  app::{
-    installer::{self, ChannelMessage},
-    mod_entry::{ModEntry, UpdateStatus},
-    mod_list::ModList,
-    modal::Modal,
-    util::{get_master_version, LabelExt},
-    App,
-  },
-  webview::minimize_webview,
+use crate::app::{
+  installer::{self, ChannelMessage},
+  mod_entry::{ModEntry, UpdateStatus},
+  mod_list::ModList,
+  modal::Modal,
+  util::{get_master_version, LabelExt},
+  App,
 };
 
 pub struct ModListController;
@@ -60,16 +57,9 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
             data.mod_list.mods.insert(entry.id.clone(), entry);
             ctx.children_changed();
           }
-          ChannelMessage::Duplicate(conflict, to_install, entry) => {
-            if data.settings.hide_webview_on_conflict {
-              minimize_webview();
-            }
-            ctx.submit_command(App::LOG_OVERWRITE.with((
-              conflict.clone(),
-              to_install.clone(),
-              entry.clone(),
-            )))
-          }
+          ChannelMessage::Duplicate(conflict, to_install, entry) => ctx.submit_command(
+            App::LOG_OVERWRITE.with((conflict.clone(), to_install.clone(), entry.clone())),
+          ),
           ChannelMessage::FoundMultiple(source, found_paths) => {
             ctx.submit_command(App::FOUND_MULTIPLE.with((source.clone(), found_paths.clone())));
           }

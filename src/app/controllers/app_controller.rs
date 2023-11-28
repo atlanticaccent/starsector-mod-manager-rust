@@ -4,7 +4,6 @@ use druid::{commands, widget::Controller, Env, Event, EventCtx, Target, Widget};
 use self_update::version::bump_is_greater;
 
 use crate::app::{
-  mod_list::ModList,
   modal::Modal,
   settings::{self, Settings, SettingsCommand},
   updater::{open_in_browser, self_update, support_self_update},
@@ -109,11 +108,6 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
         } else {
           eprintln!("Failed to restart")
         };
-      }
-      if (cmd.is(ModList::SUBMIT_ENTRY) || cmd.is(App::ENABLE)) && ctx.is_disabled() {
-        ctx.set_disabled(false);
-      } else if cmd.is(App::DISABLE) {
-        ctx.set_disabled(true)
       }
     } else if let Event::MouseDown(_) = event {
       if ctx.is_disabled() {
