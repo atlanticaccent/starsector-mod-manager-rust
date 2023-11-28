@@ -39,7 +39,7 @@ jobs:
       - name: Setup vcpkg
         run: |
           (cargo install cargo-vcpkg || true)
-          cargo vcpkg build
+          cargo vcpkg --verbose build
 
       - uses: actions-rs/cargo@v1
         with:
