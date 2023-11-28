@@ -1,5 +1,12 @@
-use std::{cell::RefCell, fs::metadata, path::PathBuf, process::Child, rc::Rc, sync::Arc};
+use std::{
+  fs::{metadata, File},
+  io::Write,
+  path::PathBuf,
+  rc::Rc,
+  sync::Arc,
+};
 
+use base64::{decode, encode};
 use chrono::{DateTime, Local, TimeZone};
 use druid::{
   commands,
@@ -11,8 +18,8 @@ use druid::{
     TabsPolicy, TextBox, ViewSwitcher,
   },
   AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Event, EventCtx, Handled, KeyEvent,
-  Lens, LensExt, Selector, SingleUse, Target, Widget, WidgetExt, WidgetId, WindowDesc, WindowId,
-  WindowLevel,
+  Lens, LensExt, Selector, SingleUse, Size, Target, Widget, WidgetExt, WidgetId, WindowDesc,
+  WindowHandle, WindowId, WindowLevel,
 };
 use druid_widget_nursery::{
   material_icons::Icon, FutureWidget, ProgressBar, Separator, Stack, StackChildPosition,
@@ -24,16 +31,18 @@ use reqwest::Url;
 use strum::IntoEnumIterator;
 use tap::{Pipe, Tap};
 use tokio::runtime::Handle;
-use webview_shared::{InstallType, PROJECT};
+use webview_shared::{
+  InstallType, UserEvent, FRACTAL_INDEX, FRACTAL_MODDING_SUBFORUM, FRACTAL_MODS_FORUM, PROJECT,
+  WEBVIEW_EVENT, WEBVIEW_INSTALL, WEBVIEW_OFFSET,
+};
+use webview_subsystem::init_webview;
+use wry::WebView;
 
 use crate::{
-  app::util::WidgetExtEx,
+  app::util::{option_ptr_cmp, WidgetExtEx},
   patch::{
     split::Split,
     tabs_policy::{InitialTab, StaticTabsForked},
-  },
-  webview::{
-    fork_into_webview, kill_server_thread, maximize_webview, WEBVIEW_INSTALL, WEBVIEW_SHUTDOWN,
   },
 };
 
@@ -49,7 +58,7 @@ use self::{
   util::{
     button_painter, get_latest_manager, get_quoted_version, get_starsector_version, h2, h3,
     icons::*, make_column_pair, Button2, CommandExt, DummyTransfer, IndyToggleState, LabelExt,
-    Release, GET_INSTALLED_STARSECTOR,
+    LensExtExt as _, Release, GET_INSTALLED_STARSECTOR,
   },
 };
 
@@ -82,7 +91,8 @@ pub struct App {
   log: Vector<String>,
   overwrite_log: Vector<Rc<(StringOrPath, HybridPath, Arc<ModEntry>)>>,
   duplicate_log: Vector<(Arc<ModEntry>, Arc<ModEntry>)>,
-  webview: Option<Rc<RefCell<Child>>>,
+  #[data(same_fn = "option_ptr_cmp")]
+  webview: Option<Rc<WebView>>,
   downloads: OrdMap<i64, (i64, String, f64)>,
   mod_repo: Option<ModRepo>,
 }
@@ -491,7 +501,8 @@ impl App {
     );
 
     Flex::column()
-      .with_child(
+      .with_child(Either::new(
+        |app: &App, _| app.webview.is_none(),
         Flex::row()
           .with_child(settings)
           .with_spacer(10.)
@@ -508,11 +519,7 @@ impl App {
               |len: &usize, _| *len,
               |len, _, _| Box::new(h3(&format!("Installed: {}", len))),
             )
-            .lens(
-              App::mod_list
-                .then(ModList::mods)
-                .map(|data| data.len(), |_, _| {}),
-            ),
+            .lens(App::mod_list.then(ModList::mods).compute(|data| data.len())),
           )
           .with_spacer(10.)
           .with_child(
@@ -520,20 +527,100 @@ impl App {
               |len: &usize, _| *len,
               |len, _, _| Box::new(h3(&format!("Active: {}", len))),
             )
-            .lens(App::mod_list.then(ModList::mods).map(
-              |data| data.values().filter(|e| e.enabled).count(),
-              |_, _| {},
-            )),
+            .lens(
+              App::mod_list
+                .then(ModList::mods)
+                .compute(|data| data.values().filter(|e| e.enabled).count()),
+            ),
           )
           .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
           .expand_width(),
-      )
+        Flex::row()
+          .with_child(
+            Flex::row()
+              .with_child(Label::new("Mod Index").with_text_size(18.))
+              .with_spacer(5.)
+              .with_child(Icon::new(NAVIGATE_NEXT))
+              .padding((8., 4.))
+              .background(button_painter())
+              .controller(HoverController)
+              .on_click(|_, data: &mut App, _| {
+                if let Some(webview) = &data.webview {
+                  if webview.url().as_str() != FRACTAL_INDEX {
+                    webview.load_url(FRACTAL_INDEX)
+                  }
+                }
+              }),
+          )
+          .with_spacer(10.)
+          .with_child(
+            Flex::row()
+              .with_child(Label::new("Mods Subforum").with_text_size(18.))
+              .with_spacer(5.)
+              .with_child(Icon::new(NAVIGATE_NEXT))
+              .padding((8., 4.))
+              .background(button_painter())
+              .controller(HoverController)
+              .on_click(|_, data: &mut App, _| {
+                if let Some(webview) = &data.webview {
+                  if webview.url().as_str() != FRACTAL_MODS_FORUM {
+                    webview.load_url(FRACTAL_MODS_FORUM)
+                  }
+                }
+              })
+          )
+          .with_spacer(10.)
+          .with_child(
+            Flex::row()
+              .with_child(Label::new("Modding Subforum").with_text_size(18.))
+              .with_spacer(5.)
+              .with_child(Icon::new(NAVIGATE_NEXT))
+              .padding((8., 4.))
+              .background(button_painter())
+              .controller(HoverController)
+              .on_click(|_, data: &mut App, _| {
+                if let Some(webview) = &data.webview {
+                  if webview.url().as_str() != FRACTAL_MODDING_SUBFORUM {
+                    webview.load_url(FRACTAL_MODDING_SUBFORUM)
+                  }
+                }
+              }),
+          )
+          .with_flex_spacer(1.0)
+          .with_child(
+            Flex::row()
+              .with_child(Label::new("Close Mod Browser").with_text_size(18.))
+              .with_spacer(5.)
+              .with_child(Icon::new(CLOSE))
+              .padding((8., 4.))
+              .background(button_painter())
+              .controller(HoverController)
+              .on_click(|ctx, data: &mut App, _| {
+                data
+                  .webview
+                  .as_mut()
+                  .inspect(|webview| webview.set_visible(false));
+                data.webview = None;
+                ctx.submit_command(App::ENABLE)
+              }),
+          ),
+      ))
       .with_spacer(20.)
       .with_flex_child(
         Split::columns(mod_list, side_panel)
           .split_point(0.8)
           .draggable(true)
-          .expand_height(),
+          .expand_height()
+          .on_event(|ctx, event, _| {
+            if let Event::Command(cmd) = event {
+              if (cmd.is(ModList::SUBMIT_ENTRY) || cmd.is(App::ENABLE)) && ctx.is_disabled() {
+                ctx.set_disabled(false);
+              } else if cmd.is(App::DISABLE) {
+                ctx.set_disabled(true);
+              }
+            }
+            false
+          }),
         2.0,
       )
       .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
@@ -665,13 +752,28 @@ enum AppCommands {
 pub struct AppDelegate {
   settings_id: Option<WindowId>,
   root_id: Option<WindowId>,
+  root_window: Option<WindowHandle>,
   log_window: Option<WindowId>,
   overwrite_window: Option<WindowId>,
   duplicate_window: Option<WindowId>,
   download_window: Option<WindowId>,
+  mega_file: Option<(File, PathBuf)>,
 }
 
 impl Delegate<App> for AppDelegate {
+  fn window_added(
+    &mut self,
+    _id: WindowId,
+    handle: druid::WindowHandle,
+    _data: &mut App,
+    _env: &Env,
+    _ctx: &mut DelegateCtx,
+  ) {
+    if self.root_window.is_none() {
+      self.root_window = Some(handle);
+    }
+  }
+
   fn command(
     &mut self,
     ctx: &mut DelegateCtx,
@@ -846,10 +948,6 @@ impl Delegate<App> for AppDelegate {
       }
 
       return Handled::Yes;
-    } else if let Some(()) = cmd.get(WEBVIEW_SHUTDOWN) {
-      data.webview = None;
-
-      return Handled::Yes;
     } else if let Some(install) = cmd.get(WEBVIEW_INSTALL) {
       let runtime = data.runtime.clone();
       let install = install.clone();
@@ -919,11 +1017,11 @@ impl Delegate<App> for AppDelegate {
         });
       });
       return Handled::Yes;
-    } else if let Some(url) = cmd.get(App::OPEN_WEBVIEW) {
+    } else if let Some(url) = cmd.get(App::OPEN_WEBVIEW) && let Some(window) = self.root_window.as_ref() {
       ctx.submit_command(App::DISABLE);
-      let child = fork_into_webview(&data.runtime, ctx.get_external_handle(), url.clone());
+      let webview = init_webview(url.clone(), window, ctx.get_external_handle()).expect("Initialize webview");
 
-      data.webview = Some(Rc::new(RefCell::new(child)))
+      data.webview = Some(Rc::new(webview))
     } else if let Some(url) = cmd.get(mod_description::OPEN_IN_BROWSER) {
       if data.settings.open_forum_link_in_webview {
         ctx.submit_command(App::OPEN_WEBVIEW.with(Some(url.clone())));
@@ -1002,6 +1100,93 @@ impl Delegate<App> for AppDelegate {
       });
 
       return Handled::Yes;
+    } else if let Some(user_event) = cmd.get(WEBVIEW_EVENT) && let Some(webview) = &data.webview {
+      match user_event {
+        UserEvent::Navigation(uri) => {
+          println!("Navigation: {}", uri);
+          if uri.starts_with("https://www.mediafire.com/file") {
+            let _ = webview.evaluate_script(r#"window.alert("You appear to be on a Mediafire site.\nIn order to correctly trigger a Mediafire download, attempt to open the dowload link in a new window.\nThis can be done through the right click context menu, or using a platform shortcut.")"#);
+          }
+        },
+        UserEvent::AskDownload(uri) => {
+          #[cfg(not(target_os = "macos"))]
+          let _ = webview.evaluate_script(&format!(r"
+          let res = window.confirm('Detected an attempted download.\nDo you want to try and install a mod using this download?')
+          window.ipc.postMessage(`confirm_download:${{res}},uri:{}`)
+          ", encode(uri)));
+          #[cfg(target_os = "macos")]
+          let _ = webview.evaluate_script(&format!(r"
+          let dialog = new Dialog();
+          let res = dialog.confirm('Detected an attempted download.\nDo you want to try and install a mod using this download?', {{}})
+            .then(res => window.ipc.postMessage(`confirm_download:${{res}},uri:{}`))
+          ", encode(uri)));
+        },
+        UserEvent::Download(uri) => {
+          let _ = webview.evaluate_script("location.reload();");
+          ctx.submit_command(WEBVIEW_INSTALL.with(InstallType::Uri(uri.clone())))
+        },
+        UserEvent::CancelDownload => {},
+        UserEvent::NewWindow(uri) => {
+          webview.evaluate_script(&format!("window.location.assign('{}')", uri)).expect("Navigate webview");
+        },
+        UserEvent::BlobReceived(uri) => {
+          let path = PROJECT.cache_dir().join(format!("{}", random::<u16>()));
+          self.mega_file = Some((File::create(&path).expect("Create file"), path));
+          webview.evaluate_script(&format!(r#"
+          (() => {{
+            /**
+            * @type Blob
+            */
+            let blob = URL.getObjectURLDict()['{}']
+              || Object.values(URL.getObjectURLDict())[0]
+
+            var increment = 1024;
+            var index = 0;
+            var reader = new FileReader();
+            let func = function() {{
+              let res = reader.result;
+              window.ipc.postMessage(`${{res}}`);
+              index += increment;
+              if (index < blob.size) {{
+                let slice = blob.slice(index, index + increment);
+                reader = new FileReader();
+                reader.onloadend = func;
+                reader.readAsDataURL(slice);
+              }} else {{
+                window.ipc.postMessage('#EOF');
+              }}
+            }};
+            reader.onloadend = func;
+            reader.readAsDataURL(blob.slice(index, increment))
+          }})();
+          "#, uri)).expect("Eval script");
+        },
+        UserEvent::BlobChunk(chunk) => {
+          if let Some((file, path)) = self.mega_file.as_mut() {
+            match chunk {
+              Some(chunk) => {
+                let split = chunk.split(',').nth(1);
+                println!("{:?}", chunk.split(',').next());
+                if let Some(split) = split {
+                  if let Ok(decoded) = decode(split) {
+                    if file.write(&decoded).is_err() {
+                      eprintln!("Failed to write bytes to temp file")
+                    }
+                  }
+                }
+              },
+              None => {
+                ctx
+                .submit_command(
+                  WEBVIEW_INSTALL.with(
+                  InstallType::Path(path.clone()))
+                );
+                self.mega_file = None;
+              }
+            }
+          }
+        },
+      }
     }
 
     Handled::No
@@ -1024,8 +1209,6 @@ impl Delegate<App> for AppDelegate {
       a if a == self.root_id => {
         println!("quitting");
         if let Some(child) = &data.webview {
-          kill_server_thread();
-          let _ = child.borrow_mut().kill();
           data.webview = None;
         }
         let _ = std::fs::remove_dir_all(PROJECT.cache_dir());
@@ -1046,26 +1229,39 @@ impl Delegate<App> for AppDelegate {
     data: &mut App,
     _: &Env,
   ) -> Option<druid::Event> {
-    if let druid::Event::WindowConnected = event {
-      if self.root_id.is_none() {
-        self.root_id = Some(window_id);
-        if data.settings.dirty {
-          ctx.submit_command(Settings::SELECTOR.with(SettingsCommand::UpdateInstallDir(
-            data.settings.install_dir.clone().unwrap_or_default(),
-          )));
+    match event {
+      Event::WindowConnected => {
+        if self.root_id.is_none() {
+          self.root_id = Some(window_id);
+          if data.settings.dirty {
+            ctx.submit_command(Settings::SELECTOR.with(SettingsCommand::UpdateInstallDir(
+              data.settings.install_dir.clone().unwrap_or_default(),
+            )));
+          }
+          let ext_ctx = ctx.get_external_handle();
+          data.runtime.spawn(async move {
+            let release = get_latest_manager().await;
+            ext_ctx.submit_command(App::UPDATE_AVAILABLE, release, Target::Auto)
+          });
         }
-        let ext_ctx = ctx.get_external_handle();
-        data.runtime.spawn(async move {
-          let release = get_latest_manager().await;
-          ext_ctx.submit_command(App::UPDATE_AVAILABLE, release, Target::Auto)
-        });
       }
-    } else if let Event::KeyDown(KeyEvent {
-      key: Key::Escape, ..
-    }) = event
-    {
-      ctx.submit_command(App::DUMB_UNIVERSAL_ESCAPE);
-      return None;
+      Event::KeyDown(KeyEvent {
+        key: Key::Escape, ..
+      }) => {
+        ctx.submit_command(App::DUMB_UNIVERSAL_ESCAPE);
+        return None;
+      }
+      Event::WindowSize(Size { width, height }) => {
+        if Some(window_id) == self.root_id && let Some(webview) = &data.webview {
+          webview.set_bounds(wry::Rect {
+            x: 0,
+            y: WEBVIEW_OFFSET.into(),
+            width: width as u32,
+            height: height as u32,
+          })
+        }
+      }
+      _ => {}
     }
 
     Some(event)
@@ -1190,14 +1386,12 @@ impl AppDelegate {
                         ))
                         .to(Target::Global),
                     );
-                    maximize_webview();
                   }
                 }))
                 .with_child(Button::new("Cancel").on_click({
                   let conflict = conflict.clone();
                   move |ctx, _, _| {
                     ctx.submit_command(App::REMOVE_OVERWRITE_LOG_ENTRY.with(conflict.clone()));
-                    maximize_webview();
                   }
                 }))
                 .boxed(),

@@ -9,7 +9,8 @@ edition = "2021"
 crate-type = ["rlib"]
 
 [dependencies]
-wry = "0.27.0"
+druid = { workspace = true, default-features = false }
+wry = { workspace = true }
 tokio = { version = "1.6.0", features = ["fs", "io-util", "rt-multi-thread", "process", "macros"] }
 serde = { version = "1.0.126", features = ["derive"] }
 interprocess = { git = "https://github.com/kotauskas/interprocess", rev = "5a16b3a" }

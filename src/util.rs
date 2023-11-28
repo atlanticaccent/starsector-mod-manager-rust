@@ -3,9 +3,11 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
+use std::rc::Rc;
 use std::sync::{Mutex, Weak};
 use std::{collections::VecDeque, io::Read, path::PathBuf, sync::Arc};
 
+use druid::lens::Then;
 use druid::widget::{ControllerHost, Either, LabelText, SizedBox};
 use druid::{
   lens,
@@ -15,7 +17,7 @@ use druid::{
   Color, Command, Data, Event, EventCtx, ExtEventSink, FontWeight, Key, KeyOrValue, Lens, Point,
   RenderContext, Selector, Target, UnitPoint, Widget, WidgetExt,
 };
-use druid::{Env, MouseEvent};
+use druid::{Env, MouseEvent, LensExt as _};
 use druid_widget_nursery::CommandCtx;
 use json_comments::strip_comments;
 use lazy_static::lazy_static;
@@ -870,5 +872,25 @@ impl<K: Clone, V: Clone> From<druid::im::HashMap<K, V, Xxh3Builder>> for xxHashM
 impl<K: Clone, V: Clone> From<xxHashMap<K, V>> for druid::im::HashMap<K, V, Xxh3Builder> {
   fn from(other: xxHashMap<K, V>) -> Self {
     other.0
+  }
+}
+
+pub trait LensExtExt<A: ?Sized, B: ?Sized>: Lens<A, B> {
+  fn compute<Get, C>(self, get: Get) -> Then<Self, lens::Map<Get, fn(&mut B, C)>, B>
+    where
+    Get: Fn(&B) -> C,
+    Self: Sized,
+  {
+    self.map(get, |_, _| {})
+  }
+}
+
+impl<A: ?Sized, B: ?Sized, T: Lens<A, B>> LensExtExt<A, B> for T {}
+
+pub fn option_ptr_cmp<T>(this: &Option<Rc<T>>, other: &Option<Rc<T>>) -> bool {
+  return if let Some(this) = this && let Some(other) = other {
+    Rc::ptr_eq(this, other)
+  } else {
+    false
   }
 }

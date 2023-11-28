@@ -1,8 +1,7 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, any::Any};
 
-use const_format::concatcp;
 use directories::ProjectDirs;
-use interprocess::local_socket::LocalSocketStream;
+use druid::{Selector, Target, ExtEventError, ExtEventSink};
 use lazy_static::lazy_static;
 
 use serde::{Deserialize, Serialize};
@@ -23,30 +22,45 @@ pub enum WebviewMessage {
   Minimize,
 }
 
+#[derive(Debug)]
+pub enum UserEvent {
+  Navigation(String),
+  NewWindow(String),
+  AskDownload(String),
+  Download(String),
+  CancelDownload,
+  BlobReceived(String),
+  BlobChunk(Option<String>),
+}
+
 lazy_static! {
   pub static ref PROJECT: ProjectDirs =
     ProjectDirs::from("org", "laird", "Starsector Mod Manager").expect("Get project dirs");
 }
 
-pub const PARENT_CHILD_PATH: &str = "/tmp/moss_parent.sock";
-pub const PARENT_CHILD_SOCKET: &str = concatcp!("@", PARENT_CHILD_PATH);
-pub const CHILD_PARENT_PATH: &str = "/tmp/moss_child.sock";
-pub const CHILD_PARENT_SOCKET: &str = concatcp!("@", CHILD_PARENT_PATH);
+pub const FRACTAL_INDEX: &str = "https://fractalsoftworks.com/forum/index.php?topic=177.0";
+pub const FRACTAL_MODS_FORUM: &str = "https://fractalsoftworks.com/forum/index.php?board=8.0";
+pub const FRACTAL_MODDING_SUBFORUM: &str = "https://fractalsoftworks.com/forum/index.php?board=3.0";
 
-pub fn handle_error(conn: std::io::Result<LocalSocketStream>) -> Option<LocalSocketStream> {
-  match conn {
-    Ok(val) => Some(val),
-    Err(error) => {
-      eprintln!("Incoming connection failed: {}", error);
-      None
+pub const WEBVIEW_EVENT: Selector<UserEvent> = Selector::new("webview.event");
+pub const WEBVIEW_INSTALL: Selector<InstallType> = Selector::new("webview.install");
+
+pub const WEBVIEW_OFFSET: i16 = 34;
+
+pub trait ExtEventSinkExt {
+  fn submit_command_global<T: Any + Send>(
+    &self,
+    selector: Selector<T>,
+    payload: impl Into<Box<T>>,
+  ) -> Result<(), ExtEventError>;
+}
+
+impl ExtEventSinkExt for ExtEventSink {
+    fn submit_command_global<T: Any + Send>(
+      &self,
+      selector: Selector<T>,
+      payload: impl Into<Box<T>>,
+    ) -> Result<(), ExtEventError> {
+      self.submit_command(selector, payload, Target::Global)
     }
-  }
-}
-
-pub fn connect_parent() -> std::io::Result<LocalSocketStream> {
-  LocalSocketStream::connect(PARENT_CHILD_SOCKET)
-}
-
-pub fn connect_child() -> std::io::Result<LocalSocketStream> {
-  LocalSocketStream::connect(CHILD_PARENT_SOCKET)
 }
