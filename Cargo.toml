@@ -71,8 +71,8 @@ osx_minimum_system_version = "10.10"
 
 [package.metadata.vcpkg]
 git = "https://github.com/microsoft/vcpkg"
-rev = "69efe9cc2df0015f0bb2d37d55acde4a75c9a25b"
-dependencies = ["libarchive"]
+rev = "64ca152891d6ab135c6c27881e7eb0ac2fa15bba"
+dependencies = ["libarchive:x64-windows-static"]
 
 [profile.dev.package."*"]
 opt-level = 3
