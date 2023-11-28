@@ -32,14 +32,14 @@ jobs:
         with:
           vcpkgGitCommitId: 64ca152891d6ab135c6c27881e7eb0ac2fa15bba
 
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+
       - name: Setup vcpkg
         run: |
           (cargo install cargo-vcpkg || true)
           cargo vcpkg build
-
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
 
       - uses: actions-rs/cargo@v1
         with:
