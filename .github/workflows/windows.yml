@@ -19,19 +19,18 @@ jobs:
     env:
       VCPKG_DEFAULT_TRIPLET: x64-windows-static
       VCPKG_ROOT: 'C:\vcpkg'
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
     steps:
       - uses: actions/checkout@v2
 
-      - name: Check cache
-        uses: actions/cache@v2
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.3
+
+      - name: Setup vcpkg cache
+        uses: lukka/run-vcpkg@v11
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          vcpkgGitCommitId: 64ca152891d6ab135c6c27881e7eb0ac2fa15bba
 
       - name: Setup vcpkg
         run: |
