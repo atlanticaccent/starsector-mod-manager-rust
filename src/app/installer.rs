@@ -7,12 +7,12 @@ use std::{
   sync::Arc,
 };
 
+use anyhow::bail;
 use chrono::Local;
 use druid::im::Vector;
 use druid::{ExtEventSink, Selector, SingleUse, Target};
 use remove_dir_all::remove_dir_all;
 use reqwest::Url;
-use snafu::{OptionExt, ResultExt, Snafu};
 use tempfile::{tempdir, TempDir};
 use tokio::{
   fs::rename,
@@ -71,7 +71,7 @@ async fn handle_path(
   path: PathBuf,
   mods_dir: Arc<PathBuf>,
   installed: Arc<Vec<String>>,
-) {
+) -> anyhow::Result<()> {
   let file_name = path
     .file_name()
     .map(|f| f.to_string_lossy().to_string())
@@ -93,7 +93,7 @@ async fn handle_path(
           )
           .expect("Send error over async channel");
 
-        return;
+        return Err(err.into());
       }
     }
   } else {
@@ -103,16 +103,9 @@ async fn handle_path(
   let dir = mod_folder.get_path_copy();
   match timeout(
     std::time::Duration::from_millis(500),
-    task::spawn_blocking(move || {
-      ModSearch::new(dir).exhaustive().context(Io {
-        detail: "IO error searching for mods",
-      })
-    }),
+    task::spawn_blocking(move || ModSearch::new(dir).exhaustive()),
   )
-  .await
-  .context(Timeout)
-  .and_then(|res| res.context(Join))
-  .flatten()
+  .await??
   {
     Ok(mod_paths) => {
       if mod_paths.len() > 1 {
@@ -121,6 +114,8 @@ async fn handle_path(
           ChannelMessage::FoundMultiple(mod_folder, mod_paths),
           Target::Auto,
         );
+
+        Ok(())
       } else if let Some(mod_path) = mod_paths.get(0)
           && let mod_metadata = ModMetadata::new()
           && mod_metadata.save(mod_path).await.is_ok()
@@ -147,8 +142,12 @@ async fn handle_path(
             mod_info.set_path(mods_dir.join(&mod_info.id));
             ext_ctx.submit_command(INSTALL, ChannelMessage::Success(Arc::new(mod_info)), Target::Auto).expect("Send success over async channel");
           }
+
+          Ok(())
         } else {
           ext_ctx.submit_command(INSTALL, ChannelMessage::Error(file_name, "Could not find mod folder or parse mod_info file.".to_string()), Target::Auto).expect("Send error over async channel");
+
+          bail!("Could not find mod folder or parse mod_info.json")
         }
     }
     Err(err) => {
@@ -159,24 +158,17 @@ async fn handle_path(
           Target::Auto,
         )
         .expect("Send error over async channel");
+
+      return Err(err.into());
     }
   }
 }
 
-pub fn decompress(path: PathBuf) -> Result<TempDir, InstallError> {
-  let source = std::fs::File::open(&path).context(Io {
-    detail: "Failed to open source archive",
-  })?;
-  let temp_dir = tempdir().context(Io {
-    detail: "Failed to open a temp dir",
-  })?;
-  let mime_type = infer::get_from_path(&path)
-    .context(Io {
-      detail: "Failed to open archive for archive type inference",
-    })?
-    .context(Mime {
-      detail: "Failed to get mime type",
-    })?
+pub fn decompress(path: PathBuf) -> anyhow::Result<TempDir> {
+  let source = std::fs::File::open(&path)?;
+  let temp_dir = tempdir()?;
+  let mime_type = infer::get_from_path(&path)?
+    .ok_or(InstallError::Mime)?
     .mime_type();
 
   match mime_type {
@@ -184,24 +176,19 @@ pub fn decompress(path: PathBuf) -> Result<TempDir, InstallError> {
       #[cfg(not(target_env = "musl"))]
       unrar::Archive::new(path.to_string_lossy().to_string())
         .extract_to(temp_dir.path().to_string_lossy().to_string())
-        .ok()
-        .context(Unrar {
-          detail: "Opaque Unrar error. Assume there's been an error unpacking your rar archive.",
-        })?
+        .map_err(|e| InstallError::Unrar(e.to_string()))?
         .process()
-        .ok()
-        .context(Unrar {
-          detail: "Opaque Unrar error. Assume there's been an error unpacking your rar archive.",
-        })?;
+        .map_err(|e| InstallError::Unrar(e.to_string()))?;
       // trust me I tried to de-dupe this and it's buggered
       #[cfg(target_env = "musl")]
       compress_tools::uncompress_archive(source, temp_dir.path(), compress_tools::Ownership::Ignore)
         .context(CompressTools {})?
     }
-    _ => {
-      compress_tools::uncompress_archive(source, temp_dir.path(), compress_tools::Ownership::Ignore)
-        .context(CompressTools {})?
-    }
+    _ => compress_tools::uncompress_archive(
+      source,
+      temp_dir.path(),
+      compress_tools::Ownership::Ignore,
+    )?,
   }
 
   Ok(temp_dir)
@@ -291,7 +278,7 @@ async fn handle_delete(
   mut entry: Arc<ModEntry>,
   new_path: HybridPath,
   old_path: PathBuf,
-) {
+) -> anyhow::Result<()> {
   let destination = old_path.canonicalize().expect("Canonicalize destination");
   remove_dir_all(destination).expect("Remove old mod");
 
@@ -302,9 +289,11 @@ async fn handle_delete(
   ext_ctx
     .submit_command(INSTALL, ChannelMessage::Success(entry), Target::Auto)
     .expect("Send success over async channel");
+
+  Ok(())
 }
 
-async fn handle_auto(ext_ctx: ExtEventSink, entry: Arc<ModEntry>) {
+async fn handle_auto(ext_ctx: ExtEventSink, entry: Arc<ModEntry>) -> anyhow::Result<()> {
   let url = entry
     .remote_version
     .as_ref()
@@ -326,9 +315,7 @@ async fn handle_auto(ext_ctx: ExtEventSink, entry: Arc<ModEntry>) {
           let source = url.clone();
           let mod_metadata = ModMetadata::new();
           if let Ok(Some(path)) = task::spawn_blocking(move || ModSearch::new(path).first())
-            .await
-            .expect("Run blocking search")
-            .context(Io { detail: "File IO error when searching for mod" })
+            .await?
             && mod_metadata.save(&path).await.is_ok()
             && let Ok(mod_info) = ModEntry::from_file(&path, mod_metadata)
           {
@@ -336,7 +323,7 @@ async fn handle_auto(ext_ctx: ExtEventSink, entry: Arc<ModEntry>) {
             if &mod_info.version_checker.as_ref().unwrap().version != target_version {
               ext_ctx.submit_command(INSTALL, ChannelMessage::Error(mod_info.name.clone(), "Downloaded version does not match expected version".to_string()), Target::Auto).expect("Send error over async channel");
             } else {
-              handle_delete(ext_ctx, Arc::new(mod_info), hybrid, entry.path.clone()).await;
+              handle_delete(ext_ctx, Arc::new(mod_info), hybrid, entry.path.clone()).await?;
             }
           } else {
             ext_ctx.submit_command(INSTALL, ChannelMessage::Error(entry.id.clone(), "Some kind of unpack error".to_string()), Target::Auto).expect("Send error over async channel");
@@ -364,6 +351,8 @@ async fn handle_auto(ext_ctx: ExtEventSink, entry: Arc<ModEntry>) {
         .expect("Send error over async channel");
     }
   }
+
+  Ok(())
 }
 
 pub async fn download(
@@ -378,16 +367,13 @@ pub async fn download(
     HashMap<i64, (i64, String, f64)>,
   > = LoadBalancer::new(DOWNLOAD_PROGRESS);
 
-  let mut file = tempfile::NamedTempFile::new().context(Io {
-    detail: String::from("Failed to create named temp file to write to"),
-  })?;
+  let mut file = tempfile::NamedTempFile::new()?;
   let client = reqwest::ClientBuilder::default()
     .redirect(reqwest::redirect::Policy::limited(200))
     .user_agent(APP_USER_AGENT)
-    .build()
-    .context(Network {})?;
+    .build()?;
 
-  let mut res = client.get(&url).send().await.context(Network {})?;
+  let mut res = client.get(&url).send().await?;
 
   let name = res
     .headers()
@@ -414,10 +400,8 @@ pub async fn download(
 
   let total = res.content_length();
   let mut current_total = 0.0;
-  while let Some(chunk) = res.chunk().await.context(Network {})? {
-    file.write(&chunk).context(Io {
-      detail: String::from("Failed to write downloaded chunk to temp file"),
-    })?;
+  while let Some(chunk) = res.chunk().await? {
+    file.write(&chunk)?;
     if let Some(total) = total {
       current_total += chunk.len() as f64;
       let _ = tx.send((start, name.clone(), (current_total / total as f64)));
@@ -447,33 +431,24 @@ impl HybridPath {
   }
 }
 
-#[derive(Debug, Snafu)]
+#[derive(Debug, thiserror::Error)]
 pub enum InstallError {
-  Io {
-    source: std::io::Error,
-    detail: String,
-  },
-  Mime {
-    detail: String,
-  },
-  CompressTools {
-    source: compress_tools::Error,
-  },
-  Unrar {
-    detail: String,
-  },
-  Network {
-    source: reqwest::Error,
-  },
-  Timeout {
-    source: tokio::time::error::Elapsed,
-  },
-  Join {
-    source: tokio::task::JoinError,
-  },
-  Any {
-    detail: String,
-  },
+  #[error("I/O error: {0:?}")]
+  Io(#[from] std::io::Error),
+  #[error("Failed to determine file type")]
+  Mime,
+  #[error("Libarchive error: {0:?}")]
+  CompressTools(#[from] compress_tools::Error),
+  #[error("Error in Unrar rar decompression lib: {0:?}")]
+  Unrar(String),
+  #[error("Generic network error: {0:?}")]
+  Network(#[from] reqwest::Error),
+  #[error("Task timed out")]
+  Timeout(#[from] tokio::time::error::Elapsed),
+  #[error("Failed to join task/thread: {0:?}")]
+  Join(#[from] tokio::task::JoinError),
+  #[error("{0}")]
+  Generic(#[from] anyhow::Error),
 }
 
 #[derive(Debug, Clone)]
