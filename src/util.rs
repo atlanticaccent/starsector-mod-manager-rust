@@ -17,7 +17,7 @@ use druid::{
   Color, Command, Data, Event, EventCtx, ExtEventSink, FontWeight, Key, KeyOrValue, Lens, Point,
   RenderContext, Selector, Target, UnitPoint, Widget, WidgetExt,
 };
-use druid::{Env, MouseEvent, LensExt as _};
+use druid::{Env, LensExt as _, MouseEvent};
 use druid_widget_nursery::CommandCtx;
 use json_comments::strip_comments;
 use lazy_static::lazy_static;
@@ -30,8 +30,8 @@ use xxhash_rust::xxh3::Xxh3Builder;
 
 use crate::patch::click::Click;
 
-use super::controllers::{HoverController, OnEvent, OnNotif};
-use super::mod_entry::{GameVersion, ModEntry, ModVersionMeta};
+use crate::app::controllers::{HoverController, OnEvent, OnNotif};
+use crate::app::mod_entry::{GameVersion, ModEntry, ModVersionMeta};
 
 pub(crate) mod icons;
 
@@ -642,6 +642,10 @@ impl<X, Y> Default for DummyTransfer<X, Y> {
 }
 
 pub fn hoverable_text(colour: Option<Color>) -> impl Widget<String> {
+  hoverable_text_opts(colour, |w| w)
+}
+
+pub fn hoverable_text_opts<W: Widget<RichText> + 'static>(colour: Option<Color>, mut modify: impl FnMut(RawLabel<RichText>) -> W) -> impl Widget<String> {
   struct TextHoverController;
 
   impl<D: Data, W: Widget<(D, bool)>> Controller<(D, bool), W> for TextHoverController {
@@ -661,12 +665,16 @@ pub fn hoverable_text(colour: Option<Color>) -> impl Widget<String> {
     }
   }
 
+  let label: RawLabel<RichText> = RawLabel::new()
+    .with_line_break_mode(druid::widget::LineBreaking::WordWrap);
+
+  let wrapped = modify(label);
+
   Scope::from_function(
     |input: String| (input, false),
     DummyTransfer::default(),
-    RawLabel::new()
-      .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
-      .lens(lens::Map::new(
+      wrapped
+      .lens(Compute::new(
         move |(text, hovered): &(String, bool)| {
           RichText::new(text.clone().into())
             .with_attribute(0..text.len(), Attribute::Underline(*hovered))
@@ -679,13 +687,12 @@ pub fn hoverable_text(colour: Option<Color>) -> impl Widget<String> {
               ),
             )
         },
-        |_, _| {},
       ))
       .controller(TextHoverController),
   )
 }
 
-pub trait WidgetExtEx<T: Data>: Widget<T> + Sized + 'static {
+pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
   fn on_notification<CT: 'static>(
     self,
     selector: Selector<CT>,
@@ -703,8 +710,8 @@ pub trait WidgetExtEx<T: Data>: Widget<T> + Sized + 'static {
 
   fn on_event(
     self,
-    f: impl Fn(&mut EventCtx, &Event, &mut T) -> bool + 'static,
-  ) -> ControllerHost<Self, OnEvent<T>> {
+    f: impl Fn(&mut W, &mut EventCtx, &Event, &mut T) -> bool + 'static,
+  ) -> ControllerHost<Self, OnEvent<T, W>> {
     ControllerHost::new(self, OnEvent::new(f))
   }
 
@@ -713,7 +720,7 @@ pub trait WidgetExtEx<T: Data>: Widget<T> + Sized + 'static {
   }
 }
 
-impl<T: Data, W: Widget<T> + 'static> WidgetExtEx<T> for W {}
+impl<T: Data, W: Widget<T> + 'static> WidgetExtEx<T, W> for W {}
 
 pub struct Button2;
 
@@ -877,7 +884,7 @@ impl<K: Clone, V: Clone> From<xxHashMap<K, V>> for druid::im::HashMap<K, V, Xxh3
 
 pub trait LensExtExt<A: ?Sized, B: ?Sized>: Lens<A, B> {
   fn compute<Get, C>(self, get: Get) -> Then<Self, lens::Map<Get, fn(&mut B, C)>, B>
-    where
+  where
     Get: Fn(&B) -> C,
     Self: Sized,
   {
@@ -887,10 +894,28 @@ pub trait LensExtExt<A: ?Sized, B: ?Sized>: Lens<A, B> {
 
 impl<A: ?Sized, B: ?Sized, T: Lens<A, B>> LensExtExt<A, B> for T {}
 
+pub struct Compute<Get: Fn(&B) -> C, B: ?Sized, C>(lens::Map<Get, fn(&mut B, C)>);
+
+impl<Get: Fn(&B) -> C, B: ?Sized, C> Compute<Get, B, C> {
+  pub fn new(f: Get) -> Self {
+    Self(lens::Map::new(f, |_, _| {}))
+  }
+}
+
+impl<Get: Fn(&B) -> C, B: ?Sized, C> Lens<B, C> for Compute<Get, B, C> {
+  fn with<V, F: FnOnce(&C) -> V>(&self, data: &B, f: F) -> V {
+    self.0.with(data, f)
+  }
+
+  fn with_mut<V, F: FnOnce(&mut C) -> V>(&self, data: &mut B, f: F) -> V {
+    self.0.with_mut(data, f)
+  }
+}
+
 pub fn option_ptr_cmp<T>(this: &Option<Rc<T>>, other: &Option<Rc<T>>) -> bool {
   return if let Some(this) = this && let Some(other) = other {
     Rc::ptr_eq(this, other)
   } else {
     false
-  }
+  };
 }
