@@ -2,9 +2,11 @@ use std::rc::Rc;
 
 use druid::{
   theme,
-  widget::{LabelText, SizedBox, TabInfo, TabsPolicy},
-  Data, KeyOrValue, SingleUse, UnitPoint, Widget, WidgetExt,
+  widget::{LabelText, SizedBox},
+  Data, KeyOrValue, UnitPoint, Widget, WidgetExt,
 };
+
+use super::tab::{AddTab, InitialTab, TabInfo, TabsPolicy};
 
 /// A TabsPolicy that allows the app developer to provide static tabs up front when building the
 /// widget.
@@ -107,18 +109,18 @@ impl<T: Data> TabsPolicy for StaticTabsForked<T> {
       label_height: 18.,
     }
   }
+
+  fn has_tab_bar(&self) -> bool {
+    false
+  }
 }
 
-pub struct InitialTab<T> {
-  name: SingleUse<LabelText<T>>, // This is to avoid cloning provided label texts
-  child: SingleUse<Box<dyn Widget<T>>>, // This is to avoid cloning provided tabs
-}
-
-impl<T: Data> InitialTab<T> {
-  pub fn new(name: impl Into<LabelText<T>>, child: impl Widget<T> + 'static) -> Self {
-    InitialTab {
-      name: SingleUse::new(name.into()),
-      child: SingleUse::new(child.boxed()),
-    }
+impl<T: Data> AddTab for StaticTabsForked<T> {
+  fn add_tab(
+    build: &mut Self::Build,
+    name: impl Into<LabelText<T>>,
+    child: impl Widget<T> + 'static,
+  ) {
+    build.push(InitialTab::new(name, child))
   }
 }

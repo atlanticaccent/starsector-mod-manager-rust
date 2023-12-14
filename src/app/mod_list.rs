@@ -1,5 +1,6 @@
 use std::{
-  collections::HashSet,
+  collections::{HashMap, HashSet},
+  ops::Deref,
   path::{Path, PathBuf},
   rc::Rc,
   sync::Arc,
@@ -8,22 +9,27 @@ use std::{
 use druid::{
   im::Vector,
   lens, theme,
-  widget::{Either, Flex, Label, List, ListIter, Painter, Scroll},
-  Color, Data, ExtEventSink, KeyOrValue, Lens, LensExt, Rect, RenderContext, Selector, Target,
-  Widget, WidgetExt,
+  widget::{Checkbox, Either, Flex, Label, List, ListIter, Painter, Scroll},
+  Color, Data, EventCtx, ExtEventSink, KeyOrValue, Lens, LensExt, Rect, RenderContext, Selector,
+  Target, UnitPoint, Widget, WidgetExt,
 };
-use druid_widget_nursery::WidgetExt as WidgetExtNursery;
+use druid_widget_nursery::{Stack, WidgetExt as WidgetExtNursery};
+use internment::Intern;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter};
 use sublime_fuzzy::best_match;
 
-use crate::app::util::StarsectorVersionDiff;
+use crate::{
+  app::util::StarsectorVersionDiff,
+  patch::table::{ComplexTableColumnWidth, FlexTable, TableColumnWidth, TableRow},
+};
 
 use super::{
+  controllers::{ExtensibleController, HeightLinkerShared},
   installer::HybridPath,
   mod_entry::{GameVersion, ModEntry, ModMetadata, UpdateStatus},
-  util::{self, xxHashMap, LoadBalancer, SaveError},
+  util::{self, bold_text, xxHashMap, Card, LabelExt, LoadBalancer, SaveError, WidgetExtEx},
 };
 
 pub mod headings;
@@ -52,6 +58,10 @@ impl ModList {
   pub const DUPLICATE: Selector<(Arc<ModEntry>, Arc<ModEntry>)> =
     Selector::new("mod_list.submit_entry.duplicate");
 
+  pub const UPDATE_COLUMN_WIDTH: Selector<(usize, f64)> =
+    Selector::new("mod_list.column.update_width");
+  const UPDATE_TABLE_SORT: Selector = Selector::new("mod_list.table.update_sorting");
+
   pub fn new(headings: Vector<Heading>) -> Self {
     Self {
       mods: xxHashMap::new(),
@@ -62,15 +72,226 @@ impl ModList {
     }
   }
 
-  pub fn ui_builder() -> impl Widget<Self> {
+  pub fn view() -> impl Widget<Self> {
     Flex::column()
-      .with_child(headings::Header::ui_builder().lens(ModList::header))
+      .with_child(
+        Flex::row()
+          .with_child(
+            Stack::new()
+              .with_child(Card::new_with_opts(
+                bold_text(
+                  "Install Mod(s)",
+                  druid::theme::TEXT_SIZE_NORMAL,
+                  druid::FontWeight::SEMI_BOLD,
+                  druid::theme::TEXT_COLOR,
+                )
+                .padding((10.0, 0.0))
+                .align_vertical(UnitPoint::CENTER)
+                .fix_height(20.),
+                (0.0, 10.0),
+                4.0,
+                6.0,
+                Some((2.0, theme::BORDER_LIGHT)),
+              ))
+              .padding((0.0, 5.0)),
+          )
+          .expand_width(),
+      )
+      .with_flex_child(
+        Card::new_with_opts(
+          Flex::column()
+            .with_child(headings::Header::view().lens(ModList::header))
+            .with_flex_child(
+              FlexTable::default()
+                .row_background(Painter::new(move |ctx, _, env| {
+                  let rect = ctx.size().to_rect();
+
+                  if env.try_get(FlexTable::<u64>::ROW_NUM).unwrap_or(0) % 2 == 0 {
+                    ctx.fill(rect, &env.get(theme::BACKGROUND_DARK))
+                  } else {
+                    ctx.fill(rect, &env.get(theme::BACKGROUND_LIGHT))
+                  }
+                }))
+                .with_column_width(TableColumnWidth::Fixed(Header::ENABLED_WIDTH))
+                .column_border(theme::BORDER_DARK, 1.0)
+                .controller(
+                  ExtensibleController::new()
+                    .on_command(Self::UPDATE_COLUMN_WIDTH, Self::column_resized)
+                    .on_command(Self::UPDATE_TABLE_SORT, Self::on_mod_list_change)
+                    .on_command(ModList::SUBMIT_ENTRY, Self::entry_submitted),
+                )
+                .scroll()
+                .vertical()
+                .expand_width(),
+              1.0,
+            )
+            .on_change(|ctx, old, data, _| {
+              if !old.header.same(&data.header) || !old.mods.same(&data.mods) {
+                ctx.submit_command(Self::UPDATE_TABLE_SORT)
+              }
+            }),
+          (0.0, 10.0),
+          4.0,
+          6.0,
+          Option::<(f64, Color)>::None,
+        ),
+        1.0,
+      )
+  }
+
+  fn append_table(
+    table: &mut FlexTable<ModList>,
+    mods: &xxHashMap<String, Arc<ModEntry>>,
+    headings: &Vector<Heading>,
+  ) {
+    for (idx, id) in mods.keys().enumerate() {
+      let intern = Intern::new(id.clone());
+
+      let mut row = TableRow::new(id.clone()).with_child(
+        Checkbox::new("")
+          .center()
+          .padding(5.)
+          .lens(ModEntry::enabled.in_arc())
+          .on_change(|ctx, _old, data, _| ctx.submit_command(ModEntry::REPLACE.with(data.clone())))
+          .lens(ModList::mods.deref().index(intern.as_ref())),
+      );
+
+      let mut shared_linker: Option<HeightLinkerShared> = None;
+      for heading in headings {
+        if let Some(cell) = ModEntry::view_cell(*heading) {
+          row.add_child(
+            cell
+              .link_height_with(&mut shared_linker)
+              .background(Painter::new(move |ctx, _, env| {
+                let rect = ctx.size().to_rect();
+
+                if env.try_get(FlexTable::<u64>::ROW_NUM).unwrap_or(idx as u64) % 2 == 0 {
+                  ctx.fill(rect, &env.get(theme::BACKGROUND_DARK))
+                } else {
+                  ctx.fill(rect, &env.get(theme::BACKGROUND_LIGHT))
+                }
+              }))
+              .lens(ModList::mods.deref().index(intern.as_ref())),
+          )
+        }
+      }
+      table.add_row(row)
+    }
+  }
+
+  fn entry_submitted(
+    table: &mut FlexTable<ModList>,
+    ctx: &mut EventCtx,
+    payload: &Vec<Arc<ModEntry>>,
+    data: &mut ModList,
+  ) -> bool {
+    let old = data.mods.clone();
+    for entry in payload {
+      *data.mods = data.mods.alter(
+        |existing| {
+          if let Some(inner) = &existing {
+            ctx.submit_command(ModList::DUPLICATE.with((inner.clone(), entry.clone())));
+            existing
+          } else {
+            Some(entry.clone())
+          }
+        },
+        entry.id.clone(),
+      );
+    }
+    if !old.same(&data.mods) {
+      let diff = data
+        .mods
+        .clone()
+        .deref()
+        .clone()
+        .relative_complement(old.into())
+        .into();
+      Self::append_table(table, &diff, &data.header.headings);
+    }
+    ctx.children_changed();
+    false
+  }
+
+  fn column_resized(
+    table: &mut FlexTable<ModList>,
+    ctx: &mut EventCtx,
+    payload: &(usize, f64),
+    _data: &mut ModList,
+  ) -> bool {
+    let column_count = table.column_count();
+    let widths = table.get_column_widths();
+    if widths.len() < column_count {
+      widths.resize_with(column_count, || {
+        ComplexTableColumnWidth::Simple(TableColumnWidth::Flex(1.0))
+      })
+    }
+    widths[payload.0] = ComplexTableColumnWidth::Simple(TableColumnWidth::Fixed(payload.1 - 1.0));
+
+    ctx.request_layout();
+
+    false
+  }
+
+  fn on_mod_list_change(
+    table: &mut FlexTable<ModList>,
+    ctx: &mut EventCtx,
+    _payload: &(),
+    data: &mut ModList,
+  ) -> bool {
+    let sorted_vec = data.sorted_vals();
+    let sorted_map: HashMap<&str, usize> = sorted_vec
+      .iter()
+      .enumerate()
+      .map(|(idx, entry)| (entry.id.as_str(), idx))
+      .collect();
+    table
+      .rows()
+      .sort_unstable_by_key(|row| sorted_map[&row.id()]);
+    ctx.request_layout();
+    ctx.request_paint();
+    false
+  }
+
+  pub fn on_app_data_change(
+    _ctx: &mut EventCtx,
+    old: &super::App,
+    data: &mut super::App,
+    _env: &druid::Env,
+  ) {
+    if let Some(install_dir) = &data.settings.install_dir {
+      let diff = old
+        .mod_list
+        .mods
+        .deref()
+        .clone()
+        .difference_with(data.mod_list.mods.clone().into(), |left, right| {
+          (left.enabled != right.enabled).then_some(right)
+        });
+
+      if !diff.is_empty() {
+        let enabled: Vec<String> = data
+          .mod_list
+          .mods
+          .values()
+          .filter_map(|v| v.enabled.then_some(v.id.clone()))
+          .collect();
+        if let Err(err) = EnabledMods::from(enabled).save(install_dir) {
+          eprintln!("{:?}", err)
+        };
+      }
+    }
+  }
+
+  pub fn _view() -> impl Widget<Self> {
+    Flex::column()
+      .with_child(headings::Header::view().lens(ModList::header))
       .with_flex_child(
         Either::new(
           |data: &ModList, _| !data.mods.is_empty(),
           Scroll::new(
             List::new(|| {
-              ModEntry::ui_builder()
+              ModEntry::view()
                 .expand_width()
                 .lens(lens::Map::new(
                   |val: &EntryAlias| (val.0.clone(), val.2.clone(), val.3.clone()),
@@ -103,7 +324,7 @@ impl ModList {
                       if let Some(local) = &entry.version_checker {
                         let update_status = UpdateStatus::from((local, &entry.remote_version));
 
-                        let enabled_shift = (headings::ENABLED_RATIO) * rect.width();
+                        let enabled_shift = (headings::Header::ENABLED_WIDTH) * rect.width();
                         let mut row_origin = rect.origin();
                         row_origin.x += enabled_shift + 3.;
                         let row_rect = rect.with_origin(row_origin).intersect(rect);
@@ -127,7 +348,7 @@ impl ModList {
                     if let Some(idx) = headings.index_of(&Heading::GameVersion) {
                       if let Some(game_version) = game_version.as_ref() {
                         let diff = StarsectorVersionDiff::from((&entry.game_version, game_version));
-                        let enabled_shift = (headings::ENABLED_RATIO) * rect.width();
+                        let enabled_shift = (headings::Header::ENABLED_WIDTH) * rect.width();
                         let mut row_origin = rect.origin();
                         row_origin.x += enabled_shift + 3.;
                         let row_rect = rect.with_origin(row_origin).intersect(rect);
@@ -190,14 +411,6 @@ impl ModList {
             entry.id.clone(),
           );
         }
-      })
-      .on_command(Header::SORT_CHANGED, |ctx, payload, data| {
-        if data.header.sort_by.0 == *payload {
-          data.header.sort_by.1 = !data.header.sort_by.1;
-        } else {
-          data.header.sort_by = (*payload, false)
-        }
-        ctx.children_changed()
       })
       .on_command(util::MASTER_VERSION_RECEIVED, |_ctx, payload, data| {
         if let Some(mut entry) = data.mods.get(&payload.0).cloned() {

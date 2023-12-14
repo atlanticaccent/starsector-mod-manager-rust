@@ -56,7 +56,7 @@ impl ModRepo {
 
   const CARD_MAX_WIDTH: f64 = 475.0;
 
-  pub fn ui_builder() -> impl Widget<ModRepo> {
+  pub fn view() -> impl Widget<ModRepo> {
     Modal::new("Mod Repo")
       .with_content(
         Flex::row()
@@ -149,7 +149,7 @@ impl ModRepo {
             for (idx, item) in items.iter().enumerate() {
               if item.display {
                 wrap.add_child(
-                  ModRepoItem::ui_builder()
+                  ModRepoItem::view()
                     .lens(
                       lens!((Vector<ModRepoItem>, Vector<ModSource>, Metadata), 0)
                         .then(lens::Index::new(idx)),
@@ -323,7 +323,7 @@ impl ModRepoItem {
   const LABEL_FLEX: f64 = 1.0;
   const VALUE_FLEX: f64 = 3.0;
 
-  fn ui_builder() -> impl Widget<ModRepoItem> {
+  fn view() -> impl Widget<ModRepoItem> {
     Flex::column()
       .with_child(
         Flex::row()

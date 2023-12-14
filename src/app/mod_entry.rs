@@ -123,7 +123,134 @@ impl ModEntry {
     self.enabled = enabled;
   }
 
-  pub fn ui_builder() -> impl Widget<(Arc<Self>, Vector<f64>, Vector<Heading>)> {
+  pub fn view_cell(heading: Heading) -> Option<impl Widget<Arc<Self>>> {
+    if matches!(heading, Heading::Enabled | Heading::Score) {
+      return None;
+    }
+
+    Some(match heading {
+      header @ Heading::ID | header @ Heading::Name | header @ Heading::Author => {
+        let label = Label::wrapped_func(|text: &String, _| text.to_string());
+        match header {
+          Heading::ID => label.lens(ModEntry::id.in_arc()).padding(5.).expand_width(),
+          Heading::Name => label
+            .lens(ModEntry::name.in_arc())
+            .padding(5.)
+            .expand_width(),
+          Heading::Author => label
+            .lens(ModEntry::author.in_arc())
+            .padding(5.)
+            .expand_width(),
+          _ => unreachable!(),
+        }.boxed()
+      }
+      Heading::GameVersion => Label::wrapped_func(|version: &GameVersion, _| {
+        util::get_quoted_version(version).unwrap_or_default()
+      })
+      .lens(ModEntry::game_version.in_arc())
+      .padding(5.)
+      .expand_width()
+      .boxed(),
+      Heading::Version => ViewSwitcher::new(
+        |entry: &Arc<ModEntry>, _| entry.update_status.clone(),
+        |_, data, env| {
+          let color = data
+            .update_status
+            .as_ref()
+            .map(|s| s.as_text_colour())
+            .unwrap_or_else(|| <KeyOrValue<Color>>::from(druid::theme::TEXT_COLOR));
+          Box::new(
+            Flex::row()
+              .with_child(
+                Label::dynamic(|t: &String, _| t.to_string())
+                  .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
+                  .with_text_color(color.clone())
+                  .lens(ModEntry::version.in_arc().map(|v| v.to_string(), |_, _| {})),
+              )
+              .with_flex_spacer(1.)
+              .tap_mut(|row| {
+                let mut icon_row = Flex::row();
+                let mut iter = 0;
+
+                match data.update_status.as_ref() {
+                  Some(UpdateStatus::Major(_)) => iter = 3,
+                  Some(UpdateStatus::Minor(_)) => iter = 2,
+                  Some(UpdateStatus::Patch(_)) => iter = 1,
+                  Some(UpdateStatus::Error) => icon_row.add_child(Icon::new(REPORT)),
+                  Some(UpdateStatus::Discrepancy(_)) => icon_row.add_child(Icon::new(HELP)),
+                  Some(UpdateStatus::UpToDate) => icon_row.add_child(Icon::new(VERIFIED)),
+                  _ => {}
+                };
+
+                for _ in 0..iter {
+                  icon_row.add_child(Icon::new(NEW_RELEASES))
+                }
+
+                if let Some(update_status) = &data.update_status {
+                  let tooltip = match update_status {
+                    UpdateStatus::Error => "Error\nThere was an error retrieving or parsing this mod's version information.".to_string(),
+                    UpdateStatus::UpToDate => update_status.to_string(),
+                    UpdateStatus::Discrepancy(_) => "\
+                      Discrepancy\n\
+                      The installed version of this mod is higher than the version available from the server.\n\
+                      This usually means the mod author has forgotten to update their remote version file and is not a cause for alarm.\
+                    ".to_string(),
+                    _ => update_status.to_string()
+                  };
+                  let text_color = color.clone();
+                  let background_color =
+                    <KeyOrValue<Color>>::from(update_status).resolve(env);
+                  row.add_child(
+                    icon_row.stack_tooltip(tooltip)
+                      .with_text_attribute(druid::text::Attribute::TextColor(text_color))
+                      .with_background_color(background_color)
+                      .with_crosshair(true)
+                  )
+                } else {
+                  row.add_child(icon_row)
+                }
+              }),
+          )
+        },
+      )
+      .padding(5.)
+      .expand_width()
+      .boxed(),
+      Heading::AutoUpdateSupport => Either::new(
+        |entry: &Arc<ModEntry>, _| entry.remote_version
+          .as_ref()
+          .and_then(|r| r.direct_download_url.as_ref())
+          .is_some(),
+        Either::new(
+          |entry: &Arc<ModEntry>, _| entry.update_status.as_ref().is_some_and(|status| status != &UpdateStatus::Error),
+          Either::new(
+            |entry: &Arc<ModEntry>, _| entry.update_status.as_ref().is_some_and(|status| !matches!(status, &UpdateStatus::UpToDate | &UpdateStatus::Discrepancy(_))),
+            Button::from_label(Label::wrapped("Update available!")).on_click(
+              |ctx: &mut druid::EventCtx, data: &mut Arc<ModEntry>, _| {
+                ctx.submit_notification(ModEntry::AUTO_UPDATE.with(data.clone()))
+              },
+            ),
+            Label::wrapped("No update available")),
+          Label::wrapped("Unsupported")),
+        Label::wrapped("Unsupported"),
+      )
+      .padding(5.)
+      .expand_width()
+      .boxed(),
+      Heading::InstallDate => Label::wrapped_func(|data: &ModMetadata, _| if let Some(date) = data.install_date {
+          DateTime::<Local>::from(date).format("%v %I:%M%p").to_string()
+        } else {
+          String::from("Unknown")
+        })
+        .lens(ModEntry::manager_metadata.in_arc())
+        .padding(5.)
+        .expand_width()
+        .boxed(),
+      Heading::Enabled | Heading::Score => unreachable!(),
+    })
+  }
+
+  pub fn view() -> impl Widget<(Arc<Self>, Vector<f64>, Vector<Heading>)> {
     fn recursive_split(
       idx: usize,
       mut widgets: VecDeque<Box<dyn Widget<Arc<ModEntry>>>>,
@@ -295,7 +422,7 @@ impl ModEntry {
               .boxed()
           },
         )
-        .split_point(headings::ENABLED_RATIO)
+        .split_point(headings::Header::ENABLED_WIDTH)
         .on_click(
           |ctx: &mut druid::EventCtx, data: &mut Arc<ModEntry>, _env: &druid::Env| {
             ctx.submit_command(

@@ -23,7 +23,7 @@ impl ModDescription {
   pub const FRACTAL_URL: &'static str = "https://fractalsoftworks.com/forum/index.php?topic=";
   pub const NEXUS_URL: &'static str = "https://www.nexusmods.com/starsector/mods/";
 
-  pub fn ui_builder() -> impl Widget<Arc<ModEntry>> {
+  pub fn view() -> impl Widget<Arc<ModEntry>> {
     Flex::column()
       .with_flex_child(
         Flex::row()

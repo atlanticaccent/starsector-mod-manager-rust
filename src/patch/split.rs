@@ -359,7 +359,7 @@ impl<T: Data> Widget<T> for Split<T> {
     }
 
     let mut my_size = bc.max();
-    let bar_area = self.bar_area();
+    let bar_area = 0.0;
     let reduced_size = Size::new(
       (my_size.width - bar_area).max(0.),
       (my_size.height - bar_area).max(0.),
@@ -383,7 +383,7 @@ impl<T: Data> Widget<T> for Split<T> {
     let (child1_bc, child2_bc) = match self.split_axis {
       Axis::Horizontal => {
         let child1_width = (reduced_size.width * self.split_point_effective)
-          .floor()
+          .ceil()
           .max(0.0);
         let child2_width = (reduced_size.width - child1_width).max(0.0);
         (

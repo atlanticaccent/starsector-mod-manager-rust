@@ -89,7 +89,7 @@ impl Settings {
     }
   }
 
-  pub fn ui_builder() -> impl Widget<Self> {
+  pub fn view() -> impl Widget<Self> {
     Modal::new("Settings")
       .with_content(
         Flex::column()

@@ -1,10 +1,10 @@
 use crate::{
-  app::{mod_entry::ModEntry, util::LabelExt},
-  patch::split::{Split, DRAGGED},
+  app::util::LabelExt,
+  patch::split::Split,
 };
 use druid::{
   im::Vector,
-  widget::{Controller, ControllerHost, Flex, Label, Painter, ViewSwitcher},
+  widget::{Controller, Flex, Label, Painter, ViewSwitcher},
   Data, Lens, RenderContext, Selector, Widget, WidgetExt,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
@@ -12,19 +12,24 @@ use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 
 use super::util::icons::*;
+use super::ModList;
 
-pub const ENABLED_RATIO: f64 = 1. / 12.;
-
-#[derive(Debug, Clone, Copy, Data, PartialEq, Eq, EnumIter, Serialize, Deserialize)]
+#[derive(
+  Debug, Clone, Copy, Data, PartialEq, Eq, EnumIter, Serialize, Deserialize, strum_macros::Display,
+)]
 pub enum Heading {
   ID,
   Name,
+  #[strum(serialize = "Author(s)")]
   Author,
+  #[strum(serialize = "Game Version")]
   GameVersion,
   Enabled,
   Version,
   Score,
+  #[strum(serialize = "Auto-Update Supported")]
   AutoUpdateSupport,
+  #[strum(serialize = "Install Date")]
   InstallDate,
 }
 
@@ -54,10 +59,11 @@ pub struct Header {
 }
 
 impl Header {
-  pub const SORT_CHANGED: Selector<Heading> = Selector::new("headings.sorting.changed");
   pub const SWAP_HEADINGS: Selector<(usize, usize)> = Selector::new("headings.order.changed");
   pub const ADD_HEADING: Selector<Heading> = Selector::new("headings.add");
   pub const REMOVE_HEADING: Selector<Heading> = Selector::new("headings.remove");
+
+  pub const ENABLED_WIDTH: f64 = 90.0;
 
   pub const TITLES: [Heading; 6] = [
     Heading::Name,
@@ -83,44 +89,41 @@ impl Header {
       .collect()
   }
 
-  pub fn ui_builder() -> impl Widget<Header> {
-    fn recursive_split(
-      idx: usize,
-      titles: &Vector<Heading>,
-    ) -> ControllerHost<Split<Header>, ResizeController> {
+  pub fn view() -> impl Widget<Header> {
+    fn recursive_split(idx: usize, titles: &Vector<Heading>) -> impl Widget<Header> {
       if idx < titles.len() - 2 {
         Split::columns(
-          heading_builder(titles[idx]),
+          heading_builder(titles[idx]).controller(ResizeController::new(idx + 1)),
           recursive_split(idx + 1, titles),
         )
       } else {
         Split::columns(
-          heading_builder(titles[idx]),
-          heading_builder(titles[idx + 1]),
+          heading_builder(titles[idx]).controller(ResizeController::new(idx + 1)),
+          heading_builder(titles[idx + 1]).controller(ResizeController::new(idx + 2)),
         )
       }
       .draggable(true)
       .split_point(1. / (titles.len() - idx) as f64)
-      .bar_size(2.)
+      .bar_size(0.0)
       .solid_bar(true)
       .min_size(50., 50.)
-      .controller(ResizeController::new(idx + 1))
     }
 
     ViewSwitcher::new(
       |data: &Header, _| data.headings.clone(),
       |_, data, _| {
-        Split::columns(
-          heading_builder(Heading::Enabled),
-          if data.headings.len() > 1 {
-            recursive_split(0, &data.headings).boxed()
-          } else {
-            heading_builder(data.headings[0]).boxed()
-          },
-        )
-        .split_point(ENABLED_RATIO)
-        .controller(ResizeController::new(0))
-        .boxed()
+        Flex::row()
+          .with_child(heading_builder(Heading::Enabled).fix_width(Self::ENABLED_WIDTH))
+          .with_flex_child(
+            if data.headings.len() > 1 {
+              recursive_split(0, &data.headings).boxed()
+            } else {
+              heading_builder(data.headings[0]).boxed()
+            }
+            .expand_width(),
+            1.0,
+          )
+          .boxed()
       },
     )
     .on_command(Header::SWAP_HEADINGS, |_, (idx, jdx), header| {
@@ -170,7 +173,14 @@ fn heading_builder(title: Heading) -> impl Widget<Header> {
         ctx.stroke(border_rect, &env.get(druid::theme::BORDER_LIGHT), 3.)
       }
     }))
-    .on_click(move |ctx, _, _| ctx.submit_command(Header::SORT_CHANGED.with(title)))
+    .on_click(move |ctx, data: &mut Header, _| {
+      if data.sort_by.0 == title {
+        data.sort_by.1 = !data.sort_by.1;
+      } else {
+        data.sort_by = (title, false)
+      }
+      ctx.children_changed()
+    })
 }
 
 struct ResizeController {
@@ -184,21 +194,19 @@ impl ResizeController {
 }
 
 impl<W: Widget<Header>> Controller<Header, W> for ResizeController {
-  fn event(
+
+  fn lifecycle(
     &mut self,
     child: &mut W,
-    ctx: &mut druid::EventCtx,
-    event: &druid::Event,
-    data: &mut Header,
+    ctx: &mut druid::LifeCycleCtx,
+    event: &druid::LifeCycle,
+    data: &Header,
     env: &druid::Env,
   ) {
-    if let druid::Event::Notification(notif) = event {
-      if let Some(ratio) = notif.get(DRAGGED) {
-        ctx.set_handled();
-        data.ratios[self.id] = *ratio;
-        ctx.submit_command(ModEntry::UPDATE_RATIOS.with((self.id, *ratio)))
-      }
+    if let druid::LifeCycle::Size(size) = event {
+      ctx.submit_command(ModList::UPDATE_COLUMN_WIDTH.with((self.id, dbg!(size.width))))
     }
-    child.event(ctx, event, data, env)
+
+    child.lifecycle(ctx, event, data, env)
   }
 }

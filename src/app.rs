@@ -1,6 +1,7 @@
 use std::{
   fs::{metadata, File},
   io::Write,
+  ops::Deref,
   path::PathBuf,
   rc::Rc,
   sync::Arc,
@@ -14,8 +15,8 @@ use druid::{
   keyboard_types::Key,
   lens,
   widget::{
-    Axis, Button, Checkbox, Either, Flex, Label, List, Maybe, Scope, SizedBox, Spinner, Tabs,
-    TabsPolicy, TextBox, ViewSwitcher,
+    Axis, Button, Checkbox, Either, Flex, Label, List, Maybe, Scope, SizedBox, Spinner, TextBox,
+    ViewSwitcher, ZStack,
   },
   AppDelegate as Delegate, Command, Data, DelegateCtx, Env, Event, EventCtx, Handled, KeyEvent,
   Lens, LensExt, Selector, SingleUse, Size, Target, Widget, WidgetExt, WidgetId, WindowDesc,
@@ -40,9 +41,11 @@ use wry::WebView;
 
 use crate::{
   app::util::{option_ptr_cmp, WidgetExtEx},
+  nav_bar::{Nav, NavBar},
   patch::{
     split::Split,
-    tabs_policy::{InitialTab, StaticTabsForked},
+    tabs::tab::{InitialTab, Tabs, TabsPolicy},
+    tabs_policy::StaticTabsForked,
   },
 };
 
@@ -56,13 +59,13 @@ use self::{
   modal::Modal,
   settings::{Settings, SettingsCommand},
   util::{
-    button_painter, get_latest_manager, get_quoted_version, get_starsector_version, h2, h3,
+    button_painter, get_latest_manager, get_quoted_version, get_starsector_version, h1, h2, h3,
     icons::*, make_column_pair, Button2, CommandExt, DummyTransfer, IndyToggleState, LabelExt,
     LensExtExt as _, Release, GET_INSTALLED_STARSECTOR,
   },
 };
 
-mod controllers;
+pub mod controllers;
 pub mod installer;
 mod mod_description;
 mod mod_entry;
@@ -128,6 +131,8 @@ impl App {
   const FOUND_MULTIPLE: Selector<(HybridPath, Vec<PathBuf>)> =
     Selector::new("app.install.found_multiple");
 
+  const TOGGLE_NAV_BAR: Selector = Selector::new("app.nav_bar.collapse");
+
   pub fn new(runtime: Handle) -> Self {
     let settings = settings::Settings::load()
       .map(|mut settings| {
@@ -161,7 +166,92 @@ impl App {
     }
   }
 
-  pub fn ui_builder() -> impl Widget<Self> {
+  pub fn view() -> impl Widget<Self> {
+    let nav_bar = ZStack::new(
+      Flex::<bool>::column()
+        .with_default_spacer()
+        .with_child(
+          h1("MOSS")
+            .align_horizontal(druid::UnitPoint::CENTER)
+            .expand_width(),
+        )
+        .with_child(SizedBox::empty().height(20.))
+        .with_child(NavBar::new(
+          Nav::new("root").as_root().with_children(vec![
+            Nav::new("Mods"),
+            Nav::new("Profiles"),
+            Nav::new("Tools"),
+            Nav::new("Mod Browsers")
+              .with_children(vec![Nav::new("Starmodder"), Nav::new("Web Browser")])
+              .linked_to("Starmodder")
+              .is_always_open(),
+            Nav::separator(),
+            Nav::new("Activity"),
+            Nav::new("Downloads"),
+            Nav::separator(),
+            Nav::new("Settings"),
+          ]),
+          "Mods",
+        ))
+        .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+        .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
+        .must_fill_main_axis(true),
+    )
+    .with_aligned_child(
+      Icon::new(FIRST_PAGE)
+        .fix_size(34., 34.)
+        .controller(HoverController)
+        .on_click(|ctx, _, _| ctx.submit_command(App::TOGGLE_NAV_BAR))
+        .padding(6.),
+      druid::UnitPoint::BOTTOM_RIGHT,
+    )
+    .expand();
+
+    Flex::row()
+      .with_child(
+        Scope::from_lens(
+          |_| true,
+          lens::Unit,
+          nav_bar
+            .fix_width(175.)
+            .or(
+              |data, _| !data,
+              Icon::new(LAST_PAGE)
+                .fix_size(34., 34.)
+                .controller(HoverController)
+                .on_click(|ctx, _, _| ctx.submit_command(App::TOGGLE_NAV_BAR))
+                .padding(6.)
+                .align_vertical(druid::UnitPoint::BOTTOM)
+                .expand_height(),
+            )
+            .on_command(App::TOGGLE_NAV_BAR, |_, _, data| *data = !*data),
+        )
+        .lens(lens::Unit),
+      )
+      .with_flex_child(
+        Tabs::for_policy(StaticTabsForked::build(vec![
+          InitialTab::new(
+            "",
+            ModList::view()
+              .lens(App::mod_list)
+              .on_change(ModList::on_app_data_change)
+              .controller(ModListController),
+          ),
+          InitialTab::new("", Settings::view().lens(App::settings)),
+        ]))
+        .on_command2(Nav::NAV_SELECTOR, |tabs, _, label, _| {
+          match label.as_str() {
+            "Mods" => tabs.set_tab_index(0),
+            "Settings" => tabs.set_tab_index(1),
+            _ => eprintln!("Failed to open an item for a nav bar control"),
+          }
+          true
+        }),
+        1.0,
+      )
+  }
+
+  pub fn view_() -> impl Widget<Self> {
     let settings = Flex::row()
       .with_child(
         Flex::row()
@@ -275,9 +365,7 @@ impl App {
           .on_click(|ctx, data: &mut App, _| {
             if data.mod_repo.is_some() {
               let modal = Stack::new()
-                .with_child(
-                  ModRepo::ui_builder().disabled_if(|data: &ModRepo, _| data.modal_open()),
-                )
+                .with_child(ModRepo::view().disabled_if(|data: &ModRepo, _| data.modal_open()))
                 .with_positioned_child(
                   Either::new(
                     |modal: &Option<String>, _| modal.is_some(),
@@ -319,7 +407,7 @@ impl App {
     .disabled_if(|data, _| data.mod_repo.is_none());
     let mod_list = ViewSwitcher::new(
       |data: &ModList, _| data.header.headings.clone(),
-      |_, _, _| mod_list::ModList::ui_builder().boxed(),
+      |_, _, _| mod_list::ModList::view().boxed(),
     )
     .lens(App::mod_list)
     .on_change(|_ctx, _old, data, _env| {
@@ -349,7 +437,7 @@ impl App {
       |(active, mods, enabled), _, _| {
         if let Some(entry) = active.as_ref().and_then(|active| mods.get(active)) {
           let enabled = *enabled;
-          ModDescription::ui_builder()
+          ModDescription::view()
             .lens(lens::Constant(entry.clone()))
             .disabled_if(move |_, _| enabled)
             .boxed()
@@ -567,7 +655,7 @@ impl App {
                     webview.load_url(FRACTAL_MODS_FORUM)
                   }
                 }
-              })
+              }),
           )
           .with_spacer(10.)
           .with_child(
@@ -611,7 +699,7 @@ impl App {
           .split_point(0.8)
           .draggable(true)
           .expand_height()
-          .on_event(|ctx, event, _| {
+          .on_event(|_, ctx, event, _| {
             if let Event::Command(cmd) = event {
               if (cmd.is(ModList::SUBMIT_ENTRY) || cmd.is(App::ENABLE)) && ctx.is_disabled() {
                 ctx.set_disabled(false);
@@ -796,7 +884,7 @@ impl Delegate<App> for AppDelegate {
             );
 
           let settings_window =
-            WindowDesc::new(settings::Settings::ui_builder().lens(App::settings))
+            WindowDesc::new(settings::Settings::view().lens(App::settings))
               .window_size((800., 400.))
               .show_titlebar(false);
 

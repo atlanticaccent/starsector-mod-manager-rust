@@ -7,7 +7,9 @@ use std::rc::Rc;
 use std::sync::{Mutex, Weak};
 use std::{collections::VecDeque, io::Read, path::PathBuf, sync::Arc};
 
+use druid::kurbo::Circle;
 use druid::lens::Then;
+use druid::piet::ScaleMode;
 use druid::widget::{ControllerHost, Either, LabelText, SizedBox};
 use druid::{
   lens,
@@ -17,7 +19,7 @@ use druid::{
   Color, Command, Data, Event, EventCtx, ExtEventSink, FontWeight, Key, KeyOrValue, Lens, Point,
   RenderContext, Selector, Target, UnitPoint, Widget, WidgetExt,
 };
-use druid::{Env, LensExt as _, MouseEvent};
+use druid::{Env, Insets, LensExt as _, MouseEvent, RadialGradient, LinearGradient, Rect};
 use druid_widget_nursery::CommandCtx;
 use json_comments::strip_comments;
 use lazy_static::lazy_static;
@@ -36,6 +38,8 @@ use crate::app::mod_entry::{GameVersion, ModEntry, ModVersionMeta};
 pub(crate) mod icons;
 
 pub use icons::*;
+
+use super::controllers::{HeightLinkerShared, LinkedHeights};
 
 pub const ORANGE_KEY: Key<Color> = Key::new("util.colour.orange");
 pub const BLUE_KEY: Key<Color> = Key::new("util.colour.blue");
@@ -582,32 +586,125 @@ pub fn button_painter<T: Data>() -> Painter<T> {
 pub struct Card;
 
 impl Card {
-  const CARD_INSET: f64 = 12.5;
+  pub const CARD_INSET: f64 = 12.5;
+  const SHADOW_INSET: f64 = 2.0;
 
   pub fn new<T: Data>(widget: impl Widget<T> + 'static) -> impl Widget<T> {
-    widget
-      .padding((
+    Self::new_with_opts(
+      widget,
+      (
         Self::CARD_INSET,
         Self::CARD_INSET,
         Self::CARD_INSET,
         Self::CARD_INSET + 5.,
-      ))
-      .background(Self::card_painter())
+      ),
+      10.0,
+      8.0,
+      Option::<(f64, Color)>::None,
+    )
   }
 
-  pub fn card_painter<T: Data>() -> Painter<T> {
-    Painter::new(|ctx, _, env| {
+  pub fn new_with_opts<T: Data>(
+    widget: impl Widget<T> + 'static,
+    padding: impl Into<Insets> + Clone,
+    corner_radius: f64,
+    shadow_length: f64,
+    border: Option<(f64, impl Into<KeyOrValue<Color>>)>
+  ) -> impl Widget<T> {
+    let mut insets: Insets = padding.into();
+    let mut paint_insets = insets.clone();
+
+    if paint_insets.x0 <= 0.0 {
+      paint_insets.x0 = insets.y0.max(insets.y1);
+      insets.x0 = paint_insets.x0 / 2.0;
+    }
+    if paint_insets.x1 <= 0.0 {
+      paint_insets.x1 = insets.y0.max(insets.y1);
+      insets.x1 = paint_insets.x1 / 2.0;
+    }
+
+    widget
+      .padding(insets)
+      .background(Self::card_painter(paint_insets, corner_radius, shadow_length, border))
+  }
+
+  pub fn card_painter<T: Data>(insets: impl Into<KeyOrValue<Insets>>, corner_radius: f64, shadow_length: f64, border: Option<(f64, impl Into<KeyOrValue<Color>>)>) -> Painter<T> {
+    let insets = insets.into();
+    let border = border.map(|b| (b.0, b.1.into()));
+    Painter::new(move |ctx, _, env| {
+      let mut insets: Insets = insets.resolve(env);
+      let border = border.as_ref().map(|b| (b.0, b.1.resolve(env)));
+
       let size = ctx.size();
+      insets.x0 /= 2.0;
+      insets.x1 /= 2.0;
+      insets.y0 /= 2.0;
+      insets.y1 /= 2.0;
 
-      let rounded_rect = size
-        .to_rect()
-        .inset(-Self::CARD_INSET / 2.0)
-        .to_rounded_rect(10.);
+      Self::shadow_painter(ctx, insets, corner_radius, shadow_length);
 
+      let rounded_rect = size.to_rect().inset(-insets).to_rounded_rect(corner_radius);
       ctx.fill(rounded_rect, &env.get(theme::BACKGROUND_LIGHT));
+
+      if let Some((width, key)) = border {
+        let shape = size.to_rect().inset(-insets).inset(-(width / 2.0)).to_rounded_rect(corner_radius - width);
+        ctx.stroke(shape, &key, width)
+      }
     })
   }
+
+  fn shadow_painter(ctx: &mut druid::PaintCtx, insets: Insets, corner_radius: f64, shadow_length: f64) {
+      let rect = ctx.size().to_rect();
+  
+      let light = Color::TRANSPARENT;
+      let dark = Color::BLACK;
+  
+      ctx.fill(rect, &light);
+  
+      let stops = (dark, light);
+      let radius = corner_radius + shadow_length;
+      let mut circle = Circle::new((insets.x0 + corner_radius, insets.y0 + corner_radius), radius);
+      let brush = RadialGradient::new(0.5, stops)
+        .with_scale_mode(ScaleMode::Fit);
+  
+      ctx.with_save(|ctx| {
+        ctx.clip(Rect::new(0.0, 0.0, circle.center.x, circle.center.y));
+        ctx.fill(circle, &brush);
+      });
+      circle.center.x += rect.width() - insets.x1 - insets.x0 - (corner_radius * 2.0);
+      ctx.with_save(|ctx| {
+        ctx.clip(Rect::new(circle.center.x, 0.0, rect.width(), circle.center.y));
+        ctx.fill(circle, &brush);
+      });
+      circle.center.y += rect.height() - insets.y1 - insets.y0 - (corner_radius * 2.0);
+      ctx.with_save(|ctx| {
+        ctx.clip(Rect::new(circle.center.x, circle.center.y, rect.width(), rect.height()));
+        ctx.fill(circle, &brush);
+      });
+      circle.center.x -= rect.width() - insets.x0 - insets.x1 - (corner_radius * 2.0);
+      ctx.with_save(|ctx| {
+        ctx.clip(Rect::new(0.0, circle.center.y, circle.center.x, rect.height()));
+        ctx.fill(circle, &brush);
+      });
+  
+      let linear = LinearGradient::new(UnitPoint::BOTTOM, UnitPoint::TOP, stops);
+      let rect = Rect::new(insets.x0 + corner_radius, insets.y0 + corner_radius, ctx.size().width - insets.x1 - corner_radius, insets.y0 + corner_radius - radius);
+      ctx.fill(rect, &linear);
+  
+      let linear = LinearGradient::new(UnitPoint::LEFT, UnitPoint::RIGHT, stops);
+      let rect = Rect::new(ctx.size().width - insets.x1 - corner_radius, insets.y0 + corner_radius, (ctx.size().width - insets.x1 - corner_radius) + radius, ctx.size().height - insets.y1 - corner_radius);
+      ctx.fill(rect, &linear);
+  
+      let linear = LinearGradient::new(UnitPoint::TOP, UnitPoint::BOTTOM, stops);
+      let rect = Rect::new(insets.x0 + corner_radius, ctx.size().height - insets.y1 - corner_radius, ctx.size().width - insets.x1 - corner_radius, (ctx.size().height - insets.y1 - corner_radius) + radius);
+      ctx.fill(rect, &linear);
+  
+      let linear = LinearGradient::new(UnitPoint::RIGHT, UnitPoint::LEFT, stops);
+      let rect = Rect::new(insets.x0 + corner_radius, insets.y0 + corner_radius, insets.x0 + corner_radius - radius, ctx.size().height - insets.y1 - corner_radius);
+      ctx.fill(rect, &linear);
+  }
 }
+
 
 pub trait CommandExt: CommandCtx {
   fn submit_command_global(&mut self, cmd: impl Into<Command>) {
@@ -645,7 +742,10 @@ pub fn hoverable_text(colour: Option<Color>) -> impl Widget<String> {
   hoverable_text_opts(colour, |w| w)
 }
 
-pub fn hoverable_text_opts<W: Widget<RichText> + 'static>(colour: Option<Color>, mut modify: impl FnMut(RawLabel<RichText>) -> W) -> impl Widget<String> {
+pub fn hoverable_text_opts<W: Widget<RichText> + 'static>(
+  colour: Option<Color>,
+  mut modify: impl FnMut(RawLabel<RichText>) -> W,
+) -> impl Widget<String> {
   struct TextHoverController;
 
   impl<D: Data, W: Widget<(D, bool)>> Controller<(D, bool), W> for TextHoverController {
@@ -665,29 +765,27 @@ pub fn hoverable_text_opts<W: Widget<RichText> + 'static>(colour: Option<Color>,
     }
   }
 
-  let label: RawLabel<RichText> = RawLabel::new()
-    .with_line_break_mode(druid::widget::LineBreaking::WordWrap);
+  let label: RawLabel<RichText> =
+    RawLabel::new().with_line_break_mode(druid::widget::LineBreaking::WordWrap);
 
   let wrapped = modify(label);
 
   Scope::from_function(
     |input: String| (input, false),
     DummyTransfer::default(),
-      wrapped
-      .lens(Compute::new(
-        move |(text, hovered): &(String, bool)| {
-          RichText::new(text.clone().into())
-            .with_attribute(0..text.len(), Attribute::Underline(*hovered))
-            .with_attribute(
-              0..text.len(),
-              Attribute::TextColor(
-                colour
-                  .map(|c| c.into())
-                  .unwrap_or_else(|| theme::TEXT_COLOR.into()),
-              ),
-            )
-        },
-      ))
+    wrapped
+      .lens(Compute::new(move |(text, hovered): &(String, bool)| {
+        RichText::new(text.clone().into())
+          .with_attribute(0..text.len(), Attribute::Underline(*hovered))
+          .with_attribute(
+            0..text.len(),
+            Attribute::TextColor(
+              colour
+                .map(|c| c.into())
+                .unwrap_or_else(|| theme::TEXT_COLOR.into()),
+            ),
+          )
+      }))
       .controller(TextHoverController),
   )
 }
@@ -717,6 +815,36 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
 
   fn or_empty(self, f: impl Fn(&T, &Env) -> bool + 'static) -> Either<T> {
     Either::new(f, self, SizedBox::empty())
+  }
+
+  fn or(
+    self,
+    f: impl Fn(&T, &Env) -> bool + 'static,
+    other: impl Widget<T> + 'static,
+  ) -> Either<T> {
+    Either::new(f, other, self)
+  }
+
+  fn on_command2<CT: 'static>(
+    self,
+    selector: Selector<CT>,
+    handler: impl Fn(&mut W, &mut EventCtx, &CT, &mut T) -> bool + 'static,
+  ) -> ControllerHost<Self, super::controllers::OnCmd<CT, T, W>> {
+    ControllerHost::new(self, super::controllers::OnCmd::new(selector, handler))
+  }
+
+  fn link_height_with(
+    self,
+    height_linker: &mut Option<HeightLinkerShared>,
+  ) -> LinkedHeights<T, Self> {
+    if let Some(linker) = height_linker {
+      LinkedHeights::new(self, linker.clone())
+    } else {
+      let (widget, linker) = LinkedHeights::new_with_linker(self);
+      height_linker.replace(linker);
+
+      widget
+    }
   }
 }
 
@@ -894,6 +1022,7 @@ pub trait LensExtExt<A: ?Sized, B: ?Sized>: Lens<A, B> {
 
 impl<A: ?Sized, B: ?Sized, T: Lens<A, B>> LensExtExt<A, B> for T {}
 
+#[derive(Clone)]
 pub struct Compute<Get: Fn(&B) -> C, B: ?Sized, C>(lens::Map<Get, fn(&mut B, C)>);
 
 impl<Get: Fn(&B) -> C, B: ?Sized, C> Compute<Get, B, C> {
