@@ -9,11 +9,11 @@ use std::{
 use druid::{
   im::Vector,
   lens, theme,
-  widget::{Checkbox, Either, Flex, Label, List, ListIter, Painter, Scroll},
+  widget::{Checkbox, Either, Flex, Label, List, ListIter, Painter, Scope, Scroll},
   Color, Data, EventCtx, ExtEventSink, KeyOrValue, Lens, LensExt, Rect, RenderContext, Selector,
   Target, UnitPoint, Widget, WidgetExt,
 };
-use druid_widget_nursery::{Stack, WidgetExt as WidgetExtNursery};
+use druid_widget_nursery::{Stack, WidgetExt as WidgetExtNursery, material_icons::Icon};
 use internment::Intern;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -21,7 +21,7 @@ use strum_macros::{Display, EnumIter};
 use sublime_fuzzy::best_match;
 
 use crate::{
-  app::util::StarsectorVersionDiff,
+  app::util::{StarsectorVersionDiff, ADD_CIRCLE, ADD_CIRCLE_OUTLINE},
   patch::table::{ComplexTableColumnWidth, FlexTable, TableColumnWidth, TableRow},
 };
 
@@ -33,7 +33,8 @@ use super::{
 };
 
 pub mod headings;
-use self::headings::{Header, Heading};
+pub mod install_button;
+use self::{headings::{Header, Heading}, install_button::InstallButton};
 
 static UPDATE_BALANCER: LoadBalancer<Arc<ModEntry>, Vec<Arc<ModEntry>>, Vec<Arc<ModEntry>>> =
   LoadBalancer::new(ModList::SUBMIT_ENTRY);
@@ -61,6 +62,8 @@ impl ModList {
   pub const UPDATE_COLUMN_WIDTH: Selector<(usize, f64)> =
     Selector::new("mod_list.column.update_width");
   const UPDATE_TABLE_SORT: Selector = Selector::new("mod_list.table.update_sorting");
+  const INSTALL_BUTTON_STATE_CHANGE: Selector =
+    Selector::new("mod_list.install_button.state_change");
 
   pub fn new(headings: Vector<Heading>) -> Self {
     Self {
@@ -77,64 +80,48 @@ impl ModList {
       .with_child(
         Flex::row()
           .with_child(
-            Stack::new()
-              .with_child(Card::new_with_opts(
-                bold_text(
-                  "Install Mod(s)",
-                  druid::theme::TEXT_SIZE_NORMAL,
-                  druid::FontWeight::SEMI_BOLD,
-                  druid::theme::TEXT_COLOR,
-                )
-                .padding((10.0, 0.0))
-                .align_vertical(UnitPoint::CENTER)
-                .fix_height(20.),
-                (0.0, 10.0),
-                4.0,
-                6.0,
-                Some((2.0, theme::BORDER_LIGHT)),
-              ))
+            InstallButton::view()
               .padding((0.0, 5.0)),
           )
           .expand_width(),
       )
       .with_flex_child(
-        Card::new_with_opts(
-          Flex::column()
-            .with_child(headings::Header::view().lens(ModList::header))
-            .with_flex_child(
-              FlexTable::default()
-                .row_background(Painter::new(move |ctx, _, env| {
-                  let rect = ctx.size().to_rect();
+        Card::builder((0.0, 14.0))
+          .with_corner_radius(4.0)
+          .with_shadow_length(6.0)
+          .build(
+            Flex::column()
+              .with_child(headings::Header::view().lens(ModList::header))
+              .with_flex_child(
+                FlexTable::default()
+                  .row_background(Painter::new(move |ctx, _, env| {
+                    let rect = ctx.size().to_rect();
 
-                  if env.try_get(FlexTable::<u64>::ROW_NUM).unwrap_or(0) % 2 == 0 {
-                    ctx.fill(rect, &env.get(theme::BACKGROUND_DARK))
-                  } else {
-                    ctx.fill(rect, &env.get(theme::BACKGROUND_LIGHT))
-                  }
-                }))
-                .with_column_width(TableColumnWidth::Fixed(Header::ENABLED_WIDTH))
-                .column_border(theme::BORDER_DARK, 1.0)
-                .controller(
-                  ExtensibleController::new()
-                    .on_command(Self::UPDATE_COLUMN_WIDTH, Self::column_resized)
-                    .on_command(Self::UPDATE_TABLE_SORT, Self::on_mod_list_change)
-                    .on_command(ModList::SUBMIT_ENTRY, Self::entry_submitted),
-                )
-                .scroll()
-                .vertical()
-                .expand_width(),
-              1.0,
-            )
-            .on_change(|ctx, old, data, _| {
-              if !old.header.same(&data.header) || !old.mods.same(&data.mods) {
-                ctx.submit_command(Self::UPDATE_TABLE_SORT)
-              }
-            }),
-          (0.0, 10.0),
-          4.0,
-          6.0,
-          Option::<(f64, Color)>::None,
-        ),
+                    if env.try_get(FlexTable::<u64>::ROW_NUM).unwrap_or(0) % 2 == 0 {
+                      ctx.fill(rect, &env.get(theme::BACKGROUND_DARK))
+                    } else {
+                      ctx.fill(rect, &env.get(theme::BACKGROUND_LIGHT))
+                    }
+                  }))
+                  .with_column_width(TableColumnWidth::Fixed(Header::ENABLED_WIDTH))
+                  .column_border(theme::BORDER_DARK, 1.0)
+                  .controller(
+                    ExtensibleController::new()
+                      .on_command(Self::UPDATE_COLUMN_WIDTH, Self::column_resized)
+                      .on_command(Self::UPDATE_TABLE_SORT, Self::on_mod_list_change)
+                      .on_command(ModList::SUBMIT_ENTRY, Self::entry_submitted),
+                  )
+                  .scroll()
+                  .vertical()
+                  .expand_width(),
+                1.0,
+              )
+              .on_change(|ctx, old, data, _| {
+                if !old.header.same(&data.header) || !old.mods.same(&data.mods) {
+                  ctx.submit_command(Self::UPDATE_TABLE_SORT)
+                }
+              }),
+          ),
         1.0,
       )
   }
