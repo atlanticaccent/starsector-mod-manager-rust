@@ -8,6 +8,7 @@ pub struct HeightLinker {
   pub resolved: usize,
   pub max: f64,
   id: WidgetId,
+  only_once: bool,
 }
 
 pub type HeightLinkerShared = Rc<RefCell<HeightLinker>>;
@@ -35,9 +36,15 @@ impl HeightLinker {
   }
 
   fn reset(&mut self, ctx: &mut impl CommandCtx) {
-    self.resolved = 0;
-    self.max = f64::NEG_INFINITY;
-    ctx.submit_command(Self::HEIGHT_LINKER_CMD.with((self.id, HeightLinkerCmd::ResetHeight)))
+    if !self.only_once {
+      self.resolved = 0;
+      self.max = f64::NEG_INFINITY;
+      ctx.submit_command(Self::HEIGHT_LINKER_CMD.with((self.id, HeightLinkerCmd::ResetHeight)))
+    }
+  }
+
+  pub fn only_once(&mut self) {
+    self.only_once = true;
   }
 }
 
@@ -65,6 +72,7 @@ impl<T: Data, W: Widget<T>> LinkedHeights<T, W> {
       resolved: 0,
       max: f64::NEG_INFINITY,
       id: WidgetId::next(),
+      only_once: false,
     }));
 
     let this = Self::new(widget, linker.clone());

@@ -214,7 +214,7 @@ impl App {
           lens::Unit,
           nav_bar
             .fix_width(175.)
-            .or(
+            .else_if(
               |data, _| !data,
               Icon::new(LAST_PAGE)
                 .fix_size(34., 34.)

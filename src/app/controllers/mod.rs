@@ -9,6 +9,7 @@ mod on_hover;
 mod on_cmd;
 mod linked_heights;
 mod extensible_controller;
+mod delayed_painter;
 
 pub use app_controller::AppController;
 pub use hover_controller::HoverController;
@@ -21,3 +22,4 @@ pub use on_hover::OnHover;
 pub use on_cmd::OnCmd;
 pub use linked_heights::*;
 pub use extensible_controller::ExtensibleController;
+pub use delayed_painter::DelayedPainter;

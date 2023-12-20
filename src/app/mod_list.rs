@@ -9,11 +9,11 @@ use std::{
 use druid::{
   im::Vector,
   lens, theme,
-  widget::{Checkbox, Either, Flex, Label, List, ListIter, Painter, Scope, Scroll},
+  widget::{Checkbox, Either, Flex, Label, List, ListIter, Painter, Scope, Scroll, ZStack},
   Color, Data, EventCtx, ExtEventSink, KeyOrValue, Lens, LensExt, Rect, RenderContext, Selector,
   Target, UnitPoint, Widget, WidgetExt,
 };
-use druid_widget_nursery::{Stack, WidgetExt as WidgetExtNursery, material_icons::Icon};
+use druid_widget_nursery::{material_icons::Icon, Stack, WidgetExt as WidgetExtNursery};
 use internment::Intern;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -33,8 +33,11 @@ use super::{
 };
 
 pub mod headings;
-pub mod install_button;
-use self::{headings::{Header, Heading}, install_button::InstallButton};
+pub mod install;
+use self::{
+  headings::{Header, Heading},
+  install::{install_button::InstallButton, install_options::InstallOptions, InstallState},
+};
 
 static UPDATE_BALANCER: LoadBalancer<Arc<ModEntry>, Vec<Arc<ModEntry>>, Vec<Arc<ModEntry>>> =
   LoadBalancer::new(ModList::SUBMIT_ENTRY);
@@ -47,6 +50,7 @@ pub struct ModList {
   #[data(same_fn = "PartialEq::eq")]
   active_filters: HashSet<Filters>,
   starsector_version: Option<GameVersion>,
+  install_state: InstallState,
 }
 
 impl ModList {
@@ -72,58 +76,62 @@ impl ModList {
       search_text: String::new(),
       active_filters: HashSet::new(),
       starsector_version: None,
+      install_state: InstallState::default(),
     }
   }
 
   pub fn view() -> impl Widget<Self> {
-    Flex::column()
-      .with_child(
-        Flex::row()
-          .with_child(
-            InstallButton::view()
-              .padding((0.0, 5.0)),
-          )
-          .expand_width(),
-      )
-      .with_flex_child(
-        Card::builder((0.0, 14.0))
-          .with_corner_radius(4.0)
-          .with_shadow_length(6.0)
-          .build(
-            Flex::column()
-              .with_child(headings::Header::view().lens(ModList::header))
-              .with_flex_child(
-                FlexTable::default()
-                  .row_background(Painter::new(move |ctx, _, env| {
-                    let rect = ctx.size().to_rect();
+    ZStack::new(
+      Flex::column()
+        .with_child(
+          Flex::row()
+            .with_child(InstallButton::view().lens(Self::install_state).padding((0.0, 5.0)))
+            .expand_width(),
+        )
+        .with_flex_child(
+          Card::builder((0.0, 14.0))
+            .with_corner_radius(4.0)
+            .with_shadow_length(6.0)
+            .build(
+              Flex::column()
+                .with_child(headings::Header::view().lens(ModList::header))
+                .with_flex_child(
+                  FlexTable::default()
+                    .row_background(Painter::new(move |ctx, _, env| {
+                      let rect = ctx.size().to_rect();
 
-                    if env.try_get(FlexTable::<u64>::ROW_NUM).unwrap_or(0) % 2 == 0 {
-                      ctx.fill(rect, &env.get(theme::BACKGROUND_DARK))
-                    } else {
-                      ctx.fill(rect, &env.get(theme::BACKGROUND_LIGHT))
-                    }
-                  }))
-                  .with_column_width(TableColumnWidth::Fixed(Header::ENABLED_WIDTH))
-                  .column_border(theme::BORDER_DARK, 1.0)
-                  .controller(
-                    ExtensibleController::new()
-                      .on_command(Self::UPDATE_COLUMN_WIDTH, Self::column_resized)
-                      .on_command(Self::UPDATE_TABLE_SORT, Self::on_mod_list_change)
-                      .on_command(ModList::SUBMIT_ENTRY, Self::entry_submitted),
-                  )
-                  .scroll()
-                  .vertical()
-                  .expand_width(),
-                1.0,
-              )
-              .on_change(|ctx, old, data, _| {
-                if !old.header.same(&data.header) || !old.mods.same(&data.mods) {
-                  ctx.submit_command(Self::UPDATE_TABLE_SORT)
-                }
-              }),
-          ),
-        1.0,
-      )
+                      if env.try_get(FlexTable::<u64>::ROW_NUM).unwrap_or(0) % 2 == 0 {
+                        ctx.fill(rect, &env.get(theme::BACKGROUND_DARK))
+                      } else {
+                        ctx.fill(rect, &env.get(theme::BACKGROUND_LIGHT))
+                      }
+                    }))
+                    .with_column_width(TableColumnWidth::Fixed(Header::ENABLED_WIDTH))
+                    .column_border(theme::BORDER_DARK, 1.0)
+                    .controller(
+                      ExtensibleController::new()
+                        .on_command(Self::UPDATE_COLUMN_WIDTH, Self::column_resized)
+                        .on_command(Self::UPDATE_TABLE_SORT, Self::on_mod_list_change)
+                        .on_command(ModList::SUBMIT_ENTRY, Self::entry_submitted),
+                    )
+                    .scroll()
+                    .vertical()
+                    .expand_width(),
+                  1.0,
+                )
+                .on_change(|ctx, old, data, _| {
+                  if !old.header.same(&data.header) || !old.mods.same(&data.mods) {
+                    ctx.submit_command(Self::UPDATE_TABLE_SORT)
+                  }
+                }),
+            ),
+          1.0,
+        ),
+    )
+    .with_aligned_child(
+      InstallOptions::view().lens(Self::install_state).padding((0.0, 5.0)),
+      UnitPoint::TOP_LEFT,
+    )
   }
 
   fn append_table(

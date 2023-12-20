@@ -39,7 +39,7 @@ pub(crate) mod icons;
 
 pub use icons::*;
 
-use super::controllers::{HeightLinkerShared, LinkedHeights, OnHover};
+use super::controllers::{HeightLinkerShared, LinkedHeights, OnHover, DelayedPainter};
 
 pub const ORANGE_KEY: Key<Color> = Key::new("util.colour.orange");
 pub const BLUE_KEY: Key<Color> = Key::new("util.colour.blue");
@@ -934,11 +934,14 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     ControllerHost::new(self, OnEvent::new(f))
   }
 
+  /**
+   * Displays alternative when closure returns false
+   */
   fn or_empty(self, f: impl Fn(&T, &Env) -> bool + 'static) -> Either<T> {
     Either::new(f, self, SizedBox::empty())
   }
 
-  fn or(
+  fn else_if(
     self,
     f: impl Fn(&T, &Env) -> bool + 'static,
     other: impl Widget<T> + 'static,
@@ -973,6 +976,10 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     handler: impl Fn(&mut W, &mut EventCtx, &mut T) -> bool + 'static,
   ) -> ControllerHost<Self, OnHover<T, W>> {
     ControllerHost::new(self, OnHover::new(handler))
+  }
+
+  fn with_z_index(self, z_index: u32) -> DelayedPainter<T, Self> {
+    DelayedPainter::new(self, z_index)
   }
 }
 
