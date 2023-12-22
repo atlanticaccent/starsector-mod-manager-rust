@@ -232,20 +232,6 @@ impl App {
   }
 
   pub fn view_() -> impl Widget<Self> {
-    let settings = Flex::row()
-      .with_child(
-        Flex::row()
-          .with_child(Label::new("Settings").with_text_size(18.))
-          .with_spacer(5.)
-          .with_child(Icon::new(SETTINGS))
-          .padding((8., 4.))
-          .background(button_painter())
-          .controller(HoverController)
-          .on_click(|event_ctx, _, _| {
-            event_ctx.submit_command(App::SELECTOR.with(app_delegate::AppCommands::OpenSettings))
-          }),
-      )
-      .expand_width();
     let refresh = Flex::row()
       .with_child(
         Flex::row()
@@ -572,8 +558,6 @@ impl App {
       .with_child(Either::new(
         |app: &App, _| app.webview.is_none(),
         Flex::row()
-          .with_child(settings)
-          .with_spacer(10.)
           .with_child(install_mod_button)
           .with_spacer(10.)
           .with_child(browse_index_button)

@@ -35,7 +35,7 @@ use super::{
   installer::{HybridPath, StringOrPath, DOWNLOAD_PROGRESS, DOWNLOAD_STARTED, INSTALL_ALL},
   mod_description,
   mod_entry::{ModEntry, ModMetadata},
-  mod_list::ModList,
+  mod_list::{ModList, install::install_options::InstallOptions},
   modal::Modal,
   settings,
   settings::{Settings, SettingsCommand},
@@ -48,7 +48,6 @@ use super::{
 };
 
 pub enum AppCommands {
-  OpenSettings,
   UpdateModDescription(String),
   PickFile(bool),
 }
@@ -89,26 +88,6 @@ impl Delegate<App> for AppDelegate {
   ) -> Handled {
     if cmd.is(App::SELECTOR) {
       match cmd.get_unchecked(App::SELECTOR) {
-        AppCommands::OpenSettings => {
-          let install_dir = lens!(App, settings)
-            .then(lens!(settings::Settings, install_dir))
-            .get(data);
-          lens!(App, settings)
-            .then(lens!(settings::Settings, install_dir_buf))
-            .put(
-              data,
-              install_dir.map_or_else(|| "".to_string(), |p| p.to_string_lossy().to_string()),
-            );
-
-          let settings_window = WindowDesc::new(settings::Settings::view().lens(App::settings))
-            .window_size((800., 400.))
-            .show_titlebar(false);
-
-          self.settings_id = Some(settings_window.id);
-
-          ctx.new_window(settings_window);
-          return Handled::Yes;
-        }
         AppCommands::UpdateModDescription(desc) => {
           data.active = Some(desc.clone());
 
@@ -597,7 +576,6 @@ impl Delegate<App> for AppDelegate {
         key: Key::Escape, ..
       }) => {
         ctx.submit_command(App::DUMB_UNIVERSAL_ESCAPE);
-        return None;
       }
       Event::WindowSize(Size { width, height }) => {
         if Some(window_id) == self.root_id
@@ -610,6 +588,9 @@ impl Delegate<App> for AppDelegate {
             height: height as u32,
           })
         }
+      },
+      Event::MouseDown(ref mouse) => {
+        ctx.submit_command(InstallOptions::DISMISS.with(mouse.window_pos))
       }
       _ => {}
     }

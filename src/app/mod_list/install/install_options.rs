@@ -1,4 +1,5 @@
-use druid::{theme, Widget, WidgetExt};
+use druid::{theme, Widget, WidgetExt, Selector, Point};
+use druid_widget_nursery::WidgetExt as _;
 
 use super::{install_button::InstallButton, InstallState};
 use crate::{
@@ -9,6 +10,8 @@ use crate::{
 pub struct InstallOptions;
 
 impl InstallOptions {
+  pub const DISMISS: Selector<Point> = Selector::new("install_options.dismiss");
+
   pub fn view() -> impl Widget<InstallState> {
     let text = |text| {
       bold_text(
@@ -51,5 +54,11 @@ impl InstallOptions {
         .fix_height(128.0),
       )
       .or_empty(|data: &InstallState, _| data.open)
+      .on_command(Self::DISMISS, |ctx, payload, data| {
+        let hitbox = ctx.size().to_rect().with_origin(ctx.to_window((0.0, 0.0).into()));
+        if !hitbox.contains(*payload) {
+          data.open = false
+        }
+      })
   }
 }
