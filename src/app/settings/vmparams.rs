@@ -1,11 +1,14 @@
+use std::{
+  fmt::Display,
+  iter::Peekable,
+  marker::PhantomData,
+  path::{Path, PathBuf},
+  str::Chars,
+  sync::LazyLock,
+};
+
 use druid::{Data, Lens};
 use regex::{Captures, Regex, RegexBuilder};
-use std::iter::Peekable;
-use std::marker::PhantomData;
-use std::path::PathBuf;
-use std::str::Chars;
-use std::sync::LazyLock;
-use std::{fmt::Display, path::Path};
 use strum_macros::EnumIter;
 
 use crate::app::util::{LoadError, SaveError};
@@ -78,8 +81,7 @@ static XVERIFY_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 
 impl<T: VMParamsPath> VMParams<T> {
   pub fn load(install_dir: impl AsRef<Path>) -> Result<VMParams<T>, LoadError> {
-    use std::fs;
-    use std::io::Read;
+    use std::{fs, io::Read};
 
     let mut params_file =
       fs::File::open(install_dir.as_ref().join(T::path())).map_err(|_| LoadError::NoSuchFile)?;
@@ -148,8 +150,10 @@ impl<T: VMParamsPath> VMParams<T> {
   }
 
   pub fn save(&self, install_dir: impl AsRef<Path>) -> Result<(), SaveError> {
-    use std::fs;
-    use std::io::{Read, Write};
+    use std::{
+      fs,
+      io::{Read, Write},
+    };
 
     let mut params_file =
       fs::File::open(install_dir.as_ref().join(T::path())).map_err(|_| SaveError::Format)?;
@@ -243,7 +247,9 @@ impl<T: VMParamsPath> VMParams<T> {
 
     if count > 0
       && let Some(ch) = iter.next()
-      && vec!['k', 'm', 'g'].iter().any(|t| t.eq_ignore_ascii_case(&ch))
+      && vec!['k', 'm', 'g']
+        .iter()
+        .any(|t| t.eq_ignore_ascii_case(&ch))
       && let Some(' ') | None = iter.peek()
     {
       Ok(())

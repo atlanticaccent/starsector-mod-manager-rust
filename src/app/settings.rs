@@ -17,23 +17,21 @@ use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use tap::{Pipe, Tap};
 
-use crate::{app::PROJECT, patch::click::Click};
-
 use self::{
   jre::{revert, Flavour},
   vmparams::{Unit, VMParams, Value},
 };
-
 use super::{
   controllers::HoverController,
   mod_list::headings::{Header, Heading},
   modal::Modal,
   util::{
     bold_text, button_painter, default_true, h2, icons::*, make_column_pair, make_flex_pair,
-    make_flex_settings_row, Button2, Card, CommandExt, LabelExt, LoadError, SaveError,
+    make_flex_settings_row, Button2, CommandExt, LabelExt, LoadError, SaveError,
   },
   App,
 };
+use crate::{app::PROJECT, patch::click::Click, widgets::card::Card};
 
 pub mod jre;
 pub mod vmparams;

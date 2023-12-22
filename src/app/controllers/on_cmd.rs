@@ -1,6 +1,7 @@
-use druid::widget::prelude::*;
-use druid::widget::Controller;
-use druid::Selector;
+use druid::{
+  widget::{prelude::*, Controller},
+  Selector,
+};
 
 type HandlerFn<CT, WT, W> = Box<dyn Fn(&mut W, &mut EventCtx, &CT, &mut WT) -> bool>;
 

@@ -1,4 +1,6 @@
-use druid::{widget::Controller, Command, Data, Env, EventCtx, Selector, Widget, LifeCycleCtx, LifeCycle};
+use druid::{
+  widget::Controller, Command, Data, Env, EventCtx, LifeCycle, LifeCycleCtx, Selector, Widget,
+};
 
 pub type OnChange<T, W> = Box<dyn Fn(&mut W, &mut EventCtx, &T, &mut T, &Env)>;
 pub type OnCmd<T, W> = Box<dyn Fn(&mut W, &mut EventCtx, &Command, &mut T) -> bool>;
@@ -49,13 +51,19 @@ impl<T, W: Widget<T>> ExtensibleController<T, W> {
     self
   }
 
-  pub fn on_added(mut self, handler: impl Fn(&mut W, &mut LifeCycleCtx, &T, &Env) + 'static) -> Self {
+  pub fn on_added(
+    mut self,
+    handler: impl Fn(&mut W, &mut LifeCycleCtx, &T, &Env) + 'static,
+  ) -> Self {
     self.on_added.push(Box::new(handler));
 
     self
   }
 
-  pub fn on_lifecycle(mut self, handler: impl Fn(&mut W, &mut LifeCycleCtx, &LifeCycle, &T, &Env) + 'static) -> Self {
+  pub fn on_lifecycle(
+    mut self,
+    handler: impl Fn(&mut W, &mut LifeCycleCtx, &LifeCycle, &T, &Env) + 'static,
+  ) -> Self {
     self.on_lifecycle.push(Box::new(handler));
 
     self

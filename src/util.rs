@@ -1,45 +1,52 @@
-use std::any::Any;
-use std::collections::HashMap;
-use std::hash::Hash;
-use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut};
-use std::rc::Rc;
-use std::sync::{Mutex, Weak};
-use std::{collections::VecDeque, io::Read, path::PathBuf, sync::Arc};
+use std::{
+  any::Any,
+  collections::{HashMap, VecDeque},
+  hash::Hash,
+  io::Read,
+  marker::PhantomData,
+  ops::{Deref, DerefMut},
+  path::PathBuf,
+  rc::Rc,
+  sync::{Arc, Mutex, Weak},
+};
 
-use druid::kurbo::Circle;
-use druid::lens::Then;
-use druid::piet::ScaleMode;
-use druid::widget::{BackgroundBrush, ControllerHost, Either, LabelText, SizedBox};
 use druid::{
+  kurbo::Circle,
   lens,
+  lens::Then,
+  piet::ScaleMode,
   text::{Attribute, AttributeSpans, RichText},
   theme,
-  widget::{Axis, Controller, Flex, Label, LensWrap, Painter, RawLabel, Scope, ScopeTransfer},
-  Color, Command, Data, Event, EventCtx, ExtEventSink, FontWeight, Key, KeyOrValue, Lens, Point,
-  RenderContext, Selector, Target, UnitPoint, Widget, WidgetExt,
+  widget::{
+    Axis, BackgroundBrush, Controller, ControllerHost, Either, Flex, Label, LabelText, LensWrap,
+    Painter, RawLabel, Scope, ScopeTransfer, SizedBox,
+  },
+  Color, Command, Data, Env, Event, EventCtx, ExtEventSink, FontWeight, Insets, Key, KeyOrValue,
+  Lens, LensExt as _, LinearGradient, MouseEvent, Point, RadialGradient, Rect, RenderContext,
+  Selector, Target, UnitPoint, Widget, WidgetExt, WidgetId,
 };
-use druid::{Env, Insets, LensExt as _, LinearGradient, MouseEvent, RadialGradient, Rect};
 use druid_widget_nursery::CommandCtx;
 use json_comments::strip_comments;
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde::Deserialize;
 use tap::Tap;
-use tokio::select;
-use tokio::sync::mpsc;
+use tokio::{select, sync::mpsc};
 use xxhash_rust::xxh3::Xxh3Builder;
 
-use crate::patch::click::Click;
-
-use crate::app::controllers::{HoverController, OnEvent, OnNotif};
-use crate::app::mod_entry::{GameVersion, ModEntry, ModVersionMeta};
+use crate::{
+  app::{
+    controllers::{ExtensibleController, HoverController, OnEvent, OnNotif},
+    mod_entry::{GameVersion, ModEntry, ModVersionMeta},
+  },
+  patch::click::Click,
+};
 
 pub(crate) mod icons;
 
 pub use icons::*;
 
-use super::controllers::{HeightLinkerShared, LinkedHeights, OnHover, DelayedPainter};
+use super::controllers::{DelayedPainter, HeightLinkerShared, LinkedHeights, OnHover};
 
 pub const ORANGE_KEY: Key<Color> = Key::new("util.colour.orange");
 pub const BLUE_KEY: Key<Color> = Key::new("util.colour.blue");
@@ -190,18 +197,17 @@ pub async fn get_master_version(ext_sink: ExtEventSink, local: ModVersionMeta) {
     Err(err) => (local.id.clone(), Err(err)),
     Ok(remote) => {
       let mut stripped = String::new();
-      if strip_comments(remote.as_bytes()).read_to_string(&mut stripped).is_ok()
+      if strip_comments(remote.as_bytes())
+        .read_to_string(&mut stripped)
+        .is_ok()
         && let Ok(normalized) = handwritten_json::normalize(&stripped)
         && let Ok(remote) = json5::from_str::<ModVersionMeta>(&normalized)
       {
-        (
-          local.id.clone(),
-          Ok(remote)
-        )
+        (local.id.clone(), Ok(remote))
       } else {
         (
           local.id.clone(),
-          Err(format!("Parse error. Payload:\n{}", remote))
+          Err(format!("Parse error. Payload:\n{}", remote)),
         )
       }
     }
@@ -273,28 +279,43 @@ pub async fn get_starsector_version(ext_ctx: ExtEventSink, install_dir: PathBuf)
 
     // println!("{:?}", zip.file_names().collect::<Vec<&str>>());
 
-    let mut version_class = zip.by_name("com/fs/starfarer/Version.class").map_err(|_| LoadError::NoSuchFile)?;
+    let mut version_class = zip
+      .by_name("com/fs/starfarer/Version.class")
+      .map_err(|_| LoadError::NoSuchFile)?;
 
     let mut buf: Vec<u8> = Vec::new();
-    version_class.read_to_end(&mut buf)
+    version_class
+      .read_to_end(&mut buf)
       .map_err(|_| LoadError::ReadError)
       .and_then(|_| {
-        class_parser(&buf).map_err(|_| LoadError::FormatError).map(|(_, class_file)| class_file)
+        class_parser(&buf)
+          .map_err(|_| LoadError::FormatError)
+          .map(|(_, class_file)| class_file)
       })
       .and_then(|class_file| {
-        class_file.fields.iter().find_map(|f| {
-          if let classfile_parser::constant_info::ConstantInfo::Utf8(name) = &class_file.const_pool[(f.name_index - 1) as usize]
-            && name.utf8_string == "versionOnly"
-            && let Ok((_, attr)) = classfile_parser::attribute_info::constant_value_attribute_parser(&f.attributes.first().unwrap().info)
-            && let classfile_parser::constant_info::ConstantInfo::Utf8(utf_const) = &class_file.const_pool[attr.constant_value_index as usize]
-          {
-            Some(utf_const.utf8_string.clone())
-          } else {
-            None
-          }
-        }).ok_or(LoadError::FormatError)
+        class_file
+          .fields
+          .iter()
+          .find_map(|f| {
+            if let classfile_parser::constant_info::ConstantInfo::Utf8(name) =
+              &class_file.const_pool[(f.name_index - 1) as usize]
+              && name.utf8_string == "versionOnly"
+              && let Ok((_, attr)) =
+                classfile_parser::attribute_info::constant_value_attribute_parser(
+                  &f.attributes.first().unwrap().info,
+                )
+              && let classfile_parser::constant_info::ConstantInfo::Utf8(utf_const) =
+                &class_file.const_pool[attr.constant_value_index as usize]
+            {
+              Some(utf_const.utf8_string.clone())
+            } else {
+              None
+            }
+          })
+          .ok_or(LoadError::FormatError)
       })
-  }).await
+  })
+  .await
   .map_err(|_| LoadError::ReadError)
   .flatten();
 
@@ -583,250 +604,6 @@ pub fn button_painter<T: Data>() -> Painter<T> {
   })
 }
 
-pub struct Card;
-
-impl Card {
-  pub const CARD_INSET: f64 = 12.5;
-  const SHADOW_INSET: f64 = 2.0;
-
-  pub fn builder<T: Data>(insets: impl Into<Insets>) -> CardBuilder<T> {
-    CardBuilder::new(insets.into())
-  }
-
-  pub fn new<T: Data>(widget: impl Widget<T> + 'static) -> impl Widget<T> {
-    Self::new_with_opts(
-      widget,
-      (
-        Self::CARD_INSET,
-        Self::CARD_INSET,
-        Self::CARD_INSET,
-        Self::CARD_INSET + 5.,
-      ),
-      10.0,
-      8.0,
-      Option::<(f64, Color)>::None,
-      None,
-    )
-  }
-
-  pub fn new_with_opts<T: Data>(
-    widget: impl Widget<T> + 'static,
-    padding: impl Into<Insets> + Clone,
-    corner_radius: f64,
-    shadow_length: f64,
-    border: Option<(f64, impl Into<KeyOrValue<Color>>)>,
-    on_hover: Option<BackgroundBrush<T>>,
-  ) -> impl Widget<T> {
-    let mut insets: Insets = padding.into();
-    let mut paint_insets = insets.clone();
-
-    if paint_insets.x0 <= 0.0 {
-      paint_insets.x0 = insets.y0.max(insets.y1);
-      insets.x0 = paint_insets.x0 / 2.0;
-    }
-    if paint_insets.x1 <= 0.0 {
-      paint_insets.x1 = insets.y0.max(insets.y1);
-      insets.x1 = paint_insets.x1 / 2.0;
-    }
-
-    widget.padding(insets).background(Self::card_painter(
-      paint_insets,
-      corner_radius,
-      shadow_length,
-      border,
-      on_hover,
-    ))
-  }
-
-  pub fn card_painter<T: Data>(
-    insets: impl Into<KeyOrValue<Insets>>,
-    corner_radius: f64,
-    shadow_length: f64,
-    border: Option<(f64, impl Into<KeyOrValue<Color>>)>,
-    mut on_hover: Option<BackgroundBrush<T>>,
-  ) -> Painter<T> {
-    let insets = insets.into();
-    let border = border.map(|b| (b.0, b.1.into()));
-    Painter::new(move |ctx, data, env| {
-      let mut insets: Insets = insets.resolve(env);
-      let border = border.as_ref().map(|b| (b.0, b.1.resolve(env)));
-
-      let size = ctx.size();
-      insets.x0 /= 2.0;
-      insets.x1 /= 2.0;
-      insets.y0 /= 2.0;
-      insets.y1 /= 2.0;
-
-      Self::shadow_painter(ctx, insets, corner_radius, shadow_length);
-
-      let rounded_rect = size.to_rect().inset(-insets).to_rounded_rect(corner_radius);
-
-      if ctx.is_hot() && let Some(background) = on_hover.as_mut() {
-        background.paint(ctx, data, env)
-      } else {
-        ctx.fill(rounded_rect, &env.get(theme::BACKGROUND_LIGHT));
-      }
-
-      if let Some((width, key)) = border {
-        let shape = size
-          .to_rect()
-          .inset(-insets)
-          .inset(-(width / 2.0))
-          .to_rounded_rect(corner_radius - width);
-        ctx.stroke(shape, &key, width)
-      }
-    })
-  }
-
-  fn shadow_painter(
-    ctx: &mut druid::PaintCtx,
-    insets: Insets,
-    corner_radius: f64,
-    shadow_length: f64,
-  ) {
-    let rect = ctx.size().to_rect();
-
-    let light = Color::TRANSPARENT;
-    let dark = Color::BLACK;
-
-    ctx.fill(rect, &light);
-
-    let stops = (dark, light);
-    let radius = corner_radius + shadow_length;
-    let mut circle = Circle::new(
-      (insets.x0 + corner_radius, insets.y0 + corner_radius),
-      radius,
-    );
-    let brush = RadialGradient::new(0.5, stops).with_scale_mode(ScaleMode::Fit);
-
-    ctx.with_save(|ctx| {
-      ctx.clip(Rect::new(0.0, 0.0, circle.center.x, circle.center.y));
-      ctx.fill(circle, &brush);
-    });
-    circle.center.x += rect.width() - insets.x1 - insets.x0 - (corner_radius * 2.0);
-    ctx.with_save(|ctx| {
-      ctx.clip(Rect::new(
-        circle.center.x,
-        0.0,
-        rect.width(),
-        circle.center.y,
-      ));
-      ctx.fill(circle, &brush);
-    });
-    circle.center.y += rect.height() - insets.y1 - insets.y0 - (corner_radius * 2.0);
-    ctx.with_save(|ctx| {
-      ctx.clip(Rect::new(
-        circle.center.x,
-        circle.center.y,
-        rect.width(),
-        rect.height(),
-      ));
-      ctx.fill(circle, &brush);
-    });
-    circle.center.x -= rect.width() - insets.x0 - insets.x1 - (corner_radius * 2.0);
-    ctx.with_save(|ctx| {
-      ctx.clip(Rect::new(
-        0.0,
-        circle.center.y,
-        circle.center.x,
-        rect.height(),
-      ));
-      ctx.fill(circle, &brush);
-    });
-
-    let linear = LinearGradient::new(UnitPoint::BOTTOM, UnitPoint::TOP, stops);
-    let rect = Rect::new(
-      insets.x0 + corner_radius,
-      insets.y0 + corner_radius,
-      ctx.size().width - insets.x1 - corner_radius,
-      insets.y0 + corner_radius - radius,
-    );
-    ctx.fill(rect, &linear);
-
-    let linear = LinearGradient::new(UnitPoint::LEFT, UnitPoint::RIGHT, stops);
-    let rect = Rect::new(
-      ctx.size().width - insets.x1 - corner_radius,
-      insets.y0 + corner_radius,
-      (ctx.size().width - insets.x1 - corner_radius) + radius,
-      ctx.size().height - insets.y1 - corner_radius,
-    );
-    ctx.fill(rect, &linear);
-
-    let linear = LinearGradient::new(UnitPoint::TOP, UnitPoint::BOTTOM, stops);
-    let rect = Rect::new(
-      insets.x0 + corner_radius,
-      ctx.size().height - insets.y1 - corner_radius,
-      ctx.size().width - insets.x1 - corner_radius,
-      (ctx.size().height - insets.y1 - corner_radius) + radius,
-    );
-    ctx.fill(rect, &linear);
-
-    let linear = LinearGradient::new(UnitPoint::RIGHT, UnitPoint::LEFT, stops);
-    let rect = Rect::new(
-      insets.x0 + corner_radius,
-      insets.y0 + corner_radius,
-      insets.x0 + corner_radius - radius,
-      ctx.size().height - insets.y1 - corner_radius,
-    );
-    ctx.fill(rect, &linear);
-  }
-}
-
-pub struct CardBuilder<T: Data> {
-  insets: Insets,
-  corner_radius: f64,
-  shadow_length: f64,
-  border: Option<(f64, KeyOrValue<Color>)>,
-  on_hover: Option<BackgroundBrush<T>>,
-}
-
-impl<T: Data> CardBuilder<T> {
-  fn new(insets: Insets) -> Self {
-    Self {
-      insets,
-      corner_radius: 0.0,
-      shadow_length: 0.0,
-      border: None,
-      on_hover: None,
-    }
-  }
-
-  pub fn with_corner_radius(mut self, corner_radius: f64) -> Self {
-    self.corner_radius = corner_radius;
-
-    self
-  }
-
-  pub fn with_shadow_length(mut self, shadow_length: f64) -> Self {
-    self.shadow_length = shadow_length;
-
-    self
-  }
-
-  pub fn with_border(mut self, width: f64, color: impl Into<KeyOrValue<Color>>) -> Self {
-    self.border = Some((width, color.into()));
-
-    self
-  }
-
-  pub fn with_hover_background(mut self, background: impl Into<BackgroundBrush<T>>) -> Self {
-    self.on_hover = Some(background.into());
-
-    self
-  }
-
-  pub fn build(self, widget: impl Widget<T> + 'static) -> impl Widget<T> {
-    Card::new_with_opts(
-      widget,
-      self.insets,
-      self.corner_radius,
-      self.shadow_length,
-      self.border,
-      self.on_hover,
-    )
-  }
-}
-
 pub trait CommandExt: CommandCtx {
   fn submit_command_global(&mut self, cmd: impl Into<Command>) {
     let cmd: Command = cmd.into();
@@ -984,6 +761,47 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
 }
 
 impl<T: Data, W: Widget<T> + 'static> WidgetExtEx<T, W> for W {}
+
+pub trait WithHoverState<T: Data, W: Widget<(T, bool)> + 'static>:
+  Widget<(T, bool)> + Sized + 'static
+{
+  fn with_hover_state(self) -> Box<dyn Widget<T>> {
+    const HOVER_STATE_CHANGE: Selector = Selector::new("util.hover_state.change");
+
+    let id = WidgetId::next();
+
+    Scope::from_lens(
+      |state| (state, false),
+      lens!((T, bool), 0),
+      self
+        .on_event(|_, ctx, event, data| {
+          if let druid::Event::MouseMove(_) = event {
+            ctx.set_cursor(&druid::Cursor::Pointer);
+            data.1 = true;
+            ctx.request_paint();
+          } else if let druid::Event::Command(cmd) = event
+            && cmd.is(HOVER_STATE_CHANGE)
+          {
+            data.1 = false;
+            ctx.clear_cursor()
+          }
+          ctx.request_paint();
+          false
+        })
+        .with_id(id)
+        .controller(
+          ExtensibleController::new().on_lifecycle(move |_, ctx, event, _, _| {
+            if let druid::LifeCycle::HotChanged(false) = event {
+              ctx.submit_command(HOVER_STATE_CHANGE.to(id))
+            }
+          }),
+        ),
+    )
+    .boxed()
+  }
+}
+
+impl<T: Data, W: Widget<(T, bool)> + 'static> WithHoverState<T, W> for W {}
 
 pub struct Button2;
 
@@ -1177,7 +995,9 @@ impl<Get: Fn(&B) -> C, B: ?Sized, C> Lens<B, C> for Compute<Get, B, C> {
 }
 
 pub fn option_ptr_cmp<T>(this: &Option<Rc<T>>, other: &Option<Rc<T>>) -> bool {
-  return if let Some(this) = this && let Some(other) = other {
+  return if let Some(this) = this
+    && let Some(other) = other
+  {
     Rc::ptr_eq(this, other)
   } else {
     false

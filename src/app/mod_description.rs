@@ -8,10 +8,9 @@ use druid::{
 
 use super::{
   mod_entry::{ModMetadata, ModVersionMeta},
+  util::{make_flex_description_row, LabelExt},
   ModEntry,
 };
-
-use super::util::{make_flex_description_row, LabelExt};
 
 pub const OPEN_IN_BROWSER: Selector<String> =
   Selector::new("mod_description.forum.open_in_webview");

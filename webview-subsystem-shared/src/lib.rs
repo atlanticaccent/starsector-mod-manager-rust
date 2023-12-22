@@ -1,9 +1,8 @@
-use std::{path::PathBuf, any::Any};
+use std::{any::Any, path::PathBuf};
 
 use directories::ProjectDirs;
-use druid::{Selector, Target, ExtEventError, ExtEventSink};
+use druid::{ExtEventError, ExtEventSink, Selector, Target};
 use lazy_static::lazy_static;
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
@@ -56,11 +55,11 @@ pub trait ExtEventSinkExt {
 }
 
 impl ExtEventSinkExt for ExtEventSink {
-    fn submit_command_global<T: Any + Send>(
-      &self,
-      selector: Selector<T>,
-      payload: impl Into<Box<T>>,
-    ) -> Result<(), ExtEventError> {
-      self.submit_command(selector, payload, Target::Global)
-    }
+  fn submit_command_global<T: Any + Send>(
+    &self,
+    selector: Selector<T>,
+    payload: impl Into<Box<T>>,
+  ) -> Result<(), ExtEventError> {
+    self.submit_command(selector, payload, Target::Global)
+  }
 }

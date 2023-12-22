@@ -2,8 +2,9 @@ use std::{fmt::Display, sync::Arc};
 
 use druid::{
   im::Vector,
+  theme,
   widget::{Container, Either, Flex, Scope, SizedBox},
-  Color, Data, Lens, Selector, Widget, WidgetExt as _, theme, Command,
+  Color, Command, Data, Lens, Selector, Widget, WidgetExt as _,
 };
 use druid_widget_nursery::WidgetExt as _;
 
@@ -76,7 +77,10 @@ impl NavBar {
               }
               ctx.set_handled()
             }),
-          SizedBox::empty().border(theme::BORDER_DARK, 1.).padding((4., 6., 6., 0.)).expand_width(),
+          SizedBox::empty()
+            .border(theme::BORDER_DARK, 1.)
+            .padding((4., 6., 6., 0.))
+            .expand_width(),
         )
         .or_empty(|data, _| !data.root)
       },

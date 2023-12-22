@@ -1,7 +1,3 @@
-use crate::{
-  app::util::LabelExt,
-  patch::split::Split,
-};
 use druid::{
   im::Vector,
   widget::{Controller, Flex, Label, Painter, ViewSwitcher},
@@ -11,8 +7,8 @@ use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 
-use super::util::icons::*;
-use super::ModList;
+use super::{util::icons::*, ModList};
+use crate::{app::util::LabelExt, patch::split::Split};
 
 #[derive(
   Debug, Clone, Copy, Data, PartialEq, Eq, EnumIter, Serialize, Deserialize, strum_macros::Display,
@@ -194,7 +190,6 @@ impl ResizeController {
 }
 
 impl<W: Widget<Header>> Controller<Header, W> for ResizeController {
-
   fn lifecycle(
     &mut self,
     child: &mut W,

@@ -9,8 +9,7 @@ use std::{
 
 use anyhow::bail;
 use chrono::Local;
-use druid::im::Vector;
-use druid::{ExtEventSink, Selector, SingleUse, Target};
+use druid::{im::Vector, ExtEventSink, Selector, SingleUse, Target};
 use remove_dir_all::remove_dir_all;
 use reqwest::Url;
 use tempfile::{tempdir, TempDir};
@@ -20,9 +19,8 @@ use tokio::{
   time::timeout,
 };
 
-use crate::app::{mod_entry::ModEntry, util::LoadBalancer};
-
 use super::mod_entry::ModMetadata;
+use crate::app::{mod_entry::ModEntry, util::LoadBalancer};
 
 #[derive(Clone)]
 pub enum Payload {
@@ -117,38 +115,69 @@ async fn handle_path(
 
         Ok(())
       } else if let Some(mod_path) = mod_paths.get(0)
-          && let mod_metadata = ModMetadata::new()
-          && mod_metadata.save(mod_path).await.is_ok()
-          && let Ok(mut mod_info) = ModEntry::from_file(mod_path, mod_metadata)
-        {
-          let rewrite = || {
-            match mod_folder {
-              HybridPath::PathBuf(_) => HybridPath::PathBuf(mod_path.clone()),
-              HybridPath::Temp(temp, _file_name, _) => HybridPath::Temp(temp, _file_name, Some(mod_path.clone()))
-            }
-          };
-          if let Some(id) = installed.iter().find(|existing| **existing == mod_info.id) {
-            // note: this is probably the way wrong way of doing this
-            // instead, just submit the new entry if it doesn't conflict with an existing path, _then_ detect the conflict
-            // that way there's less chance an existing ID gets missed due to the ID list effectively getting cached when
-            // this function starts
-            ext_ctx.submit_command(INSTALL, ChannelMessage::Duplicate(id.clone().into(), rewrite(), Arc::new(mod_info)), Target::Auto).expect("Send query over async channel");
-          } else if mods_dir.join(mod_info.id.clone()).exists() {
-            let mod_folder = rewrite();
-            ext_ctx.submit_command(INSTALL, ChannelMessage::Duplicate(mods_dir.join(mod_info.id.clone()).into(), mod_folder, Arc::new(mod_info)), Target::Auto).expect("Send query over async channel");
-          } else {
-            move_or_copy(mod_path.clone(), mods_dir.join(&mod_info.id)).await;
-
-            mod_info.set_path(mods_dir.join(&mod_info.id));
-            ext_ctx.submit_command(INSTALL, ChannelMessage::Success(Arc::new(mod_info)), Target::Auto).expect("Send success over async channel");
+        && let mod_metadata = ModMetadata::new()
+        && mod_metadata.save(mod_path).await.is_ok()
+        && let Ok(mut mod_info) = ModEntry::from_file(mod_path, mod_metadata)
+      {
+        let rewrite = || match mod_folder {
+          HybridPath::PathBuf(_) => HybridPath::PathBuf(mod_path.clone()),
+          HybridPath::Temp(temp, _file_name, _) => {
+            HybridPath::Temp(temp, _file_name, Some(mod_path.clone()))
           }
-
-          Ok(())
+        };
+        if let Some(id) = installed.iter().find(|existing| **existing == mod_info.id) {
+          // note: this is probably the way wrong way of doing this
+          // instead, just submit the new entry if it doesn't conflict with an existing path, _then_ detect the conflict
+          // that way there's less chance an existing ID gets missed due to the ID list effectively getting cached when
+          // this function starts
+          ext_ctx
+            .submit_command(
+              INSTALL,
+              ChannelMessage::Duplicate(id.clone().into(), rewrite(), Arc::new(mod_info)),
+              Target::Auto,
+            )
+            .expect("Send query over async channel");
+        } else if mods_dir.join(mod_info.id.clone()).exists() {
+          let mod_folder = rewrite();
+          ext_ctx
+            .submit_command(
+              INSTALL,
+              ChannelMessage::Duplicate(
+                mods_dir.join(mod_info.id.clone()).into(),
+                mod_folder,
+                Arc::new(mod_info),
+              ),
+              Target::Auto,
+            )
+            .expect("Send query over async channel");
         } else {
-          ext_ctx.submit_command(INSTALL, ChannelMessage::Error(file_name, "Could not find mod folder or parse mod_info file.".to_string()), Target::Auto).expect("Send error over async channel");
+          move_or_copy(mod_path.clone(), mods_dir.join(&mod_info.id)).await;
 
-          bail!("Could not find mod folder or parse mod_info.json")
+          mod_info.set_path(mods_dir.join(&mod_info.id));
+          ext_ctx
+            .submit_command(
+              INSTALL,
+              ChannelMessage::Success(Arc::new(mod_info)),
+              Target::Auto,
+            )
+            .expect("Send success over async channel");
         }
+
+        Ok(())
+      } else {
+        ext_ctx
+          .submit_command(
+            INSTALL,
+            ChannelMessage::Error(
+              file_name,
+              "Could not find mod folder or parse mod_info file.".to_string(),
+            ),
+            Target::Auto,
+          )
+          .expect("Send error over async channel");
+
+        bail!("Could not find mod folder or parse mod_info.json")
+      }
     }
     Err(err) => {
       ext_ctx
@@ -314,19 +343,33 @@ async fn handle_auto(ext_ctx: ExtEventSink, entry: Arc<ModEntry>) -> anyhow::Res
           let path = temp.path().to_owned();
           let source = url.clone();
           let mod_metadata = ModMetadata::new();
-          if let Ok(Some(path)) = task::spawn_blocking(move || ModSearch::new(path).first())
-            .await?
+          if let Ok(Some(path)) = task::spawn_blocking(move || ModSearch::new(path).first()).await?
             && mod_metadata.save(&path).await.is_ok()
             && let Ok(mod_info) = ModEntry::from_file(&path, mod_metadata)
           {
             let hybrid = HybridPath::Temp(temp, source, Some(path));
             if &mod_info.version_checker.as_ref().unwrap().version != target_version {
-              ext_ctx.submit_command(INSTALL, ChannelMessage::Error(mod_info.name.clone(), "Downloaded version does not match expected version".to_string()), Target::Auto).expect("Send error over async channel");
+              ext_ctx
+                .submit_command(
+                  INSTALL,
+                  ChannelMessage::Error(
+                    mod_info.name.clone(),
+                    "Downloaded version does not match expected version".to_string(),
+                  ),
+                  Target::Auto,
+                )
+                .expect("Send error over async channel");
             } else {
               handle_delete(ext_ctx, Arc::new(mod_info), hybrid, entry.path.clone()).await?;
             }
           } else {
-            ext_ctx.submit_command(INSTALL, ChannelMessage::Error(entry.id.clone(), "Some kind of unpack error".to_string()), Target::Auto).expect("Send error over async channel");
+            ext_ctx
+              .submit_command(
+                INSTALL,
+                ChannelMessage::Error(entry.id.clone(), "Some kind of unpack error".to_string()),
+                Target::Auto,
+              )
+              .expect("Send error over async channel");
           }
         }
         Err(err) => {

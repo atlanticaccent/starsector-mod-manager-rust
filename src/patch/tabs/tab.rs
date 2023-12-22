@@ -14,17 +14,18 @@
 
 //! A widget that can switch between one of many views, hiding the inactive ones.
 
-use chrono::Duration;
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::hash::Hash;
-use std::marker::PhantomData;
+use std::{collections::HashMap, fmt::Debug, hash::Hash, marker::PhantomData};
 
-use druid::commands::SCROLL_TO_VIEW;
-use druid::kurbo::{Circle, Line};
-use druid::widget::prelude::*;
-use druid::widget::{Axis, Flex, Label, LabelText, LensScopeTransfer, Painter, Scope, ScopePolicy};
-use druid::{theme, Affine, Data, Insets, Lens, Point, SingleUse, WidgetExt, WidgetPod};
+use chrono::Duration;
+use druid::{
+  commands::SCROLL_TO_VIEW,
+  kurbo::{Circle, Line},
+  theme,
+  widget::{
+    prelude::*, Axis, Flex, Label, LabelText, LensScopeTransfer, Painter, Scope, ScopePolicy,
+  },
+  Affine, Data, Insets, Lens, Point, SingleUse, WidgetExt, WidgetPod,
+};
 
 type TabsScope<TP> = Scope<TabsScopePolicy<TP>, Box<dyn Widget<TabsState<TP>>>>;
 type TabBodyPod<TP> = WidgetPod<<TP as TabsPolicy>::Input, <TP as TabsPolicy>::BodyWidget>;
@@ -873,8 +874,7 @@ impl<TP: TabsPolicy> Tabs<TP> {
     } else {
       None
     };
-    let tabs_body = TabsBody::new(self.axis, self.transition)
-      .padding(5.);
+    let tabs_body = TabsBody::new(self.axis, self.transition).padding(5.);
     let mut layout: Flex<TabsState<TP>> = Flex::for_axis(self.axis.cross());
 
     if let TabsEdge::Trailing = self.edge {

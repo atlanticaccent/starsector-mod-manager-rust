@@ -1,4 +1,5 @@
-use druid::{Env, Data, theme, Color};
+use druid::{theme, Color, Data, Env};
+
 use crate::app::util;
 
 pub fn legacy<T: Data>(env: &mut Env, _data: &T) {
@@ -21,35 +22,14 @@ pub fn legacy<T: Data>(env: &mut Env, _data: &T) {
   env.set(theme::BORDER_LIGHT, Color::from_hex_str("#c9c4cf").unwrap());
   env.set(util::GREEN_KEY, Color::from_hex_str("#135200").unwrap());
   env.set(util::RED_KEY, Color::from_hex_str("#930006").unwrap());
-  env.set(
-    util::YELLOW_KEY,
-    Color::from_hex_str("#574500").unwrap(),
-  );
-  env.set(
-    util::ON_GREEN_KEY,
-    Color::from_hex_str("#adf68a").unwrap(),
-  );
-  env.set(
-    util::ON_RED_KEY,
-    Color::from_hex_str("#ffdad4").unwrap(),
-  );
-  env.set(
-    util::ON_YELLOW_KEY,
-    Color::from_hex_str("#ffe174").unwrap(),
-  );
+  env.set(util::YELLOW_KEY, Color::from_hex_str("#574500").unwrap());
+  env.set(util::ON_GREEN_KEY, Color::from_hex_str("#adf68a").unwrap());
+  env.set(util::ON_RED_KEY, Color::from_hex_str("#ffdad4").unwrap());
+  env.set(util::ON_YELLOW_KEY, Color::from_hex_str("#ffe174").unwrap());
   env.set(util::BLUE_KEY, Color::from_hex_str("#004d66").unwrap());
-  env.set(
-    util::ON_BLUE_KEY,
-    Color::from_hex_str("#bbe9ff").unwrap(),
-  );
-  env.set(
-    util::ORANGE_KEY,
-    Color::from_hex_str("#7f2c00").unwrap(),
-  );
-  env.set(
-    util::ON_ORANGE_KEY,
-    Color::from_hex_str("#ffdbcc").unwrap(),
-  );
+  env.set(util::ON_BLUE_KEY, Color::from_hex_str("#bbe9ff").unwrap());
+  env.set(util::ORANGE_KEY, Color::from_hex_str("#7f2c00").unwrap());
+  env.set(util::ON_ORANGE_KEY, Color::from_hex_str("#ffdbcc").unwrap());
 }
 
 pub fn light<T: Data>(env: &mut Env, _data: &T) {
@@ -74,33 +54,12 @@ pub fn light<T: Data>(env: &mut Env, _data: &T) {
   env.set(theme::BORDER_LIGHT, Color::from_hex_str("#161a28").unwrap());
   env.set(util::GREEN_KEY, Color::from_hex_str("#135200").unwrap());
   env.set(util::RED_KEY, Color::from_hex_str("#930006").unwrap());
-  env.set(
-    util::YELLOW_KEY,
-    Color::from_hex_str("#574500").unwrap(),
-  );
-  env.set(
-    util::ON_GREEN_KEY,
-    Color::from_hex_str("#adf68a").unwrap(),
-  );
-  env.set(
-    util::ON_RED_KEY,
-    Color::from_hex_str("#ffdad4").unwrap(),
-  );
-  env.set(
-    util::ON_YELLOW_KEY,
-    Color::from_hex_str("#ffe174").unwrap(),
-  );
+  env.set(util::YELLOW_KEY, Color::from_hex_str("#574500").unwrap());
+  env.set(util::ON_GREEN_KEY, Color::from_hex_str("#adf68a").unwrap());
+  env.set(util::ON_RED_KEY, Color::from_hex_str("#ffdad4").unwrap());
+  env.set(util::ON_YELLOW_KEY, Color::from_hex_str("#ffe174").unwrap());
   env.set(util::BLUE_KEY, Color::from_hex_str("#004d66").unwrap());
-  env.set(
-    util::ON_BLUE_KEY,
-    Color::from_hex_str("#bbe9ff").unwrap(),
-  );
-  env.set(
-    util::ORANGE_KEY,
-    Color::from_hex_str("#7f2c00").unwrap(),
-  );
-  env.set(
-    util::ON_ORANGE_KEY,
-    Color::from_hex_str("#ffdbcc").unwrap(),
-  );
+  env.set(util::ON_BLUE_KEY, Color::from_hex_str("#bbe9ff").unwrap());
+  env.set(util::ORANGE_KEY, Color::from_hex_str("#7f2c00").unwrap());
+  env.set(util::ON_ORANGE_KEY, Color::from_hex_str("#ffdbcc").unwrap());
 }

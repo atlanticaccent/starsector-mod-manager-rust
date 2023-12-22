@@ -1,7 +1,7 @@
 use base64::decode;
 use druid::{ExtEventSink, WindowHandle};
 use url::Url;
-use webview_shared::{ExtEventSinkExt, UserEvent, WEBVIEW_EVENT, WEBVIEW_OFFSET, FRACTAL_INDEX};
+use webview_shared::{ExtEventSinkExt, UserEvent, FRACTAL_INDEX, WEBVIEW_EVENT, WEBVIEW_OFFSET};
 use wry::{WebContext, WebView, WebViewBuilder};
 
 pub fn init_webview(

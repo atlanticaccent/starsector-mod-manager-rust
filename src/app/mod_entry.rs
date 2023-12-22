@@ -17,18 +17,8 @@ use druid::{
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
 use json_comments::strip_comments;
 use serde::{Deserialize, Serialize};
-
 use serde_aux::prelude::*;
 use tap::Tap;
-
-use crate::{
-  app::{
-    controllers::ModEntryClickController,
-    util::{default_true, parse_game_version, LabelExt},
-    App, AppCommands,
-  },
-  patch::split::Split,
-};
 
 use super::{
   mod_list::headings::{self, Heading},
@@ -36,6 +26,15 @@ use super::{
     self, icons::*, BLUE_KEY, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ON_RED_KEY,
     ON_YELLOW_KEY, ORANGE_KEY, RED_KEY, YELLOW_KEY,
   },
+};
+use crate::{
+  app::{
+    app_delegate::AppCommands,
+    controllers::ModEntryClickController,
+    util::{default_true, parse_game_version, LabelExt},
+    App,
+  },
+  patch::split::Split,
 };
 
 pub type GameVersion = (
@@ -86,7 +85,9 @@ impl ModEntry {
   pub fn from_file(path: &Path, manager_metadata: ModMetadata) -> Result<ModEntry, ModEntryError> {
     if let Ok(mod_info_file) = std::fs::read_to_string(path.join("mod_info.json")) {
       let mut stripped = String::new();
-      if strip_comments(mod_info_file.as_bytes()).read_to_string(&mut stripped).is_ok()
+      if strip_comments(mod_info_file.as_bytes())
+        .read_to_string(&mut stripped)
+        .is_ok()
         && let Ok(mut mod_info) = json5::from_str::<ModEntry>(&stripped)
       {
         mod_info.version_checker = ModEntry::parse_version_checker(path, &mod_info.id);
@@ -104,11 +105,18 @@ impl ModEntry {
 
   fn parse_version_checker(path: &Path, id: &str) -> Option<ModVersionMeta> {
     let mut no_comments = String::new();
-    if let Ok(version_loc_file) = File::open(path.join("data").join("config").join("version").join("version_files.csv"))
-      && let Some(Ok(version_filename)) = BufReader::new(version_loc_file).lines().nth(1)
+    if let Ok(version_loc_file) = File::open(
+      path
+        .join("data")
+        .join("config")
+        .join("version")
+        .join("version_files.csv"),
+    ) && let Some(Ok(version_filename)) = BufReader::new(version_loc_file).lines().nth(1)
       && let Some(version_filename) = version_filename.split(',').next()
       && let Ok(version_data) = std::fs::read_to_string(path.join(version_filename))
-      && strip_comments(version_data.as_bytes()).read_to_string(&mut no_comments).is_ok()
+      && strip_comments(version_data.as_bytes())
+        .read_to_string(&mut no_comments)
+        .is_ok()
       && let Ok(normalized) = handwritten_json::normalize(&no_comments)
       && let Ok(mut version) = json5::from_str::<ModVersionMeta>(&normalized)
     {

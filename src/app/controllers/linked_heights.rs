@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use druid::{BoxConstraints, Data, Selector, Size, Widget, WidgetId, WidgetPod};
+use druid::{widget::Axis, BoxConstraints, Data, Selector, Size, Widget, WidgetId, WidgetPod};
 use druid_widget_nursery::CommandCtx;
 
 pub struct HeightLinker {
@@ -8,7 +8,7 @@ pub struct HeightLinker {
   pub resolved: usize,
   pub max: f64,
   id: WidgetId,
-  only_once: bool,
+  pub axis: Axis,
 }
 
 pub type HeightLinkerShared = Rc<RefCell<HeightLinker>>;
@@ -19,7 +19,8 @@ enum HeightLinkerCmd {
 }
 
 impl HeightLinker {
-  const HEIGHT_LINKER_CMD: Selector<(WidgetId, HeightLinkerCmd)> = Selector::new("height_linker.command");
+  const HEIGHT_LINKER_CMD: Selector<(WidgetId, HeightLinkerCmd)> =
+    Selector::new("height_linker.command");
 
   fn increment_resolved(&mut self, ctx: &mut impl CommandCtx, height: f64) {
     self.resolved += 1;
@@ -36,33 +37,31 @@ impl HeightLinker {
   }
 
   fn reset(&mut self, ctx: &mut impl CommandCtx) {
-    if !self.only_once {
-      self.resolved = 0;
-      self.max = f64::NEG_INFINITY;
-      ctx.submit_command(Self::HEIGHT_LINKER_CMD.with((self.id, HeightLinkerCmd::ResetHeight)))
-    }
-  }
-
-  pub fn only_once(&mut self) {
-    self.only_once = true;
+    self.resolved = 0;
+    self.max = f64::NEG_INFINITY;
+    ctx.submit_command(Self::HEIGHT_LINKER_CMD.with((self.id, HeightLinkerCmd::ResetHeight)))
   }
 }
 
 pub struct LinkedHeights<T: Data, W: Widget<T>> {
   widget: WidgetPod<T, W>,
   height_linker: HeightLinkerShared,
-  height: Option<f64>,
+  constraint: Option<f64>,
   last_unconstrained: Option<f64>,
+  axis: Axis,
 }
 
 impl<T: Data, W: Widget<T>> LinkedHeights<T, W> {
   pub fn new(widget: W, height_linker: HeightLinkerShared) -> Self {
-    height_linker.borrow_mut().linked += 1;
+    let mut borrow = height_linker.borrow_mut();
+    borrow.linked += 1;
+    let axis = borrow.axis;
     Self {
       widget: WidgetPod::new(widget),
-      height_linker,
-      height: None,
+      height_linker: height_linker.clone(),
+      constraint: None,
       last_unconstrained: None,
+      axis,
     }
   }
 
@@ -72,12 +71,19 @@ impl<T: Data, W: Widget<T>> LinkedHeights<T, W> {
       resolved: 0,
       max: f64::NEG_INFINITY,
       id: WidgetId::next(),
-      only_once: false,
+      axis: Axis::Vertical,
     }));
 
     let this = Self::new(widget, linker.clone());
 
     (this, linker)
+  }
+
+  pub fn horizontal(mut self) -> Self {
+    self.axis = Axis::Horizontal;
+    self.height_linker.borrow_mut().axis = Axis::Horizontal;
+
+    self
   }
 }
 
@@ -94,13 +100,13 @@ impl<T: Data, W: Widget<T>> Widget<T> for LinkedHeights<T, W> {
         if self.height_linker.borrow().id == *id {
           match cmd {
             HeightLinkerCmd::SetHeight(height) => {
-              self.height = Some(*height);
+              self.constraint = Some(*height);
               ctx.request_layout()
             }
             HeightLinkerCmd::ResetHeight => {
-              self.height = None;
+              self.constraint = None;
               ctx.request_layout()
-            },
+            }
           }
         }
       }
@@ -137,20 +143,33 @@ impl<T: Data, W: Widget<T>> Widget<T> for LinkedHeights<T, W> {
   ) -> druid::widget::prelude::Size {
     let unconstrained_size = self.widget.layout(ctx, bc, data, &env);
 
-    if self.last_unconstrained == Some(unconstrained_size.height) && let Some(height) = self.height {
-      let child_bc = BoxConstraints::new(
-        Size::new(bc.min().width, height),
-        Size::new(bc.max().width, height)
-      );
+    let unconstrained_value = match self.axis {
+      Axis::Horizontal => unconstrained_size.width,
+      Axis::Vertical => unconstrained_size.height,
+    };
+
+    if self.last_unconstrained == Some(unconstrained_value)
+      && let Some(constraint) = self.constraint
+    {
+      let child_bc = match self.axis {
+        Axis::Horizontal => BoxConstraints::new(
+          Size::new(constraint, bc.min().height),
+          Size::new(constraint, bc.max().height),
+        ),
+        Axis::Vertical => BoxConstraints::new(
+          Size::new(bc.min().width, constraint),
+          Size::new(bc.max().width, constraint),
+        ),
+      };
       return self.widget.layout(ctx, &child_bc, data, env);
     } else if unconstrained_size.height.is_finite() {
-      self.last_unconstrained = Some(unconstrained_size.height);
+      self.last_unconstrained = Some(unconstrained_value);
       let mut linker = self.height_linker.borrow_mut();
 
       if linker.resolved() {
         linker.reset(ctx)
       } else {
-        linker.increment_resolved(ctx, unconstrained_size.height);
+        linker.increment_resolved(ctx, unconstrained_value);
       }
     }
 

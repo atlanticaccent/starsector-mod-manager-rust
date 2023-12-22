@@ -14,11 +14,12 @@
 
 //! A widget which splits an area in two, with a settable ratio, and optional draggable resizing.
 
-use druid::kurbo::Line;
-use druid::widget::prelude::*;
-use druid::widget::Axis;
-use druid::Selector;
-use druid::{theme, Color, Cursor, Data, Point, Rect, WidgetPod};
+use druid::{
+  kurbo::Line,
+  theme,
+  widget::{prelude::*, Axis},
+  Color, Cursor, Data, Point, Rect, Selector, WidgetPod,
+};
 
 pub const DRAGGED: Selector<f64> = Selector::new("druid.fork.split.update_split.drag");
 

@@ -1,4 +1,4 @@
-use druid::{widget::Controller, Cursor, Data, Widget, Selector};
+use druid::{widget::Controller, Cursor, Data, Selector, Widget};
 
 pub struct HoverController;
 
@@ -20,7 +20,9 @@ impl<T: Data, W: Widget<T>> Controller<T, W> for HoverController {
         ctx.clear_cursor()
       }
       ctx.request_paint();
-    } else if let druid::Event::Command(cmd) = event && cmd.is(REMOVE_POINTER) {
+    } else if let druid::Event::Command(cmd) = event
+      && cmd.is(REMOVE_POINTER)
+    {
       ctx.clear_cursor()
     }
     child.event(ctx, event, data, env)

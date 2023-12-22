@@ -9,27 +9,27 @@ use std::{
 use druid::{
   im::Vector,
   lens, theme,
-  widget::{Checkbox, Either, Flex, Label, List, ListIter, Painter, Scope, Scroll, ZStack},
+  widget::{Checkbox, Either, Flex, Label, List, ListIter, Painter, Scroll, ZStack},
   Color, Data, EventCtx, ExtEventSink, KeyOrValue, Lens, LensExt, Rect, RenderContext, Selector,
   Target, UnitPoint, Widget, WidgetExt,
 };
-use druid_widget_nursery::{material_icons::Icon, Stack, WidgetExt as WidgetExtNursery};
+use druid_widget_nursery::WidgetExt as WidgetExtNursery;
 use internment::Intern;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter};
 use sublime_fuzzy::best_match;
 
-use crate::{
-  app::util::{StarsectorVersionDiff, ADD_CIRCLE, ADD_CIRCLE_OUTLINE},
-  patch::table::{ComplexTableColumnWidth, FlexTable, TableColumnWidth, TableRow},
-};
-
 use super::{
   controllers::{ExtensibleController, HeightLinkerShared},
   installer::HybridPath,
   mod_entry::{GameVersion, ModEntry, ModMetadata, UpdateStatus},
-  util::{self, bold_text, xxHashMap, Card, LabelExt, LoadBalancer, SaveError, WidgetExtEx},
+  util::{self, xxHashMap, LoadBalancer, SaveError, WidgetExtEx},
+};
+use crate::{
+  app::util::StarsectorVersionDiff,
+  patch::table::{ComplexTableColumnWidth, FlexTable, TableColumnWidth, TableRow},
+  widgets::card::Card,
 };
 
 pub mod headings;
@@ -66,8 +66,6 @@ impl ModList {
   pub const UPDATE_COLUMN_WIDTH: Selector<(usize, f64)> =
     Selector::new("mod_list.column.update_width");
   const UPDATE_TABLE_SORT: Selector = Selector::new("mod_list.table.update_sorting");
-  const INSTALL_BUTTON_STATE_CHANGE: Selector =
-    Selector::new("mod_list.install_button.state_change");
 
   pub fn new(headings: Vector<Heading>) -> Self {
     Self {
@@ -85,11 +83,16 @@ impl ModList {
       Flex::column()
         .with_child(
           Flex::row()
-            .with_child(InstallButton::view().lens(Self::install_state).padding((0.0, 5.0)))
+            .with_child(
+              InstallButton::view()
+                .lens(Self::install_state)
+                .padding((0.0, 5.0)),
+            )
             .expand_width(),
         )
         .with_flex_child(
-          Card::builder((0.0, 14.0))
+          Card::builder()
+            .with_insets((0.0, 14.0))
             .with_corner_radius(4.0)
             .with_shadow_length(6.0)
             .build(
@@ -129,7 +132,9 @@ impl ModList {
         ),
     )
     .with_aligned_child(
-      InstallOptions::view().lens(Self::install_state).padding((0.0, 5.0)),
+      InstallOptions::view()
+        .lens(Self::install_state)
+        .padding((0.0, 5.0)),
       UnitPoint::TOP_LEFT,
     )
   }
@@ -446,11 +451,12 @@ impl ModList {
       let enabled_mods = if !enabled_mods_filename.exists() {
         vec![]
       } else if let Ok(enabled_mods_text) = std::fs::read_to_string(enabled_mods_filename)
-        && let Ok(EnabledMods { enabled_mods }) = serde_json::from_str::<EnabledMods>(&enabled_mods_text)
+        && let Ok(EnabledMods { enabled_mods }) =
+          serde_json::from_str::<EnabledMods>(&enabled_mods_text)
       {
         enabled_mods
       } else {
-        return
+        return;
       };
 
       if let Ok(dir_iter) = std::fs::read_dir(mod_dir) {
@@ -656,8 +662,7 @@ impl EnabledMods {
   }
 
   pub fn save(self, path: &Path) -> Result<(), SaveError> {
-    use std::fs;
-    use std::io::Write;
+    use std::{fs, io::Write};
 
     let json = serde_json::to_string_pretty(&self).map_err(|_| SaveError::Format)?;
 

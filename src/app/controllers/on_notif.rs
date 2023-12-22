@@ -1,6 +1,7 @@
-use druid::widget::prelude::*;
-use druid::widget::Controller;
-use druid::Selector;
+use druid::{
+  widget::{prelude::*, Controller},
+  Selector,
+};
 
 pub struct OnNotif<CT, WT> {
   selector: Selector<CT>,

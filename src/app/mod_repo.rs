@@ -2,8 +2,8 @@ use std::fmt::Display;
 
 use chrono::{DateTime, Local, Utc};
 use deunicode::deunicode;
-use druid::im::{HashMap, Vector};
 use druid::{
+  im::{HashMap, Vector},
   lens, theme,
   widget::{Either, Flex, Label, Maybe, Painter, SizedBox, TextBox, ViewSwitcher},
   Data, Lens, LensExt, Menu, MenuItem, RenderContext, Selector, Widget, WidgetExt,

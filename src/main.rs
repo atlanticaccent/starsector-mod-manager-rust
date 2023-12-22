@@ -15,12 +15,12 @@
 #![feature(iterator_try_collect)]
 #![feature(iter_next_chunk)]
 #![feature(lazy_cell)]
-
 #![allow(clippy::new_ret_no_self)]
 #![allow(clippy::type_complexity)]
 
 extern crate webview_subsystem;
 
+use app::app_delegate::AppDelegate;
 use const_format::concatcp;
 use druid::{AppLauncher, WindowDesc};
 use theme::{legacy, light};
@@ -28,10 +28,12 @@ use tokio::runtime::Builder;
 use webview_shared::PROJECT;
 
 mod app;
-mod theme;
 mod nav_bar;
 #[allow(dead_code)]
 mod patch;
+mod theme;
+#[allow(dead_code)]
+mod widgets;
 
 fn main() {
   std::fs::create_dir_all(PROJECT.cache_dir()).expect("Create cache dir");
@@ -54,7 +56,7 @@ fn main() {
   // start the application
   AppLauncher::with_window(main_window)
     .configure_env(light)
-    .delegate(app::AppDelegate::default())
+    .delegate(AppDelegate::default())
     .launch(initial_state)
     .expect("Failed to launch application");
 }

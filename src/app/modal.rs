@@ -1,10 +1,10 @@
-use druid::LinearGradient;
 use std::cell::Cell;
 
 use druid::{
   commands, theme,
   widget::{Button, Flex, Label, Painter},
-  Command, Data, Env, RenderContext, Selector, Target, Widget, WidgetExt, WindowConfig, WindowId,
+  Command, Data, Env, LinearGradient, RenderContext, Selector, Target, Widget, WidgetExt,
+  WindowConfig, WindowId,
 };
 use druid_widget_nursery::{AnyCtx, RequestCtx, Stack, StackChildPosition};
 use indexmap::IndexMap;

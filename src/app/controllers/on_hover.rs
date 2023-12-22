@@ -1,5 +1,4 @@
-use druid::widget::prelude::*;
-use druid::widget::Controller;
+use druid::widget::{prelude::*, Controller};
 
 pub struct OnHover<T, W: Widget<T>> {
   handler: Box<dyn Fn(&mut W, &mut EventCtx, &mut T) -> bool>,
