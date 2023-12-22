@@ -35,7 +35,7 @@ use super::{
   installer::{HybridPath, StringOrPath, DOWNLOAD_PROGRESS, DOWNLOAD_STARTED, INSTALL_ALL},
   mod_description,
   mod_entry::{ModEntry, ModMetadata},
-  mod_list::{ModList, install::install_options::InstallOptions},
+  mod_list::{install::install_options::InstallOptions, ModList},
   modal::Modal,
   settings,
   settings::{Settings, SettingsCommand},
@@ -125,7 +125,7 @@ impl Delegate<App> for AppDelegate {
                 .ok()
                 .flatten();
 
-              sink.submit_command(App::OPEN_FOLDER, res, Target::Auto)
+              sink.submit_command(App::OPEN_FILE, res.map(|folder| vec![folder]), Target::Auto)
             });
           }
         }
@@ -514,6 +514,30 @@ impl Delegate<App> for AppDelegate {
           }
         }
       }
+    }
+    if let Some(Some(targets)) = cmd.get(App::OPEN_FILE) {
+      if !targets.is_empty() {
+        ctx.submit_command(App::LOG_MESSAGE.with(format!("Installing {}",
+          targets
+            .iter()
+            .map(|t| {
+              t.file_name().map_or_else(
+                || String::from("unknown"),
+                |f| f.to_string_lossy().into_owned(),
+              )
+            })
+            .collect::<Vec<String>>()
+            .join(", "),
+        )));
+        data.runtime.spawn(
+          installer::Payload::Initial(targets.iter().cloned().collect()).install(
+            ctx.get_external_handle(),
+            data.settings.install_dir.clone().unwrap(),
+            data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
+          ),
+        );
+      }
+      return Handled::Yes;
     }
 
     Handled::No

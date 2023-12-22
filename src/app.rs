@@ -255,50 +255,6 @@ impl App {
       .controller(HoverController)
       .on_click(|_, _, _| {})
       .controller(InstallController)
-      .on_command(App::OPEN_FILE, |ctx, payload, data| {
-        if let Some(targets) = payload {
-          if !targets.is_empty() {
-            ctx.submit_command(App::LOG_MESSAGE.with(format!("Installing {}",
-                targets
-                  .iter()
-                  .map(|t| {
-                    t.file_name().map_or_else(
-                      || String::from("unknown"),
-                      |f| f.to_string_lossy().into_owned(),
-                    )
-                  })
-                  .collect::<Vec<String>>()
-                  .join(", "),
-              )));
-            data.runtime.spawn(
-              installer::Payload::Initial(targets.iter().map(|f| f.to_path_buf()).collect())
-                .install(
-                  ctx.get_external_handle(),
-                  data.settings.install_dir.clone().unwrap(),
-                  data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
-                ),
-            );
-          }
-        }
-      })
-      .on_command(App::OPEN_FOLDER, |ctx, payload, data| {
-        if let Some(target) = payload {
-          ctx.submit_command(App::LOG_MESSAGE.with(format!(
-            "Installing {}",
-            target.file_name().map_or_else(
-              || String::from("unknown"),
-              |f| f.to_string_lossy().into_owned(),
-            )
-          )));
-          data
-            .runtime
-            .spawn(installer::Payload::Initial(vec![target.clone()]).install(
-              ctx.get_external_handle(),
-              data.settings.install_dir.clone().unwrap(),
-              data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
-            ));
-        }
-      })
       .disabled_if(|data, _| data.settings.install_dir.is_none());
     let browse_index_button = Flex::row()
       .with_child(Label::new("Open Mod Browser").with_text_size(18.))
