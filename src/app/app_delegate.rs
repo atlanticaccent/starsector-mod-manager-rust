@@ -50,6 +50,7 @@ use super::{
 pub enum AppCommands {
   OpenSettings,
   UpdateModDescription(String),
+  PickFile(bool),
 }
 
 #[derive(Default)]
@@ -112,6 +113,42 @@ impl Delegate<App> for AppDelegate {
           data.active = Some(desc.clone());
 
           return Handled::Yes;
+        },
+        AppCommands::PickFile(is_file) => {
+          let sink = ctx.get_external_handle();
+          if *is_file {
+            data.runtime.spawn_blocking(move || {
+              #[cfg(not(target_os = "linux"))]
+              let res = rfd::FileDialog::new()
+                .add_filter(
+                  "Archives",
+                  &["zip", "7z", "7zip", "rar", "rar4", "rar5", "tar"],
+                )
+                .pick_files();
+              #[cfg(target_os = "linux")]
+              let res = native_dialog::FileDialog::new()
+                .add_filter(
+                  "Archives",
+                  &["zip", "7z", "7zip", "rar", "rar4", "rar5", "tar"],
+                )
+                .show_open_multiple_file()
+                .ok();
+
+              sink.submit_command(App::OPEN_FILE, res, Target::Auto)
+            });
+          } else {
+            data.runtime.spawn_blocking(move || {
+              #[cfg(not(target_os = "linux"))]
+              let res = rfd::FileDialog::new().pick_folder();
+              #[cfg(target_os = "linux")]
+              let res = native_dialog::FileDialog::new()
+                .show_open_single_dir()
+                .ok()
+                .flatten();
+
+              sink.submit_command(App::OPEN_FOLDER, res, Target::Auto)
+            });
+          }
         }
       }
     } else if let Some(SettingsCommand::UpdateInstallDir(new_install_dir)) =
@@ -874,10 +911,7 @@ impl AppDelegate {
       .build()
   }
 
-  pub fn build_found_multiple(
-    source: HybridPath,
-    found_paths: Vec<PathBuf>,
-  ) -> impl Widget<App> {
+  pub fn build_found_multiple(source: HybridPath, found_paths: Vec<PathBuf>) -> impl Widget<App> {
     let title = format!(
       "Found multiple mods in {}",
       match source {

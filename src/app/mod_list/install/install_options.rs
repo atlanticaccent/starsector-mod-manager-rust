@@ -2,7 +2,7 @@ use druid::{theme, Widget, WidgetExt};
 
 use super::{install_button::InstallButton, InstallState};
 use crate::{
-  app::util::{bold_text, WidgetExtEx},
+  app::{util::{bold_text, WidgetExtEx}, App, app_delegate::AppCommands},
   widgets::card::Card,
 };
 
@@ -34,12 +34,18 @@ impl InstallOptions {
               Card::hoverable(|| text("From Archive"), (0.0, 10.0))
                 .link_height_with(&mut width_linker)
                 .horizontal()
-                .on_click(|_, data: &mut InstallState, _| data.open = false),
+                .on_click(|ctx, data: &mut InstallState, _| {
+                  data.open = false;
+                  ctx.submit_command(App::SELECTOR.with(AppCommands::PickFile(true)))
+                }),
             )
             .with_child(
               Card::hoverable(|| text("From Folder"), (0.0, 10.0))
                 .link_height_with(&mut width_linker)
-                .on_click(|_, data, _| data.open = false),
+                .on_click(|ctx, data, _| {
+                  data.open = false;
+                  ctx.submit_command(App::SELECTOR.with(AppCommands::PickFile(false)))
+                }),
             ),
         )
         .fix_height(128.0),
