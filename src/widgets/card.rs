@@ -44,9 +44,10 @@ impl Card {
     F: Fn() -> W,
     FH: Fn() -> W,
   {
+    let insets = insets.into();
     let card = |shadow, widget| {
       Card::builder()
-        .with_insets((0.0, 14.0))
+        .with_insets(insets)
         .with_corner_radius(4.0)
         .with_shadow_length(shadow)
         .build(widget)
@@ -57,7 +58,7 @@ impl Card {
       card(8.0, hovered()).lens(lens!((T, bool), 0)),
       card(6.0, unhovered()).lens(lens!((T, bool), 0)),
     )
-    .with_hover_state()
+    .with_hover_state(false)
   }
 
   pub fn new<T: Data>(widget: impl Widget<T> + 'static) -> impl Widget<T> {

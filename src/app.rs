@@ -180,7 +180,7 @@ impl App {
     .with_aligned_child(
       Icon::new(FIRST_PAGE)
         .fix_size(34., 34.)
-        .controller(HoverController)
+        .controller(HoverController::default())
         .on_click(|ctx, _, _| ctx.submit_command(App::TOGGLE_NAV_BAR))
         .padding(6.),
       druid::UnitPoint::BOTTOM_RIGHT,
@@ -198,7 +198,7 @@ impl App {
               |data, _| !data,
               Icon::new(LAST_PAGE)
                 .fix_size(34., 34.)
-                .controller(HoverController)
+                .controller(HoverController::default())
                 .on_click(|ctx, _, _| ctx.submit_command(App::TOGGLE_NAV_BAR))
                 .padding(6.)
                 .align_vertical(druid::UnitPoint::BOTTOM)
@@ -240,7 +240,7 @@ impl App {
           .with_child(Icon::new(SYNC))
           .padding((8., 4.))
           .background(button_painter())
-          .controller(HoverController)
+          .controller(HoverController::default())
           .on_click(|event_ctx, _, _| event_ctx.submit_command(App::REFRESH)),
       )
       .expand_width();
@@ -252,7 +252,7 @@ impl App {
       .with_child(Icon::new(INSTALL_DESKTOP))
       .padding((8., 4.))
       .background(button_painter())
-      .controller(HoverController)
+      .controller(HoverController::default())
       .on_click(|_, _, _| {})
       .controller(InstallController)
       .disabled_if(|data, _| data.settings.install_dir.is_none());
@@ -262,7 +262,7 @@ impl App {
       .with_child(Icon::new(OPEN_BROWSER))
       .padding((8., 4.))
       .background(button_painter())
-      .controller(HoverController)
+      .controller(HoverController::default())
       .on_click(|event_ctx, _, _| event_ctx.submit_command(App::OPEN_WEBVIEW.with(None)))
       .expand_width()
       .disabled_if(|data: &App, _| data.settings.install_dir.is_none());
@@ -283,7 +283,7 @@ impl App {
           .with_child(Icon::new(EXTENSION))
           .padding((8., 4.))
           .background(button_painter())
-          .controller(HoverController)
+          .controller(HoverController::default())
           .on_click(|ctx, data: &mut App, _| {
             if data.mod_repo.is_some() {
               let modal = Stack::new()
@@ -383,7 +383,7 @@ impl App {
       .with_child(h2("Toggles"))
       .with_child(
         Button::new("Enable All")
-          .controller(HoverController)
+          .controller(HoverController::default())
           .on_click(|_, data: &mut App, _| {
             if let Some(install_dir) = data.settings.install_dir.as_ref().cloned() {
               let ids: Vec<String> = data.mod_list.mods.keys().cloned().collect();
@@ -405,7 +405,7 @@ impl App {
       .with_spacer(5.)
       .with_child(
         Button::new("Disable All")
-          .controller(HoverController)
+          .controller(HoverController::default())
           .on_click(|_, data: &mut App, _| {
             if let Some(install_dir) = data.settings.install_dir.as_ref() {
               let ids: Vec<String> = data.mod_list.mods.keys().cloned().collect();
@@ -475,7 +475,7 @@ impl App {
                 .with_flex_child(Icon::new(PLAY_ARROW).expand_width(), 1.)
                 .padding((8., 4.))
                 .background(button_painter())
-                .controller(HoverController)
+                .controller(HoverController::default())
                 .on_click(|ctx, data: &mut App, _| {
                   if let Some(install_dir) = data.settings.install_dir.clone() {
                     ctx.submit_command(App::DISABLE);
@@ -551,7 +551,7 @@ impl App {
               .with_child(Icon::new(NAVIGATE_NEXT))
               .padding((8., 4.))
               .background(button_painter())
-              .controller(HoverController)
+              .controller(HoverController::default())
               .on_click(|_, data: &mut App, _| {
                 if let Some(webview) = &data.webview {
                   if webview.url().as_str() != FRACTAL_INDEX {
@@ -568,7 +568,7 @@ impl App {
               .with_child(Icon::new(NAVIGATE_NEXT))
               .padding((8., 4.))
               .background(button_painter())
-              .controller(HoverController)
+              .controller(HoverController::default())
               .on_click(|_, data: &mut App, _| {
                 if let Some(webview) = &data.webview {
                   if webview.url().as_str() != FRACTAL_MODS_FORUM {
@@ -585,7 +585,7 @@ impl App {
               .with_child(Icon::new(NAVIGATE_NEXT))
               .padding((8., 4.))
               .background(button_painter())
-              .controller(HoverController)
+              .controller(HoverController::default())
               .on_click(|_, data: &mut App, _| {
                 if let Some(webview) = &data.webview {
                   if webview.url().as_str() != FRACTAL_MODDING_SUBFORUM {
@@ -602,7 +602,7 @@ impl App {
               .with_child(Icon::new(CLOSE))
               .padding((8., 4.))
               .background(button_painter())
-              .controller(HoverController)
+              .controller(HoverController::default())
               .on_click(|ctx, data: &mut App, _| {
                 data
                   .webview

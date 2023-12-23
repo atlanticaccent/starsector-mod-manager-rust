@@ -46,7 +46,7 @@ pub(crate) mod icons;
 
 pub use icons::*;
 
-use super::controllers::{DelayedPainter, HeightLinkerShared, LinkedHeights, OnHover};
+use super::controllers::{DelayedPainter, HeightLinkerShared, HoverState, LinkedHeights, OnHover};
 
 pub const ORANGE_KEY: Key<Color> = Key::new("util.colour.orange");
 pub const BLUE_KEY: Key<Color> = Key::new("util.colour.blue");
@@ -762,27 +762,27 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
 
 impl<T: Data, W: Widget<T> + 'static> WidgetExtEx<T, W> for W {}
 
-pub trait WithHoverState<T: Data, W: Widget<(T, bool)> + 'static>:
-  Widget<(T, bool)> + Sized + 'static
+pub trait WithHoverState<S: HoverState + Data + Clone, T: Data, W: Widget<(T, S)> + 'static>:
+  Widget<(T, S)> + Sized + 'static
 {
-  fn with_hover_state(self) -> Box<dyn Widget<T>> {
+  fn with_hover_state(self, state: S) -> Box<dyn Widget<T>> {
     const HOVER_STATE_CHANGE: Selector = Selector::new("util.hover_state.change");
 
     let id = WidgetId::next();
 
     Scope::from_lens(
-      |state| (state, false),
-      lens!((T, bool), 0),
+      move |data| (data, state.clone()),
+      lens!((T, S), 0),
       self
         .on_event(|_, ctx, event, data| {
           if let druid::Event::MouseMove(_) = event {
             ctx.set_cursor(&druid::Cursor::Pointer);
-            data.1 = true;
+            data.1.set(true);
             ctx.request_paint();
           } else if let druid::Event::Command(cmd) = event
             && cmd.is(HOVER_STATE_CHANGE)
           {
-            data.1 = false;
+            data.1.set(false);
             ctx.clear_cursor()
           }
           ctx.request_paint();
@@ -801,7 +801,7 @@ pub trait WithHoverState<T: Data, W: Widget<(T, bool)> + 'static>:
   }
 }
 
-impl<T: Data, W: Widget<(T, bool)> + 'static> WithHoverState<T, W> for W {}
+impl<S: HoverState + Data + Clone, T: Data, W: Widget<(T, S)> + 'static> WithHoverState<S, T, W> for W {}
 
 pub struct Button2;
 
@@ -810,7 +810,7 @@ impl Button2 {
     label
       .padding((8., 4.))
       .background(button_painter())
-      .controller(HoverController)
+      .controller(HoverController::default())
   }
 
   pub fn from_label<T: Data>(label: impl Into<LabelText<T>>) -> impl Widget<T> {

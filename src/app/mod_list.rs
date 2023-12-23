@@ -8,6 +8,7 @@ use std::{
 
 use druid::{
   im::Vector,
+  kurbo::Line,
   lens, theme,
   widget::{Checkbox, Either, Flex, Label, List, ListIter, Painter, Scroll, ZStack},
   Color, Data, EventCtx, ExtEventSink, KeyOrValue, Lens, LensExt, Rect, RenderContext, Selector,
@@ -21,10 +22,10 @@ use strum_macros::{Display, EnumIter};
 use sublime_fuzzy::best_match;
 
 use super::{
-  controllers::{ExtensibleController, HeightLinkerShared},
+  controllers::{ExtensibleController, HeightLinkerShared, SharedHoverState},
   installer::HybridPath,
   mod_entry::{GameVersion, ModEntry, ModMetadata, UpdateStatus},
-  util::{self, xxHashMap, LoadBalancer, SaveError, WidgetExtEx},
+  util::{self, xxHashMap, LoadBalancer, SaveError, WidgetExtEx, WithHoverState as _},
 };
 use crate::{
   app::util::StarsectorVersionDiff,
@@ -144,34 +145,66 @@ impl ModList {
     mods: &xxHashMap<String, Arc<ModEntry>>,
     headings: &Vector<Heading>,
   ) {
-    for (idx, id) in mods.keys().enumerate() {
+    for id in mods.keys() {
       let intern = Intern::new(id.clone());
 
+      let len = headings.len();
+      let painter = |idx: usize| {
+        Painter::new(move |ctx, data: &(Arc<ModEntry>, SharedHoverState), env| {
+          if data.1.get() {
+            let rect = ctx.size().to_rect().inset(-0.5);
+            ctx.stroke(
+              Line::new((rect.x0, rect.y0), (rect.x1, rect.y0)),
+              &env.get(theme::BORDER_DARK),
+              1.0,
+            );
+            ctx.stroke(
+              Line::new((rect.x0, rect.y1), (rect.x1, rect.y1)),
+              &env.get(theme::BORDER_DARK),
+              1.0,
+            );
+            if idx == 0 {
+              ctx.stroke(
+                Line::new((rect.x0, rect.y0), (rect.x0, rect.y1)),
+                &env.get(theme::BORDER_DARK),
+                1.0,
+              );
+            }
+            if idx == len {
+              ctx.stroke(
+                Line::new((rect.x1, rect.y0), (rect.x1, rect.y1)),
+                &env.get(theme::BORDER_DARK),
+                1.0,
+              );
+            }
+          }
+        })
+      };
+
+      let mut shared_linker: Option<HeightLinkerShared> = None;
+      let hover_state = SharedHoverState::default();
       let mut row = TableRow::new(id.clone()).with_child(
         Checkbox::new("")
           .center()
           .padding(5.)
-          .lens(ModEntry::enabled.in_arc())
-          .on_change(|ctx, _old, data, _| ctx.submit_command(ModEntry::REPLACE.with(data.clone())))
-          .lens(ModList::mods.deref().index(intern.as_ref())),
+          .lens(lens!((Arc<ModEntry>, SharedHoverState), 0).then(ModEntry::enabled.in_arc()))
+          .padding(2.0)
+          .background(painter(0))
+          .with_hover_state(hover_state.clone())
+          .lens(ModList::mods.deref().index(intern.as_ref()))
+          .link_height_with(&mut shared_linker),
       );
 
-      let mut shared_linker: Option<HeightLinkerShared> = None;
-      for heading in headings {
+      for (idx, heading) in headings.iter().enumerate() {
         if let Some(cell) = ModEntry::view_cell(*heading) {
           row.add_child(
             cell
-              .link_height_with(&mut shared_linker)
-              .background(Painter::new(move |ctx, _, env| {
-                let rect = ctx.size().to_rect();
-
-                if env.try_get(FlexTable::<u64>::ROW_NUM).unwrap_or(idx as u64) % 2 == 0 {
-                  ctx.fill(rect, &env.get(theme::BACKGROUND_DARK))
-                } else {
-                  ctx.fill(rect, &env.get(theme::BACKGROUND_LIGHT))
-                }
-              }))
-              .lens(ModList::mods.deref().index(intern.as_ref())),
+              .lens(lens!((Arc<ModEntry>, SharedHoverState), 0))
+              .padding(2.0)
+              .background(painter(idx + 1))
+              .with_hover_state(hover_state.clone())
+              .lens(ModList::mods.deref().index(intern.as_ref()))
+              .link_height_with(&mut shared_linker),
           )
         }
       }

@@ -373,7 +373,7 @@ impl ModRepoItem {
                 .main_axis_alignment(druid::widget::MainAxisAlignment::End)
                 .align_right()
                 .expand_width()
-                .controller(HoverController)
+                .controller(HoverController::default())
                 .on_click(|_, data: &mut bool, _| *data = !*data)
                 .lens(ModRepoItem::show_description)
                 .padding((0., -2., 0., 0.)),
@@ -385,7 +385,7 @@ impl ModRepoItem {
             } else {
               row.with_flex_child(
                 Label::new("Click to expand...")
-                  .controller(HoverController)
+                  .controller(HoverController::default())
                   .on_click(|_, data: &mut bool, _| *data = !*data)
                   .lens(ModRepoItem::show_description),
                 Self::VALUE_FLEX,
@@ -458,7 +458,7 @@ impl ModRepoItem {
                 .with_child(
                   Maybe::or_empty(|| {
                     hoverable_text(Some(druid::Color::rgb8(0x00, 0x7B, 0xFF)))
-                      .controller(HoverController)
+                      .controller(HoverController::default())
                       .on_click(|ctx, data, _| {
                         ctx.submit_command_global(OPEN_IN_BROWSER.with(data.clone()))
                       })
@@ -473,7 +473,7 @@ impl ModRepoItem {
                 .with_child(
                   Maybe::or_empty(|| {
                     hoverable_text(Some(druid::Color::rgb8(0x00, 0x7B, 0xFF)))
-                      .controller(HoverController)
+                      .controller(HoverController::default())
                       .on_click(|ctx, data, _| {
                         ctx.submit_notification(ModRepo::OPEN_CONFIRM.with(data.clone()))
                       })
@@ -488,7 +488,7 @@ impl ModRepoItem {
                 .with_child(
                   Maybe::or_empty(|| {
                     hoverable_text(Some(druid::Color::rgb8(0x00, 0x7B, 0xFF)))
-                      .controller(HoverController)
+                      .controller(HoverController::default())
                       .on_click(|ctx, data, _| {
                         ctx.submit_command_global(OPEN_IN_BROWSER.with(data.clone()))
                       })

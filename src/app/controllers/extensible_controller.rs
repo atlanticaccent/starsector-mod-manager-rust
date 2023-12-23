@@ -43,7 +43,7 @@ impl<T, W: Widget<T>> ExtensibleController<T, W> {
         if let Some(payload) = cmd.get(selector) {
           handler(child, ctx, payload, data)
         } else {
-          false
+          true
         }
       },
     ));

@@ -57,7 +57,7 @@ impl NavBar {
             .with_child(
               hoverable_text_opts(None, |w| w.with_text_size(20.))
                 .lens(Compute::new(|data: &Nav| data.label.clone()))
-                .controller(HoverController)
+                .controller(HoverController::default())
                 .on_click(|ctx, data, _| {
                   if !data.root {
                     ctx.submit_command(Nav::NAV_SELECTOR.with(data.label.clone()));

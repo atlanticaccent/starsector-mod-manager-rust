@@ -144,7 +144,7 @@ impl Settings {
                                     .with_child(
                                       Icon::new(ARROW_LEFT)
                                         .background(button_painter())
-                                        .controller(HoverController)
+                                        .controller(HoverController::default())
                                         .on_click(move |ctx, data: &mut Vector<Heading>, _| {
                                           data.swap(idx - 1, idx);
                                           ctx.submit_command_global(
@@ -182,12 +182,12 @@ impl Settings {
                                             icon.boxed()
                                           }
                                         })
-                                        .controller(HoverController),
+                                        .controller(HoverController::default()),
                                     )
                                     .with_child(
                                       Icon::new(ARROW_RIGHT)
                                         .background(button_painter())
-                                        .controller(HoverController)
+                                        .controller(HoverController::default())
                                         .on_click(move |ctx, data: &mut Vector<Heading>, _| {
                                           data.swap(idx, idx + 1);
                                           ctx.submit_command_global(
@@ -290,7 +290,7 @@ impl Settings {
                                 .with_child(
                                   Icon::new(ARROW_LEFT)
                                     .background(button_painter())
-                                    .controller(HoverController)
+                                    .controller(HoverController::default())
                                     .on_click(move |ctx, data: &mut Vector<Heading>, _| {
                                       data.swap(idx - 1, idx);
                                       ctx.submit_command_global(
@@ -314,7 +314,7 @@ impl Settings {
                                 .with_child(
                                   Icon::new(ARROW_RIGHT)
                                     .background(button_painter())
-                                    .controller(HoverController)
+                                    .controller(HoverController::default())
                                     .on_click(move |ctx, data: &mut Vector<Heading>, _| {
                                       data.swap(idx, idx + 1);
                                       ctx.submit_command_global(
@@ -450,7 +450,7 @@ impl Settings {
               .padding((-5., 0., 0., 0.)),
               Label::new("Open JRE Switcher"),
             )
-            .controller(HoverController)
+            .controller(HoverController::default())
             .on_click(|_, data, _| *data = !*data)
             .lens(Settings::show_jre_swapper)
             .padding(TRAILING_PADDING.tap_mut(|padding| padding.2 = -5.)),
@@ -732,7 +732,7 @@ impl Settings {
           .with_flex_child(input.expand_width(), 1.)
           .with_child(
             Button::new("Browse...")
-              .controller(HoverController)
+              .controller(HoverController::default())
               .on_click(|ctx, _, _| {
                 ctx.submit_command_global(Selector::new("druid.builtin.textbox-cancel-editing"));
                 ctx
@@ -748,7 +748,7 @@ impl Settings {
           .with_child(input.expand_width())
           .with_child(
             Button::new("Browse...")
-              .controller(HoverController)
+              .controller(HoverController::default())
               .on_click(|ctx, _, _| {
                 ctx.submit_command_global(Selector::new("druid.builtin.textbox-cancel-editing"));
                 ctx

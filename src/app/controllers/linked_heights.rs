@@ -141,7 +141,7 @@ impl<T: Data, W: Widget<T>> Widget<T> for LinkedHeights<T, W> {
     data: &T,
     env: &druid::widget::prelude::Env,
   ) -> druid::widget::prelude::Size {
-    let unconstrained_size = self.widget.layout(ctx, bc, data, &env);
+    let unconstrained_size = self.widget.layout(ctx, bc, data, env);
 
     let unconstrained_value = match self.axis {
       Axis::Horizontal => unconstrained_size.width,
@@ -152,17 +152,11 @@ impl<T: Data, W: Widget<T>> Widget<T> for LinkedHeights<T, W> {
       && let Some(constraint) = self.constraint
     {
       let child_bc = match self.axis {
-        Axis::Horizontal => BoxConstraints::new(
-          Size::new(constraint, bc.min().height),
-          Size::new(constraint, bc.max().height),
-        ),
-        Axis::Vertical => BoxConstraints::new(
-          Size::new(bc.min().width, constraint),
-          Size::new(bc.max().width, constraint),
-        ),
+        Axis::Horizontal => BoxConstraints::tight(Size::new(constraint, unconstrained_size.height)),
+        Axis::Vertical => BoxConstraints::tight(Size::new(unconstrained_size.width, constraint)),
       };
       return self.widget.layout(ctx, &child_bc, data, env);
-    } else if unconstrained_size.height.is_finite() {
+    } else if unconstrained_value.is_finite() {
       self.last_unconstrained = Some(unconstrained_value);
       let mut linker = self.height_linker.borrow_mut();
 

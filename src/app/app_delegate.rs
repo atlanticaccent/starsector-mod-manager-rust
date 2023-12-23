@@ -900,7 +900,7 @@ impl AppDelegate {
                     Icon::new(CLOSE),
                   )
                   .lens(lens!((i64, String, f64), 2))
-                  .controller(HoverController)
+                  .controller(HoverController::default())
                   .on_click(|ctx, data, _| {
                     ctx.submit_command(App::REMOVE_DOWNLOAD_BAR.with(data.0))
                   })

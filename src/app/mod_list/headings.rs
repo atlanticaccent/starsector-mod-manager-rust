@@ -199,7 +199,7 @@ impl<W: Widget<Header>> Controller<Header, W> for ResizeController {
     env: &druid::Env,
   ) {
     if let druid::LifeCycle::Size(size) = event {
-      ctx.submit_command(ModList::UPDATE_COLUMN_WIDTH.with((self.id, dbg!(size.width))))
+      ctx.submit_command(ModList::UPDATE_COLUMN_WIDTH.with((self.id, size.width)))
     }
 
     child.lifecycle(ctx, event, data, env)
