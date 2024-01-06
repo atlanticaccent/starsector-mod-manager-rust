@@ -5,7 +5,7 @@ pub use druid_widget_nursery::material_icons::normal::{
   image::NAVIGATE_NEXT,
   navigation::{
     ARROW_DROP_DOWN, ARROW_DROP_UP, ARROW_LEFT, ARROW_RIGHT, CLOSE, FIRST_PAGE, LAST_PAGE,
-    UNFOLD_MORE,
+    UNFOLD_MORE, CHEVRON_LEFT
   },
   notification::SYNC,
 };
