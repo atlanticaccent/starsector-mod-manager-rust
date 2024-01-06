@@ -32,31 +32,33 @@ impl Card {
   where
     F: Fn() -> W,
   {
-    Self::hoverable_distinct(|| widget_maker(), || widget_maker(), insets)
+    Self::hoverable_distinct(
+      || widget_maker(),
+      || widget_maker(),
+      CardBuilder::new()
+        .with_insets(insets),
+    )
   }
 
-  pub fn hoverable_distinct<T: Data, W: Widget<T> + 'static, F, FH>(
+  pub fn hoverable_distinct<T: Data, W1: Widget<T> + 'static, W2: Widget<T> + 'static, F, FH>(
     unhovered: F,
     hovered: FH,
-    insets: impl Into<Insets>,
+    builder: CardBuilder<T>,
   ) -> Box<dyn Widget<T>>
   where
-    F: Fn() -> W,
-    FH: Fn() -> W,
+    F: Fn() -> W1,
+    FH: Fn() -> W2,
   {
-    let insets = insets.into();
-    let card = |shadow, widget| {
-      Card::builder()
-        .with_insets(insets)
-        .with_corner_radius(4.0)
-        .with_shadow_length(shadow)
-        .build(widget)
-    };
+    let card = |shadow| builder.clone().with_shadow_length(shadow);
 
     Either::new(
       |data: &(T, bool), _| data.1,
-      card(8.0, hovered()).lens(lens!((T, bool), 0)),
-      card(6.0, unhovered()).lens(lens!((T, bool), 0)),
+      card(builder.shadow_length.unwrap_or(6.0) + builder.shadow_increase.unwrap_or(2.0))
+        .build(hovered())
+        .lens(lens!((T, bool), 0)),
+      card(builder.shadow_length.unwrap_or(6.0))
+        .build(unhovered())
+        .lens(lens!((T, bool), 0)),
     )
     .with_hover_state(false)
   }
@@ -250,21 +252,50 @@ impl Card {
 pub struct CardBuilder<T: Data> {
   insets: Insets,
   corner_radius: f64,
-  shadow_length: f64,
+  shadow_length: Option<f64>,
   border: Option<(f64, KeyOrValue<Color>)>,
   background: Option<BackgroundBrush<T>>,
   on_hover: Option<BackgroundBrush<T>>,
+  shadow_increase: Option<f64>,
+}
+
+impl<T: Data> Clone for CardBuilder<T> {
+  fn clone(&self) -> Self {
+    let clone_brush = |brush: Option<&BackgroundBrush<T>>| match brush {
+      Some(brush) => Some(match brush {
+        BackgroundBrush::Color(inner) => BackgroundBrush::Color(inner.clone()),
+        BackgroundBrush::ColorKey(inner) => BackgroundBrush::ColorKey(inner.clone()),
+        BackgroundBrush::Linear(inner) => BackgroundBrush::Linear(inner.clone()),
+        BackgroundBrush::Radial(inner) => BackgroundBrush::Radial(inner.clone()),
+        BackgroundBrush::Fixed(inner) => BackgroundBrush::Fixed(inner.clone()),
+        BackgroundBrush::Painter(_) => unimplemented!(),
+        _ => todo!(),
+      }),
+      None => None,
+    };
+
+    Self {
+      insets: self.insets.clone(),
+      corner_radius: self.corner_radius.clone(),
+      shadow_length: self.shadow_length.clone(),
+      border: self.border.clone(),
+      background: clone_brush(self.background.as_ref()),
+      on_hover: clone_brush(self.on_hover.as_ref()),
+      shadow_increase: self.shadow_increase.clone(),
+    }
+  }
 }
 
 impl<T: Data> CardBuilder<T> {
   fn new() -> Self {
     Self {
       insets: Card::DEFAULT_INSETS.into(),
-      corner_radius: 10.0,
-      shadow_length: 8.0,
+      corner_radius: 4.0,
+      shadow_length: None,
       border: None,
       background: None,
       on_hover: None,
+      shadow_increase: None,
     }
   }
 
@@ -281,7 +312,13 @@ impl<T: Data> CardBuilder<T> {
   }
 
   pub fn with_shadow_length(mut self, shadow_length: f64) -> Self {
-    self.shadow_length = shadow_length;
+    self.shadow_length = Some(shadow_length);
+
+    self
+  }
+
+  pub fn with_shadow_increase(mut self, shadow_length_increase: f64) -> Self {
+    self.shadow_increase = Some(shadow_length_increase);
 
     self
   }
@@ -309,10 +346,30 @@ impl<T: Data> CardBuilder<T> {
       widget,
       self.insets,
       self.corner_radius,
-      self.shadow_length,
+      self.shadow_length.unwrap_or(8.0),
       self.background,
       self.border,
       self.on_hover,
+    )
+  }
+
+  pub fn hoverable<W: Widget<T> + 'static>(self, widget_builder: impl Fn() -> W) -> impl Widget<T> {
+    self.hoverable_distinct(|| widget_builder(), || widget_builder())
+  }
+
+  pub fn hoverable_distinct<W1: Widget<T> + 'static, W2: Widget<T> + 'static, F, FH>(
+    self,
+    unhovered: F,
+    hovered: FH,
+  ) -> Box<dyn Widget<T>>
+  where
+    F: Fn() -> W1,
+    FH: Fn() -> W2,
+  {
+    Card::hoverable_distinct(
+      unhovered,
+      hovered,
+      self
     )
   }
 }

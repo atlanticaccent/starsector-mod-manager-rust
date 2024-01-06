@@ -26,7 +26,7 @@ use super::{
   mod_list::headings::{Header, Heading},
   modal::Modal,
   util::{
-    bold_text, button_painter, default_true, h2, icons::*, make_column_pair, make_flex_pair,
+    bold_text, button_painter, default_true, h2_fixed, icons::*, make_column_pair, make_flex_pair,
     make_flex_settings_row, Button2, CommandExt, LabelExt, LoadError, SaveError,
   },
   App,
@@ -466,7 +466,7 @@ impl Settings {
                       .with_flex_child(
                         Card::new(
                           Flex::column()
-                            .with_child(h2("Wisp's Archived JRE"))
+                            .with_child(h2_fixed("Wisp's Archived JRE"))
                             .with_child(bold_text(
                               "JRE 8v271",
                               theme::TEXT_SIZE_NORMAL,
@@ -500,7 +500,7 @@ impl Settings {
                       .with_flex_child(
                         Card::new(
                           Flex::column()
-                            .with_child(h2("Amazon Coretto"))
+                            .with_child(h2_fixed("Amazon Coretto"))
                             .with_child(bold_text(
                               "JRE 8v272 (10.3)",
                               theme::TEXT_SIZE_NORMAL,
@@ -534,7 +534,7 @@ impl Settings {
                       .with_flex_child(
                         Card::new(
                           Flex::column()
-                            .with_child(h2("OpenJDK Hotspot"))
+                            .with_child(h2_fixed("OpenJDK Hotspot"))
                             .with_child(bold_text(
                               "JRE 8v272 (b10)",
                               theme::TEXT_SIZE_NORMAL,
@@ -568,7 +568,7 @@ impl Settings {
                       .with_flex_child(
                         Card::new(
                           Flex::column()
-                            .with_child(h2("Azul Zulu"))
+                            .with_child(h2_fixed("Azul Zulu"))
                             .with_child(bold_text(
                               "JRE 8v362 (b09)",
                               theme::TEXT_SIZE_NORMAL,
@@ -743,7 +743,7 @@ impl Settings {
         axis,
       ),
       Axis::Vertical => make_column_pair(
-        h2("Starsector Install Directory:"),
+        h2_fixed("Starsector Install Directory:"),
         Flex::for_axis(axis)
           .with_child(input.expand_width())
           .with_child(

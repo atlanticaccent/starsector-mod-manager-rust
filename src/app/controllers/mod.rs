@@ -10,7 +10,6 @@ mod on_cmd;
 mod on_event;
 mod on_hover;
 mod on_notif;
-mod row_controller;
 
 pub use app_controller::AppController;
 pub use delayed_painter::DelayedPainter;
@@ -24,4 +23,3 @@ pub use on_cmd::OnCmd;
 pub use on_event::OnEvent;
 pub use on_hover::OnHover;
 pub use on_notif::OnNotif;
-pub use row_controller::*;

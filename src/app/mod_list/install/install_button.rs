@@ -35,16 +35,17 @@ impl InstallButton {
   }
 
   fn button<T: Data>(filled: bool) -> impl Widget<T> {
-    Self::button_styling(Self::inner(filled)).padding((1.0, 0.0))
+    Self::button_styling(Self::inner(filled))
   }
 
   pub fn view() -> impl Widget<InstallState> {
-    Card::hoverable_distinct(
-      || InstallButton::button(false),
-      || InstallButton::button(true),
-      (0.0, 14.0),
-    )
-    .on_click(|_, data: &mut InstallState, _| data.open = true)
-    .else_if(|data, _| data.open, SizedBox::empty().fix_height(52.0))
+    Card::builder()
+      .with_insets((0.0, 14.0))
+      .hoverable_distinct(
+        || InstallButton::button(false),
+        || InstallButton::button(true),
+      )
+      .on_click(|_, data: &mut InstallState, _| data.open = true)
+      .else_if(|data, _| data.open, SizedBox::empty().fix_height(52.0))
   }
 }

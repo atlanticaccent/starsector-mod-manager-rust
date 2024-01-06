@@ -11,18 +11,16 @@ use std::{
 };
 
 use druid::{
-  kurbo::Circle,
   lens,
   lens::Then,
-  piet::ScaleMode,
   text::{Attribute, AttributeSpans, RichText},
   theme,
   widget::{
-    Axis, BackgroundBrush, Controller, ControllerHost, Either, Flex, Label, LabelText, LensWrap,
-    Painter, RawLabel, Scope, ScopeTransfer, SizedBox,
+    Align, Axis, Controller, ControllerHost, Either, Flex, Label, LabelText,
+    LensWrap, Painter, RawLabel, Scope, ScopeTransfer, SizedBox,
   },
-  Color, Command, Data, Env, Event, EventCtx, ExtEventSink, FontWeight, Insets, Key, KeyOrValue,
-  Lens, LensExt as _, LinearGradient, MouseEvent, Point, RadialGradient, Rect, RenderContext,
+  Color, Command, Data, Env, Event, EventCtx, ExtEventSink, FontWeight, Key, KeyOrValue,
+  Lens, LensExt as _, MouseEvent, Point, RenderContext,
   Selector, Target, UnitPoint, Widget, WidgetExt, WidgetId,
 };
 use druid_widget_nursery::CommandCtx;
@@ -247,16 +245,47 @@ pub fn bold_text<T: Data>(
     )))
 }
 
-pub fn h1<T: Data>(text: &str) -> impl Widget<T> {
+pub fn h1_fixed<T: Data>(text: &str) -> impl Widget<T> {
   bold_text(text, 24., FontWeight::BOLD, theme::TEXT_COLOR)
 }
 
-pub fn h2<T: Data>(text: &str) -> impl Widget<T> {
+pub fn h2_fixed<T: Data>(text: &str) -> impl Widget<T> {
   bold_text(text, 20., FontWeight::SEMI_BOLD, theme::TEXT_COLOR)
 }
 
-pub fn h3<T: Data>(text: &str) -> impl Widget<T> {
+pub fn h3_fixed<T: Data>(text: &str) -> impl Widget<T> {
   bold_text(text, 18., FontWeight::MEDIUM, theme::TEXT_COLOR)
+}
+
+pub fn lensed_bold<T: Data + AsRef<str>>(
+  size: impl Into<KeyOrValue<f64>>,
+  weight: FontWeight,
+  colour: impl Into<KeyOrValue<Color>>,
+) -> impl Widget<T> {
+  let size = size.into();
+  let colour = colour.into();
+  RawLabel::new()
+    .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
+    .lens(Compute::new(move |data: &T| {
+      let text = data.as_ref();
+      let mut attributes = AttributeSpans::new();
+      attributes.add(0..text.len(), Attribute::Weight(weight));
+      attributes.add(0..text.len(), Attribute::FontSize(size.clone()));
+      attributes.add(0..text.len(), Attribute::TextColor(colour.clone()));
+      RichText::new_with_attributes(text.into(), attributes)
+    }))
+}
+
+pub fn h1<T: Data + AsRef<str>>() -> impl Widget<T> {
+  lensed_bold(24., FontWeight::BOLD, theme::TEXT_COLOR)
+}
+
+pub fn h2<T: Data + AsRef<str>>() -> impl Widget<T> {
+  lensed_bold(20., FontWeight::SEMI_BOLD, theme::TEXT_COLOR)
+}
+
+pub fn h3<T: Data + AsRef<str>>() -> impl Widget<T> {
+  lensed_bold(18., FontWeight::MEDIUM, theme::TEXT_COLOR)
 }
 
 pub const GET_INSTALLED_STARSECTOR: Selector<Result<GameVersion, LoadError>> =
@@ -758,6 +787,10 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
   fn with_z_index(self, z_index: u32) -> DelayedPainter<T, Self> {
     DelayedPainter::new(self, z_index)
   }
+
+  fn align_vertical_centre(self) -> Align<T> {
+    self.align_vertical(UnitPoint::CENTER)
+  }
 }
 
 impl<T: Data, W: Widget<T> + 'static> WidgetExtEx<T, W> for W {}
@@ -801,7 +834,10 @@ pub trait WithHoverState<S: HoverState + Data + Clone, T: Data, W: Widget<(T, S)
   }
 }
 
-impl<S: HoverState + Data + Clone, T: Data, W: Widget<(T, S)> + 'static> WithHoverState<S, T, W> for W {}
+impl<S: HoverState + Data + Clone, T: Data, W: Widget<(T, S)> + 'static> WithHoverState<S, T, W>
+  for W
+{
+}
 
 pub struct Button2;
 

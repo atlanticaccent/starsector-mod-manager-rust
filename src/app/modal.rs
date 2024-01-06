@@ -10,7 +10,7 @@ use druid_widget_nursery::{AnyCtx, RequestCtx, Stack, StackChildPosition};
 use indexmap::IndexMap;
 use tap::Tap;
 
-use super::util::{h3, DragWindowController, LabelExt, WidgetExtEx};
+use super::util::{h3_fixed, DragWindowController, LabelExt, WidgetExtEx};
 
 pub struct Modal<'a, T: Data> {
   title: String,
@@ -122,7 +122,7 @@ impl<'a, T: Data> Modal<'a, T> {
 
     Flex::column()
       .with_child(
-        h3(&self.title)
+        h3_fixed(&self.title)
           .center()
           .padding(2.)
           .expand_width()
