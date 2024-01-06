@@ -18,11 +18,13 @@ use crate::{
 
 pub struct NavBar;
 
-const FORCE_OPEN: Selector = Selector::new("force_open_tree");
-const RECURSE_SET_EXPANDED: Selector<String> = Selector::new("recurse_set_expanded_tree");
+const RECURSE_SET_EXPANDED: Selector<NavLabel> = Selector::new("recurse_set_expanded_tree");
 
 impl NavBar {
-  pub fn new<T: Data>(nav: Nav, default: &str) -> impl Widget<T> {
+  pub const SET_OVERRIDE: Selector<(NavLabel, bool)> = Selector::new("nav_bar.override");
+  pub const REMOVE_OVERRIDE: Selector<NavLabel> = Selector::new("nav_bar.remove_override");
+
+  pub fn new<T: Data>(nav: Nav, default: NavLabel) -> impl Widget<T> {
     Scope::from_function(
       move |_| nav,
       DummyTransfer::default(),
@@ -30,7 +32,7 @@ impl NavBar {
     )
   }
 
-  fn view(default: &str) -> impl Widget<Nav> {
+  fn view(default: NavLabel) -> impl Widget<Nav> {
     let default = default.to_owned();
 
     Tree::new(
@@ -45,7 +47,7 @@ impl NavBar {
                 .env_scope(|env, data: &Nav| {
                   env.set(
                     druid::theme::FOREGROUND_DARK,
-                    if data.expanded {
+                    if data.expanded || data.override_.unwrap_or_default() {
                       Color::GREEN
                     } else {
                       Color::TRANSPARENT
@@ -56,15 +58,12 @@ impl NavBar {
             )
             .with_child(
               hoverable_text_opts(None, |w| w.with_text_size(20.))
-                .lens(Compute::new(|data: &Nav| data.label.clone()))
+                .lens(Compute::new(|data: &Nav| data.label.to_string()))
                 .controller(HoverController::default())
                 .on_click(|ctx, data, _| {
                   if !data.root {
-                    ctx.submit_command(Nav::NAV_SELECTOR.with(data.label.clone()));
-                    ctx.submit_command(
-                      RECURSE_SET_EXPANDED
-                        .with(data.linked.as_ref().unwrap_or(&data.label).clone()),
-                    )
+                    ctx.submit_command(Nav::NAV_SELECTOR.with(data.linked.unwrap_or(data.label)));
+                    ctx.submit_command(RECURSE_SET_EXPANDED.with(data.linked.unwrap_or(data.label)));
                   }
                 }),
             )
@@ -73,7 +72,7 @@ impl NavBar {
             .expand_width()
             .on_command(RECURSE_SET_EXPANDED, |ctx, label, data| {
               if data.root {
-                data.set_ancestors_expanded(label);
+                data.set_ancestors_expanded(*label);
               }
               ctx.set_handled()
             }),
@@ -84,38 +83,64 @@ impl NavBar {
         )
         .or_empty(|data, _| !data.root)
       },
-      Compute::new(|data: &Nav| data.expanded || data.always_open),
+      Compute::new(|data: &Nav| data.override_.unwrap_or(data.expanded || data.always_open)),
     )
     .with_opener(|| SizedBox::empty())
     .with_opener_dimensions((0., 0.))
     .with_max_label_height(26.)
     .with_indent(|data: &Nav| if data.depth > 1 { 16. } else { 0. })
-    .on_command(FORCE_OPEN.clone(), |_, _, data| data.expanded = true)
-    .on_added(move |_, ctx, _, _| ctx.submit_command(RECURSE_SET_EXPANDED.with(default.clone())))
+    .on_added(move |_, ctx, _, _| ctx.submit_command(RECURSE_SET_EXPANDED.with(default)))
+    .on_command(Self::SET_OVERRIDE, |_, (label, override_), data| {
+      data.set_override(*label, Some(*override_))
+    })
+    .on_command(Self::REMOVE_OVERRIDE, |_, target, data| {
+      data.set_override(*target, None)
+    })
   }
 }
 
 #[derive(Debug, Data, Clone, Lens)]
 pub struct Nav {
-  pub label: String,
+  #[data(eq)]
+  pub label: NavLabel,
   #[data(ignore)]
   pub command: Command,
   pub expanded: bool,
   pub children: Vector<Arc<Nav>>,
   pub root: bool,
   pub depth: usize,
-  pub linked: Option<String>,
+  #[data(eq)]
+  pub linked: Option<NavLabel>,
   pub separator_: bool,
   pub always_open: bool,
+  pub override_: Option<bool>,
+}
+
+#[derive(strum_macros::Display, Clone, Copy, PartialEq, Debug)]
+#[strum(serialize_all = "title_case")]
+pub enum NavLabel {
+  Root,
+  Mods,
+  ModDetails,
+  Profiles,
+  Tools,
+  ModBrowsers,
+  Starmodder,
+  StarmodderDetails,
+  WebBrowser,
+  Activity,
+  Downloads,
+  Settings,
+  Separator,
 }
 
 impl Nav {
-  pub const NAV_SELECTOR: Selector<String> = Selector::new("nav_bar.switch");
+  pub const NAV_SELECTOR: Selector<NavLabel> = Selector::new("nav_bar.switch");
 
-  pub fn new(label: impl AsRef<str>) -> Self {
+  pub fn new(label: NavLabel) -> Self {
     Self {
-      label: label.as_ref().to_string(),
-      command: Nav::NAV_SELECTOR.with(label.as_ref().to_owned()),
+      label,
+      command: Nav::NAV_SELECTOR.with(label),
       expanded: false,
       children: Vector::new(),
       root: false,
@@ -123,6 +148,7 @@ impl Nav {
       linked: None,
       separator_: false,
       always_open: false,
+      override_: None,
     }
   }
 
@@ -139,8 +165,8 @@ impl Nav {
     self
   }
 
-  pub fn linked_to(mut self, label: impl Into<String>) -> Self {
-    self.linked = Some(label.into());
+  pub fn linked_to(mut self, label: NavLabel) -> Self {
+    self.linked = Some(label);
 
     self
   }
@@ -153,7 +179,7 @@ impl Nav {
     }
   }
 
-  fn set_ancestors_expanded(&mut self, label: &str) -> bool {
+  fn set_ancestors_expanded(&mut self, label: NavLabel) -> bool {
     if self.label == label {
       self.expanded = true;
       return true;
@@ -184,7 +210,7 @@ impl Nav {
 
   pub fn separator() -> Self {
     Self {
-      label: "".to_owned(),
+      label: NavLabel::Separator,
       command: Selector::NOOP.with(()),
       expanded: false,
       children: Vector::new(),
@@ -193,6 +219,23 @@ impl Nav {
       linked: None,
       separator_: true,
       always_open: false,
+      override_: None,
+    }
+  }
+
+  pub fn overridden(mut self, override_: bool) -> Self {
+    self.override_ = Some(override_);
+
+    self
+  }
+
+  fn set_override(&mut self, target: NavLabel, override_: Option<bool>) {
+    if self.label == target {
+      self.override_ = override_;
+      return;
+    }
+    for idx in 0..self.children_count() {
+      self.for_child_mut(idx, |child, _| child.set_override(target, override_))
     }
   }
 }
@@ -221,8 +264,7 @@ impl TreeNode for Nav {
     let mut new = orig.as_ref().clone();
     cb(&mut new, index);
     if !orig.as_ref().same(&new) {
-      self.children.remove(index);
-      self.children.insert(index, Arc::new(new));
+      self.children.set(index, Arc::new(new));
     }
   }
 }
