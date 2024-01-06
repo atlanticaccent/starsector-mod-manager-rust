@@ -14,6 +14,7 @@ use druid::{
 use druid_widget_nursery::{
   material_icons::Icon, FutureWidget, Stack, StackChildPosition, WidgetExt as WidgetExtNursery,
 };
+use internment::Intern;
 use strum::IntoEnumIterator;
 use tap::Tap;
 use tokio::runtime::Handle;
@@ -30,13 +31,13 @@ use self::{
   modal::Modal,
   settings::Settings,
   util::{
-    button_painter, get_quoted_version, h1, h2, h3, icons::*, make_column_pair, CommandExt,
-    IndyToggleState, LabelExt, LensExtExt as _, Release,
+    bold_text, button_painter, get_quoted_version, h2_fixed, h3_fixed, icons::*,
+    make_column_pair, CommandExt, IndyToggleState, LabelExt, LensExtExt as _, Release,
   },
 };
 use crate::{
   app::util::{option_ptr_cmp, WidgetExtEx},
-  nav_bar::{Nav, NavBar},
+  nav_bar::{Nav, NavBar, NavLabel},
   patch::{
     split::Split,
     tabs::tab::{InitialTab, Tabs, TabsPolicy},
@@ -151,27 +152,39 @@ impl App {
       Flex::<bool>::column()
         .with_default_spacer()
         .with_child(
-          h1("MOSS")
-            .align_horizontal(druid::UnitPoint::CENTER)
-            .expand_width(),
+          bold_text(
+            "MOSS",
+            36.0,
+            druid::text::FontWeight::BOLD,
+            druid::theme::TEXT_COLOR,
+          )
+          .align_horizontal(druid::UnitPoint::CENTER)
+          .expand_width(),
         )
-        .with_child(SizedBox::empty().height(20.))
+        .with_spacer(10.0)
         .with_child(NavBar::new(
-          Nav::new("root").as_root().with_children(vec![
-            Nav::new("Mods"),
-            Nav::new("Profiles"),
-            Nav::new("Tools"),
-            Nav::new("Mod Browsers")
-              .with_children(vec![Nav::new("Starmodder"), Nav::new("Web Browser")])
-              .linked_to("Starmodder")
+          Nav::new(NavLabel::Root).as_root().with_children(vec![
+            Nav::new(NavLabel::Mods)
+              .overridden(false)
+              .with_children(Some(Nav::new(NavLabel::ModDetails))),
+            Nav::new(NavLabel::Profiles),
+            Nav::new(NavLabel::Tools),
+            Nav::new(NavLabel::ModBrowsers)
+              .with_children(vec![
+                Nav::new(NavLabel::Starmodder)
+                  .overridden(false)
+                  .with_children(Some(Nav::new(NavLabel::StarmodderDetails))),
+                Nav::new(NavLabel::WebBrowser),
+              ])
+              .linked_to(NavLabel::Starmodder)
               .is_always_open(),
             Nav::separator(),
-            Nav::new("Activity"),
-            Nav::new("Downloads"),
+            Nav::new(NavLabel::Activity),
+            Nav::new(NavLabel::Downloads),
             Nav::separator(),
-            Nav::new("Settings"),
+            Nav::new(NavLabel::Settings),
           ]),
-          "Mods",
+          NavLabel::Mods,
         ))
         .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
         .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
@@ -211,18 +224,47 @@ impl App {
       .with_flex_child(
         Tabs::for_policy(StaticTabsForked::build(vec![
           InitialTab::new(
-            "",
+            "mod_list",
             ModList::view()
               .lens(App::mod_list)
               .on_change(ModList::on_app_data_change)
               .controller(ModListController),
           ),
-          InitialTab::new("", Settings::view().lens(App::settings)),
+          InitialTab::new(
+            "mod_detail",
+            ViewSwitcher::new(
+              |data: &App, _| data.active.clone(),
+              |index, _, _| {
+                if let Some(index) = index {
+                  let intern = Intern::new(index.clone());
+                  ModDescription::view()
+                    .lens(App::mod_list.then(ModList::mods.deref().index(intern.as_ref()))).boxed()
+                } else {
+                  ModDescription::empty_builder().lens(lens::Unit).boxed()
+                }
+              },
+            ),
+          ),
+          InitialTab::new("settings", Settings::view().lens(App::settings)),
         ]))
-        .on_command2(Nav::NAV_SELECTOR, |tabs, _, label, _| {
-          match label.as_str() {
-            "Mods" => tabs.set_tab_index(0),
-            "Settings" => tabs.set_tab_index(1),
+        .on_command2(Nav::NAV_SELECTOR, |tabs, ctx, label, _| {
+          if *label != NavLabel::ModDetails {
+            ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Mods, false)));
+            ctx.submit_command(NavBar::REMOVE_OVERRIDE.with(NavLabel::ModDetails))
+          }
+          if *label != NavLabel::StarmodderDetails {
+            ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Starmodder, false)));
+            ctx.submit_command(NavBar::REMOVE_OVERRIDE.with(NavLabel::StarmodderDetails))
+          }
+
+          match label {
+            NavLabel::Mods => tabs.set_tab_index(0),
+            NavLabel::ModDetails => {
+              ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Mods, true)));
+              ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::ModDetails, true)));
+              tabs.set_tab_index(1)
+            }
+            NavLabel::Settings => tabs.set_tab_index(2),
             _ => eprintln!("Failed to open an item for a nav bar control"),
           }
           true
@@ -348,29 +390,9 @@ impl App {
     })
     .expand()
     .controller(ModListController);
-    let mod_description = ViewSwitcher::new(
-      |data: &App, _| {
-        (
-          data.active.clone(),
-          data.mod_list.mods.clone(),
-          data.webview.is_some(),
-        )
-      },
-      |(active, mods, enabled), _, _| {
-        if let Some(entry) = active.as_ref().and_then(|active| mods.get(active)) {
-          let enabled = *enabled;
-          ModDescription::view()
-            .lens(lens::Constant(entry.clone()))
-            .disabled_if(move |_, _| enabled)
-            .boxed()
-        } else {
-          Box::new(ModDescription::empty_builder().lens(lens::Unit))
-        }
-      },
-    );
     let tool_panel = Flex::column()
       .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-      .with_child(h2("Search"))
+      .with_child(h2_fixed("Search"))
       .with_child(
         TextBox::new()
           .on_change(|ctx, _, _, _| {
@@ -380,7 +402,7 @@ impl App {
           .expand_width(),
       )
       .with_default_spacer()
-      .with_child(h2("Toggles"))
+      .with_child(h2_fixed("Toggles"))
       .with_child(
         Button::new("Enable All")
           .controller(HoverController::default())
@@ -425,13 +447,13 @@ impl App {
           .expand_width(),
       )
       .with_default_spacer()
-      .with_child(h2("Filters"))
+      .with_child(h2_fixed("Filters"))
       .tap_mut(|panel| {
         for filter in Filters::iter() {
           match filter {
-            Filters::Enabled => panel.add_child(h3("Status")),
-            Filters::Unimplemented => panel.add_child(h3("Version Checker")),
-            Filters::AutoUpdateAvailable => panel.add_child(h3("Auto Update Support")),
+            Filters::Enabled => panel.add_child(h3_fixed("Status")),
+            Filters::Unimplemented => panel.add_child(h3_fixed("Version Checker")),
+            Filters::AutoUpdateAvailable => panel.add_child(h3_fixed("Auto Update Support")),
             _ => {}
           };
           panel.add_child(
@@ -451,7 +473,7 @@ impl App {
       .padding(20.);
     let launch_panel = Flex::column()
       .with_child(make_column_pair(
-        h2("Starsector Version:"),
+        h2_fixed("Starsector Version:"),
         Maybe::new(
           || Label::wrapped_func(|v: &String, _| v.clone()),
           || Label::new("Unknown"),
@@ -471,7 +493,7 @@ impl App {
           if *has_dir {
             Box::new(
               Flex::row()
-                .with_flex_child(h2("Launch Starsector").expand_width(), 2.)
+                .with_flex_child(h2_fixed("Launch Starsector").expand_width(), 2.)
                 .with_flex_child(Icon::new(PLAY_ARROW).expand_width(), 1.)
                 .padding((8., 4.))
                 .background(button_painter())
@@ -525,7 +547,7 @@ impl App {
           .with_child(
             ViewSwitcher::new(
               |len: &usize, _| *len,
-              |len, _, _| Box::new(h3(&format!("Installed: {}", len))),
+              |len, _, _| Box::new(h3_fixed(&format!("Installed: {}", len))),
             )
             .lens(App::mod_list.then(ModList::mods).compute(|data| data.len())),
           )
@@ -533,7 +555,7 @@ impl App {
           .with_child(
             ViewSwitcher::new(
               |len: &usize, _| *len,
-              |len, _, _| Box::new(h3(&format!("Active: {}", len))),
+              |len, _, _| Box::new(h3_fixed(&format!("Active: {}", len))),
             )
             .lens(
               App::mod_list
@@ -632,7 +654,6 @@ impl App {
         2.0,
       )
       .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-      .with_flex_child(mod_description, 1.0)
       .must_fill_main_axis(true)
       .controller(AppController)
       .with_id(WidgetId::reserved(0))

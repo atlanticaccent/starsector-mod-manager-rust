@@ -25,10 +25,11 @@ use super::{
   controllers::{ExtensibleController, HeightLinkerShared, SharedHoverState},
   installer::HybridPath,
   mod_entry::{GameVersion, ModEntry, ModMetadata, UpdateStatus},
-  util::{self, xxHashMap, LoadBalancer, SaveError, WidgetExtEx, WithHoverState as _},
+  util::{self, xxHashMap, LoadBalancer, SaveError, WidgetExtEx, WithHoverState as _}, app_delegate::AppCommands, App,
 };
 use crate::{
   app::util::StarsectorVersionDiff,
+  nav_bar::{Nav, NavLabel},
   patch::table::{ComplexTableColumnWidth, FlexTable, TableColumnWidth, TableRow},
   widgets::card::Card,
 };
@@ -203,6 +204,10 @@ impl ModList {
               .padding(2.0)
               .background(painter(idx + 1))
               .with_hover_state(hover_state.clone())
+              .on_click(|ctx, data, _| {
+                ctx.submit_command(Nav::NAV_SELECTOR.with(NavLabel::ModDetails));
+                ctx.submit_command(App::SELECTOR.with(AppCommands::UpdateModDescription(data.id.clone())));
+              })
               .lens(ModList::mods.deref().index(intern.as_ref()))
               .link_height_with(&mut shared_linker),
           )
