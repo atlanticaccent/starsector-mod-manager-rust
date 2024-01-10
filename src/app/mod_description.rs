@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Local};
 use druid::{
-  lens::Constant,
-  widget::{Button, Flex, Label, Maybe, Scroll, ZStack},
-  LensExt, Selector, UnitPoint, Widget, WidgetExt, Key,
+  lens::{Constant, Identity, InArc},
+  widget::{Button, Flex, Label, ZStack},
+  Key, LensExt, Selector, UnitPoint, Widget, WidgetExt,
 };
-use druid_widget_nursery::material_icons::Icon;
+use druid_widget_nursery::{material_icons::Icon, prism::OptionSome};
 
 use crate::{
   nav_bar::{Nav, NavLabel},
@@ -16,8 +16,8 @@ use crate::{
 use super::{
   mod_entry::{ModMetadata, ModVersionMeta},
   util::{
-    h1, h2_fixed, h3, h3_fixed, lensed_bold, make_flex_description_row, Compute, LabelExt,
-    WidgetExtEx, CHEVRON_LEFT, GREEN_KEY, ON_GREEN_KEY, ON_RED_KEY, RED_KEY,
+    h1, h2_fixed, h3, h3_fixed, lensed_bold, Compute, LabelExt,
+    LensExtExt, WidgetExtEx, CHEVRON_LEFT, GREEN_KEY, ON_GREEN_KEY, ON_RED_KEY, RED_KEY,
   },
   ModEntry,
 };
@@ -71,9 +71,7 @@ impl ModDescription {
               .build(
                 title_text()
                   .lens(
-                    ModEntry::name
-                      .in_arc()
-                      .then(Compute::new(|t| format!("Mods  /  {}  /  Details", t))),
+                    ModEntry::name.then(Compute::new(|t| format!("Mods  /  {}  /  Details", t))),
                   )
                   .align_vertical_centre()
                   .align_left(),
@@ -97,17 +95,23 @@ impl ModDescription {
                 if *data {
                   env.set(druid::theme::BACKGROUND_LIGHT, env.get(GREEN_KEY));
                   env.set(druid::theme::TEXT_COLOR, env.get(ON_GREEN_KEY));
-                  env.set(Key::<druid::Color>::new("enabled_card.border"), env.get(ON_GREEN_KEY));
+                  env.set(
+                    Key::<druid::Color>::new("enabled_card.border"),
+                    env.get(ON_GREEN_KEY),
+                  );
                 } else {
                   env.set(druid::theme::BACKGROUND_LIGHT, env.get(RED_KEY));
                   env.set(druid::theme::TEXT_COLOR, env.get(ON_RED_KEY));
-                  env.set(Key::<druid::Color>::new("enabled_card.border"), env.get(ON_RED_KEY));
+                  env.set(
+                    Key::<druid::Color>::new("enabled_card.border"),
+                    env.get(ON_RED_KEY),
+                  );
                 }
               })
-              .fix_height(52.0)
+              .fix_size(100.0, 52.0)
               .padding((0.0, 5.0))
               .on_click(|_, data, _| *data = !*data)
-              .lens(ModEntry::enabled.in_arc()),
+              .lens(ModEntry::enabled),
           )
           .expand_width(),
       )
@@ -120,100 +124,91 @@ impl ModDescription {
             Flex::column()
               .with_child(
                 Flex::row()
-                  .with_child(h1().lens(ModEntry::name.in_arc()))
+                  .with_child(h1().lens(ModEntry::name))
                   .with_child(
                     Flex::row()
                       .with_spacer(5.0)
                       .with_child(h3_fixed("id: "))
-                      .with_child(h3().lens(ModEntry::id.in_arc()))
+                      .with_child(h3().lens(ModEntry::id))
                       .padding((0.0, 4.5, 0.0, 0.0)),
                   ),
               )
+              .with_child(h2_fixed("Version:"))
+              .with_child(Label::wrapped_lens(
+                ModEntry::version.compute(|t| t.to_string()),
+              ))
               .with_child(h2_fixed("Author(s):"))
-              .with_child(Label::wrapped_lens(ModEntry::author.in_arc()))
-              // .with_child(make_flex_description_row(
-              //   Label::wrapped("Enabled:"),
-              //   Label::wrapped_lens(ModEntry::enabled.in_arc().map(|e| e.to_string(), |_, _| {})),
-              // ))
-              // .with_child(make_flex_description_row(
-              //   Label::wrapped("Version:"),
-              //   Label::wrapped_lens(ModEntry::version.in_arc().map(|v| v.to_string(), |_, _| {})),
-              // ))
-              // .with_child(
-              //   make_flex_description_row(
-              //     Label::wrapped("Installed at:"),
-              //     Label::wrapped_func(|data: &ModMetadata, _| {
-              //       if let Some(date) = data.install_date {
-              //         DateTime::<Local>::from(date)
-              //           .format("%v %I:%M%p")
-              //           .to_string()
-              //       } else {
-              //         String::from("Unknown")
-              //       }
-              //     }),
-              //   )
-              //   .lens(ModEntry::manager_metadata.in_arc()),
-              // )
-              // .with_child(
-              //   Maybe::or_empty(|| {
-              //     Maybe::or_empty(|| {
-              //       make_flex_description_row(
-              //         Label::wrapped("Fractal link:"),
-              //         Button::from_label(Label::wrapped_func(|data: &String, _: &druid::Env| {
-              //           format!("{}{}", ModDescription::FRACTAL_URL, data.clone())
-              //         }))
-              //         .on_click(|ctx, data, _| {
-              //           ctx.submit_command(OPEN_IN_BROWSER.with(format!(
-              //             "{}{}",
-              //             ModDescription::FRACTAL_URL,
-              //             data
-              //           )))
-              //         }),
-              //       )
-              //     })
-              //     .lens(ModVersionMeta::fractal_id.map(
-              //       |id| {
-              //         if !id.is_empty() {
-              //           Some(id.clone())
-              //         } else {
-              //           None
-              //         }
-              //       },
-              //       |_, _| {},
-              //     ))
-              //   })
-              //   .lens(ModEntry::version_checker.in_arc()),
-              // )
-              // .with_child(
-              //   Maybe::or_empty(|| {
-              //     Maybe::or_empty(|| {
-              //       make_flex_description_row(
-              //         Label::wrapped("Nexus link:"),
-              //         Button::from_label(Label::wrapped_func(|data: &String, _: &druid::Env| {
-              //           format!("{}{}", ModDescription::NEXUS_URL, data.clone())
-              //         }))
-              //         .on_click(|ctx, data, _| {
-              //           ctx.submit_command(OPEN_IN_BROWSER.with(format!(
-              //             "{}{}",
-              //             ModDescription::NEXUS_URL,
-              //             data
-              //           )))
-              //         }),
-              //       )
-              //     })
-              //     .lens(ModVersionMeta::nexus_id.map(
-              //       |id| {
-              //         if !id.is_empty() {
-              //           Some(id.clone())
-              //         } else {
-              //           None
-              //         }
-              //       },
-              //       |_, _| {},
-              //     ))
-              //   })
-              //   .lens(ModEntry::version_checker.in_arc()),
-              // )
+              .with_child(Label::wrapped_lens(ModEntry::author))
+              .with_child(h2_fixed("Installed at:"))
+              .with_child(
+                Label::wrapped_func(|data: &ModMetadata, _| {
+                  if let Some(date) = data.install_date {
+                    DateTime::<Local>::from(date)
+                      .format("%v %I:%M%p")
+                      .to_string()
+                  } else {
+                    String::from("Unknown")
+                  }
+                })
+                .lens(ModEntry::manager_metadata),
+              )
+              .with_child(
+                h2_fixed("Forum thread:")
+                  .prism(OptionSome)
+                  .lens(ModVersionMeta::fractal_id.compute(|s| (!s.is_empty()).then(|| s.clone())))
+                  .prism(OptionSome)
+                  .lens(ModEntry::version_checker),
+              )
+              .with_child(
+                Button::from_label(Label::wrapped_func(|data: &String, _: &druid::Env| {
+                  format!("{}{}", ModDescription::FRACTAL_URL, data.clone())
+                }))
+                .on_click(|ctx, data, _| {
+                  ctx.submit_command(OPEN_IN_BROWSER.with(format!(
+                    "{}{}",
+                    ModDescription::FRACTAL_URL,
+                    data
+                  )))
+                })
+                .prism(OptionSome)
+                .lens(ModVersionMeta::fractal_id.compute(|s| (!s.is_empty()).then(|| s.clone())))
+                .prism(OptionSome)
+                .lens(ModEntry::version_checker),
+              )
+              .with_child(
+                h2_fixed("NexusMods page:")
+                  .prism(OptionSome)
+                  .lens(ModVersionMeta::nexus_id.compute(|s| (!s.is_empty()).then(|| s.clone())))
+                  .prism(OptionSome)
+                  .lens(ModEntry::version_checker),
+              )
+              .with_child(
+                Button::from_label(Label::wrapped_func(|data: &String, _: &druid::Env| {
+                  format!("{}{}", ModDescription::NEXUS_URL, data.clone())
+                }))
+                .on_click(|ctx, data, _| {
+                  ctx.submit_command(OPEN_IN_BROWSER.with(format!(
+                    "{}{}",
+                    ModDescription::NEXUS_URL,
+                    data
+                  )))
+                })
+                .prism(OptionSome)
+                .lens(ModVersionMeta::nexus_id.compute(|s| (!s.is_empty()).then(|| s.clone())))
+                .prism(OptionSome)
+                .lens(ModEntry::version_checker),
+              )
+              .with_flex_spacer(1.0)
+              .with_child(
+                Button::new("Open in file manager...")
+                  .on_click(|_, data: &mut ModEntry, _| {
+                    if let Err(err) = opener::open(data.path.clone()) {
+                      eprintln!("{}", err)
+                    }
+                  })
+                  .align_right()
+                  .expand_width(),
+              )
               .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
               .expand()
               .padding(5.0),
@@ -221,148 +216,8 @@ impl ModDescription {
           .expand_height(),
         1.0,
       )
+      .lens(InArc::new::<ModEntry, ModEntry>(Identity))
       .expand_height()
-  }
-
-  pub fn view_() -> impl Widget<Arc<ModEntry>> {
-    Flex::column()
-      .with_flex_child(
-        Flex::row()
-          .with_flex_child(
-            Scroll::new(
-              Flex::column()
-                .with_child(make_flex_description_row(
-                  Label::wrapped("Name:"),
-                  Label::wrapped_lens(ModEntry::name.in_arc()),
-                ))
-                .with_child(make_flex_description_row(
-                  Label::wrapped("ID:"),
-                  Label::wrapped_lens(ModEntry::id.in_arc()),
-                ))
-                .with_child(make_flex_description_row(
-                  Label::wrapped("Author(s):"),
-                  Label::wrapped_lens(ModEntry::author.in_arc()),
-                ))
-                .with_child(make_flex_description_row(
-                  Label::wrapped("Enabled:"),
-                  Label::wrapped_lens(ModEntry::enabled.in_arc().map(|e| e.to_string(), |_, _| {})),
-                ))
-                .with_child(make_flex_description_row(
-                  Label::wrapped("Version:"),
-                  Label::wrapped_lens(ModEntry::version.in_arc().map(|v| v.to_string(), |_, _| {})),
-                ))
-                .with_child(
-                  make_flex_description_row(
-                    Label::wrapped("Installed at:"),
-                    Label::wrapped_func(|data: &ModMetadata, _| {
-                      if let Some(date) = data.install_date {
-                        DateTime::<Local>::from(date)
-                          .format("%v %I:%M%p")
-                          .to_string()
-                      } else {
-                        String::from("Unknown")
-                      }
-                    }),
-                  )
-                  .lens(ModEntry::manager_metadata.in_arc()),
-                )
-                .with_child(
-                  Maybe::or_empty(|| {
-                    Maybe::or_empty(|| {
-                      make_flex_description_row(
-                        Label::wrapped("Fractal link:"),
-                        Button::from_label(Label::wrapped_func(|data: &String, _: &druid::Env| {
-                          format!("{}{}", ModDescription::FRACTAL_URL, data.clone())
-                        }))
-                        .on_click(|ctx, data, _| {
-                          ctx.submit_command(OPEN_IN_BROWSER.with(format!(
-                            "{}{}",
-                            ModDescription::FRACTAL_URL,
-                            data
-                          )))
-                        }),
-                      )
-                    })
-                    .lens(ModVersionMeta::fractal_id.map(
-                      |id| {
-                        if !id.is_empty() {
-                          Some(id.clone())
-                        } else {
-                          None
-                        }
-                      },
-                      |_, _| {},
-                    ))
-                  })
-                  .lens(ModEntry::version_checker.in_arc()),
-                )
-                .with_child(
-                  Maybe::or_empty(|| {
-                    Maybe::or_empty(|| {
-                      make_flex_description_row(
-                        Label::wrapped("Nexus link:"),
-                        Button::from_label(Label::wrapped_func(|data: &String, _: &druid::Env| {
-                          format!("{}{}", ModDescription::NEXUS_URL, data.clone())
-                        }))
-                        .on_click(|ctx, data, _| {
-                          ctx.submit_command(OPEN_IN_BROWSER.with(format!(
-                            "{}{}",
-                            ModDescription::NEXUS_URL,
-                            data
-                          )))
-                        }),
-                      )
-                    })
-                    .lens(ModVersionMeta::nexus_id.map(
-                      |id| {
-                        if !id.is_empty() {
-                          Some(id.clone())
-                        } else {
-                          None
-                        }
-                      },
-                      |_, _| {},
-                    ))
-                  })
-                  .lens(ModEntry::version_checker.in_arc()),
-                ),
-            )
-            .vertical()
-            .expand(),
-            1.,
-          )
-          .with_flex_child(
-            Flex::column()
-              .with_child(
-                Label::new("Description:")
-                  .with_text_alignment(druid::TextAlignment::Start)
-                  .expand_width(),
-              )
-              .with_flex_child(
-                Scroll::new(
-                  Label::dynamic(|t: &String, _| t.to_string())
-                    .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
-                    .lens(ModEntry::description.in_arc()),
-                )
-                .vertical()
-                .expand(),
-                1.,
-              ),
-            1.,
-          ),
-        1.,
-      )
-      .with_child(
-        Button::new("Open in file manager...")
-          .on_click(|_, data: &mut Arc<ModEntry>, _| {
-            if let Err(err) = opener::open(data.path.clone()) {
-              eprintln!("{}", err)
-            }
-          })
-          .align_right()
-          .expand_width(),
-      )
-      .padding(5.)
   }
 
   pub fn empty_builder() -> impl Widget<()> {

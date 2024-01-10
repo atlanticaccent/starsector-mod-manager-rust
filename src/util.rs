@@ -16,14 +16,17 @@ use druid::{
   text::{Attribute, AttributeSpans, RichText},
   theme,
   widget::{
-    Align, Axis, Controller, ControllerHost, Either, Flex, Label, LabelText,
-    LensWrap, Painter, RawLabel, Scope, ScopeTransfer, SizedBox,
+    Align, Axis, Controller, ControllerHost, Either, Flex, Label, LabelText, LensWrap, Painter,
+    RawLabel, Scope, ScopeTransfer, SizedBox,
   },
-  Color, Command, Data, Env, Event, EventCtx, ExtEventSink, FontWeight, Key, KeyOrValue,
-  Lens, LensExt as _, MouseEvent, Point, RenderContext,
-  Selector, Target, UnitPoint, Widget, WidgetExt, WidgetId,
+  Color, Command, Data, Env, Event, EventCtx, ExtEventSink, FontWeight, Key, KeyOrValue, Lens,
+  LensExt as _, MouseEvent, Point, RenderContext, Selector, Target, UnitPoint, Widget, WidgetExt,
+  WidgetId,
 };
-use druid_widget_nursery::CommandCtx;
+use druid_widget_nursery::{
+  prism::{Prism, PrismWrap},
+  CommandCtx,
+};
 use json_comments::strip_comments;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -791,6 +794,10 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
   fn align_vertical_centre(self) -> Align<T> {
     self.align_vertical(UnitPoint::CENTER)
   }
+
+  fn prism<U, P: Prism<U, T>>(self, prism: P) -> PrismWrap<Self, P, T> {
+    PrismWrap::new(self, prism)
+  }
 }
 
 impl<T: Data, W: Widget<T> + 'static> WidgetExtEx<T, W> for W {}
@@ -1007,6 +1014,14 @@ pub trait LensExtExt<A: ?Sized, B: ?Sized>: Lens<A, B> {
   {
     self.map(get, |_, _| {})
   }
+
+  fn cloned(self) -> Then<Self, lens::Map<fn(&B) -> B, fn(&mut B, B)>, B>
+  where
+    Self: Sized,
+    B: Clone,
+  {
+    self.map(|a| a.clone(), |b, a| *b = a)
+  }
 }
 
 impl<A: ?Sized, B: ?Sized, T: Lens<A, B>> LensExtExt<A, B> for T {}
@@ -1027,6 +1042,57 @@ impl<Get: Fn(&B) -> C, B: ?Sized, C> Lens<B, C> for Compute<Get, B, C> {
 
   fn with_mut<V, F: FnOnce(&mut C) -> V>(&self, data: &mut B, f: F) -> V {
     self.0.with_mut(data, f)
+  }
+}
+
+pub trait PrismExt<A, B>: Prism<A, B> {
+  fn then_some<Other, C>(self, right: Other) -> ThenSome<Self, Other, B>
+  where
+    Other: Prism<B, C>,
+    Self: Sized,
+  {
+    ThenSome::new(self, right)
+  }
+}
+
+impl<A, B, T: Prism<A, B>> PrismExt<A, B> for T {}
+
+#[derive(Clone)]
+pub struct ThenSome<T, U, B> {
+  left: T,
+  right: U,
+  _marker: PhantomData<B>,
+}
+
+impl<T, U, B> ThenSome<T, U, B> {
+  pub fn new<A, C>(left: T, right: U) -> Self
+  where
+    T: Prism<A, B>,
+    U: Prism<B, C>,
+  {
+    Self {
+      left,
+      right,
+      _marker: PhantomData,
+    }
+  }
+}
+
+impl<T, U, A, B, C> Prism<A, C> for ThenSome<T, U, B>
+where
+  T: Prism<A, B>,
+  U: Prism<B, C>,
+{
+  fn get(&self, data: &A) -> Option<C> {
+    self.left.get(data).map(|b| self.right.get(&b)).flatten()
+  }
+
+  fn put(&self, data: &mut A, inner: C) {
+    let temp: Option<B> = self.left.get(data);
+    if let Some(mut temp) = temp {
+      self.right.put(&mut temp, inner);
+      self.left.put(data, temp);
+    }
   }
 }
 

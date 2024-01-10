@@ -11,6 +11,7 @@ use chrono::{DateTime, Local, Utc};
 use druid::{
   im::Vector,
   lens,
+  lens::{Identity, InArc},
   widget::{Button, Checkbox, Controller, Either, Flex, Label, ViewSwitcher},
   Color, Data, ExtEventSink, KeyOrValue, Lens, LensExt, Selector, Widget, WidgetExt,
 };
@@ -140,13 +141,13 @@ impl ModEntry {
       header @ Heading::ID | header @ Heading::Name | header @ Heading::Author => {
         let label = Label::wrapped_func(|text: &String, _| text.to_string());
         match header {
-          Heading::ID => label.lens(ModEntry::id.in_arc()).padding(5.).expand_width(),
+          Heading::ID => label.lens(ModEntry::id).padding(5.).expand_width(),
           Heading::Name => label
-            .lens(ModEntry::name.in_arc())
+            .lens(ModEntry::name)
             .padding(5.)
             .expand_width(),
           Heading::Author => label
-            .lens(ModEntry::author.in_arc())
+            .lens(ModEntry::author)
             .padding(5.)
             .expand_width(),
           _ => unreachable!(),
@@ -155,12 +156,12 @@ impl ModEntry {
       Heading::GameVersion => Label::wrapped_func(|version: &GameVersion, _| {
         util::get_quoted_version(version).unwrap_or_default()
       })
-      .lens(ModEntry::game_version.in_arc())
+      .lens(ModEntry::game_version)
       .padding(5.)
       .expand_width()
       .boxed(),
       Heading::Version => ViewSwitcher::new(
-        |entry: &Arc<ModEntry>, _| entry.update_status.clone(),
+        |entry: &ModEntry, _| entry.update_status.clone(),
         |_, data, env| {
           let color = data
             .update_status
@@ -173,7 +174,7 @@ impl ModEntry {
                 Label::dynamic(|t: &String, _| t.to_string())
                   .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
                   .with_text_color(color.clone())
-                  .lens(ModEntry::version.in_arc().map(|v| v.to_string(), |_, _| {})),
+                  .lens(ModEntry::version.map(|v| v.to_string(), |_, _| {})),
               )
               .with_flex_spacer(1.)
               .tap_mut(|row| {
@@ -225,17 +226,17 @@ impl ModEntry {
       .expand_width()
       .boxed(),
       Heading::AutoUpdateSupport => Either::new(
-        |entry: &Arc<ModEntry>, _| entry.remote_version
+        |entry: &ModEntry, _| entry.remote_version
           .as_ref()
           .and_then(|r| r.direct_download_url.as_ref())
           .is_some(),
         Either::new(
-          |entry: &Arc<ModEntry>, _| entry.update_status.as_ref().is_some_and(|status| status != &UpdateStatus::Error),
+          |entry: &ModEntry, _| entry.update_status.as_ref().is_some_and(|status| status != &UpdateStatus::Error),
           Either::new(
-            |entry: &Arc<ModEntry>, _| entry.update_status.as_ref().is_some_and(|status| !matches!(status, &UpdateStatus::UpToDate | &UpdateStatus::Discrepancy(_))),
+            |entry: &ModEntry, _| entry.update_status.as_ref().is_some_and(|status| !matches!(status, &UpdateStatus::UpToDate | &UpdateStatus::Discrepancy(_))),
             Button::from_label(Label::wrapped("Update available!")).on_click(
-              |ctx: &mut druid::EventCtx, data: &mut Arc<ModEntry>, _| {
-                ctx.submit_notification(ModEntry::AUTO_UPDATE.with(data.clone()))
+              |ctx: &mut druid::EventCtx, data: &mut ModEntry, _| {
+                ctx.submit_notification(ModEntry::AUTO_UPDATE.with(data.clone().into()))
               },
             ),
             Label::wrapped("No update available")),
@@ -250,12 +251,13 @@ impl ModEntry {
         } else {
           String::from("Unknown")
         })
-        .lens(ModEntry::manager_metadata.in_arc())
+        .lens(ModEntry::manager_metadata)
         .padding(5.)
         .expand_width()
         .boxed(),
       Heading::Enabled | Heading::Score => unreachable!(),
-    })
+    }
+    .lens(InArc::new::<ModEntry, ModEntry>(Identity)))
   }
 
   pub fn view() -> impl Widget<(Arc<Self>, Vector<f64>, Vector<Heading>)> {

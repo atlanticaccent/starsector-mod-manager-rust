@@ -22,10 +22,12 @@ use strum_macros::{Display, EnumIter};
 use sublime_fuzzy::best_match;
 
 use super::{
+  app_delegate::AppCommands,
   controllers::{ExtensibleController, HeightLinkerShared, SharedHoverState},
   installer::HybridPath,
   mod_entry::{GameVersion, ModEntry, ModMetadata, UpdateStatus},
-  util::{self, xxHashMap, LoadBalancer, SaveError, WidgetExtEx, WithHoverState as _}, app_delegate::AppCommands, App,
+  util::{self, xxHashMap, LoadBalancer, SaveError, WidgetExtEx, WithHoverState as _},
+  App,
 };
 use crate::{
   app::util::StarsectorVersionDiff,
@@ -117,7 +119,8 @@ impl ModList {
                       ExtensibleController::new()
                         .on_command(Self::UPDATE_COLUMN_WIDTH, Self::column_resized)
                         .on_command(Self::UPDATE_TABLE_SORT, Self::on_mod_list_change)
-                        .on_command(ModList::SUBMIT_ENTRY, Self::entry_submitted),
+                        .on_command(ModList::SUBMIT_ENTRY, Self::entry_submitted)
+                        .on_command(ModMetadata::SUBMIT_MOD_METADATA, Self::metadata_submitted),
                     )
                     .scroll()
                     .vertical()
@@ -206,7 +209,9 @@ impl ModList {
               .with_hover_state(hover_state.clone())
               .on_click(|ctx, data, _| {
                 ctx.submit_command(Nav::NAV_SELECTOR.with(NavLabel::ModDetails));
-                ctx.submit_command(App::SELECTOR.with(AppCommands::UpdateModDescription(data.id.clone())));
+                ctx.submit_command(
+                  App::SELECTOR.with(AppCommands::UpdateModDescription(data.id.clone())),
+                );
               })
               .lens(ModList::mods.deref().index(intern.as_ref()))
               .link_height_with(&mut shared_linker),
@@ -248,6 +253,21 @@ impl ModList {
       Self::append_table(table, &diff, &data.header.headings);
     }
     ctx.children_changed();
+    false
+  }
+
+  fn metadata_submitted(
+    _table: &mut FlexTable<ModList>,
+    _ctx: &mut EventCtx,
+    (id, metadata): &(String, ModMetadata),
+    data: &mut ModList,
+  ) -> bool {
+    ModList::mods
+      .deref()
+      .index(id)
+      .then(ModEntry::manager_metadata.in_arc())
+      .put(data, metadata.clone());
+
     false
   }
 

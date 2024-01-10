@@ -25,14 +25,14 @@ use self::{
   controllers::{AppController, HoverController, InstallController, ModListController},
   installer::{HybridPath, StringOrPath},
   mod_description::ModDescription,
-  mod_entry::ModEntry,
+  mod_entry::{ModEntry, UpdateStatus},
   mod_list::{EnabledMods, Filters, ModList},
   mod_repo::ModRepo,
   modal::Modal,
   settings::Settings,
   util::{
-    bold_text, button_painter, get_quoted_version, h2_fixed, h3_fixed, icons::*,
-    make_column_pair, CommandExt, IndyToggleState, LabelExt, LensExtExt as _, Release,
+    bold_text, button_painter, get_quoted_version, h2_fixed, h3_fixed, icons::*, make_column_pair,
+    CommandExt, IndyToggleState, LabelExt, LensExtExt as _, Release,
   },
 };
 use crate::{
@@ -238,12 +238,14 @@ impl App {
                 if let Some(index) = index {
                   let intern = Intern::new(index.clone());
                   ModDescription::view()
-                    .lens(App::mod_list.then(ModList::mods.deref().index(intern.as_ref()))).boxed()
+                    .lens(App::mod_list.then(ModList::mods.deref().index(intern.as_ref())))
+                    .boxed()
                 } else {
                   ModDescription::empty_builder().lens(lens::Unit).boxed()
                 }
               },
-            ),
+            )
+            .on_change(ModList::on_app_data_change),
           ),
           InitialTab::new("settings", Settings::view().lens(App::settings)),
         ]))
@@ -268,6 +270,25 @@ impl App {
             _ => eprintln!("Failed to open an item for a nav bar control"),
           }
           true
+        })
+        .on_command(util::MASTER_VERSION_RECEIVED, |_ctx, (id, res), data| {
+          let remote = res.as_ref().ok().cloned();
+          let entry_lens = App::mod_list.then(ModList::mods).deref().index(id);
+
+          if let Some(version_checker) = entry_lens
+            .clone()
+            .then(ModEntry::version_checker.in_arc())
+            .get(data)
+          {
+            entry_lens
+              .clone()
+              .then(ModEntry::remote_version.in_arc())
+              .put(data, remote.clone());
+
+            entry_lens
+              .then(ModEntry::update_status.in_arc())
+              .put(data, Some(UpdateStatus::from((&version_checker, &remote))))
+          }
         }),
         1.0,
       )
