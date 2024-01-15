@@ -160,7 +160,7 @@ impl ModDescription {
                       .hoverable(|| {
                         Flex::row()
                           .with_child(Icon::new(SYSTEM_UPDATE).padding((5.0, 0.0, -5.0, 0.0)))
-                          .with_child(Label::new("Update Automatically").padding((10.0, 0.0)))
+                          .with_child(Label::new("Install Latest Update").padding((10.0, 0.0)))
                           .align_vertical_centre()
                       })
                       .env_scope(|env, _| {
@@ -211,14 +211,14 @@ impl ModDescription {
                       .on_click(|_, _, _| {}),
                   ),
               )
-              .with_child(h2_fixed("Version:"))
+              .with_child(h2_fixed("Version"))
               .with_child(Label::wrapped_lens(
                 ModEntry::version.compute(|t| t.to_string()),
               ))
               .with_default_spacer()
               .with_child(
                 Flex::column()
-                  .with_child(h2_fixed("Newer version:"))
+                  .with_child(h2_fixed("Newer version"))
                   .with_child(Label::stringify_wrapped())
                   .with_default_spacer()
                   .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
@@ -231,10 +231,10 @@ impl ModDescription {
                   })))
                   .lens(ModEntry::update_status),
               )
-              .with_child(h2_fixed("Author(s):"))
+              .with_child(h2_fixed("Author(s)"))
               .with_child(Label::wrapped_lens(ModEntry::author))
               .with_default_spacer()
-              .with_child(h2_fixed("Installed at:"))
+              .with_child(h2_fixed("Installed at"))
               .with_child(
                 Label::wrapped_func(|data: &ModMetadata, _| {
                   if let Some(date) = data.install_date {
@@ -248,11 +248,11 @@ impl ModDescription {
                 .lens(ModEntry::manager_metadata),
               )
               .with_default_spacer()
-              .with_child(h2_fixed("Description:"))
+              .with_child(h2_fixed("Description"))
               .with_child(Label::stringify_wrapped().lens(ModEntry::description))
               .with_default_spacer()
               .with_child(
-                h2_fixed("Forum thread:")
+                h2_fixed("Forum thread")
                   .prism(OptionSome)
                   .lens(ModVersionMeta::fractal_id.compute(|s| (!s.is_empty()).then(|| s.clone())))
                   .prism(OptionSome)
@@ -271,7 +271,7 @@ impl ModDescription {
               )
               .with_default_spacer()
               .with_child(
-                h2_fixed("NexusMods page:")
+                h2_fixed("NexusMods page")
                   .prism(OptionSome)
                   .lens(ModVersionMeta::nexus_id.compute(|s| (!s.is_empty()).then(|| s.clone())))
                   .prism(OptionSome)
