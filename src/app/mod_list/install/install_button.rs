@@ -46,6 +46,7 @@ impl InstallButton {
         || InstallButton::button(true),
       )
       .on_click(|_, data: &mut InstallState, _| data.open = true)
-      .else_if(|data, _| data.open, SizedBox::empty().fix_height(52.0))
+      .else_if(|data, _| data.open, SizedBox::empty())
+      .fix_size(182.0, 52.0)
   }
 }
