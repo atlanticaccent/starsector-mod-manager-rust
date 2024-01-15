@@ -10,7 +10,7 @@ use druid::{
   im::Vector,
   kurbo::Line,
   lens, theme,
-  widget::{Checkbox, Either, Flex, Label, List, ListIter, Painter, Scroll, ZStack},
+  widget::{Checkbox, Either, Flex, Label, List, ListIter, Painter, Scroll, ZStack, SizedBox},
   Color, Data, EventCtx, ExtEventSink, KeyOrValue, Lens, LensExt, Rect, RenderContext, Selector,
   Target, UnitPoint, Widget, WidgetExt,
 };
@@ -349,7 +349,7 @@ impl ModList {
           |data: &ModList, _| !data.mods.is_empty(),
           Scroll::new(
             List::new(|| {
-              ModEntry::view()
+              SizedBox::empty()
                 .expand_width()
                 .lens(lens::Map::new(
                   |val: &EntryAlias| (val.0.clone(), val.2.clone(), val.3.clone()),
