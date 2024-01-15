@@ -810,7 +810,7 @@ dependencies = [
 [[package]]
 name = "druid"
 version = "0.8.3"
-source = "git+https://github.com/atlanticaccent/druid?branch=update-gtk#0f3417c41a7e9709c0988f7ce7ee9af725d1797b"
+source = "git+https://github.com/atlanticaccent/druid?branch=update-gtk#6653d7666884d6fcbb7bc862ddcb69ed7f15cab7"
 dependencies = [
  "console_error_panic_hook",
  "druid-derive",
@@ -832,7 +832,7 @@ dependencies = [
 [[package]]
 name = "druid-derive"
 version = "0.5.1"
-source = "git+https://github.com/atlanticaccent/druid?branch=update-gtk#0f3417c41a7e9709c0988f7ce7ee9af725d1797b"
+source = "git+https://github.com/atlanticaccent/druid?branch=update-gtk#6653d7666884d6fcbb7bc862ddcb69ed7f15cab7"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -851,7 +851,7 @@ dependencies = [
 [[package]]
 name = "druid-shell"
 version = "0.8.3"
-source = "git+https://github.com/atlanticaccent/druid?branch=update-gtk#0f3417c41a7e9709c0988f7ce7ee9af725d1797b"
+source = "git+https://github.com/atlanticaccent/druid?branch=update-gtk#6653d7666884d6fcbb7bc862ddcb69ed7f15cab7"
 dependencies = [
  "anyhow",
  "bitflags 1.3.2",
@@ -884,7 +884,7 @@ dependencies = [
 [[package]]
 name = "druid-widget-nursery"
 version = "0.1.0"
-source = "git+https://github.com/atlanticaccent/druid-widget-nursery#f6f91a9b7cdca52a0844584ec8ff72a1eb6fadce"
+source = "git+https://github.com/atlanticaccent/druid-widget-nursery#f907b74c311885c551d18d662fb7d391a6399b3e"
 dependencies = [
  "druid",
  "druid-material-icons",

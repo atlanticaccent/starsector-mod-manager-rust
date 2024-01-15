@@ -8,6 +8,7 @@ use std::{
 
 use chrono::{DateTime, Local, Utc};
 use druid::{
+  lens,
   lens::{Identity, InArc},
   widget::{Button, Either, Flex, Label, ViewSwitcher},
   Color, Data, ExtEventSink, KeyOrValue, Lens, Selector, Widget, WidgetExt,
@@ -21,8 +22,8 @@ use tap::Tap;
 use super::{
   mod_list::headings::Heading,
   util::{
-    self, icons::*, BLUE_KEY, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ON_RED_KEY,
-    ON_YELLOW_KEY, ORANGE_KEY, RED_KEY, YELLOW_KEY,
+    self, icons::*, WithHoverState, BLUE_KEY, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_ORANGE_KEY,
+    ON_RED_KEY, ON_YELLOW_KEY, ORANGE_KEY, RED_KEY, YELLOW_KEY,
   },
 };
 use crate::app::util::{default_true, parse_game_version, LabelExt};
@@ -200,7 +201,9 @@ impl ModEntry {
                     icon_row.stack_tooltip(tooltip)
                       .with_text_attribute(druid::text::Attribute::TextColor(text_color))
                       .with_background_color(background_color)
-                      .with_crosshair(true)
+                      .with_offset((10.0, 10.0))
+                      .lens(lens!((ModEntry, bool), 0))
+                      .with_hover_state(false)
                   )
                 } else {
                   row.add_child(icon_row)
