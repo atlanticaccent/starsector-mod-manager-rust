@@ -1,5 +1,6 @@
 use std::{
   any::Any,
+  borrow::Borrow,
   collections::{HashMap, VecDeque},
   hash::Hash,
   io::Read,
@@ -24,7 +25,8 @@ use druid::{
   WidgetId,
 };
 use druid_widget_nursery::{
-  prism::{Prism, PrismWrap},
+  animation::Interpolate,
+  prism::{Closures, Prism, PrismWrap},
   CommandCtx,
 };
 use json_comments::strip_comments;
@@ -120,6 +122,20 @@ pub trait LabelExt<T: Data> {
 
   fn wrapped_into(label: impl Into<LabelText<T>>) -> Label<T> {
     Label::new(label).with_line_break_mode(druid::widget::LineBreaking::WordWrap)
+  }
+
+  fn stringify() -> Label<T>
+  where
+    T: ToString,
+  {
+    Label::new(|t: &T, _: &Env| t.to_string())
+  }
+
+  fn stringify_wrapped() -> Label<T>
+  where
+    T: ToString,
+  {
+    Label::stringify().with_line_break_mode(druid::widget::LineBreaking::WordWrap)
   }
 }
 
@@ -1022,6 +1038,15 @@ pub trait LensExtExt<A: ?Sized, B: ?Sized>: Lens<A, B> {
   {
     self.map(|a| a.clone(), |b, a| *b = a)
   }
+
+  fn owned<C>(self) -> Then<Self, lens::Map<fn(&B) -> C, fn(&mut B, C)>, B>
+  where
+    Self: Sized,
+    B: ToOwned<Owned = C> + Clone,
+    C: Borrow<B> + Clone,
+  {
+    self.map(|b| b.to_owned(), |b, c| b.clone_from(c.borrow()))
+  }
 }
 
 impl<A: ?Sized, B: ?Sized, T: Lens<A, B>> LensExtExt<A, B> for T {}
@@ -1096,6 +1121,14 @@ where
   }
 }
 
+pub struct IsSome;
+
+impl IsSome {
+  pub fn new<B, F: Fn(&B) -> Option<B>>(func: F) -> Closures<F, fn(&mut B, B)> {
+    Closures(func, |a, b| *a = b)
+  }
+}
+
 pub fn option_ptr_cmp<T>(this: &Option<Rc<T>>, other: &Option<Rc<T>>) -> bool {
   return if let Some(this) = this
     && let Some(other) = other
@@ -1104,4 +1137,20 @@ pub fn option_ptr_cmp<T>(this: &Option<Rc<T>>, other: &Option<Rc<T>>) -> bool {
   } else {
     false
   };
+}
+
+pub trait ShadeColor {
+  fn lighter(self) -> Self;
+
+  fn darker(self) -> Self;
+}
+
+impl ShadeColor for Color {
+  fn lighter(self) -> Self {
+    self.interpolate(&Color::WHITE, 1.0 / 16.0)
+  }
+
+  fn darker(self) -> Self {
+    self.interpolate(&Color::BLACK, 1.0 / 16.0)
+  }
 }
