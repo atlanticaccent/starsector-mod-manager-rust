@@ -22,6 +22,20 @@ impl HeightLinker {
   const HEIGHT_LINKER_CMD: Selector<(WidgetId, HeightLinkerCmd)> =
     Selector::new("height_linker.command");
 
+  fn new() -> Self {
+    Self {
+      linked: 0,
+      resolved: 0,
+      max: f64::NEG_INFINITY,
+      id: WidgetId::next(),
+      axis: Axis::Vertical,
+    }
+  }
+
+  pub fn new_shared() -> HeightLinkerShared {
+    Rc::new(RefCell::new(Self::new()))
+  }
+
   fn increment_resolved(&mut self, ctx: &mut impl CommandCtx, height: f64) {
     self.resolved += 1;
     if self.resolved <= self.linked && height > self.max {
@@ -66,13 +80,7 @@ impl<T: Data, W: Widget<T>> LinkedHeights<T, W> {
   }
 
   pub fn new_with_linker(widget: W) -> (Self, HeightLinkerShared) {
-    let linker = Rc::new(RefCell::new(HeightLinker {
-      linked: 0,
-      resolved: 0,
-      max: f64::NEG_INFINITY,
-      id: WidgetId::next(),
-      axis: Axis::Vertical,
-    }));
+    let linker = HeightLinker::new_shared();
 
     let this = Self::new(widget, linker.clone());
 
