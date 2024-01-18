@@ -297,10 +297,11 @@ impl App {
 
   pub fn theme_wrapper() -> impl Widget<Self> {
     Scope::from_lens(
-      |data| (data, Theme::LEGACY),
+      |data| (data, Theme::RETRO),
       lens!((Self, Theme), 0),
       Self::view()
         .lens(lens!((Self, Theme), 0))
+        .background(druid::theme::WINDOW_BACKGROUND_COLOR)
         .env_scope(|env, (_, theme)| theme.clone().apply(env))
         .on_command(CHANGE_THEME, |_, theme, data| data.1 = theme.clone()),
     )
