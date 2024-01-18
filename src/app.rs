@@ -43,6 +43,7 @@ use crate::{
     tabs::tab::{InitialTab, Tabs, TabsPolicy},
     tabs_policy::StaticTabsForked,
   },
+  theme::{Theme, CHANGE_THEME},
 };
 
 pub mod app_delegate;
@@ -292,6 +293,17 @@ impl App {
         }),
         1.0,
       )
+  }
+
+  pub fn theme_wrapper() -> impl Widget<Self> {
+    Scope::from_lens(
+      |data| (data, Theme::LEGACY),
+      lens!((Self, Theme), 0),
+      Self::view()
+        .lens(lens!((Self, Theme), 0))
+        .env_scope(|env, (_, theme)| theme.clone().apply(env))
+        .on_command(CHANGE_THEME, |_, theme, data| data.1 = theme.clone()),
+    )
   }
 
   pub fn view_() -> impl Widget<Self> {
