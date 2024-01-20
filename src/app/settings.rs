@@ -12,7 +12,10 @@ use druid::{
   Data, Event, EventCtx, Lens, LensExt, Menu, MenuItem, RenderContext, Selector, Widget,
   WindowConfig,
 };
-use druid_widget_nursery::{material_icons::Icon, DynLens, WidgetExt as WidgetExtNursery};
+use druid_widget_nursery::{
+  material_icons::Icon, DynLens, MultiRadio,
+  WidgetExt as WidgetExtNursery,
+};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use tap::{Pipe, Tap};
@@ -31,7 +34,12 @@ use super::{
   },
   App,
 };
-use crate::{app::PROJECT, patch::click::Click, widgets::card::Card};
+use crate::{
+  app::PROJECT,
+  patch::click::Click,
+  theme::{Themes, CHANGE_THEME},
+  widgets::card::Card,
+};
 
 pub mod jre;
 pub mod vmparams;
@@ -69,6 +77,7 @@ pub struct Settings {
   jre_swap_in_progress: bool,
   jre_managed_mode: bool,
   pub show_auto_update_for_discrepancy: bool,
+  pub theme: Themes,
 }
 
 fn default_headers() -> Vector<Heading> {
@@ -88,8 +97,7 @@ impl Settings {
   }
 
   pub fn view() -> impl Widget<Self> {
-    Modal::new("Settings")
-      .with_content(
+    Card::new(
         Flex::column()
           .with_child(Self::install_dir_browser_builder(Axis::Horizontal).padding(TRAILING_PADDING))
           .with_child(
@@ -699,6 +707,15 @@ impl Settings {
             )
             .padding(TRAILING_PADDING),
           )
+          .with_child({
+            let mut flex = Flex::row();
+            for theme in Themes::iter() {
+              flex.add_child(MultiRadio::new(theme.as_ref(), SizedBox::empty(), (), theme.prism()))
+            }
+
+            flex.on_change(|ctx, _, data, _| ctx.submit_command(CHANGE_THEME.with((*data).into()))).lens(Settings::theme)
+          })
+          .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
           .padding((10., 10.))
           .expand()
           .on_change(|_, _old, data, _| {
@@ -711,10 +728,7 @@ impl Settings {
               eprintln!("{:?}", err)
             }
           })
-          .boxed(),
       )
-      .with_close()
-      .build()
   }
 
   pub fn install_dir_browser_builder(axis: Axis) -> Flex<Self> {

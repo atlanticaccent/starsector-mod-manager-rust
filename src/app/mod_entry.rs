@@ -286,6 +286,7 @@ impl Default for VersionUnion {
   }
 }
 
+#[derive(Debug)]
 pub enum ModEntryError {
   ParseError,
   FileError,

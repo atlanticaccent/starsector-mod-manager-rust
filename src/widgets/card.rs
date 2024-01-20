@@ -14,12 +14,7 @@ pub struct Card;
 
 impl Card {
   pub const CARD_INSET: f64 = 12.5;
-  const DEFAULT_INSETS: (f64, f64, f64, f64) = (
-    Self::CARD_INSET,
-    Self::CARD_INSET,
-    Self::CARD_INSET,
-    Self::CARD_INSET + 5.,
-  );
+  const DEFAULT_INSETS: (f64, f64) = (0.0, 14.0);
 
   pub fn builder<T: Data>() -> CardBuilder<T> {
     CardBuilder::new()
@@ -35,8 +30,7 @@ impl Card {
     Self::hoverable_distinct(
       || widget_maker(),
       || widget_maker(),
-      CardBuilder::new()
-        .with_insets(insets),
+      CardBuilder::new().with_insets(insets),
     )
   }
 
@@ -67,8 +61,8 @@ impl Card {
     Self::new_with_opts(
       widget,
       Self::DEFAULT_INSETS,
-      10.0,
-      8.0,
+      4.0,
+      6.0,
       None,
       Option::<(f64, Color)>::None,
       None,
@@ -366,10 +360,6 @@ impl<T: Data> CardBuilder<T> {
     F: Fn() -> W1,
     FH: Fn() -> W2,
   {
-    Card::hoverable_distinct(
-      unhovered,
-      hovered,
-      self
-    )
+    Card::hoverable_distinct(unhovered, hovered, self)
   }
 }

@@ -13,7 +13,7 @@ use std::{
 
 use druid::{
   lens,
-  lens::Then,
+  lens::{Constant, Then},
   text::{Attribute, AttributeSpans, RichText},
   theme,
   widget::{
@@ -814,6 +814,10 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
   fn prism<U, P: Prism<U, T>>(self, prism: P) -> PrismWrap<Self, P, T> {
     PrismWrap::new(self, prism)
   }
+
+  fn constant<U: Data>(self, constant: T) -> LensWrap<U, T, Constant<T>, Self> {
+    self.lens(Constant(constant))
+  }
 }
 
 impl<T: Data, W: Widget<T> + 'static> WidgetExtEx<T, W> for W {}
@@ -1047,6 +1051,15 @@ pub trait LensExtExt<A: ?Sized, B: ?Sized>: Lens<A, B> {
   {
     self.map(|b| b.to_owned(), |b, c| b.clone_from(c.borrow()))
   }
+
+  fn debug<DBG>(self, dbg: DBG) -> Then<Self, Dbg<DBG>, B>
+  where
+    Self: Sized,
+    DBG: Fn(&B) + 'static,
+    B: Clone,
+  {
+    self.then(Dbg(dbg))
+  }
 }
 
 impl<A: ?Sized, B: ?Sized, T: Lens<A, B>> LensExtExt<A, B> for T {}
@@ -1067,6 +1080,20 @@ impl<Get: Fn(&B) -> C, B: ?Sized, C> Lens<B, C> for Compute<Get, B, C> {
 
   fn with_mut<V, F: FnOnce(&mut C) -> V>(&self, data: &mut B, f: F) -> V {
     self.0.with_mut(data, f)
+  }
+}
+
+pub struct Dbg<DBG>(DBG);
+
+impl<T, DBG: Fn(&T) + 'static> Lens<T, T> for Dbg<DBG> {
+  fn with<V, F: FnOnce(&T) -> V>(&self, data: &T, f: F) -> V {
+    self.0(data);
+    f(data)
+  }
+
+  fn with_mut<V, F: FnOnce(&mut T) -> V>(&self, data: &mut T, f: F) -> V {
+    self.0(data);
+    f(data)
   }
 }
 
@@ -1152,5 +1179,23 @@ impl ShadeColor for Color {
 
   fn darker(self) -> Self {
     self.interpolate(&Color::BLACK, 1.0 / 16.0)
+  }
+}
+
+pub struct PrismBox<T, U>(Box<dyn Prism<T, U>>);
+
+impl<T, U> PrismBox<T, U> {
+  pub fn new(prism: impl Prism<T, U> + 'static) -> Self {
+    Self(Box::new(prism))
+  }
+}
+
+impl<T, U> Prism<T, U> for PrismBox<T, U> {
+  fn get(&self, data: &T) -> Option<U> {
+    self.0.get(data)
+  }
+
+  fn put(&self, data: &mut T, inner: U) {
+    self.0.put(data, inner)
   }
 }

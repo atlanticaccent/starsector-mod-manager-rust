@@ -10,9 +10,9 @@ use druid::{
   im::Vector,
   kurbo::Line,
   lens, theme,
-  widget::{Checkbox, Either, Flex, Label, List, ListIter, Painter, Scroll, ZStack, SizedBox},
-  Color, Data, EventCtx, ExtEventSink, KeyOrValue, Lens, LensExt, Rect, RenderContext, Selector,
-  Target, UnitPoint, Widget, WidgetExt,
+  widget::{Checkbox, Either, Flex, Label, List, ListIter, Painter, Scroll, SizedBox, ZStack},
+  Color, Data, Env, EventCtx, ExtEventSink, KeyOrValue, Lens, LensExt, LifeCycleCtx, Rect,
+  RenderContext, Selector, Target, UnitPoint, Widget, WidgetExt,
 };
 use druid_widget_nursery::WidgetExt as WidgetExtNursery;
 use internment::Intern;
@@ -119,8 +119,9 @@ impl ModList {
                       ExtensibleController::new()
                         .on_command(Self::UPDATE_COLUMN_WIDTH, Self::column_resized)
                         .on_command(Self::UPDATE_TABLE_SORT, Self::on_mod_list_change)
-                        .on_command(ModList::SUBMIT_ENTRY, Self::entry_submitted)
-                        .on_command(ModMetadata::SUBMIT_MOD_METADATA, Self::metadata_submitted),
+                        .on_command(Self::SUBMIT_ENTRY, Self::entry_submitted)
+                        .on_command(ModMetadata::SUBMIT_MOD_METADATA, Self::metadata_submitted)
+                        .on_added(Self::init_table),
                     )
                     .scroll()
                     .vertical()
@@ -187,6 +188,7 @@ impl ModList {
 
       let mut shared_linker: Option<HeightLinkerShared> = None;
       let hover_state = SharedHoverState::default();
+      let _intern = intern.as_ref();
       let mut row = TableRow::new(id.clone()).with_child(
         Checkbox::new("")
           .center()
@@ -220,6 +222,16 @@ impl ModList {
       }
       table.add_row(row)
     }
+  }
+
+  fn init_table(
+    table: &mut FlexTable<ModList>,
+    ctx: &mut LifeCycleCtx,
+    data: &ModList,
+    _env: &Env,
+  ) {
+    Self::append_table(table, &data.mods, &data.header.headings);
+    ctx.children_changed();
   }
 
   fn entry_submitted(
@@ -499,7 +511,10 @@ impl ModList {
       )
   }
 
-  pub async fn parse_mod_folder(event_sink: ExtEventSink, root_dir: Option<PathBuf>) {
+  pub async fn parse_mod_folder(
+    event_sink: Option<ExtEventSink>,
+    root_dir: Option<PathBuf>,
+  ) -> Option<Vec<Arc<ModEntry>>> {
     let handle = tokio::runtime::Handle::current();
 
     if let Some(root_dir) = root_dir {
@@ -514,13 +529,13 @@ impl ModList {
       {
         enabled_mods
       } else {
-        return;
+        return None;
       };
 
       if let Ok(dir_iter) = std::fs::read_dir(mod_dir) {
         let enabled_mods_iter = enabled_mods.par_iter();
 
-        dir_iter
+        let mods = dir_iter
           .par_bridge()
           .filter_map(|entry| entry.ok())
           .filter(|entry| {
@@ -530,21 +545,27 @@ impl ModList {
               false
             }
           })
-          .filter_map(|entry| {
-            if let Ok(mut mod_info) = ModEntry::from_file(&entry.path(), ModMetadata::default()) {
-              mod_info.set_enabled(
-                enabled_mods_iter
-                  .clone()
-                  .find_any(|id| mod_info.id.clone().eq(*id))
-                  .is_some(),
-              );
-              Some(Arc::new(mod_info))
-            } else {
-              dbg!(entry.path());
-              None
-            }
-          })
-          .for_each(|entry| {
+          .filter_map(
+            |entry| match ModEntry::from_file(&entry.path(), ModMetadata::default()) {
+              Ok(mut mod_info) => {
+                mod_info.set_enabled(
+                  enabled_mods_iter
+                    .clone()
+                    .find_any(|id| mod_info.id.clone().eq(*id))
+                    .is_some(),
+                );
+                Some(Arc::new(mod_info))
+              }
+              Err(err) => {
+                eprintln!("Failed to get mod info for mod at: {:?}", entry.path());
+                eprintln!("With err: {:?}", err);
+                None
+              }
+            },
+          );
+
+        if let Some(event_sink) = event_sink.as_ref() {
+          mods.for_each(|entry| {
             let tx = {
               let _guard = handle.enter();
 
@@ -565,17 +586,17 @@ impl ModList {
               ));
             }
           });
-      }
+
+          if let Err(err) = event_sink.submit_command(super::App::ENABLE, (), Target::Auto) {
+            eprintln!("{:?}", err)
+          }
+        } else {
+          return Some(mods.collect::<Vec<_>>());
+        }
+      };
     }
 
-    if event_sink
-      .submit_command(super::App::ENABLE, (), Target::Auto)
-      .is_err()
-    {
-      event_sink
-        .submit_command(super::App::ENABLE, (), Target::Auto)
-        .unwrap();
-    };
+    None
   }
 
   fn sorted_vals(&self) -> Vec<Arc<ModEntry>> {

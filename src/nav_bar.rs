@@ -63,7 +63,8 @@ impl NavBar {
                 .on_click(|ctx, data, _| {
                   if !data.root {
                     ctx.submit_command(Nav::NAV_SELECTOR.with(data.linked.unwrap_or(data.label)));
-                    ctx.submit_command(RECURSE_SET_EXPANDED.with(data.linked.unwrap_or(data.label)));
+                    ctx
+                      .submit_command(RECURSE_SET_EXPANDED.with(data.linked.unwrap_or(data.label)));
                   }
                 }),
             )

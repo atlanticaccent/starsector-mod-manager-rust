@@ -888,6 +888,7 @@ source = "git+https://github.com/atlanticaccent/druid-widget-nursery#f907b74c311
 dependencies = [
  "druid",
  "druid-material-icons",
+ "druid-widget-nursery-derive",
  "flume",
  "futures",
  "libloading",
@@ -896,6 +897,16 @@ dependencies = [
  "rand 0.8.5",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "druid-widget-nursery-derive"
+version = "0.1.0"
+source = "git+https://github.com/atlanticaccent/druid-widget-nursery#f907b74c311885c551d18d662fb7d391a6399b3e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]

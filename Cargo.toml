@@ -9,7 +9,7 @@ description = "A mod manager for the game Starsector"
 
 [dependencies]
 druid = { workspace = true, default-features = true, features = ["im", "serde", "raw-win-handle"] }
-druid-widget-nursery = { workspace = true, default-features = false, features = ["material-icons", "async", "hot-reload"] }
+druid-widget-nursery = { workspace = true, default-features = false, features = ["material-icons", "async", "hot-reload", "derive"] }
 infer = { workspace = true }
 tokio = { workspace = true, features = ["fs", "io-util", "rt-multi-thread", "process", "macros"] }
 serde = { workspace = true, features = ["derive"] }

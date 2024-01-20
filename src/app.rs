@@ -51,7 +51,7 @@ pub mod controllers;
 pub mod installer;
 mod mod_description;
 mod mod_entry;
-mod mod_list;
+pub mod mod_list;
 mod mod_repo;
 pub mod modal;
 mod settings;
@@ -65,8 +65,8 @@ const TAG: &str = env!("CARGO_PKG_VERSION");
 #[derive(Clone, Data, Lens)]
 pub struct App {
   init: bool,
-  settings: settings::Settings,
-  mod_list: mod_list::ModList,
+  pub settings: settings::Settings,
+  pub mod_list: mod_list::ModList,
   active: Option<String>,
   #[data(ignore)]
   runtime: Handle,
@@ -295,9 +295,9 @@ impl App {
       )
   }
 
-  pub fn theme_wrapper() -> impl Widget<Self> {
+  pub fn theme_wrapper(theme: Theme) -> impl Widget<Self> {
     Scope::from_lens(
-      |data| (data, Theme::RETRO),
+      move |data| (data, theme.clone()),
       lens!((Self, Theme), 0),
       Self::view()
         .lens(lens!((Self, Theme), 0))

@@ -134,23 +134,25 @@ impl Delegate<App> for AppDelegate {
       cmd.get(settings::Settings::SELECTOR)
     {
       if data.settings.install_dir != Some(new_install_dir.clone()) || data.settings.dirty {
-        data.settings.dirty = false;
         data.settings.install_dir_buf = new_install_dir.to_string_lossy().to_string();
         data.settings.install_dir = Some(new_install_dir.clone());
 
-        if data.settings.save().is_err() {
-          eprintln!("Failed to save settings")
-        };
-
-        data.mod_list.mods.clear();
         data.runtime.spawn(get_starsector_version(
           ctx.get_external_handle(),
           new_install_dir.clone(),
         ));
-        data.runtime.spawn(ModList::parse_mod_folder(
-          ctx.get_external_handle(),
-          Some(new_install_dir.clone()),
-        ));
+        if !data.settings.dirty {
+          data.mod_list.mods.clear();
+          data.runtime.spawn(ModList::parse_mod_folder(
+            Some(ctx.get_external_handle()),
+            Some(new_install_dir.clone()),
+          ));
+        }
+        data.settings.dirty = false;
+
+        if data.settings.save().is_err() {
+          eprintln!("Failed to save settings")
+        };
       }
       return Handled::Yes;
     } else if let Some(entry) = cmd.get(ModList::AUTO_UPDATE) {
@@ -166,7 +168,7 @@ impl Delegate<App> for AppDelegate {
       if let Some(install_dir) = data.settings.install_dir.as_ref() {
         data.mod_list.mods.clear();
         data.runtime.spawn(ModList::parse_mod_folder(
-          ctx.get_external_handle(),
+          Some(ctx.get_external_handle()),
           Some(install_dir.clone()),
         ));
       }
