@@ -65,6 +65,9 @@ path = "./webview-subsystem"
 [dependencies.webview-shared]
 path = "./webview-subsystem-shared"
 
+[dependencies.proc-macros]
+path = "./proc-macros"
+
 [package.metadata.bundle]
 name = "Starsector Mod Manager"
 id = "org.laird.starsector_mod_manager"
@@ -81,7 +84,8 @@ opt-level = 3
 [workspace]
 members = [
   "webview-subsystem",
-  "webview-subsystem-shared"
+  "webview-subsystem-shared",
+  "proc-macros"
 ]
 
 [workspace.dependencies]
@@ -129,3 +133,5 @@ deunicode = "1.3.2"
 xxhash-rust = { version = "0.8.6" }
 thiserror = "1.0.50"
 internment = "0.7.4"
+syn = "2.0.48"
+quote = "1.0.35"
