@@ -38,9 +38,11 @@ use crate::{
 
 pub mod headings;
 pub mod install;
+pub mod search;
 use self::{
   headings::{Header, Heading},
   install::{install_button::InstallButton, install_options::InstallOptions, InstallState},
+  search::Search,
 };
 
 static UPDATE_BALANCER: LoadBalancer<Arc<ModEntry>, Vec<Arc<ModEntry>>, Vec<Arc<ModEntry>>> =
@@ -91,6 +93,12 @@ impl ModList {
               InstallButton::view()
                 .lens(Self::install_state)
                 .padding((0.0, 5.0)),
+            )
+            .with_flex_spacer(1.0)
+            .with_child(
+              Search::view()
+                .scope_independent(|| Search::new())
+                .fix_width(200.0),
             )
             .expand_width(),
         )

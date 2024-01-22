@@ -3,15 +3,16 @@ use druid_widget_nursery::material_icons::IconPaths;
 mod icons {
   pub use druid_widget_nursery::material_icons::normal::{
     action::{
-      DELETE, EXTENSION, HELP, INSTALL_DESKTOP, OPEN_IN_BROWSER as OPEN_BROWSER, SETTINGS, VERIFIED,
+      DELETE, EXTENSION, HELP, INSTALL_DESKTOP, OPEN_IN_BROWSER as OPEN_BROWSER, SEARCH, SETTINGS,
+      VERIFIED,
     },
     av::{NEW_RELEASES, PLAY_ARROW},
     content::{ADD_CIRCLE, ADD_CIRCLE_OUTLINE, INVENTORY_2, REPORT},
     file::FOLDER,
     image::NAVIGATE_NEXT,
     navigation::{
-      ARROW_DROP_DOWN, ARROW_DROP_UP, ARROW_LEFT, ARROW_RIGHT, CHEVRON_LEFT, CLOSE, FIRST_PAGE,
-      LAST_PAGE, UNFOLD_MORE,
+      ARROW_DROP_DOWN, ARROW_DROP_UP, ARROW_LEFT, ARROW_RIGHT, CANCEL, CHEVRON_LEFT, CLOSE,
+      FIRST_PAGE, LAST_PAGE, UNFOLD_MORE,
     },
     notification::{SYNC, SYSTEM_UPDATE},
     toggle::TOGGLE_ON,
@@ -45,3 +46,5 @@ pub const FOLDER: IconPaths = icons::FOLDER;
 pub const TOGGLE_ON: IconPaths = icons::TOGGLE_ON;
 pub const SYSTEM_UPDATE: IconPaths = icons::SYSTEM_UPDATE;
 pub const DELETE: IconPaths = icons::DELETE;
+pub const SEARCH: IconPaths = icons::SEARCH;
+pub const CANCEL: IconPaths = icons::CANCEL;

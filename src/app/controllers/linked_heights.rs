@@ -2,6 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use druid::{widget::Axis, BoxConstraints, Data, Selector, Size, Widget, WidgetId, WidgetPod};
 use druid_widget_nursery::CommandCtx;
+use proc_macros::Widget;
 
 pub struct HeightLinker {
   pub linked: usize,
@@ -57,6 +58,8 @@ impl HeightLinker {
   }
 }
 
+#[derive(Widget)]
+#[widget(widget_pod = widget, event = event_impl, layout = layout_impl)]
 pub struct LinkedHeights<T: Data, W: Widget<T>> {
   widget: WidgetPod<T, W>,
   height_linker: HeightLinkerShared,
@@ -93,10 +96,8 @@ impl<T: Data, W: Widget<T>> LinkedHeights<T, W> {
 
     self
   }
-}
 
-impl<T: Data, W: Widget<T>> Widget<T> for LinkedHeights<T, W> {
-  fn event(
+  fn event_impl(
     &mut self,
     ctx: &mut druid::widget::prelude::EventCtx,
     event: &druid::widget::prelude::Event,
@@ -122,27 +123,7 @@ impl<T: Data, W: Widget<T>> Widget<T> for LinkedHeights<T, W> {
     self.widget.event(ctx, event, data, env)
   }
 
-  fn lifecycle(
-    &mut self,
-    ctx: &mut druid::widget::prelude::LifeCycleCtx,
-    event: &druid::widget::prelude::LifeCycle,
-    data: &T,
-    env: &druid::widget::prelude::Env,
-  ) {
-    self.widget.lifecycle(ctx, event, data, env);
-  }
-
-  fn update(
-    &mut self,
-    ctx: &mut druid::widget::prelude::UpdateCtx,
-    _: &T,
-    data: &T,
-    env: &druid::widget::prelude::Env,
-  ) {
-    self.widget.update(ctx, data, env)
-  }
-
-  fn layout(
+  fn layout_impl(
     &mut self,
     ctx: &mut druid::widget::prelude::LayoutCtx,
     bc: &druid::widget::prelude::BoxConstraints,
@@ -176,14 +157,5 @@ impl<T: Data, W: Widget<T>> Widget<T> for LinkedHeights<T, W> {
     }
 
     unconstrained_size
-  }
-
-  fn paint(
-    &mut self,
-    ctx: &mut druid::widget::prelude::PaintCtx,
-    data: &T,
-    env: &druid::widget::prelude::Env,
-  ) {
-    self.widget.paint(ctx, data, env)
   }
 }

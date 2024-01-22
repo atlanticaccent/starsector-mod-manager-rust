@@ -12,13 +12,13 @@ use std::{
 };
 
 use druid::{
-  lens,
+  keyboard_types, lens,
   lens::{Constant, Then},
   text::{Attribute, AttributeSpans, RichText},
   theme,
   widget::{
-    Align, Axis, Controller, ControllerHost, Either, Flex, Label, LabelText, LensWrap, Painter,
-    RawLabel, Scope, ScopeTransfer, SizedBox,
+    Align, Axis, Controller, ControllerHost, DefaultScopePolicy, Either, Flex, Label, LabelText,
+    LensScopeTransfer, LensWrap, Painter, RawLabel, Scope, ScopeTransfer, SizedBox,
   },
   Color, Command, Data, Env, Event, EventCtx, ExtEventSink, FontWeight, Key, KeyOrValue, Lens,
   LensExt as _, MouseEvent, Point, RenderContext, Selector, Target, UnitPoint, Widget, WidgetExt,
@@ -49,7 +49,9 @@ pub(crate) mod icons;
 
 pub use icons::*;
 
-use super::controllers::{DelayedPainter, HeightLinkerShared, HoverState, LinkedHeights, OnHover};
+use super::controllers::{
+  DelayedPainter, HeightLinkerShared, HoverState, InvisibleIf, LinkedHeights, OnHover,
+};
 
 pub const ORANGE_KEY: Key<Color> = Key::new("util.colour.orange");
 pub const BLUE_KEY: Key<Color> = Key::new("util.colour.blue");
@@ -818,6 +820,55 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
   fn constant<U: Data>(self, constant: T) -> LensWrap<U, T, Constant<T>, Self> {
     self.lens(Constant(constant))
   }
+
+  fn scope<U: Data, In: Fn(U) -> T, L: Lens<T, U>>(
+    self,
+    make_state: In,
+    lens: L,
+  ) -> Scope<DefaultScopePolicy<In, LensScopeTransfer<L, U, T>>, Self> {
+    Scope::from_lens(make_state, lens, self)
+  }
+
+  fn scope_independent<U: Data, In: Fn() -> T + 'static>(
+    self,
+    make_state: In,
+  ) -> LensWrap<
+    U,
+    (),
+    Then<druid::lens::Identity, druid::lens::Unit, U>,
+    Scope<DefaultScopePolicy<Box<dyn Fn(()) -> T>, LensScopeTransfer<lens::Unit, (), T>>, Self>,
+  > {
+    Scope::from_lens(
+      Box::new(move |_| make_state()) as Box<dyn Fn(()) -> T>,
+      lens::Unit,
+      self,
+    )
+    .lens(lens::Identity.then(lens::Unit))
+  }
+
+  fn invisible_if(self, func: impl Fn(&T) -> bool + 'static) -> InvisibleIf<T, Self> {
+    InvisibleIf::new(func, self)
+  }
+
+  fn on_key_up(
+    self,
+    key: keyboard_types::Key,
+    func: impl Fn(&mut EventCtx, &mut T) -> bool + 'static,
+  ) -> ControllerHost<Self, OnEvent<T, W>> {
+    self.on_event(move |_, ctx, event, data| {
+      if let Event::KeyUp(key_event) = event && key_event.key == key {
+        func(ctx, data)
+      } else {
+        false
+      }
+    })
+  }
+
+  fn suppress_event(self, matches: impl Fn(&Event) -> bool + 'static) -> ControllerHost<Self, OnEvent<T, W>> {
+    self.on_event(move |_, _, event, _| {
+      matches(event)
+    })
+  }
 }
 
 impl<T: Data, W: Widget<T> + 'static> WidgetExtEx<T, W> for W {}
@@ -835,7 +886,7 @@ pub trait WithHoverState<S: HoverState + Data + Clone, T: Data, W: Widget<(T, S)
       lens!((T, S), 0),
       self
         .on_event(|_, ctx, event, data| {
-          if let druid::Event::MouseMove(_) = event {
+          if let druid::Event::MouseMove(_) = event && !ctx.is_disabled() {
             ctx.set_cursor(&druid::Cursor::Pointer);
             data.1.set(true);
             ctx.request_paint();
