@@ -83,5 +83,6 @@ impl InstallOptions {
           data.open = false
         }
       })
+      .fix_width(super::INSTALL_WIDTH)
   }
 }
