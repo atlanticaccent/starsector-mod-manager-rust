@@ -352,7 +352,7 @@ impl<T: Data> Widget<T> for FlexTable<T> {
     let mut column_widths = self.column_widths.clone();
 
     let mut intrinsic_widths = vec![0f64; column_count];
-    let mut row_starts = vec![0f64; self.children.len()];
+    let mut row_starts = vec![0f64; self.children.iter().filter(|row| row.visible).count()];
 
     let col_border_width = self
       .col_border
@@ -362,7 +362,7 @@ impl<T: Data> Widget<T> for FlexTable<T> {
     let col_border_width_sum = col_border_width * (column_count - 1) as f64;
     let max_table_width = bc.max().width - col_border_width_sum;
 
-    let rows = self.children.len();
+    let rows = self.children.iter().filter(|row| row.visible).count();
     let row_border_width = self
       .row_border
       .as_ref()
@@ -379,7 +379,7 @@ impl<T: Data> Widget<T> for FlexTable<T> {
       if cw.need_intrinsic_width() {
         let mut row_width = 0f64;
         let mut found_size = false;
-        for (row_num, row) in self.children.iter_mut().enumerate() {
+        for (row_num, row) in self.children.iter_mut().filter(|row| row.visible).enumerate() {
           if let Some(cell) = row.children.get_mut(col_num) {
             let child_bc = BoxConstraints::new(
               Size::new(0., 0.),
@@ -417,7 +417,7 @@ impl<T: Data> Widget<T> for FlexTable<T> {
     let table_width = col_widths.iter().sum::<f64>() + col_border_width_sum;
     let mut table_height = 0f64;
 
-    for (row_num, row) in self.children.iter_mut().enumerate() {
+    for (row_num, row) in self.children.iter_mut().filter(|row| row.visible).enumerate() {
       let mut row_height = 0f64;
       let mut found_height = false;
       let mut max_above_baseline = 0f64;
@@ -567,7 +567,7 @@ impl<T: Data> Widget<T> for FlexTable<T> {
       });
     }
 
-    for (row_num, row) in self.children.iter_mut().enumerate() {
+    for (row_num, row) in self.children.iter_mut().filter(|row| row.visible).enumerate() {
       if let Some(ref row_starts) = self.row_starts {
         if row_num > 0 && row_border_width > 0.0 {
           let row_start = row_starts[row_num] - half_row_border_width;

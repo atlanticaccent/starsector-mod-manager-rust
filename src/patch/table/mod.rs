@@ -53,6 +53,7 @@ pub struct TableRow<T> {
   min_height: Option<f64>,
   vertical_alignment: Option<TableCellVerticalAlignment>,
   children: Vec<WidgetPod<T, Box<dyn Widget<T>>>>,
+  visible: bool,
 }
 
 impl<T: Data> Default for TableRow<T> {
@@ -69,6 +70,7 @@ impl<T: Data> TableRow<T> {
       min_height: None,
       children: Vec::new(),
       vertical_alignment: None,
+      visible: true,
     }
   }
 
@@ -115,5 +117,9 @@ impl<T: Data> TableRow<T> {
 
   pub fn id(&self) -> &str {
     &self.id
+  }
+
+  pub fn visible(&mut self) -> &mut bool {
+    &mut self.visible
   }
 }

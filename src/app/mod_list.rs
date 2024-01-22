@@ -64,7 +64,7 @@ impl ModList {
   pub const OVERWRITE: Selector<(PathBuf, HybridPath, Arc<ModEntry>)> =
     Selector::new("mod_list.install.overwrite");
   pub const AUTO_UPDATE: Selector<Arc<ModEntry>> = Selector::new("mod_list.install.auto_update");
-  pub const SEARCH_UPDATE: Selector<()> = Selector::new("mod_list.filter.search.update");
+  pub const SEARCH_UPDATE: Selector<bool> = Selector::new("mod_list.filter.search.update");
   pub const FILTER_UPDATE: Selector<(Filters, bool)> = Selector::new("mod_list.filter.update");
   pub const DUPLICATE: Selector<(Arc<ModEntry>, Arc<ModEntry>)> =
     Selector::new("mod_list.submit_entry.duplicate");
@@ -97,8 +97,15 @@ impl ModList {
             .with_flex_spacer(1.0)
             .with_child(
               Search::view()
-                .scope_independent(|| Search::new())
-                .fix_width(200.0),
+                .on_change(|ctx, old, data, _| {
+                  if !old.same(&data) {
+                    ctx.submit_command(Self::SEARCH_UPDATE.with(!data.is_empty()));
+                    ctx.submit_command(Self::UPDATE_TABLE_SORT)
+                  }
+                })
+                .scope(|curr| Search::new(curr), Search::buffer)
+                .lens(Self::search_text)
+                .fix_width(250.0),
             )
             .expand_width(),
         )
@@ -128,6 +135,14 @@ impl ModList {
                         .on_command(Self::UPDATE_COLUMN_WIDTH, Self::column_resized)
                         .on_command(Self::UPDATE_TABLE_SORT, Self::on_mod_list_change)
                         .on_command(Self::SUBMIT_ENTRY, Self::entry_submitted)
+                        .on_command(Self::SEARCH_UPDATE, |_, _, searching, data| {
+                          if *searching {
+                            data.header.sort_by = (Heading::Score, false)
+                          } else {
+                            data.header.sort_by = (Heading::Name, false)
+                          };
+                          false
+                        })
                         .on_command(ModMetadata::SUBMIT_MOD_METADATA, Self::metadata_submitted)
                         .on_added(Self::init_table),
                     )
@@ -325,7 +340,11 @@ impl ModList {
       .collect();
     table
       .rows()
-      .sort_unstable_by_key(|row| sorted_map[&row.id()]);
+      .sort_unstable_by_key(|row| sorted_map.get(row.id()));
+    table
+      .rows()
+      .iter_mut()
+      .for_each(|row| *row.visible() = sorted_map.contains_key(row.id()));
     ctx.request_layout();
     ctx.request_paint();
     false

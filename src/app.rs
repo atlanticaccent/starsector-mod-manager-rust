@@ -430,7 +430,7 @@ impl App {
       .with_child(
         TextBox::new()
           .on_change(|ctx, _, _, _| {
-            ctx.submit_command(ModList::SEARCH_UPDATE);
+            ctx.submit_command(ModList::SEARCH_UPDATE.with(false));
           })
           .lens(App::mod_list.then(ModList::search_text))
           .expand_width(),

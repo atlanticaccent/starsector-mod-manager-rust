@@ -16,10 +16,18 @@ pub struct Search {
 }
 
 impl Search {
-  pub fn new() -> Self {
+  pub fn new(buffer: String) -> Self {
     Self {
-      buffer: String::new(),
+      buffer,
     }
+  }
+
+  pub fn len(&self) -> usize {
+    self.buffer.len()
+  }
+
+  pub fn is_empty(&self) -> bool {
+    self.len() == 0
   }
 
   pub fn view() -> impl Widget<Self> {
