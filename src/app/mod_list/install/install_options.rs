@@ -79,9 +79,7 @@ impl InstallOptions {
           .size()
           .to_rect()
           .with_origin(ctx.to_window((0.0, 0.0).into()));
-        if !hitbox.contains(*payload) {
-          data.open = false
-        }
+        data.open = hitbox.contains(*payload)
       })
       .fix_width(super::INSTALL_WIDTH)
   }

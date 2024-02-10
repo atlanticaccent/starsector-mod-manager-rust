@@ -83,5 +83,6 @@ impl Search {
       ctx.resign_focus();
       true
     })
+    .fix_size(250.0, 52.0)
   }
 }

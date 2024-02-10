@@ -10,11 +10,13 @@ use druid::{
   im::Vector,
   kurbo::Line,
   lens, theme,
-  widget::{Checkbox, Either, Flex, Label, List, ListIter, Painter, Scroll, SizedBox, ZStack},
+  widget::{Checkbox, Either, Flex, Label, List, ListIter, Painter, Scroll, SizedBox},
   Color, Data, Env, EventCtx, ExtEventSink, KeyOrValue, Lens, LensExt, LifeCycleCtx, Rect,
-  RenderContext, Selector, Target, UnitPoint, Widget, WidgetExt,
+  RenderContext, Selector, Target, Widget, WidgetExt,
 };
-use druid_widget_nursery::WidgetExt as WidgetExtNursery;
+use druid_widget_nursery::{
+  Stack, StackChildParams, StackChildPosition, WidgetExt as WidgetExtNursery,
+};
 use internment::Intern;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -36,10 +38,12 @@ use crate::{
   widgets::card::Card,
 };
 
+pub mod filters;
 pub mod headings;
 pub mod install;
 pub mod search;
 use self::{
+  filters::{filter_button::FilterButton, filter_options::FilterOptions, FILTER_POSITION},
   headings::{Header, Heading},
   install::{install_button::InstallButton, install_options::InstallOptions, InstallState},
   search::Search,
@@ -53,10 +57,12 @@ pub struct ModList {
   pub mods: xxHashMap<String, Arc<ModEntry>>,
   pub header: Header,
   search_text: String,
-  #[data(same_fn = "PartialEq::eq")]
+  #[data(eq)]
   active_filters: HashSet<Filters>,
   starsector_version: Option<GameVersion>,
   install_state: InstallState,
+  #[data(ignore)]
+  filter_state: (bool, StackChildPosition),
 }
 
 impl ModList {
@@ -81,91 +87,114 @@ impl ModList {
       active_filters: HashSet::new(),
       starsector_version: None,
       install_state: InstallState::default(),
+      filter_state: Default::default(),
     }
   }
 
   pub fn view() -> impl Widget<Self> {
-    ZStack::new(
-      Flex::column()
-        .with_child(
-          Flex::row()
-            .with_child(
-              InstallButton::view()
-                .lens(Self::install_state)
-                .padding((0.0, 5.0)),
-            )
-            .with_flex_spacer(1.0)
-            .with_child(
-              Search::view()
-                .on_change(|ctx, old, data, _| {
-                  if !old.same(&data) {
-                    ctx.submit_command(Self::SEARCH_UPDATE.with(!data.is_empty()));
-                    ctx.submit_command(Self::UPDATE_TABLE_SORT)
-                  }
-                })
-                .scope(|curr| Search::new(curr), Search::buffer)
-                .lens(Self::search_text)
-                .fix_width(250.0),
-            )
-            .expand_width(),
-        )
-        .with_flex_child(
-          Card::builder()
-            .with_insets((0.0, 14.0))
-            .with_corner_radius(4.0)
-            .with_shadow_length(6.0)
-            .build(
-              Flex::column()
-                .with_child(headings::Header::view().lens(ModList::header))
-                .with_flex_child(
-                  FlexTable::default()
-                    .row_background(Painter::new(move |ctx, _, env| {
-                      let rect = ctx.size().to_rect();
+    Stack::new()
+      .with_child(
+        Flex::column()
+          .with_child(
+            Flex::row()
+              .with_child(
+                InstallButton::view()
+                  .lens(Self::install_state)
+                  .padding((0.0, 5.0)),
+              )
+              .with_flex_spacer(1.0)
+              .with_child(
+                FilterButton::view()
+                  .lens(Self::filter_state.then(lens!((bool, StackChildPosition), 0))),
+              )
+              .with_child(
+                Search::view()
+                  .on_change(|ctx, old, data, _| {
+                    if !old.same(&data) {
+                      ctx.submit_command(Self::SEARCH_UPDATE.with(!data.is_empty()));
+                      ctx.submit_command(Self::UPDATE_TABLE_SORT)
+                    }
+                  })
+                  .scope(|curr| Search::new(curr), Search::buffer)
+                  .lens(Self::search_text),
+              )
+              .expand_width(),
+          )
+          .with_flex_child(
+            Card::builder()
+              .with_insets((0.0, 14.0))
+              .with_corner_radius(4.0)
+              .with_shadow_length(6.0)
+              .build(
+                Flex::column()
+                  .with_child(headings::Header::view().lens(ModList::header))
+                  .with_flex_child(
+                    FlexTable::default()
+                      .row_background(Painter::new(move |ctx, _, env| {
+                        let rect = ctx.size().to_rect();
 
-                      if env.try_get(FlexTable::<u64>::ROW_NUM).unwrap_or(0) % 2 == 0 {
-                        ctx.fill(rect, &env.get(theme::BACKGROUND_DARK))
-                      } else {
-                        ctx.fill(rect, &env.get(theme::BACKGROUND_LIGHT))
-                      }
-                    }))
-                    .with_column_width(TableColumnWidth::Fixed(Header::ENABLED_WIDTH))
-                    .column_border(theme::BORDER_DARK, 1.0)
-                    .controller(
-                      ExtensibleController::new()
-                        .on_command(Self::UPDATE_COLUMN_WIDTH, Self::column_resized)
-                        .on_command(Self::UPDATE_TABLE_SORT, Self::on_mod_list_change)
-                        .on_command(Self::SUBMIT_ENTRY, Self::entry_submitted)
-                        .on_command(Self::SEARCH_UPDATE, |_, _, searching, data| {
-                          if *searching {
-                            data.header.sort_by = (Heading::Score, false)
-                          } else {
-                            data.header.sort_by = (Heading::Name, false)
-                          };
-                          false
-                        })
-                        .on_command(ModMetadata::SUBMIT_MOD_METADATA, Self::metadata_submitted)
-                        .on_added(Self::init_table),
-                    )
-                    .scroll()
-                    .vertical()
-                    .expand_width(),
-                  1.0,
-                )
-                .on_change(|ctx, old, data, _| {
-                  if !old.header.same(&data.header) || !old.mods.same(&data.mods) {
-                    ctx.submit_command(Self::UPDATE_TABLE_SORT)
-                  }
-                }),
-            ),
-          1.0,
-        ),
-    )
-    .with_aligned_child(
-      InstallOptions::view()
-        .lens(Self::install_state)
-        .padding((0.0, 5.0)),
-      UnitPoint::TOP_LEFT,
-    )
+                        if env.try_get(FlexTable::<u64>::ROW_NUM).unwrap_or(0) % 2 == 0 {
+                          ctx.fill(rect, &env.get(theme::BACKGROUND_DARK))
+                        } else {
+                          ctx.fill(rect, &env.get(theme::BACKGROUND_LIGHT))
+                        }
+                      }))
+                      .with_column_width(TableColumnWidth::Fixed(Header::ENABLED_WIDTH))
+                      .column_border(theme::BORDER_DARK, 1.0)
+                      .controller(
+                        ExtensibleController::new()
+                          .on_command(Self::UPDATE_COLUMN_WIDTH, Self::column_resized)
+                          .on_command(Self::UPDATE_TABLE_SORT, Self::on_mod_list_change)
+                          .on_command(Self::SUBMIT_ENTRY, Self::entry_submitted)
+                          .on_command(Self::SEARCH_UPDATE, |_, _, searching, data| {
+                            if *searching {
+                              data.header.sort_by = (Heading::Score, true)
+                            } else {
+                              data.header.sort_by = (Heading::Name, true)
+                            };
+                            false
+                          })
+                          .on_command(ModMetadata::SUBMIT_MOD_METADATA, Self::metadata_submitted)
+                          .on_added(Self::init_table),
+                      )
+                      .scroll()
+                      .vertical()
+                      .expand_width(),
+                    1.0,
+                  )
+                  .on_change(|ctx, old, data, _| {
+                    if !old.header.same(&data.header) || !old.mods.same(&data.mods) {
+                      ctx.submit_command(Self::UPDATE_TABLE_SORT)
+                    }
+                  }),
+              ),
+            1.0,
+          ),
+      )
+      .with_positioned_child(
+        InstallOptions::view()
+          .lens(Self::install_state)
+          .padding((0.0, 5.0)),
+        StackChildPosition::default().top(Some(0.0)).left(Some(0.0)),
+      )
+      .with_positioned_child(
+        FilterOptions::view().lens(Self::filter_state.then(lens!((bool, StackChildPosition), 0))),
+        StackChildParams::dynamic(|data: &ModList, _| &data.filter_state.1).duration(0.0),
+      )
+      .with_positioned_child(
+        FilterOptions::wide_view()
+          .lens(Self::filter_state.then(lens!((bool, StackChildPosition), 0))),
+        StackChildPosition::default()
+          .top(Some(54.0))
+          .left(Some(0.0))
+          .right(Some(0.0)),
+      )
+      .fit(true)
+      .on_command(FILTER_POSITION, |ctx, point, data| {
+        let rect = Rect::from_points(ctx.window_origin(), *point);
+        data.filter_state.1.top = Some(rect.height());
+        data.filter_state.1.left = Some(rect.width());
+      })
   }
 
   fn append_table(
@@ -312,16 +341,18 @@ impl ModList {
     payload: &(usize, f64),
     _data: &mut ModList,
   ) -> bool {
-    let column_count = table.column_count();
-    let widths = table.get_column_widths();
-    if widths.len() < column_count {
-      widths.resize_with(column_count, || {
-        ComplexTableColumnWidth::Simple(TableColumnWidth::Flex(1.0))
-      })
-    }
-    widths[payload.0] = ComplexTableColumnWidth::Simple(TableColumnWidth::Fixed(payload.1 - 1.0));
+    if !table.rows().is_empty() {
+      let column_count = table.column_count();
+      let widths = table.get_column_widths();
+      if widths.len() < column_count {
+        widths.resize_with(column_count, || {
+          ComplexTableColumnWidth::Simple(TableColumnWidth::Flex(1.0))
+        })
+      }
+      widths[payload.0] = ComplexTableColumnWidth::Simple(TableColumnWidth::Fixed(payload.1 - 1.0));
 
-    ctx.request_layout();
+      ctx.request_layout();
+    }
 
     false
   }
@@ -476,14 +507,6 @@ impl ModList {
             })
             .on_command(ModList::SEARCH_UPDATE, |ctx, _, data| {
               data.header.sort_by = (Heading::Score, true);
-              ctx.children_changed()
-            })
-            .on_command(ModList::FILTER_UPDATE, |ctx, (filter, insert), data| {
-              if *insert {
-                data.active_filters.insert(*filter)
-              } else {
-                data.active_filters.remove(filter)
-              };
               ctx.children_changed()
             }),
           )

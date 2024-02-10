@@ -23,7 +23,7 @@ impl HeightLinker {
   const HEIGHT_LINKER_CMD: Selector<(WidgetId, HeightLinkerCmd)> =
     Selector::new("height_linker.command");
 
-  fn new() -> Self {
+  pub fn new() -> Self {
     Self {
       linked: 0,
       resolved: 0,
@@ -34,7 +34,11 @@ impl HeightLinker {
   }
 
   pub fn new_shared() -> HeightLinkerShared {
-    Rc::new(RefCell::new(Self::new()))
+    Self::new().into_shared()
+  }
+
+  pub fn into_shared(self) -> HeightLinkerShared {
+    Rc::new(RefCell::new(self))
   }
 
   fn increment_resolved(&mut self, ctx: &mut impl CommandCtx, height: f64) {

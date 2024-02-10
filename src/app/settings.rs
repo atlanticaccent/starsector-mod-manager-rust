@@ -46,7 +46,7 @@ pub mod vmparams;
 
 const TRAILING_PADDING: (f64, f64, f64, f64) = (0., 0., 0., 5.);
 
-#[derive(Clone, Data, Lens, Serialize, Deserialize, Default)]
+#[derive(Clone, Data, Lens, Serialize, Deserialize, Default, Debug)]
 pub struct Settings {
   #[serde(skip)]
   pub dirty: bool,
@@ -750,7 +750,7 @@ impl Settings {
               .on_click(|ctx, _, _| {
                 ctx.submit_command_global(Selector::new("druid.builtin.textbox-cancel-editing"));
                 ctx
-                  .submit_command_global(Settings::SELECTOR.with(SettingsCommand::SelectInstallDir))
+                  .submit_command_global(dbg!(Settings::SELECTOR.with(SettingsCommand::SelectInstallDir)))
               }),
           ),
         1.5,

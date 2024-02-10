@@ -368,7 +368,7 @@ impl<T: Data> Widget<T> for FlexTable<T> {
       .as_ref()
       .map(|b| b.width.resolve(env))
       .unwrap_or(0f64);
-    let row_border_width_sum = row_border_width * (rows - 1) as f64;
+    let row_border_width_sum = row_border_width * (rows.saturating_sub(1)) as f64;
     let max_table_height = bc.max().height - row_border_width_sum;
 
     use TableColumnWidth::*;

@@ -116,19 +116,19 @@ impl App {
   const TOGGLE_NAV_BAR: Selector = Selector::new("app.nav_bar.collapse");
 
   pub fn new(runtime: Handle) -> Self {
-    let settings = settings::Settings::load()
-      .map(|mut settings| {
-        if settings.vmparams_enabled {
-          if let Some(path) = settings.install_dir.clone() {
-            settings.vmparams = settings::vmparams::VMParams::load(path).ok();
-          }
-        }
-        if let Some(install_dir) = settings.install_dir.clone() {
-          settings.install_dir_buf = install_dir.to_string_lossy().to_string()
-        }
-        settings
-      })
-      .unwrap_or_else(|_| settings::Settings::new());
+    let settings = dbg!(settings::Settings::load()
+          .map(|mut settings| {
+            if settings.vmparams_enabled {
+              if let Some(path) = settings.install_dir.clone() {
+                settings.vmparams = settings::vmparams::VMParams::load(path).ok();
+              }
+            }
+            if let Some(install_dir) = settings.install_dir.clone() {
+              settings.install_dir_buf = install_dir.to_string_lossy().to_string()
+            }
+            settings
+          })
+          .unwrap_or_else(|_| settings::Settings::new()));
 
     let headings = settings.headings.clone();
 
@@ -293,6 +293,7 @@ impl App {
         }),
         1.0,
       )
+      .controller(AppController)
   }
 
   pub fn theme_wrapper(theme: Theme) -> impl Widget<Self> {
@@ -496,7 +497,7 @@ impl App {
               IndyToggleState::default(),
               Checkbox::from_label(Label::wrapped(filter.to_string())).on_change(
                 move |ctx, _, new, _| {
-                  ctx.submit_command(ModList::FILTER_UPDATE.with((filter, !*new)))
+                  // ctx.submit_command(ModList::FILTER_UPDATE.with((filter, !*new)))
                 },
               ),
             )
