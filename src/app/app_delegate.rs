@@ -246,7 +246,7 @@ impl Delegate<App> for AppDelegate {
             eprintln!("Failed to submit new entry")
           };
           if let Some(version_meta) = remote_version {
-            util::get_master_version(ext_ctx, version_meta).await;
+            util::get_master_version(Some(ext_ctx), version_meta).await;
           }
         } else {
           eprintln!("Failed to delete duplicate mod");

@@ -49,7 +49,7 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
               }
             } else if let Some(version_checker) = entry.version_checker.clone() {
               data.runtime.spawn(get_master_version(
-                ctx.get_external_handle(),
+                Some(ctx.get_external_handle()),
                 version_checker,
               ));
             }

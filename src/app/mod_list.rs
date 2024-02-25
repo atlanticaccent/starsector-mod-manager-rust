@@ -158,6 +158,7 @@ impl ModList {
                             false
                           })
                           .on_command(ModMetadata::SUBMIT_MOD_METADATA, Self::metadata_submitted)
+                          .on_command(Self::FILTER_UPDATE, Self::on_filter_change)
                           .on_added(Self::init_table),
                       )
                       .scroll()
@@ -414,6 +415,22 @@ impl ModList {
     }
   }
 
+  fn on_filter_change(
+    table: &mut FlexTable<ModList>,
+    ctx: &mut EventCtx,
+    payload: &(Filters, bool),
+    data: &mut ModList,
+  ) -> bool {
+    if payload.1 {
+      data.active_filters.insert(payload.0)
+    } else {
+      data.active_filters.remove(&payload.0)
+    };
+    Self::on_mod_list_change(table, ctx, &(), data);
+
+    false
+  }
+
   pub fn _view() -> impl Widget<Self> {
     Flex::column()
       .with_child(headings::Header::view().lens(ModList::header))
@@ -629,13 +646,13 @@ impl ModList {
               eprintln!("Failed to submit found mod {}", err);
             };
             if let Some(version) = entry.version_checker.clone() {
-              handle.spawn(util::get_master_version(event_sink.clone(), version));
+              handle.spawn(util::get_master_version(Some(event_sink.clone()), version));
             }
             if ModMetadata::path(&entry.path).exists() {
               handle.spawn(ModMetadata::parse_and_send(
                 entry.id.clone(),
                 entry.path.clone(),
-                event_sink.clone(),
+                Some(event_sink.clone()),
               ));
             }
           });
@@ -644,6 +661,25 @@ impl ModList {
             eprintln!("{:?}", err)
           }
         } else {
+          let mods = mods.map(|mut entry| {
+            let mut mut_entry = Arc::make_mut(&mut entry);
+            if let Some(version) = mut_entry.version_checker.clone() {
+              let master_version = handle.block_on(util::get_master_version(None, version.clone()));
+              mut_entry.remote_version = master_version.clone();
+              mut_entry.update_status = Some(UpdateStatus::from((&version, &master_version)));
+            }
+            if ModMetadata::path(&mut_entry.path).exists() {
+              if let Some(mod_metadata) = handle.block_on(ModMetadata::parse_and_send(
+                mut_entry.id.clone(),
+                mut_entry.path.clone(),
+                None,
+              )) {
+                mut_entry.manager_metadata = mod_metadata;
+              }
+            }
+
+            entry
+          });
           return Some(mods.collect::<Vec<_>>());
         }
       };
@@ -821,7 +857,7 @@ impl From<Vec<String>> for EnabledMods {
   }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Hash, Data, EnumIter, Display)]
+#[derive(Clone, Copy, Eq, PartialEq, Hash, Data, EnumIter, Display, Debug)]
 pub enum Filters {
   Enabled,
   Disabled,
@@ -847,19 +883,19 @@ impl Filters {
       Filters::Unimplemented => |entry: &Arc<ModEntry>| entry.version_checker.is_some(),
       Filters::Error => |entry: &Arc<ModEntry>| entry.update_status != Some(UpdateStatus::Error),
       Filters::UpToDate => {
-        |entry: &Arc<ModEntry>| entry.update_status != Some(UpdateStatus::UpToDate)
+        |entry: &Arc<ModEntry>| entry.update_status == Some(UpdateStatus::UpToDate)
       }
       Filters::Discrepancy => {
-        |entry: &Arc<ModEntry>| !matches!(entry.update_status, Some(UpdateStatus::Discrepancy(_)))
+        |entry: &Arc<ModEntry>| matches!(entry.update_status, Some(UpdateStatus::Discrepancy(_)))
       }
       Filters::Patch => {
-        |entry: &Arc<ModEntry>| !matches!(entry.update_status, Some(UpdateStatus::Patch(_)))
+        |entry: &Arc<ModEntry>| matches!(entry.update_status, Some(UpdateStatus::Patch(_)))
       }
       Filters::Minor => {
-        |entry: &Arc<ModEntry>| !matches!(entry.update_status, Some(UpdateStatus::Minor(_)))
+        |entry: &Arc<ModEntry>| matches!(entry.update_status, Some(UpdateStatus::Minor(_)))
       }
       Filters::Major => {
-        |entry: &Arc<ModEntry>| !matches!(entry.update_status, Some(UpdateStatus::Major(_)))
+        |entry: &Arc<ModEntry>| matches!(entry.update_status, Some(UpdateStatus::Major(_)))
       }
       Filters::AutoUpdateAvailable => |entry: &Arc<ModEntry>| {
         matches!(

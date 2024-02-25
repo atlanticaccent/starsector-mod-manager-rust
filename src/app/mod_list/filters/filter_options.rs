@@ -9,7 +9,7 @@ use crate::{
   app::{
     controllers::{HeightLinker, HeightLinkerShared},
     icon::Icon as CopyIcon,
-    mod_list::install::install_options::InstallOptions,
+    mod_list::{install::install_options::InstallOptions, Filters, ModList},
     util::{
       bold_text, WidgetExtEx as _, WithHoverState, ADD_BOX as FILLED_CHECKBOX,
       CHECK_BOX_OUTLINE_BLANK as EMPTY_CHECKBOX,
@@ -55,7 +55,7 @@ impl FilterOptions {
           .with_child(Self::status_options(width_linker))
           .with_child(Self::update_options(width_linker))
           .with_child(Self::update_from_server_options(width_linker))
-          .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
+          .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceEvenly)
           .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
           .expand_width(),
       ))
@@ -164,6 +164,14 @@ impl FilterOptions {
           )
           .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start),
       )
+      .on_change(|ctx, _, data, _| {
+        ctx.submit_command(
+          ModList::FILTER_UPDATE.with((Filters::Enabled, data.is_some_and(|d| !d))),
+        );
+        ctx.submit_command(
+          ModList::FILTER_UPDATE.with((Filters::Disabled, data.is_some_and(|d| d))),
+        );
+      })
       .scope_independent(|| Option::<bool>::None)
   }
 
@@ -209,14 +217,17 @@ impl FilterOptions {
       text: &str,
       width_linker: &mut Option<HeightLinkerShared>,
       lens: impl Lens<VersionCheckerFilter, bool> + Copy + 'static,
+      filter: Filters,
     ) -> impl Widget<VersionCheckerFilter> {
-      let lens_clone = lens.clone();
       FilterOptions::option(
         text,
         width_linker,
         move |data: &VersionCheckerFilter, _: &Env| lens.get(data),
       )
-      .on_click(move |_, data, _| lens_clone.put(data, !lens_clone.get(data)))
+      .on_click(move |_, data, _| lens.put(data, !lens.get(data)))
+      .on_change(move |ctx, _, data, _| {
+        ctx.submit_command(ModList::FILTER_UPDATE.with((filter, lens.get(data))))
+      })
     }
 
     Card::builder()
@@ -233,18 +244,34 @@ impl FilterOptions {
                 (false, false) => EMPTY_CHECKBOX,
               },
             )
-            .on_click(|_, data, _| {
-              * data = match (data.all(), data.any()) {
+            .on_click(|ctx, data, _| {
+              let filters = vec![
+                Filters::UpToDate,
+                Filters::Major,
+                Filters::Minor,
+                Filters::Patch,
+                Filters::Unimplemented,
+                Filters::Error,
+                Filters::Discrepancy,
+              ];
+              let mut enable = false;
+              *data = match (data.all(), data.any()) {
                 (true, _) | (false, true) => VersionCheckerFilter::default(),
-                (false, false) => VersionCheckerFilter {
-                  none: true,
-                  major: true,
-                  minor: true,
-                  patch: true,
-                  unimplemented: true,
-                  error: true,
-                  local_exceeds: true,
-                },
+                (false, false) => {
+                  enable = true;
+                  VersionCheckerFilter {
+                    none: true,
+                    major: true,
+                    minor: true,
+                    patch: true,
+                    unimplemented: true,
+                    error: true,
+                    local_exceeds: true,
+                  }
+                }
+              };
+              for filter in filters.into_iter() {
+                ctx.submit_command(ModList::FILTER_UPDATE.with(dbg!((filter, enable))))
               }
             }),
           )
@@ -258,51 +285,62 @@ impl FilterOptions {
             "No Update Available",
             &mut width_linker,
             VersionCheckerFilter::none,
+            Filters::UpToDate,
           ))
           .with_child(version_filter_option(
             "Major Update Available",
             &mut width_linker,
             VersionCheckerFilter::major,
+            Filters::Major,
           ))
           .with_child(version_filter_option(
             "Minor Update Available",
             &mut width_linker,
             VersionCheckerFilter::minor,
+            Filters::Minor,
           ))
           .with_child(version_filter_option(
             "Patch Update Available",
             &mut width_linker,
             VersionCheckerFilter::patch,
+            Filters::Patch,
           ))
           .with_child(version_filter_option(
             "Unimplemented",
             &mut width_linker,
             VersionCheckerFilter::unimplemented,
+            Filters::Unimplemented,
           ))
           .with_child(version_filter_option(
             "Error",
             &mut width_linker,
             VersionCheckerFilter::error,
+            Filters::Error,
           ))
           .with_child(version_filter_option(
             "Local Exceeds Remote",
             &mut width_linker,
             VersionCheckerFilter::local_exceeds,
+            Filters::Discrepancy,
           ))
           .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start),
       )
       .scope_independent(|| VersionCheckerFilter::default())
   }
 
-  fn update_from_server_options<T: Data>(mut width_linker: &mut Option<HeightLinkerShared>) -> impl Widget<T> {
+  fn update_from_server_options<T: Data>(
+    mut width_linker: &mut Option<HeightLinkerShared>,
+  ) -> impl Widget<T> {
     Card::builder()
       .with_insets((0.0, 10.0))
       .build(
         Flex::column()
           .with_child(
-            Self::option("Update From Server", &mut width_linker, |_: &Option<bool>, _: &Env| {
-              DESELECT.with_color(druid::Color::GRAY)
-            })
+            Self::option(
+              "Update From Server",
+              &mut width_linker,
+              |_: &Option<bool>, _: &Env| DESELECT.with_color(druid::Color::GRAY),
+            )
             .disabled_if(|_, _| true),
           )
           .with_child(
@@ -341,6 +379,14 @@ impl FilterOptions {
           )
           .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start),
       )
+      .on_change(|ctx, _, data, _| {
+        ctx.submit_command(
+          ModList::FILTER_UPDATE.with((Filters::AutoUpdateAvailable, data.is_some_and(|d| !d))),
+        );
+        ctx.submit_command(
+          ModList::FILTER_UPDATE.with((Filters::AutoUpdateUnsupported, data.is_some_and(|d| d))),
+        );
+      })
       .scope_independent(|| Option::<bool>::None)
   }
 }

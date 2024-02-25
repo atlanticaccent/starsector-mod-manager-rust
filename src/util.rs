@@ -209,7 +209,7 @@ pub fn make_column_pair<T: Data>(
 pub const MASTER_VERSION_RECEIVED: Selector<(String, Result<ModVersionMeta, String>)> =
   Selector::new("remote_version_received");
 
-pub async fn get_master_version(ext_sink: ExtEventSink, local: ModVersionMeta) {
+pub async fn get_master_version(ext_sink: Option<ExtEventSink>, local: ModVersionMeta) -> Option<ModVersionMeta> {
   let res = send_request(local.remote_url.clone()).await;
 
   let payload = match res {
@@ -232,9 +232,14 @@ pub async fn get_master_version(ext_sink: ExtEventSink, local: ModVersionMeta) {
     }
   };
 
-  if let Err(err) = ext_sink.submit_command(MASTER_VERSION_RECEIVED, payload, Target::Auto) {
-    eprintln!("Failed to submit remote version data {}", err)
-  };
+  if let Some(ext_sink) = ext_sink {
+    if let Err(err) = ext_sink.submit_command(MASTER_VERSION_RECEIVED, payload, Target::Auto) {
+      eprintln!("Failed to submit remote version data {}", err);
+    }
+    None
+  } else {
+    payload.1.ok()
+  }
 }
 
 async fn send_request(url: String) -> Result<String, String> {
@@ -864,10 +869,11 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     })
   }
 
-  fn suppress_event(self, matches: impl Fn(&Event) -> bool + 'static) -> ControllerHost<Self, OnEvent<T, W>> {
-    self.on_event(move |_, _, event, _| {
-      matches(event)
-    })
+  fn suppress_event(
+    self,
+    matches: impl Fn(&Event) -> bool + 'static,
+  ) -> ControllerHost<Self, OnEvent<T, W>> {
+    self.on_event(move |_, _, event, _| matches(event))
   }
 }
 
