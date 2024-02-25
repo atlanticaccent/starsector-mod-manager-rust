@@ -42,7 +42,7 @@ impl InstallOptions {
                 || {
                   Flex::row()
                     .with_child(text("From Archive(s)"))
-                    .with_child(Icon::new(INVENTORY_2).padding((-7.0, 0.0, 7.0, 0.0)))
+                    .with_child(Icon::new(*INVENTORY_2).padding((-7.0, 0.0, 7.0, 0.0)))
                 },
                 (0.0, 10.0),
               )
@@ -58,7 +58,7 @@ impl InstallOptions {
                 || {
                   Flex::row()
                     .with_child(text("From Folder"))
-                    .with_child(Icon::new(FOLDER).padding((-7.0, 0.0, 7.0, 0.0)))
+                    .with_child(Icon::new(*FOLDER).padding((-7.0, 0.0, 7.0, 0.0)))
                     .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
                 },
                 (0.0, 10.0),

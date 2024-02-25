@@ -892,15 +892,15 @@ impl AppDelegate {
                   Either::new(
                     |fraction, _| *fraction < 1.0,
                     Spinner::new(),
-                    Icon::new(VERIFIED),
+                    Icon::new(*VERIFIED),
                   )
                   .lens(lens!((i64, String, f64), 2)),
                 )
                 .with_child(
                   Either::new(
                     |fraction, _| *fraction < 1.0,
-                    Icon::new(CLOSE).with_color(druid::Color::GRAY),
-                    Icon::new(CLOSE),
+                    Icon::new(*CLOSE).with_color(druid::Color::GRAY),
+                    Icon::new(*CLOSE),
                   )
                   .lens(lens!((i64, String, f64), 2))
                   .controller(HoverController::default())

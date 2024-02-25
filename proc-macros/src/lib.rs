@@ -1,7 +1,8 @@
 use proc_macro::TokenStream;
 use quote::{quote, ToTokens};
 use syn::{
-  parse_macro_input, parse_quote, punctuated::Punctuated, DeriveInput, Expr, Meta, Token, TypeParam,
+  parse_macro_input, parse_quote, punctuated::Punctuated, DeriveInput, Expr, Meta, Path, Token,
+  TypeParam,
 };
 
 #[proc_macro_derive(Widget, attributes(widget))]
@@ -63,7 +64,7 @@ pub fn impl_widget(input: TokenStream) -> TokenStream {
           panic!("`event` method implementation cannot be named `event`")
         }
         event = Some(quote! {self.#value(ctx, event, data, env)})
-      },
+      }
       path if path.is_ident("lifecycle") => {
         if value.to_string() == "lifecycle" {
           panic!("`lifecycle` method implementation cannot be named `lifecycle`")
@@ -81,16 +82,14 @@ pub fn impl_widget(input: TokenStream) -> TokenStream {
           panic!("`layout` method implementation cannot be named `layout`")
         }
         layout = Some(quote! {self.#value(ctx, bc, data, env)})
-      },
+      }
       path if path.is_ident("paint") => {
         if value.to_string() == "paint" {
           panic!("`paint` method implementation cannot be named `paint`")
         }
         paint = Some(quote! {self.#value(ctx, data, env)})
-      },
-      path if path.is_ident("widget_pod") => {
-        widget_pod = Some(quote! {self.#value})
-      },
+      }
+      path if path.is_ident("widget_pod") => widget_pod = Some(quote! {self.#value}),
       _ => panic!("Must be one of `event`, `lifecycle`, `update`, `layout` or `paint`."),
     };
   }
@@ -144,5 +143,20 @@ pub fn impl_widget(input: TokenStream) -> TokenStream {
         #paint
       }
     }
+  }.into()
+}
+
+#[proc_macro]
+pub fn icon(item: TokenStream) -> TokenStream {
+  let path: Path = parse_macro_input!(item);
+
+  let const_name = &path.segments.last().unwrap().ident;
+  let id = path.to_token_stream().to_string();
+
+  quote! {
+    pub const #const_name: crate::app::util::icons::icon::Icon = crate::app::util::icons::icon::Icon::new(
+      #path,
+      #id
+    );
   }.into()
 }

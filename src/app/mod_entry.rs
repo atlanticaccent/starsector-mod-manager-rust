@@ -173,14 +173,14 @@ impl ModEntry {
                   Some(UpdateStatus::Major(_)) => iter = 3,
                   Some(UpdateStatus::Minor(_)) => iter = 2,
                   Some(UpdateStatus::Patch(_)) => iter = 1,
-                  Some(UpdateStatus::Error) => icon_row.add_child(Icon::new(REPORT)),
-                  Some(UpdateStatus::Discrepancy(_)) => icon_row.add_child(Icon::new(HELP)),
-                  Some(UpdateStatus::UpToDate) => icon_row.add_child(Icon::new(VERIFIED)),
+                  Some(UpdateStatus::Error) => icon_row.add_child(Icon::new(*REPORT)),
+                  Some(UpdateStatus::Discrepancy(_)) => icon_row.add_child(Icon::new(*HELP)),
+                  Some(UpdateStatus::UpToDate) => icon_row.add_child(Icon::new(*VERIFIED)),
                   _ => {}
                 };
 
                 for _ in 0..iter {
-                  icon_row.add_child(Icon::new(NEW_RELEASES))
+                  icon_row.add_child(Icon::new(*NEW_RELEASES))
                 }
 
                 if let Some(update_status) = &data.update_status {

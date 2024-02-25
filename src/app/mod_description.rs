@@ -55,7 +55,7 @@ impl ModDescription {
                     .lens(Constant("Back".to_owned()))
                     .padding((8.0, 0.0, 0.0, 0.0)),
                 )
-                .with_aligned_child(Icon::new(CHEVRON_LEFT), UnitPoint::LEFT)
+                .with_aligned_child(Icon::new(*CHEVRON_LEFT), UnitPoint::LEFT)
                 .align_vertical_centre()
                 .expand_height()
               },
@@ -116,8 +116,8 @@ impl ModDescription {
                       .hoverable(|| {
                         Flex::row()
                           .with_child(
-                            Rotated::new(Icon::new(TOGGLE_ON), 3)
-                              .else_if(|data, _| !data, Rotated::new(Icon::new(TOGGLE_ON), 1))
+                            Rotated::new(Icon::new(*TOGGLE_ON), 3)
+                              .else_if(|data, _| !data, Rotated::new(Icon::new(*TOGGLE_ON), 1))
                               .padding((5.0, 0.0, -5.0, 0.0)),
                           )
                           .with_child(
@@ -159,7 +159,7 @@ impl ModDescription {
                       .with_border(2.0, Key::<druid::Color>::new("enabled_card.border"))
                       .hoverable(|| {
                         Flex::row()
-                          .with_child(Icon::new(SYSTEM_UPDATE).padding((5.0, 0.0, -5.0, 0.0)))
+                          .with_child(Icon::new(*SYSTEM_UPDATE).padding((5.0, 0.0, -5.0, 0.0)))
                           .with_child(Label::new("Install Latest Update").padding((10.0, 0.0)))
                           .align_vertical_centre()
                       })
@@ -199,7 +199,7 @@ impl ModDescription {
                       .with_background(druid::Color::BLACK.lighter().lighter())
                       .hoverable(|| {
                         Flex::row()
-                          .with_child(Icon::new(DELETE).padding((5.0, 0.0, -5.0, 0.0)))
+                          .with_child(Icon::new(*DELETE).padding((5.0, 0.0, -5.0, 0.0)))
                           .with_child(Label::new("Uninstall").padding((10.0, 0.0)))
                           .align_vertical_centre()
                       })

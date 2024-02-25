@@ -150,7 +150,7 @@ impl Settings {
                                   Flex::row()
                                     .with_default_spacer()
                                     .with_child(
-                                      Icon::new(ARROW_LEFT)
+                                      Icon::new(*ARROW_LEFT)
                                         .background(button_painter())
                                         .controller(HoverController::default())
                                         .on_click(move |ctx, data: &mut Vector<Heading>, _| {
@@ -174,7 +174,7 @@ impl Settings {
                                       1.,
                                     )
                                     .with_child(
-                                      Icon::new(CLOSE)
+                                      Icon::new(*CLOSE)
                                         .on_click(move |ctx, data: &mut Vector<Heading>, _| {
                                           if data.len() > 1 {
                                             data.retain(|existing| existing != &heading);
@@ -193,7 +193,7 @@ impl Settings {
                                         .controller(HoverController::default()),
                                     )
                                     .with_child(
-                                      Icon::new(ARROW_RIGHT)
+                                      Icon::new(*ARROW_RIGHT)
                                         .background(button_painter())
                                         .controller(HoverController::default())
                                         .on_click(move |ctx, data: &mut Vector<Heading>, _| {
@@ -296,7 +296,7 @@ impl Settings {
                               Flex::row()
                                 .with_default_spacer()
                                 .with_child(
-                                  Icon::new(ARROW_LEFT)
+                                  Icon::new(*ARROW_LEFT)
                                     .background(button_painter())
                                     .controller(HoverController::default())
                                     .on_click(move |ctx, data: &mut Vector<Heading>, _| {
@@ -320,7 +320,7 @@ impl Settings {
                                   1.,
                                 )
                                 .with_child(
-                                  Icon::new(ARROW_RIGHT)
+                                  Icon::new(*ARROW_RIGHT)
                                     .background(button_painter())
                                     .controller(HoverController::default())
                                     .on_click(move |ctx, data: &mut Vector<Heading>, _| {
@@ -452,8 +452,8 @@ impl Settings {
             make_flex_settings_row(
               Either::new(
                 |data, _| *data,
-                Icon::new(ARROW_DROP_DOWN),
-                Icon::new(ARROW_RIGHT),
+                Icon::new(*ARROW_DROP_DOWN),
+                Icon::new(*ARROW_RIGHT),
               )
               .padding((-5., 0., 0., 0.)),
               Label::new("Open JRE Switcher"),

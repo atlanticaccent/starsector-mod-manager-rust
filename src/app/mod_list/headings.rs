@@ -150,12 +150,12 @@ fn heading_builder(title: Heading) -> impl Widget<Header> {
         move |_, new, _| {
           if new.0 == title {
             if new.1 {
-              Box::new(Icon::new(ARROW_DROP_DOWN))
+              Box::new(Icon::new(*ARROW_DROP_DOWN))
             } else {
-              Box::new(Icon::new(ARROW_DROP_UP))
+              Box::new(Icon::new(*ARROW_DROP_UP))
             }
           } else {
-            Box::new(Icon::new(UNFOLD_MORE))
+            Box::new(Icon::new(*UNFOLD_MORE))
           }
         },
       )

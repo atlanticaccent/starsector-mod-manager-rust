@@ -20,7 +20,7 @@ impl FilterButton {
           druid::FontWeight::SEMI_BOLD,
           druid::theme::TEXT_COLOR,
         ))
-        .with_child(Icon::new(TUNE)),
+        .with_child(Icon::new(*TUNE)),
     )
   }
 

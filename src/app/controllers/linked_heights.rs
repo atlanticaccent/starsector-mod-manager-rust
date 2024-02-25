@@ -1,6 +1,9 @@
 use std::{cell::RefCell, rc::Rc};
 
-use druid::{widget::Axis, BoxConstraints, Data, Selector, Size, Widget, WidgetId, WidgetPod};
+use druid::{
+  widget::{Axis, WidgetWrapper},
+  BoxConstraints, Data, Selector, Size, Widget, WidgetId, WidgetPod,
+};
 use druid_widget_nursery::CommandCtx;
 use proc_macros::Widget;
 
@@ -161,5 +164,17 @@ impl<T: Data, W: Widget<T>> LinkedHeights<T, W> {
     }
 
     unconstrained_size
+  }
+}
+
+impl<T: Data, W: Widget<T>> WidgetWrapper for LinkedHeights<T, W> {
+  type Wrapped = W;
+
+  fn wrapped(&self) -> &Self::Wrapped {
+    self.widget.widget()
+  }
+
+  fn wrapped_mut(&mut self) -> &mut Self::Wrapped {
+    self.widget.widget_mut()
   }
 }

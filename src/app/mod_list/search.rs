@@ -35,7 +35,7 @@ impl Search {
       Stack::new()
         .with_child(
           Flex::row()
-            .with_child(Icon::new(SEARCH).padding((5.0, 0.0)))
+            .with_child(Icon::new(*SEARCH).padding((5.0, 0.0)))
             .with_flex_child(
               TextBox::new().with_placeholder("Search").expand_width(),
               1.0,
@@ -43,7 +43,7 @@ impl Search {
             .expand_width(),
         )
         .with_positioned_child(
-          Icon::new(CANCEL)
+          Icon::new(*CANCEL)
             .env_scope(|env, _| {
               env.set(
                 druid::theme::TEXT_COLOR,

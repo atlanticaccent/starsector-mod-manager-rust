@@ -1,4 +1,4 @@
-use druid_widget_nursery::material_icons::IconPaths;
+use proc_macros::icon;
 
 mod icons {
   pub use druid_widget_nursery::material_icons::normal::{
@@ -7,47 +7,53 @@ mod icons {
       VERIFIED,
     },
     av::{NEW_RELEASES, PLAY_ARROW},
-    content::{ADD_BOX, ADD_CIRCLE, ADD_CIRCLE_OUTLINE, INVENTORY_2, REPORT},
+    content::{ADD_BOX, ADD_CIRCLE, ADD_CIRCLE_OUTLINE, INVENTORY_2, REPORT, DESELECT},
     file::FOLDER,
     image::{NAVIGATE_NEXT, TUNE},
     navigation::{
       ARROW_DROP_DOWN, ARROW_DROP_UP, ARROW_LEFT, ARROW_RIGHT, CANCEL, CHEVRON_LEFT, CLOSE,
-      FIRST_PAGE, LAST_PAGE, UNFOLD_MORE,
+      FIRST_PAGE, LAST_PAGE, UNFOLD_MORE
     },
     notification::{SYNC, SYSTEM_UPDATE},
-    toggle::{TOGGLE_ON, CHECK_BOX_OUTLINE_BLANK},
+    toggle::{TOGGLE_ON, CHECK_BOX_OUTLINE_BLANK, INDETERMINATE_CHECK_BOX, RADIO_BUTTON_CHECKED, RADIO_BUTTON_UNCHECKED},
   };
 }
 
-pub const EXTENSION: IconPaths = icons::EXTENSION;
-pub const HELP: IconPaths = icons::HELP;
-pub const INSTALL_DESKTOP: IconPaths = icons::INSTALL_DESKTOP;
-pub const OPEN_BROWSER: IconPaths = icons::OPEN_BROWSER;
-pub const SETTINGS: IconPaths = icons::SETTINGS;
-pub const VERIFIED: IconPaths = icons::VERIFIED;
-pub const NEW_RELEASES: IconPaths = icons::NEW_RELEASES;
-pub const PLAY_ARROW: IconPaths = icons::PLAY_ARROW;
-pub const ADD_CIRCLE: IconPaths = icons::ADD_CIRCLE;
-pub const ADD_CIRCLE_OUTLINE: IconPaths = icons::ADD_CIRCLE_OUTLINE;
-pub const INVENTORY_2: IconPaths = icons::INVENTORY_2;
-pub const REPORT: IconPaths = icons::REPORT;
-pub const NAVIGATE_NEXT: IconPaths = icons::NAVIGATE_NEXT;
-pub const ARROW_DROP_DOWN: IconPaths = icons::ARROW_DROP_DOWN;
-pub const ARROW_DROP_UP: IconPaths = icons::ARROW_DROP_UP;
-pub const ARROW_LEFT: IconPaths = icons::ARROW_LEFT;
-pub const ARROW_RIGHT: IconPaths = icons::ARROW_RIGHT;
-pub const CHEVRON_LEFT: IconPaths = icons::CHEVRON_LEFT;
-pub const CLOSE: IconPaths = icons::CLOSE;
-pub const FIRST_PAGE: IconPaths = icons::FIRST_PAGE;
-pub const LAST_PAGE: IconPaths = icons::LAST_PAGE;
-pub const UNFOLD_MORE: IconPaths = icons::UNFOLD_MORE;
-pub const SYNC: IconPaths = icons::SYNC;
-pub const FOLDER: IconPaths = icons::FOLDER;
-pub const TOGGLE_ON: IconPaths = icons::TOGGLE_ON;
-pub const SYSTEM_UPDATE: IconPaths = icons::SYSTEM_UPDATE;
-pub const DELETE: IconPaths = icons::DELETE;
-pub const SEARCH: IconPaths = icons::SEARCH;
-pub const CANCEL: IconPaths = icons::CANCEL;
-pub const TUNE: IconPaths = icons::TUNE;
-pub const CHECKBOX: IconPaths = icons::CHECK_BOX_OUTLINE_BLANK;
-pub const ADD_BOX: IconPaths = icons::ADD_BOX;
+pub mod icon;
+
+icon!(icons::EXTENSION);
+icon!(icons::HELP);
+icon!(icons::INSTALL_DESKTOP);
+icon!(icons::OPEN_BROWSER);
+icon!(icons::SETTINGS);
+icon!(icons::VERIFIED);
+icon!(icons::NEW_RELEASES);
+icon!(icons::PLAY_ARROW);
+icon!(icons::ADD_CIRCLE);
+icon!(icons::ADD_CIRCLE_OUTLINE);
+icon!(icons::INVENTORY_2);
+icon!(icons::REPORT);
+icon!(icons::NAVIGATE_NEXT);
+icon!(icons::ARROW_DROP_DOWN);
+icon!(icons::ARROW_DROP_UP);
+icon!(icons::ARROW_LEFT);
+icon!(icons::ARROW_RIGHT);
+icon!(icons::CHEVRON_LEFT);
+icon!(icons::CLOSE);
+icon!(icons::FIRST_PAGE);
+icon!(icons::LAST_PAGE);
+icon!(icons::UNFOLD_MORE);
+icon!(icons::SYNC);
+icon!(icons::FOLDER);
+icon!(icons::TOGGLE_ON);
+icon!(icons::SYSTEM_UPDATE);
+icon!(icons::DELETE);
+icon!(icons::SEARCH);
+icon!(icons::CANCEL);
+icon!(icons::TUNE);
+icon!(icons::CHECK_BOX_OUTLINE_BLANK);
+icon!(icons::ADD_BOX);
+icon!(icons::INDETERMINATE_CHECK_BOX);
+icon!(icons::RADIO_BUTTON_CHECKED);
+icon!(icons::RADIO_BUTTON_UNCHECKED);
+icon!(icons::DESELECT);

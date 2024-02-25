@@ -22,7 +22,7 @@ impl InstallButton {
           druid::FontWeight::SEMI_BOLD,
           druid::theme::TEXT_COLOR,
         ))
-        .with_child(Icon::new(if filled {
+        .with_child(Icon::new(*if filled {
           ADD_CIRCLE
         } else {
           ADD_CIRCLE_OUTLINE

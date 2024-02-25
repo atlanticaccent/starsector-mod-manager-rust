@@ -366,8 +366,8 @@ impl ModRepoItem {
               Flex::row()
                 .with_child(Either::new(
                   |data, _| *data,
-                  Icon::new(ARROW_DROP_DOWN),
-                  Icon::new(ARROW_RIGHT),
+                  Icon::new(*ARROW_DROP_DOWN),
+                  Icon::new(*ARROW_RIGHT),
                 ))
                 .with_child(Label::new("Description:"))
                 .main_axis_alignment(druid::widget::MainAxisAlignment::End)
