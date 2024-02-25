@@ -17,9 +17,7 @@ pub struct Search {
 
 impl Search {
   pub fn new(buffer: String) -> Self {
-    Self {
-      buffer,
-    }
+    Self { buffer }
   }
 
   pub fn len(&self) -> usize {

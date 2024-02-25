@@ -1,4 +1,4 @@
-use druid::{Selector, Point};
+use druid::{Point, Selector};
 
 pub mod filter_button;
 pub mod filter_options;

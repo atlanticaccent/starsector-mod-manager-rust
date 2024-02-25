@@ -62,7 +62,7 @@ pub struct ModList {
   starsector_version: Option<GameVersion>,
   install_state: InstallState,
   #[data(ignore)]
-  filter_state: (bool, StackChildPosition),
+  filter_state: ((bool, bool), StackChildPosition),
   pub install_dir_available: bool,
 }
 
@@ -73,6 +73,7 @@ impl ModList {
   pub const AUTO_UPDATE: Selector<Arc<ModEntry>> = Selector::new("mod_list.install.auto_update");
   pub const SEARCH_UPDATE: Selector<bool> = Selector::new("mod_list.filter.search.update");
   pub const FILTER_UPDATE: Selector<(Filters, bool)> = Selector::new("mod_list.filter.update");
+  pub const FILTER_RESET: Selector = Selector::new("mod_list.filter.reset");
   pub const DUPLICATE: Selector<(Arc<ModEntry>, Arc<ModEntry>)> =
     Selector::new("mod_list.submit_entry.duplicate");
 
@@ -108,7 +109,7 @@ impl ModList {
               .with_flex_spacer(1.0)
               .with_child(
                 FilterButton::view()
-                  .lens(Self::filter_state.then(lens!((bool, StackChildPosition), 0))),
+                  .lens(Self::filter_state.then(lens!(((bool, bool), StackChildPosition), 0))),
               )
               .with_child(
                 Search::view()
@@ -159,6 +160,7 @@ impl ModList {
                           })
                           .on_command(ModMetadata::SUBMIT_MOD_METADATA, Self::metadata_submitted)
                           .on_command(Self::FILTER_UPDATE, Self::on_filter_change)
+                          .on_command(Self::FILTER_RESET, Self::on_filter_reset)
                           .on_added(Self::init_table),
                       )
                       .scroll()
@@ -182,12 +184,13 @@ impl ModList {
         StackChildPosition::default().top(Some(0.0)).left(Some(0.0)),
       )
       .with_positioned_child(
-        FilterOptions::view().lens(Self::filter_state.then(lens!((bool, StackChildPosition), 0))),
+        FilterOptions::view()
+          .lens(Self::filter_state.then(lens!(((bool, bool), StackChildPosition), 0))),
         StackChildParams::dynamic(|data: &ModList, _| &data.filter_state.1).duration(0.0),
       )
       .with_positioned_child(
         FilterOptions::wide_view()
-          .lens(Self::filter_state.then(lens!((bool, StackChildPosition), 0))),
+          .lens(Self::filter_state.then(lens!(((bool, bool), StackChildPosition), 0))),
         StackChildPosition::default()
           .top(Some(54.0))
           .left(Some(0.0))
@@ -426,9 +429,26 @@ impl ModList {
     } else {
       data.active_filters.remove(&payload.0)
     };
+    data.filter_state.0 .1 = !data.active_filters.is_empty();
     Self::on_mod_list_change(table, ctx, &(), data);
 
     false
+  }
+
+  fn on_filter_reset(
+    _: &mut FlexTable<ModList>,
+    ctx: &mut EventCtx,
+    _: &(),
+    data: &mut ModList,
+  ) -> bool {
+    data.active_filters.clear();
+    data.filter_state.0 .1 = false;
+    ctx.children_changed();
+    ctx.request_update();
+    ctx.request_layout();
+    ctx.request_paint();
+
+    true
   }
 
   pub fn _view() -> impl Widget<Self> {
@@ -898,26 +918,18 @@ impl Filters {
         |entry: &Arc<ModEntry>| matches!(entry.update_status, Some(UpdateStatus::Major(_)))
       }
       Filters::AutoUpdateAvailable => |entry: &Arc<ModEntry>| {
-        matches!(
-          entry.update_status,
-          None | Some(UpdateStatus::Error) | Some(UpdateStatus::UpToDate)
-        ) || (matches!(
-          entry.update_status,
-          Some(UpdateStatus::Patch(_))
-            | Some(UpdateStatus::Minor(_))
-            | Some(UpdateStatus::Major(_))
-        ) ^ entry
+        entry
           .remote_version
           .as_ref()
           .and_then(|r| r.direct_download_url.as_ref())
-          .is_some())
+          .is_some()
       },
       Filters::AutoUpdateUnsupported => |entry: &Arc<ModEntry>| {
         entry
           .remote_version
           .as_ref()
           .and_then(|r| r.direct_download_url.as_ref())
-          .is_some()
+          .is_none()
       },
     }
   }

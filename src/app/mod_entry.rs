@@ -456,14 +456,18 @@ impl ModMetadata {
     Ok(metadata)
   }
 
-  pub async fn parse_and_send(id: String, mod_folder: impl AsRef<Path>, ext_ctx: Option<ExtEventSink>) -> Option<ModMetadata> {
+  pub async fn parse_and_send(
+    id: String,
+    mod_folder: impl AsRef<Path>,
+    ext_ctx: Option<ExtEventSink>,
+  ) -> Option<ModMetadata> {
     use druid::Target;
 
     if let Ok(mod_metadata) = Self::parse(mod_folder).await {
       if let Some(ext_ctx) = ext_ctx {
         let _ = ext_ctx.submit_command(Self::SUBMIT_MOD_METADATA, (id, mod_metadata), Target::Auto);
       } else {
-        return Some(mod_metadata)
+        return Some(mod_metadata);
       }
     }
     None

@@ -24,7 +24,7 @@ use super::filter_button::FilterButton;
 pub struct FilterOptions;
 
 impl FilterOptions {
-  pub fn view() -> impl Widget<bool> {
+  pub fn view() -> impl Widget<(bool, bool)> {
     Card::builder()
       .with_insets((0.0, 14.0))
       .with_corner_radius(4.0)
@@ -34,11 +34,11 @@ impl FilterOptions {
           .fix_height(60.0)
           .padding((-8.0, 0.0, -8.0, -4.0)),
       )
-      .or_empty(|data: &bool, _| *data)
+      .or_empty(|(data, _): &(bool, bool), _| *data)
       .fix_width(super::FILTER_WIDTH)
   }
 
-  pub fn wide_view() -> impl Widget<bool> {
+  pub fn wide_view() -> impl Widget<(bool, bool)> {
     let mut width_linker = {
       let mut linker = HeightLinker::new();
       linker.axis = druid::widget::Axis::Horizontal;
@@ -59,8 +59,8 @@ impl FilterOptions {
           .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
           .expand_width(),
       ))
-      .or_empty(|data: &bool, _| *data)
-      .on_command(InstallOptions::DISMISS, |ctx, payload, data| {
+      .or_empty(|(data, _): &(bool, bool), _| *data)
+      .on_command(InstallOptions::DISMISS, |ctx, payload, (data, _)| {
         let hitbox = ctx
           .size()
           .to_rect()
@@ -172,6 +172,7 @@ impl FilterOptions {
           ModList::FILTER_UPDATE.with((Filters::Disabled, data.is_some_and(|d| d))),
         );
       })
+      .on_command(ModList::FILTER_RESET, |_, _, data| *data = None)
       .scope_independent(|| Option::<bool>::None)
   }
 
@@ -325,6 +326,9 @@ impl FilterOptions {
           ))
           .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start),
       )
+      .on_command(ModList::FILTER_RESET, |_, _, data| {
+        *data = VersionCheckerFilter::default()
+      })
       .scope_independent(|| VersionCheckerFilter::default())
   }
 
@@ -381,12 +385,13 @@ impl FilterOptions {
       )
       .on_change(|ctx, _, data, _| {
         ctx.submit_command(
-          ModList::FILTER_UPDATE.with((Filters::AutoUpdateAvailable, data.is_some_and(|d| !d))),
+          ModList::FILTER_UPDATE.with((Filters::AutoUpdateAvailable, data.is_some_and(|d| d))),
         );
         ctx.submit_command(
-          ModList::FILTER_UPDATE.with((Filters::AutoUpdateUnsupported, data.is_some_and(|d| d))),
+          ModList::FILTER_UPDATE.with((Filters::AutoUpdateUnsupported, data.is_some_and(|d| !d))),
         );
       })
+      .on_command(ModList::FILTER_RESET, |_, _, data| *data = None)
       .scope_independent(|| Option::<bool>::None)
   }
 }

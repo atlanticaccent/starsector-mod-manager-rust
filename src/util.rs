@@ -209,7 +209,10 @@ pub fn make_column_pair<T: Data>(
 pub const MASTER_VERSION_RECEIVED: Selector<(String, Result<ModVersionMeta, String>)> =
   Selector::new("remote_version_received");
 
-pub async fn get_master_version(ext_sink: Option<ExtEventSink>, local: ModVersionMeta) -> Option<ModVersionMeta> {
+pub async fn get_master_version(
+  ext_sink: Option<ExtEventSink>,
+  local: ModVersionMeta,
+) -> Option<ModVersionMeta> {
   let res = send_request(local.remote_url.clone()).await;
 
   let payload = match res {

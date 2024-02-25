@@ -54,14 +54,12 @@ fn main() {
       .map(|e| (e.id.clone(), e)),
   );
 
-  let main_window = WindowDesc::new(app::App::theme_wrapper(
-    initial_state.settings.theme.into(),
-  ))
-  .title(concatcp!(
-    "MOSS | Mod Organizer for StarSector v",
-    env!("CARGO_PKG_VERSION")
-  ))
-  .window_size((1280., 1024.));
+  let main_window = WindowDesc::new(app::App::theme_wrapper(initial_state.settings.theme.into()))
+    .title(concatcp!(
+      "MOSS | Mod Organizer for StarSector v",
+      env!("CARGO_PKG_VERSION")
+    ))
+    .window_size((1280., 1024.));
 
   let _guard = runtime.enter();
 

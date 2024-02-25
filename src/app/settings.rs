@@ -13,8 +13,7 @@ use druid::{
   WindowConfig,
 };
 use druid_widget_nursery::{
-  material_icons::Icon, DynLens, MultiRadio,
-  WidgetExt as WidgetExtNursery,
+  material_icons::Icon, DynLens, MultiRadio, WidgetExt as WidgetExtNursery,
 };
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
@@ -749,8 +748,9 @@ impl Settings {
               .controller(HoverController::default())
               .on_click(|ctx, _, _| {
                 ctx.submit_command_global(Selector::new("druid.builtin.textbox-cancel-editing"));
-                ctx
-                  .submit_command_global(dbg!(Settings::SELECTOR.with(SettingsCommand::SelectInstallDir)))
+                ctx.submit_command_global(dbg!(
+                  Settings::SELECTOR.with(SettingsCommand::SelectInstallDir)
+                ))
               }),
           ),
         1.5,

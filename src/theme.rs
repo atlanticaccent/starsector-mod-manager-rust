@@ -135,7 +135,20 @@ impl From<Themes> for Theme {
   }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default, strum_macros::AsRefStr, strum_macros::EnumIter, Prism, Data, Debug)]
+#[derive(
+  Serialize,
+  Deserialize,
+  Clone,
+  Copy,
+  PartialEq,
+  Eq,
+  Default,
+  strum_macros::AsRefStr,
+  strum_macros::EnumIter,
+  Prism,
+  Data,
+  Debug,
+)]
 pub enum Themes {
   #[default]
   Retro,
