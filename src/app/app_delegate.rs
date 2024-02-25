@@ -153,6 +153,7 @@ impl Delegate<App> for AppDelegate {
         if data.settings.save().is_err() {
           eprintln!("Failed to save settings")
         };
+        data.mod_list.install_dir_available = true
       }
       return Handled::Yes;
     } else if let Some(entry) = cmd.get(ModList::AUTO_UPDATE) {

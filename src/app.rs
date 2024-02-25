@@ -116,19 +116,19 @@ impl App {
   const TOGGLE_NAV_BAR: Selector = Selector::new("app.nav_bar.collapse");
 
   pub fn new(runtime: Handle) -> Self {
-    let settings = dbg!(settings::Settings::load()
-          .map(|mut settings| {
-            if settings.vmparams_enabled {
-              if let Some(path) = settings.install_dir.clone() {
-                settings.vmparams = settings::vmparams::VMParams::load(path).ok();
-              }
-            }
-            if let Some(install_dir) = settings.install_dir.clone() {
-              settings.install_dir_buf = install_dir.to_string_lossy().to_string()
-            }
-            settings
-          })
-          .unwrap_or_else(|_| settings::Settings::new()));
+    let settings = settings::Settings::load()
+      .map(|mut settings| {
+        if settings.vmparams_enabled {
+          if let Some(path) = settings.install_dir.clone() {
+            settings.vmparams = settings::vmparams::VMParams::load(path).ok();
+          }
+        }
+        if let Some(install_dir) = settings.install_dir.clone() {
+          settings.install_dir_buf = install_dir.to_string_lossy().to_string()
+        }
+        settings
+      })
+      .unwrap_or_else(|_| settings::Settings::new());
 
     let headings = settings.headings.clone();
 

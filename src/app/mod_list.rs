@@ -63,6 +63,7 @@ pub struct ModList {
   install_state: InstallState,
   #[data(ignore)]
   filter_state: (bool, StackChildPosition),
+  pub install_dir_available: bool,
 }
 
 impl ModList {
@@ -88,6 +89,7 @@ impl ModList {
       starsector_version: None,
       install_state: InstallState::default(),
       filter_state: Default::default(),
+      install_dir_available: false,
     }
   }
 
@@ -100,7 +102,8 @@ impl ModList {
               .with_child(
                 InstallButton::view()
                   .lens(Self::install_state)
-                  .padding((0.0, 5.0)),
+                  .padding((0.0, 5.0))
+                  .disabled_if(|data, _| !data.install_dir_available),
               )
               .with_flex_spacer(1.0)
               .with_child(
