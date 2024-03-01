@@ -12,7 +12,7 @@ mod icons {
     image::{NAVIGATE_NEXT, TUNE},
     navigation::{
       ARROW_DROP_DOWN, ARROW_DROP_UP, ARROW_LEFT, ARROW_RIGHT, CANCEL, CHEVRON_LEFT, CLOSE,
-      FIRST_PAGE, LAST_PAGE, UNFOLD_MORE,
+      FIRST_PAGE, LAST_PAGE, REFRESH, UNFOLD_MORE,
     },
     notification::{SYNC, SYSTEM_UPDATE},
     toggle::{
@@ -61,3 +61,4 @@ icon!(icons::RADIO_BUTTON_CHECKED);
 icon!(icons::RADIO_BUTTON_UNCHECKED);
 icon!(icons::DESELECT);
 icon!(icons::CLEAR);
+icon!(icons::REFRESH);

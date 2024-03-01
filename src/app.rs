@@ -8,7 +8,7 @@ use druid::{
     Axis, Button, Checkbox, Either, Flex, Label, Maybe, Scope, SizedBox, TextBox, ViewSwitcher,
     ZStack,
   },
-  Data, Event, Lens, LensExt, Selector, Target, Widget, WidgetExt, WidgetId, WindowDesc,
+  Data, Event, Lens, LensExt, Selector, SingleUse, Target, Widget, WidgetExt, WidgetId, WindowDesc,
   WindowLevel,
 };
 use druid_widget_nursery::{
@@ -32,7 +32,7 @@ use self::{
   settings::Settings,
   util::{
     bold_text, button_painter, get_quoted_version, h2_fixed, h3_fixed, icons::*, make_column_pair,
-    CommandExt, IndyToggleState, LabelExt, LensExtExt as _, Release,
+    xxHashMap, CommandExt, IndyToggleState, LabelExt, LensExtExt as _, Release,
   },
 };
 use crate::{
@@ -114,6 +114,8 @@ impl App {
     Selector::new("app.install.found_multiple");
 
   const TOGGLE_NAV_BAR: Selector = Selector::new("app.nav_bar.collapse");
+  const REPLACE_MODS: Selector<SingleUse<xxHashMap<String, Arc<ModEntry>>>> =
+    Selector::new("app.mod_list.replace");
 
   pub fn new(runtime: Handle) -> Self {
     let settings = settings::Settings::load()
@@ -234,7 +236,12 @@ impl App {
           InitialTab::new(
             "mod_detail",
             ViewSwitcher::new(
-              |data: &App, _| data.active.clone(),
+              |data: &App, _| {
+                data
+                  .active
+                  .clone()
+                  .and_then(|id| data.mod_list.mods.contains_key(&id).then_some(id))
+              },
               |index, _, _| {
                 if let Some(index) = index {
                   let intern = Intern::new(index.clone());

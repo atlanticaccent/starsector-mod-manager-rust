@@ -167,12 +167,14 @@ impl Delegate<App> for AppDelegate {
         ));
     } else if let Some(()) = cmd.get(App::REFRESH) {
       if let Some(install_dir) = data.settings.install_dir.as_ref() {
-        data.mod_list.mods.clear();
+        // data.mod_list.mods.clear();
         data.runtime.spawn(ModList::parse_mod_folder(
           Some(ctx.get_external_handle()),
           Some(install_dir.clone()),
         ));
       }
+
+      return Handled::Yes;
     } else if let Some(res) = cmd.get(GET_INSTALLED_STARSECTOR) {
       App::mod_list
         .then(ModList::starsector_version)

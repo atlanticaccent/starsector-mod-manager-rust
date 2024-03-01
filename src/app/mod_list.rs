@@ -12,10 +12,10 @@ use druid::{
   lens, theme,
   widget::{Checkbox, Either, Flex, Label, List, ListIter, Painter, Scroll, SizedBox},
   Color, Data, Env, EventCtx, ExtEventSink, KeyOrValue, Lens, LensExt, LifeCycleCtx, Rect,
-  RenderContext, Selector, Target, Widget, WidgetExt,
+  RenderContext, Selector, SingleUse, Target, Widget, WidgetExt,
 };
 use druid_widget_nursery::{
-  Stack, StackChildParams, StackChildPosition, WidgetExt as WidgetExtNursery,
+  RequestCtx, Stack, StackChildParams, StackChildPosition, WidgetExt as WidgetExtNursery,
 };
 use internment::Intern;
 use rayon::prelude::*;
@@ -41,13 +41,17 @@ use crate::{
 pub mod filters;
 pub mod headings;
 pub mod install;
+mod refresh;
 pub mod search;
 use self::{
   filters::{filter_button::FilterButton, filter_options::FilterOptions, FILTER_POSITION},
   headings::{Header, Heading},
   install::{install_button::InstallButton, install_options::InstallOptions, InstallState},
+  refresh::Refresh,
   search::Search,
 };
+
+const CONTROL_WIDTH: f64 = 175.0;
 
 static UPDATE_BALANCER: LoadBalancer<Arc<ModEntry>, Vec<Arc<ModEntry>>, Vec<Arc<ModEntry>>> =
   LoadBalancer::new(ModList::SUBMIT_ENTRY);
@@ -106,6 +110,7 @@ impl ModList {
                   .padding((0.0, 5.0))
                   .disabled_if(|data, _| !data.install_dir_available),
               )
+              .with_child(Refresh::view().padding((0.0, 5.0)))
               .with_flex_spacer(1.0)
               .with_child(
                 FilterButton::view()
@@ -148,7 +153,9 @@ impl ModList {
                       .controller(
                         ExtensibleController::new()
                           .on_command(Self::UPDATE_COLUMN_WIDTH, Self::column_resized)
-                          .on_command(Self::UPDATE_TABLE_SORT, Self::on_mod_list_change)
+                          .on_command(Self::UPDATE_TABLE_SORT, |table, ctx, _, data| {
+                            Self::update_sorting(table, ctx, data)
+                          })
                           .on_command(Self::SUBMIT_ENTRY, Self::entry_submitted)
                           .on_command(Self::SEARCH_UPDATE, |_, _, searching, data| {
                             if *searching {
@@ -161,7 +168,8 @@ impl ModList {
                           .on_command(ModMetadata::SUBMIT_MOD_METADATA, Self::metadata_submitted)
                           .on_command(Self::FILTER_UPDATE, Self::on_filter_change)
                           .on_command(Self::FILTER_RESET, Self::on_filter_reset)
-                          .on_added(Self::init_table),
+                          .on_added(Self::init_table)
+                          .on_command(App::REPLACE_MODS, Self::replace_mods),
                       )
                       .scroll()
                       .vertical()
@@ -290,6 +298,7 @@ impl ModList {
     _env: &Env,
   ) {
     Self::append_table(table, &data.mods, &data.header.headings);
+    Self::update_sorting(table, ctx, data);
     ctx.children_changed();
   }
 
@@ -324,6 +333,26 @@ impl ModList {
       Self::append_table(table, &diff, &data.header.headings);
     }
     ctx.children_changed();
+    false
+  }
+
+  fn replace_mods(
+    table: &mut FlexTable<ModList>,
+    ctx: &mut EventCtx,
+    payload: &SingleUse<xxHashMap<String, Arc<ModEntry>>>,
+    data: &mut ModList,
+  ) -> bool {
+    let mods = payload.take().unwrap();
+    let old = std::mem::replace(&mut data.mods, mods);
+
+    table.rows().retain(|row| data.mods.contains_key(row.id()));
+
+    let new = data.mods.deref().clone().relative_complement(old.inner());
+
+    Self::append_table(table, &new.into(), &data.header.headings);
+    Self::update_sorting(table, ctx, data);
+    ctx.children_changed();
+    dbg!("Finished replacing mods");
     false
   }
 
@@ -364,11 +393,10 @@ impl ModList {
     false
   }
 
-  fn on_mod_list_change(
+  fn update_sorting(
     table: &mut FlexTable<ModList>,
-    ctx: &mut EventCtx,
-    _payload: &(),
-    data: &mut ModList,
+    ctx: &mut impl RequestCtx,
+    data: &ModList,
   ) -> bool {
     let sorted_vec = data.sorted_vals();
     let sorted_map: HashMap<&str, usize> = sorted_vec
@@ -430,7 +458,7 @@ impl ModList {
       data.active_filters.remove(&payload.0)
     };
     data.filter_state.0 .1 = !data.active_filters.is_empty();
-    Self::on_mod_list_change(table, ctx, &(), data);
+    Self::update_sorting(table, ctx, data);
 
     false
   }
@@ -652,36 +680,8 @@ impl ModList {
                 None
               }
             },
-          );
-
-        if let Some(event_sink) = event_sink.as_ref() {
-          mods.for_each(|entry| {
-            let tx = {
-              let _guard = handle.enter();
-
-              UPDATE_BALANCER.sender(event_sink.clone())
-            };
-
-            if let Err(err) = tx.send(entry.clone()) {
-              eprintln!("Failed to submit found mod {}", err);
-            };
-            if let Some(version) = entry.version_checker.clone() {
-              handle.spawn(util::get_master_version(Some(event_sink.clone()), version));
-            }
-            if ModMetadata::path(&entry.path).exists() {
-              handle.spawn(ModMetadata::parse_and_send(
-                entry.id.clone(),
-                entry.path.clone(),
-                Some(event_sink.clone()),
-              ));
-            }
-          });
-
-          if let Err(err) = event_sink.submit_command(super::App::ENABLE, (), Target::Auto) {
-            eprintln!("{:?}", err)
-          }
-        } else {
-          let mods = mods.map(|mut entry| {
+          )
+          .map(|mut entry| {
             let mut mut_entry = Arc::make_mut(&mut entry);
             if let Some(version) = mut_entry.version_checker.clone() {
               let master_version = handle.block_on(util::get_master_version(None, version.clone()));
@@ -700,16 +700,31 @@ impl ModList {
 
             entry
           });
+
+        if let Some(event_sink) = event_sink.as_ref() {
+          let map: xxHashMap<_, _> = druid::im::HashMap::from(
+            mods
+              .map(|entry| (entry.id.clone(), entry))
+              .collect::<Vec<_>>(),
+          )
+          .into();
+
+          if let Err(err) =
+            event_sink.submit_command(super::App::REPLACE_MODS, SingleUse::new(map), Target::Auto)
+          {
+            eprintln!("{:?}", err)
+          }
+        } else {
           return Some(mods.collect::<Vec<_>>());
         }
-      };
+      }
     }
 
     None
   }
 
-  fn sorted_vals(&self) -> Vec<Arc<ModEntry>> {
-    let mut values: Vec<Arc<ModEntry>> = self
+  fn sorted_vals(&self) -> Vec<&Arc<ModEntry>> {
+    let mut values: Vec<&Arc<ModEntry>> = self
       .mods
       .iter()
       .filter_map(|(_, entry)| {
@@ -728,7 +743,7 @@ impl ModList {
         };
         let filters = self.active_filters.par_iter().all(|f| f.as_fn()(entry));
 
-        (search && filters).then(|| entry.clone())
+        (search && filters).then(|| entry)
       })
       .collect();
 
@@ -801,7 +816,7 @@ impl ListIter<EntryAlias> for ModList {
     for (i, item) in self.sorted_vals().into_iter().enumerate() {
       cb(
         &(
-          item,
+          item.clone(),
           i,
           ratios.clone(),
           headers.clone(),

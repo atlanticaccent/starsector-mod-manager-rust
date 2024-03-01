@@ -2,6 +2,7 @@ use std::{
   any::Any,
   borrow::Borrow,
   collections::{HashMap, VecDeque},
+  fmt::Debug,
   hash::Hash,
   io::Read,
   marker::PhantomData,
@@ -1045,16 +1046,28 @@ impl<T: Any + Send, U: Any + Send, SINK: Default + Collection<T, U> + Send>
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Clone, Default)]
-pub struct xxHashMap<K: Clone, V: Clone>(druid::im::HashMap<K, V, Xxh3Builder>);
+#[derive(Clone, Default, Debug)]
+pub struct xxHashMap<K: Clone, V: Clone>(druid::im::HashMap<K, V, Xxh3Builder>)
+where
+  druid::im::HashMap<K, V, Xxh3Builder>: Debug;
 
-impl<K: Clone, V: Clone> xxHashMap<K, V> {
+impl<K: Clone, V: Clone> xxHashMap<K, V>
+where
+  druid::im::HashMap<K, V, Xxh3Builder>: Debug,
+{
   pub fn new() -> Self {
     Self(druid::im::HashMap::with_hasher(Xxh3Builder::new()))
   }
+
+  pub fn inner(self) -> druid::im::HashMap<K, V, Xxh3Builder> {
+    self.0
+  }
 }
 
-impl<K: Clone, V: Clone> Deref for xxHashMap<K, V> {
+impl<K: Clone, V: Clone> Deref for xxHashMap<K, V>
+where
+  druid::im::HashMap<K, V, Xxh3Builder>: Debug,
+{
   type Target = druid::im::HashMap<K, V, Xxh3Builder>;
 
   fn deref(&self) -> &Self::Target {
@@ -1062,25 +1075,37 @@ impl<K: Clone, V: Clone> Deref for xxHashMap<K, V> {
   }
 }
 
-impl<K: Clone, V: Clone> DerefMut for xxHashMap<K, V> {
+impl<K: Clone, V: Clone> DerefMut for xxHashMap<K, V>
+where
+  druid::im::HashMap<K, V, Xxh3Builder>: Debug,
+{
   fn deref_mut(&mut self) -> &mut Self::Target {
     &mut self.0
   }
 }
 
-impl<K: Clone + 'static, V: Clone + 'static> Data for xxHashMap<K, V> {
+impl<K: Clone + Eq + Hash + 'static, V: Clone + Eq + 'static> Data for xxHashMap<K, V>
+where
+  druid::im::HashMap<K, V, Xxh3Builder>: Debug,
+{
   fn same(&self, other: &Self) -> bool {
-    self.ptr_eq(other)
+    self.is_submap(&**other)
   }
 }
 
-impl<K: Clone, V: Clone> From<druid::im::HashMap<K, V, Xxh3Builder>> for xxHashMap<K, V> {
+impl<K: Clone, V: Clone> From<druid::im::HashMap<K, V, Xxh3Builder>> for xxHashMap<K, V>
+where
+  druid::im::HashMap<K, V, Xxh3Builder>: Debug,
+{
   fn from(other: druid::im::HashMap<K, V, Xxh3Builder>) -> Self {
     Self(other)
   }
 }
 
-impl<K: Clone, V: Clone> From<xxHashMap<K, V>> for druid::im::HashMap<K, V, Xxh3Builder> {
+impl<K: Clone, V: Clone> From<xxHashMap<K, V>> for druid::im::HashMap<K, V, Xxh3Builder>
+where
+  druid::im::HashMap<K, V, Xxh3Builder>: Debug,
+{
   fn from(other: xxHashMap<K, V>) -> Self {
     other.0
   }
