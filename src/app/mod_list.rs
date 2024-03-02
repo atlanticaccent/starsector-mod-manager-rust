@@ -28,7 +28,7 @@ use super::{
   controllers::{ExtensibleController, HeightLinkerShared, SharedHoverState},
   installer::HybridPath,
   mod_entry::{GameVersion, ModEntry, ModMetadata, UpdateStatus},
-  util::{self, xxHashMap, LoadBalancer, SaveError, WidgetExtEx, WithHoverState as _},
+  util::{self, xxHashMap, SaveError, WidgetExtEx, WithHoverState as _},
   App,
 };
 use crate::{

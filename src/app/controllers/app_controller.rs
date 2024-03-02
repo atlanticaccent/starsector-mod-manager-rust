@@ -109,6 +109,8 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
         } else {
           eprintln!("Failed to restart")
         };
+      } else if cmd.is(App::ENABLE) {
+        ctx.set_disabled(false)
       }
     } else if let Event::MouseDown(_) = event {
       if ctx.is_disabled() {
