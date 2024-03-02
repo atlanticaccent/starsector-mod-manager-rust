@@ -53,9 +53,6 @@ use self::{
 
 const CONTROL_WIDTH: f64 = 175.0;
 
-static UPDATE_BALANCER: LoadBalancer<Arc<ModEntry>, Vec<Arc<ModEntry>>, Vec<Arc<ModEntry>>> =
-  LoadBalancer::new(ModList::SUBMIT_ENTRY);
-
 #[derive(Clone, Data, Lens)]
 pub struct ModList {
   pub mods: xxHashMap<String, Arc<ModEntry>>,
@@ -672,7 +669,7 @@ impl ModList {
                     .find_any(|id| mod_info.id.clone().eq(*id))
                     .is_some(),
                 );
-                Some(Arc::new(mod_info))
+                Some(mod_info)
               }
               Err(err) => {
                 eprintln!("Failed to get mod info for mod at: {:?}", entry.path());
@@ -682,23 +679,23 @@ impl ModList {
             },
           )
           .map(|mut entry| {
-            let mut mut_entry = Arc::make_mut(&mut entry);
-            if let Some(version) = mut_entry.version_checker.clone() {
+            // let mut mut_entry = Arc::make_mut(&mut entry);
+            if let Some(version) = entry.version_checker.clone() {
               let master_version = handle.block_on(util::get_master_version(None, version.clone()));
-              mut_entry.remote_version = master_version.clone();
-              mut_entry.update_status = Some(UpdateStatus::from((&version, &master_version)));
+              entry.remote_version = master_version.clone();
+              entry.update_status = Some(UpdateStatus::from((&version, &master_version)));
             }
-            if ModMetadata::path(&mut_entry.path).exists() {
+            if ModMetadata::path(&entry.path).exists() {
               if let Some(mod_metadata) = handle.block_on(ModMetadata::parse_and_send(
-                mut_entry.id.clone(),
-                mut_entry.path.clone(),
+                entry.id.clone(),
+                entry.path.clone(),
                 None,
               )) {
-                mut_entry.manager_metadata = mod_metadata;
+                entry.manager_metadata = mod_metadata;
               }
             }
 
-            entry
+            Arc::new(entry)
           });
 
         if let Some(event_sink) = event_sink.as_ref() {
