@@ -62,7 +62,6 @@ pub struct ModList {
   active_filters: HashSet<Filters>,
   starsector_version: Option<GameVersion>,
   install_state: InstallState,
-  #[data(ignore)]
   filter_state: ((bool, bool), StackChildPosition),
   pub install_dir_available: bool,
 }
@@ -461,17 +460,15 @@ impl ModList {
   }
 
   fn on_filter_reset(
-    _: &mut FlexTable<ModList>,
+    table: &mut FlexTable<ModList>,
     ctx: &mut EventCtx,
     _: &(),
     data: &mut ModList,
   ) -> bool {
     data.active_filters.clear();
     data.filter_state.0 .1 = false;
-    ctx.children_changed();
+    Self::update_sorting(table, ctx, data);
     ctx.request_update();
-    ctx.request_layout();
-    ctx.request_paint();
 
     true
   }
@@ -630,6 +627,7 @@ impl ModList {
     event_sink: Option<ExtEventSink>,
     root_dir: Option<PathBuf>,
   ) -> Option<Vec<Arc<ModEntry>>> {
+    eprintln!("parsing mods");
     let handle = tokio::runtime::Handle::current();
 
     if let Some(root_dir) = root_dir {
@@ -650,6 +648,11 @@ impl ModList {
       if let Ok(dir_iter) = std::fs::read_dir(mod_dir) {
         let enabled_mods_iter = enabled_mods.par_iter();
 
+        let client = reqwest::Client::builder()
+          .connect_timeout(std::time::Duration::from_millis(500))
+          .timeout(std::time::Duration::from_millis(500))
+          .build()
+          .expect("Build reqwest client");
         let mods = dir_iter
           .par_bridge()
           .filter_map(|entry| entry.ok())
@@ -679,9 +682,9 @@ impl ModList {
             },
           )
           .map(|mut entry| {
-            // let mut mut_entry = Arc::make_mut(&mut entry);
             if let Some(version) = entry.version_checker.clone() {
-              let master_version = handle.block_on(util::get_master_version(None, version.clone()));
+              let master_version =
+                handle.block_on(util::get_master_version(&client, None, version.clone()));
               entry.remote_version = master_version.clone();
               entry.update_status = Some(UpdateStatus::from((&version, &master_version)));
             }

@@ -272,7 +272,7 @@ impl FilterOptions {
                 }
               };
               for filter in filters.into_iter() {
-                ctx.submit_command(ModList::FILTER_UPDATE.with(dbg!((filter, enable))))
+                ctx.submit_command(ModList::FILTER_UPDATE.with((filter, enable)))
               }
             }),
           )

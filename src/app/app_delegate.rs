@@ -248,7 +248,11 @@ impl Delegate<App> for AppDelegate {
             eprintln!("Failed to submit new entry")
           };
           if let Some(version_meta) = remote_version {
-            util::get_master_version(Some(ext_ctx), version_meta).await;
+            util::get_master_version(&reqwest::Client::builder()
+            .timeout(std::time::Duration::from_millis(500))
+            .connect_timeout(std::time::Duration::from_millis(500))
+            .build()
+            .expect("Build reqwest client"), Some(ext_ctx), version_meta).await;
           }
         } else {
           eprintln!("Failed to delete duplicate mod");

@@ -71,7 +71,8 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
           open_in_browser();
         }
       } else if let Some(payload) = cmd.get(App::UPDATE_AVAILABLE) {
-        let widget = if let Ok(release) = payload {
+        eprintln!("got update availability");
+        let _widget: Modal<'_, ()> = if let Ok(release) = payload {
           let local_tag = TAG.strip_prefix('v').unwrap_or(TAG);
           let release_tag = release
             .tag_name
@@ -102,7 +103,7 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
             .with_close()
         };
 
-        widget.show(ctx, env, &());
+        // widget.show(ctx, env, &());
       } else if let Some(original_exe) = cmd.get(App::RESTART) {
         if process::Command::new(original_exe).spawn().is_ok() {
           ctx.submit_command(commands::QUIT_APP)

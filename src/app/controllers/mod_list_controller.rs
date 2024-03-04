@@ -48,10 +48,17 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
                 )));
               }
             } else if let Some(version_checker) = entry.version_checker.clone() {
-              data.runtime.spawn(get_master_version(
-                Some(ctx.get_external_handle()),
-                version_checker,
-              ));
+              data.runtime.spawn({
+                let ext_ctx = ctx.get_external_handle();
+                async move {
+                  let client = reqwest::Client::builder()
+                    .timeout(std::time::Duration::from_millis(500))
+                    .connect_timeout(std::time::Duration::from_millis(500))
+                    .build()
+                    .expect("Build reqwest client");
+                  get_master_version(&client, Some(ext_ctx), version_checker).await
+                }
+              });
             }
             ctx.submit_command(App::LOG_SUCCESS.with(entry.name.clone()));
             data.mod_list.mods.insert(entry.id.clone(), entry);

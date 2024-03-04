@@ -33,6 +33,7 @@ use druid_widget_nursery::{
 use json_comments::strip_comments;
 use lazy_static::lazy_static;
 use regex::Regex;
+use reqwest::Client;
 use serde::Deserialize;
 use tap::Tap;
 use tokio::{select, sync::mpsc};
@@ -211,10 +212,11 @@ pub const MASTER_VERSION_RECEIVED: Selector<(String, Result<ModVersionMeta, Stri
   Selector::new("remote_version_received");
 
 pub async fn get_master_version(
+  client: &Client,
   ext_sink: Option<ExtEventSink>,
   local: ModVersionMeta,
 ) -> Option<ModVersionMeta> {
-  let res = send_request(local.remote_url.clone()).await;
+  let res = send_request(client, local.remote_url.clone()).await;
 
   let payload = match res {
     Err(err) => (local.id.clone(), Err(err)),
@@ -246,8 +248,11 @@ pub async fn get_master_version(
   }
 }
 
-async fn send_request(url: String) -> Result<String, String> {
-  reqwest::get(url)
+async fn send_request(client: &Client, url: String) -> Result<String, String> {
+  let request = client.get(url).build().map_err(|e| format!("{:?}", e))?;
+
+  client
+    .execute(request)
     .await
     .map_err(|e| format!("{:?}", e))?
     .error_for_status()
@@ -587,6 +592,8 @@ pub struct Asset {
 
 pub async fn get_latest_manager() -> Result<Release, String> {
   let client = reqwest::Client::builder()
+    .timeout(std::time::Duration::from_millis(500))
+    .connect_timeout(std::time::Duration::from_millis(500))
     .user_agent("StarsectorModManager")
     .build()
     .map_err(|e| e.to_string())?;
@@ -1084,12 +1091,12 @@ where
   }
 }
 
-impl<K: Clone + Eq + Hash + 'static, V: Clone + Eq + 'static> Data for xxHashMap<K, V>
+impl<K: Clone + Eq + Hash + 'static, V: Clone + Data + 'static> Data for xxHashMap<K, V>
 where
   druid::im::HashMap<K, V, Xxh3Builder>: Debug,
 {
   fn same(&self, other: &Self) -> bool {
-    self.is_submap(&**other)
+    self.is_submap_by(&**other, |other, val| other.same(val))
   }
 }
 
