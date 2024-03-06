@@ -19,6 +19,9 @@ use druid::{Data, Widget, WidgetPod};
 mod table_column_width;
 pub use table_column_width::*;
 
+mod table_iter;
+pub use table_iter::*;
+
 mod flex_table;
 pub use flex_table::*;
 

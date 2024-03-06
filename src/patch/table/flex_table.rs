@@ -19,7 +19,7 @@ use druid::{
   LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget,
 };
 
-use super::{ComplexTableColumnWidth, TableCellVerticalAlignment, TableColumnWidth, TableRow};
+use super::{ComplexTableColumnWidth, TableCellVerticalAlignment, TableColumnWidth, TableData, TableRow};
 
 #[derive(Debug)]
 struct TableBorderStyle {
@@ -65,13 +65,13 @@ pub struct FlexTable<T> {
   row_background: Option<BackgroundBrush<T>>,
 }
 
-impl<T: Data> Default for FlexTable<T> {
+impl<T: TableData> Default for FlexTable<T> {
   fn default() -> Self {
     Self::new()
   }
 }
 
-impl<T: Data> FlexTable<T> {
+impl<T: TableData> FlexTable<T> {
   pub const ROW_NUM: Key<u64> = Key::new("druid_widget_nursery_fork.flex_table.row_number");
 
   /// Create a new empty table.

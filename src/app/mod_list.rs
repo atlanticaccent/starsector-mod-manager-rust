@@ -138,7 +138,7 @@ impl ModList {
                       .row_background(Painter::new(move |ctx, _, env| {
                         let rect = ctx.size().to_rect();
 
-                        if env.try_get(FlexTable::<u64>::ROW_NUM).unwrap_or(0) % 2 == 0 {
+                        if env.try_get(FlexTable::ROW_NUM).unwrap_or(0) % 2 == 0 {
                           ctx.fill(rect, &env.get(theme::BACKGROUND_DARK))
                         } else {
                           ctx.fill(rect, &env.get(theme::BACKGROUND_LIGHT))

@@ -26,7 +26,7 @@ use super::{
     ON_RED_KEY, ON_YELLOW_KEY, ORANGE_KEY, RED_KEY, YELLOW_KEY,
   },
 };
-use crate::app::util::{default_true, parse_game_version, LabelExt};
+use crate::{app::util::{default_true, parse_game_version, LabelExt}, patch::table::RowData};
 
 pub type GameVersion = (
   Option<String>,
@@ -253,6 +253,14 @@ impl ModEntry {
   /// Set the mod entry's path.
   pub fn set_path(&mut self, path: PathBuf) {
     self.path = path;
+  }
+}
+
+impl RowData for ModEntry {
+  type Id = String;
+
+  fn id(&self) -> Self::Id {
+    self.id.clone()
   }
 }
 

@@ -872,7 +872,9 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     func: impl Fn(&mut EventCtx, &mut T) -> bool + 'static,
   ) -> ControllerHost<Self, OnEvent<T, W>> {
     self.on_event(move |_, ctx, event, data| {
-      if let Event::KeyUp(key_event) = event && key_event.key == key {
+      if let Event::KeyUp(key_event) = event
+        && key_event.key == key
+      {
         func(ctx, data)
       } else {
         false
@@ -903,7 +905,9 @@ pub trait WithHoverState<S: HoverState + Data + Clone, T: Data, W: Widget<(T, S)
       lens!((T, S), 0),
       self
         .on_event(|_, ctx, event, data| {
-          if let druid::Event::MouseMove(_) = event && !ctx.is_disabled() {
+          if let druid::Event::MouseMove(_) = event
+            && !ctx.is_disabled()
+          {
             ctx.set_cursor(&druid::Cursor::Pointer);
             data.1.set(true);
             ctx.request_paint();
@@ -1188,6 +1192,24 @@ impl<T, DBG: Fn(&T) + 'static> Lens<T, T> for Dbg<DBG> {
     f(data)
   }
 }
+
+// impl<'a, U: 'a, T> Lens<T, IterSwap<'a, U>> for IterLens
+// where
+//   for<'b> &'b T: IntoIterator<Item = &'a U>,
+//   for<'b> <&'b T as IntoIterator>::IntoIter: 'a,
+//   for<'b> &'b mut T: IntoIterator<Item = &'a mut U>,
+//   for<'b> <&'b mut T as IntoIterator>::IntoIter: 'a,
+// {
+//   fn with<V, F: FnOnce(&IterSwap<'a, U>) -> V>(&self, data: &T, f: F) -> V {
+//     let iter = data.into_iter();
+//     let iter_swap = IterSwap::Iter(Box::new(iter));
+//     f(&iter_swap)
+//   }
+
+//   fn with_mut<V, F: FnOnce(&mut IterSwap<'a, U>) -> V>(&self, data: &mut T, f: F) -> V {
+//     todo!()
+//   }
+// }
 
 pub trait PrismExt<A, B>: Prism<A, B> {
   fn then_some<Other, C>(self, right: Other) -> ThenSome<Self, Other, B>
