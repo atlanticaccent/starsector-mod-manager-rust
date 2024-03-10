@@ -24,41 +24,49 @@ mod icons {
 
 pub mod icon;
 
-icon!(icons::EXTENSION);
-icon!(icons::HELP);
-icon!(icons::INSTALL_DESKTOP);
-icon!(icons::OPEN_BROWSER);
-icon!(icons::SETTINGS);
-icon!(icons::VERIFIED);
-icon!(icons::NEW_RELEASES);
-icon!(icons::PLAY_ARROW);
-icon!(icons::ADD_CIRCLE);
-icon!(icons::ADD_CIRCLE_OUTLINE);
-icon!(icons::INVENTORY_2);
-icon!(icons::REPORT);
-icon!(icons::NAVIGATE_NEXT);
-icon!(icons::ARROW_DROP_DOWN);
-icon!(icons::ARROW_DROP_UP);
-icon!(icons::ARROW_LEFT);
-icon!(icons::ARROW_RIGHT);
-icon!(icons::CHEVRON_LEFT);
-icon!(icons::CLOSE);
-icon!(icons::FIRST_PAGE);
-icon!(icons::LAST_PAGE);
-icon!(icons::UNFOLD_MORE);
-icon!(icons::SYNC);
-icon!(icons::FOLDER);
-icon!(icons::TOGGLE_ON);
-icon!(icons::SYSTEM_UPDATE);
-icon!(icons::DELETE);
-icon!(icons::SEARCH);
-icon!(icons::CANCEL);
-icon!(icons::TUNE);
-icon!(icons::CHECK_BOX_OUTLINE_BLANK);
-icon!(icons::ADD_BOX);
-icon!(icons::INDETERMINATE_CHECK_BOX);
-icon!(icons::RADIO_BUTTON_CHECKED);
-icon!(icons::RADIO_BUTTON_UNCHECKED);
-icon!(icons::DESELECT);
-icon!(icons::CLEAR);
-icon!(icons::REFRESH);
+macro_rules! icons {
+  ($($i:path),* $(,)?) => {
+    $(icon!($i);)+
+  };
+}
+
+icons! {
+  icons::EXTENSION,
+  icons::HELP,
+  icons::INSTALL_DESKTOP,
+  icons::OPEN_BROWSER,
+  icons::SETTINGS,
+  icons::VERIFIED,
+  icons::NEW_RELEASES,
+  icons::PLAY_ARROW,
+  icons::ADD_CIRCLE,
+  icons::ADD_CIRCLE_OUTLINE,
+  icons::INVENTORY_2,
+  icons::REPORT,
+  icons::NAVIGATE_NEXT,
+  icons::ARROW_DROP_DOWN,
+  icons::ARROW_DROP_UP,
+  icons::ARROW_LEFT,
+  icons::ARROW_RIGHT,
+  icons::CHEVRON_LEFT,
+  icons::CLOSE,
+  icons::FIRST_PAGE,
+  icons::LAST_PAGE,
+  icons::UNFOLD_MORE,
+  icons::SYNC,
+  icons::FOLDER,
+  icons::TOGGLE_ON,
+  icons::SYSTEM_UPDATE,
+  icons::DELETE,
+  icons::SEARCH,
+  icons::CANCEL,
+  icons::TUNE,
+  icons::CHECK_BOX_OUTLINE_BLANK,
+  icons::ADD_BOX,
+  icons::INDETERMINATE_CHECK_BOX,
+  icons::RADIO_BUTTON_CHECKED,
+  icons::RADIO_BUTTON_UNCHECKED,
+  icons::DESELECT,
+  icons::CLEAR,
+  icons::REFRESH,
+}
