@@ -19,14 +19,14 @@ use tokio::{
   time::timeout,
 };
 
-use super::mod_entry::ModMetadata;
+use super::{mod_entry::ModMetadata, util::get_master_version};
 use crate::app::{mod_entry::ModEntry, util::LoadBalancer};
 
 #[derive(Clone)]
 pub enum Payload {
   Initial(Vec<PathBuf>),
-  Resumed(Arc<ModEntry>, HybridPath, PathBuf),
-  Download(Arc<ModEntry>),
+  Resumed(ModEntry, HybridPath, PathBuf),
+  Download(ModEntry),
 }
 
 pub const INSTALL: Selector<ChannelMessage> = Selector::new("install.message");
@@ -133,7 +133,7 @@ async fn handle_path(
           ext_ctx
             .submit_command(
               INSTALL,
-              ChannelMessage::Duplicate(id.clone().into(), rewrite(), Arc::new(mod_info)),
+              ChannelMessage::Duplicate(id.clone().into(), rewrite(), mod_info),
               Target::Auto,
             )
             .expect("Send query over async channel");
@@ -145,7 +145,7 @@ async fn handle_path(
               ChannelMessage::Duplicate(
                 mods_dir.join(mod_info.id.clone()).into(),
                 mod_folder,
-                Arc::new(mod_info),
+                mod_info,
               ),
               Target::Auto,
             )
@@ -154,10 +154,18 @@ async fn handle_path(
           move_or_copy(mod_path.clone(), mods_dir.join(&mod_info.id)).await;
 
           mod_info.set_path(mods_dir.join(&mod_info.id));
+          if let Some(version_checker) = mod_info.version_checker.clone() {
+            let client = reqwest::Client::builder()
+              .timeout(std::time::Duration::from_millis(500))
+              .connect_timeout(std::time::Duration::from_millis(500))
+              .build()
+              .expect("Build reqwest client");
+            mod_info.version_checker = get_master_version(&client, None, version_checker).await;
+          }
           ext_ctx
             .submit_command(
               INSTALL,
-              ChannelMessage::Success(Arc::new(mod_info)),
+              ChannelMessage::Success(mod_info),
               Target::Auto,
             )
             .expect("Send success over async channel");
@@ -304,7 +312,7 @@ fn copy_dir_recursive(to: &Path, from: &Path) -> io::Result<()> {
 
 async fn handle_delete(
   ext_ctx: ExtEventSink,
-  mut entry: Arc<ModEntry>,
+  mut entry: ModEntry,
   new_path: HybridPath,
   old_path: PathBuf,
 ) -> anyhow::Result<()> {
@@ -313,7 +321,15 @@ async fn handle_delete(
 
   let origin = new_path.get_path_copy();
   move_or_copy(origin, old_path.clone()).await;
-  (*Arc::make_mut(&mut entry)).set_path(old_path);
+  entry.set_path(old_path);
+  if let Some(version_checker) = entry.version_checker.clone() {
+    let client = reqwest::Client::builder()
+      .timeout(std::time::Duration::from_millis(500))
+      .connect_timeout(std::time::Duration::from_millis(500))
+      .build()
+      .expect("Build reqwest client");
+    entry.version_checker = get_master_version(&client, None, version_checker).await;
+  }
 
   ext_ctx
     .submit_command(INSTALL, ChannelMessage::Success(entry), Target::Auto)
@@ -322,7 +338,7 @@ async fn handle_delete(
   Ok(())
 }
 
-async fn handle_auto(ext_ctx: ExtEventSink, entry: Arc<ModEntry>) -> anyhow::Result<()> {
+async fn handle_auto(ext_ctx: ExtEventSink, entry: ModEntry) -> anyhow::Result<()> {
   let url = entry
     .remote_version
     .as_ref()
@@ -360,7 +376,7 @@ async fn handle_auto(ext_ctx: ExtEventSink, entry: Arc<ModEntry>) -> anyhow::Res
                 )
                 .expect("Send error over async channel");
             } else {
-              handle_delete(ext_ctx, Arc::new(mod_info), hybrid, entry.path.clone()).await?;
+              handle_delete(ext_ctx, mod_info, hybrid, entry.path.clone()).await?;
             }
           } else {
             ext_ctx
@@ -497,9 +513,9 @@ pub enum InstallError {
 #[derive(Debug, Clone)]
 pub enum ChannelMessage {
   /// New mod entry
-  Success(Arc<ModEntry>),
+  Success(ModEntry),
   /// ID, Conflicting ID or Path, Path to new, New Mod Entry
-  Duplicate(StringOrPath, HybridPath, Arc<ModEntry>),
+  Duplicate(StringOrPath, HybridPath, ModEntry),
   FoundMultiple(HybridPath, Vec<PathBuf>),
   Error(String, String),
 }

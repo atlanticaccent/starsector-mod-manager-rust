@@ -1,6 +1,6 @@
 use std::{cell::Cell, rc::Rc};
 
-use druid::{widget::Controller, Cursor, Data, Selector, Widget};
+use druid::{widget::Controller, Cursor, Data, Selector, Widget, WidgetId};
 
 pub type SharedHoverState = Rc<Cell<bool>>;
 
@@ -17,6 +17,20 @@ impl HoverState for bool {
 impl HoverState for Rc<Cell<bool>> {
   fn set(&mut self, state: bool) {
     self.replace(state);
+  }
+}
+#[derive(Clone, Data, Debug)]
+pub struct SharedIdHoverState(#[data(ignore)] pub WidgetId, pub Rc<Cell<bool>>);
+
+impl HoverState for SharedIdHoverState {
+  fn set(&mut self, state: bool) {
+    self.1.replace(state);
+  }
+}
+
+impl Default for SharedIdHoverState {
+  fn default() -> Self {
+    Self(WidgetId::next(), Default::default())
   }
 }
 

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use druid::{widget::Controller, Event, EventCtx, Menu, MenuItem, Widget};
 use tap::Pipe;
 
@@ -11,13 +9,13 @@ use crate::app::{
 
 pub struct ModEntryClickController;
 
-impl<W: Widget<Arc<ModEntry>>> Controller<Arc<ModEntry>, W> for ModEntryClickController {
+impl<W: Widget<ModEntry>> Controller<ModEntry, W> for ModEntryClickController {
   fn event(
     &mut self,
     child: &mut W,
     ctx: &mut EventCtx,
     event: &Event,
-    data: &mut Arc<ModEntry>,
+    data: &mut ModEntry,
     env: &druid::Env,
   ) {
     match event {

@@ -25,7 +25,7 @@ use self::{
   controllers::{AppController, HoverController, InstallController, ModListController},
   installer::{HybridPath, StringOrPath},
   mod_description::ModDescription,
-  mod_entry::{ModEntry, UpdateStatus},
+  mod_entry::{ModEntry, UpdateStatus, ViewModEntry},
   mod_list::{EnabledMods, Filters, ModList},
   mod_repo::ModRepo,
   modal::Modal,
@@ -74,8 +74,8 @@ pub struct App {
   widget_id: WidgetId,
   #[data(same_fn = "PartialEq::eq")]
   log: Vector<String>,
-  overwrite_log: Vector<Rc<(StringOrPath, HybridPath, Arc<ModEntry>)>>,
-  duplicate_log: Vector<(Arc<ModEntry>, Arc<ModEntry>)>,
+  overwrite_log: Vector<Rc<(StringOrPath, HybridPath, ModEntry)>>,
+  duplicate_log: Vector<(ViewModEntry, ViewModEntry)>,
   #[data(same_fn = "option_ptr_cmp")]
   webview: Option<Rc<WebView>>,
   downloads: OrdMap<i64, (i64, String, f64)>,
@@ -97,24 +97,24 @@ impl App {
   const CLEAR_LOG: Selector = Selector::new("app.install.clear_log");
   const LOG_ERROR: Selector<(String, String)> = Selector::new("app.mod.install.fail");
   const LOG_MESSAGE: Selector<String> = Selector::new("app.mod.install.start");
-  const LOG_OVERWRITE: Selector<(StringOrPath, HybridPath, Arc<ModEntry>)> =
+  const LOG_OVERWRITE: Selector<(StringOrPath, HybridPath, ModEntry)> =
     Selector::new("app.mod.install.overwrite");
   const CLEAR_OVERWRITE_LOG: Selector<bool> = Selector::new("app.install.clear_overwrite_log");
   const REMOVE_OVERWRITE_LOG_ENTRY: Selector<StringOrPath> =
     Selector::new("app.install.overwrite.decline");
-  const DELETE_AND_SUMBIT: Selector<(PathBuf, Arc<ModEntry>)> =
+  const DELETE_AND_SUMBIT: Selector<(PathBuf, ModEntry)> =
     Selector::new("app.mod.duplicate.resolve");
   const REMOVE_DUPLICATE_LOG_ENTRY: Selector<String> =
     Selector::new("app.mod.duplicate.remove_log");
   const CLEAR_DUPLICATE_LOG: Selector = Selector::new("app.mod.duplicate.ignore_all");
   pub const OPEN_WEBVIEW: Selector<Option<String>> = Selector::new("app.webview.open");
-  const CONFIRM_DELETE_MOD: Selector<Arc<ModEntry>> = Selector::new("app.mod_entry.delete");
+  const CONFIRM_DELETE_MOD: Selector<ModEntry> = Selector::new("app.mod_entry.delete");
   const REMOVE_DOWNLOAD_BAR: Selector<i64> = Selector::new("app.download.bar.remove");
   const FOUND_MULTIPLE: Selector<(HybridPath, Vec<PathBuf>)> =
     Selector::new("app.install.found_multiple");
 
   const TOGGLE_NAV_BAR: Selector = Selector::new("app.nav_bar.collapse");
-  const REPLACE_MODS: Selector<SingleUse<xxHashMap<String, Arc<ModEntry>>>> =
+  const REPLACE_MODS: Selector<SingleUse<xxHashMap<String, ModEntry>>> =
     Selector::new("app.mod_list.replace");
 
   pub fn new(runtime: Handle) -> Self {
@@ -235,25 +235,41 @@ impl App {
           ),
           InitialTab::new(
             "mod_detail",
-            ViewSwitcher::new(
-              |data: &App, _| {
-                data
+            Maybe::new(
+              || ModDescription::view(),
+              || ModDescription::empty_builder().lens(lens::Unit),
+            )
+            .lens(lens::Map::new(
+              |app: &App| {
+                app
                   .active
-                  .clone()
-                  .and_then(|id| data.mod_list.mods.contains_key(&id).then_some(id))
+                  .as_ref()
+                  .and_then(|id| app.mod_list.mods.get(id).cloned())
               },
-              |index, _, _| {
-                if let Some(index) = index {
-                  let intern = Intern::new(index.clone());
-                  ModDescription::view()
-                    .lens(App::mod_list.then(ModList::mods.deref().index(intern.as_ref())))
-                    .boxed()
-                } else {
-                  ModDescription::empty_builder().lens(lens::Unit).boxed()
+              |app, entry| {
+                if let Some(entry) = entry {
+                  app.mod_list.mods.insert(entry.id.clone(), entry);
                 }
               },
-            )
-            .on_change(ModList::on_app_data_change),
+            )), // ViewSwitcher::new(
+                //   |data: &App, _| {
+                //     data
+                //       .active
+                //       .clone()
+                //       .and_then(|id| data.mod_list.mods.contains_key(&id).then_some(id))
+                //   },
+                //   |index, _, _| {
+                //     if let Some(index) = index {
+                //       let intern = Intern::new(index.clone());
+                //       ModDescription::view()
+                //         .lens(App::mod_list.then(ModList::mods.deref().index(intern.as_ref())))
+                //         .boxed()
+                //     } else {
+                //       ModDescription::empty_builder().lens(lens::Unit).boxed()
+                //     }
+                //   },
+                // )
+                // .on_change(ModList::on_app_data_change),
           ),
           InitialTab::new("settings", Settings::view().lens(App::settings)),
         ]))
@@ -283,18 +299,16 @@ impl App {
           let remote = res.as_ref().ok().cloned();
           let entry_lens = App::mod_list.then(ModList::mods).deref().index(id);
 
-          if let Some(version_checker) = entry_lens
-            .clone()
-            .then(ModEntry::version_checker.in_arc())
-            .get(data)
+          if let Some(version_checker) =
+            entry_lens.clone().then(ModEntry::version_checker).get(data)
           {
             entry_lens
               .clone()
-              .then(ModEntry::remote_version.in_arc())
+              .then(ModEntry::remote_version)
               .put(data, remote.clone());
 
             entry_lens
-              .then(ModEntry::update_status.in_arc())
+              .then(ModEntry::update_status)
               .put(data, Some(UpdateStatus::from((&version_checker, &remote))))
           }
         }),
@@ -418,7 +432,7 @@ impl App {
     .lens(App::mod_list)
     .on_change(|_ctx, _old, data, _env| {
       if let Some(install_dir) = &data.settings.install_dir {
-        let enabled: Vec<Arc<ModEntry>> = data
+        let enabled: Vec<ViewModEntry> = data
           .mod_list
           .mods
           .iter()
@@ -454,7 +468,7 @@ impl App {
 
               for id in ids.iter() {
                 if let Some(mut entry) = data.mod_list.mods.remove(id) {
-                  (Arc::make_mut(&mut entry)).enabled = true;
+                  entry.enabled = true;
                   data.mod_list.mods.insert(id.clone(), entry);
                 }
               }
@@ -476,7 +490,7 @@ impl App {
 
               for id in ids.iter() {
                 if let Some(mut entry) = data.mod_list.mods.remove(id) {
-                  (Arc::make_mut(&mut entry)).enabled = false;
+                  entry.enabled = false;
                   data.mod_list.mods.insert(id.clone(), entry);
                 }
               }
@@ -802,13 +816,13 @@ impl App {
       .push_back(format!("[{}] {}", Local::now().format("%H:%M:%S"), message))
   }
 
-  fn push_overwrite(&mut self, message: (StringOrPath, HybridPath, Arc<ModEntry>)) {
+  fn push_overwrite(&mut self, message: (StringOrPath, HybridPath, ModEntry)) {
     if !self.overwrite_log.iter().any(|val| val.0 == message.0) {
       self.overwrite_log.push_back(Rc::new(message))
     }
   }
 
-  fn push_duplicate(&mut self, duplicates: &(Arc<ModEntry>, Arc<ModEntry>)) {
+  fn push_duplicate(&mut self, duplicates: &(ViewModEntry, ViewModEntry)) {
     self.duplicate_log.push_back(duplicates.clone())
   }
 }

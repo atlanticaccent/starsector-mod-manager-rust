@@ -7,13 +7,13 @@ use druid_widget_nursery::{material_icons::Icon, Stack, StackChildPosition};
 use crate::{
   app::{
     mod_list::ModList,
-    util::{bold_text, WidgetExtEx as _, TUNE},
+    util::{bold_text, LensExtExt, WidgetExtEx as _, TUNE},
     CLEAR,
   },
   widgets::card::Card,
 };
 
-use super::FILTER_POSITION;
+use super::{FilterState, FILTER_POSITION};
 
 pub struct FilterButton;
 
@@ -48,7 +48,7 @@ impl FilterButton {
     ))
   }
 
-  pub fn view() -> impl Widget<(bool, bool)> {
+  pub fn view() -> impl Widget<FilterState> {
     Stack::new()
       .with_child(
         Card::builder()
@@ -58,24 +58,26 @@ impl FilterButton {
           .fix_height(46.0)
           .on_click(|ctx, _, _| ctx.submit_command(ModList::FILTER_RESET))
           .else_if(
-            |(_, data): &(bool, bool), _| !*data,
+            |data: &bool, _| *data,
             SizedBox::empty()
               .width(super::FILTER_WIDTH - 6.0)
               .height(46.0),
           )
-          .padding((0.0, 4.0, 6.0, 0.0)),
+          .padding((0.0, 4.0, 6.0, 0.0))
+          .lens(FilterState::active_filters.compute(|v| v.is_empty())),
       )
       .with_positioned_child(
         Card::builder()
           .with_insets((0.0, 14.0))
           .hoverable(|| FilterButton::button())
-          .on_click(|ctx, (data, _), _| {
+          .on_click(|ctx, data, _| {
             ctx.submit_command(FILTER_POSITION.with(ctx.window_origin()));
             *data = true;
           })
           .on_added(|_, ctx, _, _| ctx.submit_command(FILTER_POSITION.with(ctx.window_origin())))
-          .or_empty(|(data, _), _| !*data)
-          .fix_size(super::FILTER_WIDTH, 52.0),
+          .or_empty(|data, _| !*data)
+          .fix_size(super::FILTER_WIDTH, 52.0)
+          .lens(FilterState::open),
         StackChildPosition::new().right(Some(0.0)),
       )
   }

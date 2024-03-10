@@ -3,7 +3,6 @@ use std::{
   io::Write as _,
   path::PathBuf,
   rc::Rc,
-  sync::Arc,
 };
 
 use base64::{decode, encode};
@@ -31,17 +30,14 @@ use webview_subsystem::init_webview;
 
 use super::{
   controllers::HoverController,
-  installer,
-  installer::{HybridPath, StringOrPath, DOWNLOAD_PROGRESS, DOWNLOAD_STARTED, INSTALL_ALL},
+  installer::{self, HybridPath, StringOrPath, DOWNLOAD_PROGRESS, DOWNLOAD_STARTED, INSTALL_ALL},
   mod_description,
-  mod_entry::{ModEntry, ModMetadata},
+  mod_entry::{ModEntry, ModMetadata, ViewModEntry},
   mod_list::{install::install_options::InstallOptions, ModList},
   modal::Modal,
-  settings,
-  settings::{Settings, SettingsCommand},
-  util,
+  settings::{self, Settings, SettingsCommand},
   util::{
-    get_latest_manager, get_starsector_version, Button2, CommandExt as _, DummyTransfer,
+    self, get_latest_manager, get_starsector_version, Button2, CommandExt as _, DummyTransfer,
     LabelExt as _, WidgetExtEx as _, GET_INSTALLED_STARSECTOR,
   },
   App,
@@ -92,7 +88,7 @@ impl Delegate<App> for AppDelegate {
           data.active = Some(desc.clone());
 
           return Handled::Yes;
-        },
+        }
         AppCommands::PickFile(is_file) => {
           let sink = ctx.get_external_handle();
           if *is_file {
@@ -160,7 +156,7 @@ impl Delegate<App> for AppDelegate {
       ctx.submit_command(App::LOG_MESSAGE.with(format!("Begin auto-update of {}", entry.name)));
       data
         .runtime
-        .spawn(installer::Payload::Download(entry.clone()).install(
+        .spawn(installer::Payload::Download(entry.into()).install(
           ctx.get_external_handle(),
           data.settings.install_dir.clone().unwrap(),
           data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
@@ -248,11 +244,16 @@ impl Delegate<App> for AppDelegate {
             eprintln!("Failed to submit new entry")
           };
           if let Some(version_meta) = remote_version {
-            util::get_master_version(&reqwest::Client::builder()
-            .timeout(std::time::Duration::from_millis(500))
-            .connect_timeout(std::time::Duration::from_millis(500))
-            .build()
-            .expect("Build reqwest client"), Some(ext_ctx), version_meta).await;
+            util::get_master_version(
+              &reqwest::Client::builder()
+                .timeout(std::time::Duration::from_millis(500))
+                .connect_timeout(std::time::Duration::from_millis(500))
+                .build()
+                .expect("Build reqwest client"),
+              Some(ext_ctx),
+              version_meta,
+            )
+            .await;
           }
         } else {
           eprintln!("Failed to delete duplicate mod");
@@ -621,7 +622,7 @@ impl Delegate<App> for AppDelegate {
             height: height as u32,
           })
         }
-      },
+      }
       Event::MouseDown(ref mouse) => {
         ctx.submit_command(InstallOptions::DISMISS.with(mouse.window_pos))
       }
@@ -826,7 +827,7 @@ impl AppDelegate {
     )
   }
 
-  pub fn make_dupe_col(dupe_a: &Arc<ModEntry>, dupe_b: &Arc<ModEntry>) -> Flex<App> {
+  pub fn make_dupe_col(dupe_a: &ViewModEntry, dupe_b: &ViewModEntry) -> Flex<App> {
     let meta = metadata(&dupe_a.path);
     Flex::column()
       .with_child(Label::wrapped(format!("Version: {}", dupe_a.version)))
@@ -861,7 +862,7 @@ impl AppDelegate {
           );
           ctx.submit_command(
             App::DELETE_AND_SUMBIT
-              .with((path.clone(), dupe_a.clone()))
+              .with((path.clone(), dupe_a.clone().into()))
               .to(Target::Global),
           )
         }

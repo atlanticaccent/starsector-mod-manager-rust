@@ -11,7 +11,7 @@ use super::{util::icons::*, ModList};
 use crate::{app::util::LabelExt, patch::split::Split};
 
 #[derive(
-  Debug, Clone, Copy, Data, PartialEq, Eq, EnumIter, Serialize, Deserialize, strum_macros::Display,
+  Debug, Clone, Copy, Data, PartialEq, Eq, Hash, EnumIter, Serialize, Deserialize, strum_macros::Display,
 )]
 pub enum Heading {
   ID,

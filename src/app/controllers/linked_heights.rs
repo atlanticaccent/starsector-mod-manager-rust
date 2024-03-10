@@ -7,6 +7,7 @@ use druid::{
 use druid_widget_nursery::CommandCtx;
 use proc_macros::Widget;
 
+#[derive(Debug)]
 pub struct HeightLinker {
   pub linked: usize,
   pub resolved: usize,
@@ -14,6 +15,14 @@ pub struct HeightLinker {
   id: WidgetId,
   pub axis: Axis,
 }
+
+impl PartialEq for HeightLinker {
+  fn eq(&self, _: &Self) -> bool {
+    true
+  }
+}
+
+impl Eq for HeightLinker {}
 
 pub type HeightLinkerShared = Rc<RefCell<HeightLinker>>;
 

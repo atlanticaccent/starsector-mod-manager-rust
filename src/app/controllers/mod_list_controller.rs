@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use druid::{
   lens,
   widget::{Controller, Label, Maybe},
@@ -38,30 +36,29 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
           ChannelMessage::Success(entry) => {
             let mut entry = entry.clone();
             if let Some(existing) = data.mod_list.mods.get(&entry.id) {
-              let mut mut_entry = Arc::make_mut(&mut entry);
-              mut_entry.enabled = existing.enabled;
+              entry.enabled = existing.enabled;
               if let Some(remote_version_checker) = existing.remote_version.clone() {
-                mut_entry.remote_version = Some(remote_version_checker.clone());
-                mut_entry.update_status = Some(UpdateStatus::from((
-                  mut_entry.version_checker.as_ref().unwrap(),
+                entry.remote_version = Some(remote_version_checker.clone());
+                entry.update_status = Some(UpdateStatus::from((
+                  entry.version_checker.as_ref().unwrap(),
                   &Some(remote_version_checker),
                 )));
               }
             } else if let Some(version_checker) = entry.version_checker.clone() {
-              data.runtime.spawn({
-                let ext_ctx = ctx.get_external_handle();
-                async move {
-                  let client = reqwest::Client::builder()
-                    .timeout(std::time::Duration::from_millis(500))
-                    .connect_timeout(std::time::Duration::from_millis(500))
-                    .build()
-                    .expect("Build reqwest client");
-                  get_master_version(&client, Some(ext_ctx), version_checker).await
-                }
-              });
+              // data.runtime.spawn({
+              //   let ext_ctx = ctx.get_external_handle();
+              //   async move {
+              //     let client = reqwest::Client::builder()
+              //       .timeout(std::time::Duration::from_millis(500))
+              //       .connect_timeout(std::time::Duration::from_millis(500))
+              //       .build()
+              //       .expect("Build reqwest client");
+              //     get_master_version(&client, Some(ext_ctx), version_checker).await
+              //   }
+              // });
             }
             ctx.submit_command(App::LOG_SUCCESS.with(entry.name.clone()));
-            data.mod_list.mods.insert(entry.id.clone(), entry);
+            data.mod_list.mods.insert(entry.id.clone(), entry.into());
             ctx.children_changed();
           }
           ChannelMessage::Duplicate(conflict, to_install, entry) => ctx.submit_command(
@@ -111,7 +108,7 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
           .with_content("Save compatibility is not guaranteed when updating a mod. Your save may no longer load if you apply this update.")
           .with_content("Bug reports about saves broken by using this feature will be ignored.")
           .with_content("YOU HAVE BEEN WARNED")
-          .with_button("Update", ModList::AUTO_UPDATE.with(entry.clone()))
+          .with_button("Update", ModList::AUTO_UPDATE.with(entry.into()))
           .with_close_label("Cancel");
         // .show_with_size(ctx, env, &(), (600., 300.));
       }

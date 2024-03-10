@@ -3,7 +3,7 @@ use std::{
   borrow::Borrow,
   collections::{HashMap, VecDeque},
   fmt::Debug,
-  hash::Hash,
+  hash::{BuildHasher, Hash},
   io::Read,
   marker::PhantomData,
   ops::{Deref, DerefMut},
@@ -52,7 +52,7 @@ pub(crate) mod icons;
 pub use icons::*;
 
 use super::controllers::{
-  DelayedPainter, HeightLinkerShared, HoverState, InvisibleIf, LinkedHeights, OnHover,
+  DelayedPainter, HeightLinkerShared, HoverState, InvisibleIf, LinkedHeights, OnHover, SharedIdHoverState,
 };
 
 pub const ORANGE_KEY: Key<Color> = Key::new("util.colour.orange");
@@ -910,6 +910,7 @@ pub trait WithHoverState<S: HoverState + Data + Clone, T: Data, W: Widget<(T, S)
           {
             ctx.set_cursor(&druid::Cursor::Pointer);
             data.1.set(true);
+            ctx.request_update();
             ctx.request_paint();
           } else if let druid::Event::Command(cmd) = event
             && cmd.is(HOVER_STATE_CHANGE)
@@ -917,6 +918,7 @@ pub trait WithHoverState<S: HoverState + Data + Clone, T: Data, W: Widget<(T, S)
             data.1.set(false);
             ctx.clear_cursor()
           }
+          ctx.request_update();
           ctx.request_paint();
           false
         })
@@ -937,6 +939,54 @@ impl<S: HoverState + Data + Clone, T: Data, W: Widget<(T, S)> + 'static> WithHov
   for W
 {
 }
+
+pub trait WithHoverIdState<T: Data, W: Widget<(T, SharedIdHoverState)> + 'static>:
+Widget<(T, SharedIdHoverState)> + Sized + 'static
+{
+  fn with_shared_id_hover_state(self, state: SharedIdHoverState) -> Box<dyn Widget<T>> {
+    const HOVER_STATE_CHANGE_FOR_ID: Selector<(WidgetId, bool)> = Selector::new("util.hover_state.change");
+
+    let id = state.0;
+    Scope::from_lens(
+      move |data| (data, state.clone()),
+      lens!((T, SharedIdHoverState), 0),
+      self
+        .on_event(move |_, ctx, event, data| {
+          /* if let druid::Event::MouseMove(_) = event
+            && !ctx.is_disabled()
+            && ctx.is_hot()
+          {
+            ctx.set_cursor(&druid::Cursor::Pointer);
+            data.1.set(true);
+            ctx.submit_command(HOVER_STATE_CHANGE_FOR_ID.with((id, true)))
+          } else  */if let druid::Event::Command(cmd) = event
+            && let Some((target, state)) = cmd.get(HOVER_STATE_CHANGE_FOR_ID)
+            && *target == id
+          {
+            data.1.set(*state);
+            if *state {
+              ctx.set_cursor(&druid::Cursor::Pointer);
+            } else {
+              ctx.clear_cursor()
+            }
+          }
+          ctx.request_update();
+          ctx.request_paint();
+          false
+        })
+        .controller(
+          ExtensibleController::new().on_lifecycle(move |_, ctx, event, _, _| {
+            if let druid::LifeCycle::HotChanged(state) = event {
+              ctx.submit_command(HOVER_STATE_CHANGE_FOR_ID.with((id, *state)))
+            }
+          }),
+        ),
+    )
+    .boxed()
+  }
+}
+
+impl<T: Data, W: Widget<(T, SharedIdHoverState)> + 'static> WithHoverIdState<T, W> for W {}
 
 pub struct Button2;
 
@@ -1104,12 +1154,16 @@ where
   }
 }
 
-impl<K: Clone, V: Clone> From<druid::im::HashMap<K, V, Xxh3Builder>> for xxHashMap<K, V>
+impl<K: Clone + Hash + PartialEq + Eq, V: Clone, S: BuildHasher> From<druid::im::HashMap<K, V, S>> for xxHashMap<K, V>
 where
-  druid::im::HashMap<K, V, Xxh3Builder>: Debug,
+  druid::im::HashMap<K, V, Xxh3Builder>: std::fmt::Debug,
+  druid::im::HashMap<K, V, S>: Debug,
 {
-  fn from(other: druid::im::HashMap<K, V, Xxh3Builder>) -> Self {
-    Self(other)
+  fn from(other: druid::im::HashMap<K, V, S>) -> Self {
+    let mut new = Self::new();
+    new.extend(other.iter().map(|(k, v)| (k.clone(), v.clone())));
+
+    new
   }
 }
 

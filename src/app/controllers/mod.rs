@@ -20,7 +20,7 @@ pub use hover_controller::*;
 pub use install_controller::InstallController;
 pub use invis::InvisibleIf;
 pub use linked_heights::*;
-pub use mod_entry_click_controller::ModEntryClickController;
+// pub use mod_entry_click_controller::ModEntryClickController;
 pub use mod_list_controller::ModListController;
 pub use on_cmd::OnCmd;
 pub use on_event::OnEvent;

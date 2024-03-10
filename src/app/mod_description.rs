@@ -1,9 +1,7 @@
-use std::sync::Arc;
-
 use chrono::{DateTime, Local};
 use druid::{
-  lens::{Constant, Identity, InArc},
-  widget::{Flex, Label, ZStack},
+  lens::Constant,
+  widget::{Flex, Label, Maybe, SizedBox, ZStack},
   Color, Key, LensExt, Selector, UnitPoint, Widget, WidgetExt,
 };
 use druid_widget_nursery::{material_icons::Icon, prism::OptionSome};
@@ -21,7 +19,7 @@ use super::{
     PrismExt, ShadeColor, WidgetExtEx, BLUE_KEY, CHEVRON_LEFT, DELETE, GREEN_KEY, ON_BLUE_KEY,
     ON_GREEN_KEY, ON_RED_KEY, RED_KEY, SYSTEM_UPDATE, TOGGLE_ON,
   },
-  ModEntry,
+  ViewModEntry as ModEntry,
 };
 
 pub const OPEN_IN_BROWSER: Selector<String> =
@@ -34,7 +32,7 @@ impl ModDescription {
   pub const FRACTAL_URL: &'static str = "https://fractalsoftworks.com/forum/index.php?topic=";
   pub const NEXUS_URL: &'static str = "https://www.nexusmods.com/starsector/mods/";
 
-  pub fn view() -> impl Widget<Arc<ModEntry>> {
+  pub fn view() -> impl Widget<ModEntry> {
     let title_text = || {
       lensed_bold(
         druid::theme::TEXT_SIZE_NORMAL,
@@ -217,19 +215,24 @@ impl ModDescription {
               ))
               .with_default_spacer()
               .with_child(
-                Flex::column()
-                  .with_child(h2_fixed("Newer version"))
-                  .with_child(Label::stringify_wrapped())
-                  .with_default_spacer()
-                  .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-                  .prism(OptionSome.then_some(IsSome::new(|b| {
+                Maybe::new(
+                  || {
+                    Flex::column()
+                      .with_child(h2_fixed("Newer version"))
+                      .with_child(Label::stringify_wrapped())
+                      .with_default_spacer()
+                      .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+                  },
+                  || SizedBox::empty(),
+                )
+                .lens(ModEntry::update_status.compute(|s| {
+                  s.clone().filter(|s| {
                     matches!(
-                      b,
+                      s,
                       UpdateStatus::Major(_) | UpdateStatus::Minor(_) | UpdateStatus::Patch(_)
                     )
-                    .then_some(b.clone())
-                  })))
-                  .lens(ModEntry::update_status),
+                  })
+                })),
               )
               .with_child(h2_fixed("Author(s)"))
               .with_child(Label::wrapped_lens(ModEntry::author))
@@ -316,7 +319,6 @@ impl ModDescription {
           }),
         ),
       )
-      .lens(InArc::new::<ModEntry, ModEntry>(Identity))
       .expand_height()
   }
 

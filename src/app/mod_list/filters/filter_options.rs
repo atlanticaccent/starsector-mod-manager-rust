@@ -19,12 +19,12 @@ use crate::{
   widgets::card::Card,
 };
 
-use super::filter_button::FilterButton;
+use super::{filter_button::FilterButton, FilterState};
 
 pub struct FilterOptions;
 
 impl FilterOptions {
-  pub fn view() -> impl Widget<(bool, bool)> {
+  pub fn view() -> impl Widget<FilterState> {
     Card::builder()
       .with_insets((0.0, 14.0))
       .with_corner_radius(4.0)
@@ -34,11 +34,12 @@ impl FilterOptions {
           .fix_height(60.0)
           .padding((-8.0, 0.0, -8.0, -4.0)),
       )
-      .or_empty(|(data, _): &(bool, bool), _| *data)
+      .or_empty(|data: &bool, _| *data)
       .fix_width(super::FILTER_WIDTH)
+      .lens(FilterState::open)
   }
 
-  pub fn wide_view() -> impl Widget<(bool, bool)> {
+  pub fn wide_view() -> impl Widget<FilterState> {
     let mut width_linker = {
       let mut linker = HeightLinker::new();
       linker.axis = druid::widget::Axis::Horizontal;
@@ -59,14 +60,15 @@ impl FilterOptions {
           .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
           .expand_width(),
       ))
-      .or_empty(|(data, _): &(bool, bool), _| *data)
-      .on_command(InstallOptions::DISMISS, |ctx, payload, (data, _)| {
+      .or_empty(|data, _| *data)
+      .on_command(InstallOptions::DISMISS, |ctx, payload, data| {
         let hitbox = ctx
           .size()
           .to_rect()
           .with_origin(ctx.to_window((0.0, 0.0).into()));
         *data = hitbox.contains(*payload);
       })
+      .lens(FilterState::open)
   }
 
   fn option_text<T: Data>(text: &str) -> impl Widget<T> {
