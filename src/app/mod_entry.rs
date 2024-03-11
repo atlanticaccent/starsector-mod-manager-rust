@@ -10,7 +10,7 @@ use druid::{
   kurbo::Line,
   lens,
   theme,
-  widget::{Button, Checkbox, Either, Flex, Label, Maybe, Painter, SizedBox, ViewSwitcher},
+  widget::{Button, Checkbox, Either, Flex, Label, Painter, ViewSwitcher},
   Color, Data, ExtEventSink, KeyOrValue, Lens, RenderContext as _, Selector, Widget, WidgetExt,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
@@ -20,8 +20,8 @@ use serde_aux::prelude::*;
 use tap::Tap;
 
 use super::{
-  app_delegate::AppCommands, controllers::{HeightLinker, HeightLinkerShared, SharedIdHoverState}, mod_list::{headings::Heading, ModList}, util::{
-    self, icons::*, Compute, LensExtExt, WidgetExtEx as _, WithHoverIdState as _, WithHoverState, BLUE_KEY, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ON_RED_KEY, ON_YELLOW_KEY, ORANGE_KEY, RED_KEY, YELLOW_KEY
+  app_delegate::AppCommands, controllers::{HeightLinker, HeightLinkerShared, SharedIdHoverState}, mod_description::ModDescription, mod_list::{headings::Heading, ModList}, util::{
+    self, icons::*, LensExtExt, WidgetExtEx as _, WithHoverIdState as _, WithHoverState, BLUE_KEY, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ON_RED_KEY, ON_YELLOW_KEY, ORANGE_KEY, RED_KEY, YELLOW_KEY
   }, App
 };
 use crate::{
@@ -72,6 +72,16 @@ pub struct ModEntry<T = ()> {
 
 pub type ViewState = (HeightLinkerShared, SharedIdHoverState);
 pub type ViewModEntry = ModEntry<ViewState>;
+
+impl<T> ModEntry<T> {
+  pub fn fractal_link(&self) -> Option<String> {
+    self.version_checker.as_ref().map(|v| &v.fractal_id).and_then(|s| (!s.is_empty()).then(|| format!("{}{}", ModDescription::FRACTAL_URL, s.clone())))
+  }
+
+  pub fn nexus_link(&self) -> Option<String> {
+    self.version_checker.as_ref().map(|v| &v.nexus_id).and_then(|s| (!s.is_empty()).then(|| format!("{}{}", ModDescription::NEXUS_URL, s.clone())))
+  }
+}
 
 impl ModEntry {
   pub const REPLACE: Selector<ModEntry> = Selector::new("MOD_ENTRY_REPLACE");
@@ -200,62 +210,67 @@ impl ViewModEntry {
         .padding(5.)
         .expand_width()
         .boxed(),
-        Heading::Version => Maybe::new(
-          || ViewSwitcher::new(
-            |data: &(UpdateStatus, VersionUnion), _| data.clone(),
+        Heading::Version => Either::new(|data: &(Option<UpdateStatus>, VersionUnion), _| data.0.is_some(),
+          ViewSwitcher::new(
+            |data: &(Option<UpdateStatus>, VersionUnion), _| data.clone(),
             |(update_status, version_union), _, env| {
-              let color = update_status.as_text_colour();
-              Box::new(
-                Flex::row()
-                  .with_child(
-                    Label::new(version_union.to_string()),
-                  )
-                  .with_flex_spacer(1.)
-                  .tap_mut(|row| {
-                    let mut icon_row = Flex::row();
-                    let mut iter = 0;
-    
-                    match update_status {
-                      UpdateStatus::Major(_) => iter = 3,
-                      UpdateStatus::Minor(_) => iter = 2,
-                      UpdateStatus::Patch(_) => iter = 1,
-                      UpdateStatus::Error => icon_row.add_child(Icon::new(*REPORT)),
-                      UpdateStatus::Discrepancy(_) => icon_row.add_child(Icon::new(*HELP)),
-                      UpdateStatus::UpToDate => icon_row.add_child(Icon::new(*VERIFIED)),
-                    };
-    
-                    for _ in 0..iter {
-                      icon_row.add_child(Icon::new(*NEW_RELEASES))
-                    }
-    
-                    let tooltip = match update_status {
-                      UpdateStatus::Error => "Error\nThere was an error retrieving or parsing this mod's version information.".to_string(),
-                      UpdateStatus::UpToDate => update_status.to_string(),
-                      UpdateStatus::Discrepancy(_) => "\
-                        Discrepancy\n\
-                        The installed version of this mod is higher than the version available from the server.\n\
-                        This usually means the mod author has forgotten to update their remote version file and is not a cause for alarm.\
-                      ".to_string(),
-                      _ => update_status.to_string()
-                    };
-                    let text_color = color.clone();
-                    let background_color =
-                      <KeyOrValue<Color>>::from(update_status).resolve(env);
-                    row.add_child(
-                      icon_row.stack_tooltip(tooltip)
-                        .with_text_attribute(druid::text::Attribute::TextColor(text_color))
-                        .with_background_color(background_color)
-                        .with_offset((10.0, 10.0))
-                        .lens(lens!(((UpdateStatus, VersionUnion), bool), 0))
-                        .with_hover_state(false)
+              if let Some(update_status) = update_status {
+                let update_status = update_status;
+                let color = update_status.as_text_colour();
+                Box::new(
+                  Flex::row()
+                    .with_child(
+                      Label::new(version_union.to_string()),
                     )
-                  }),
-              )
+                    .with_flex_spacer(1.)
+                    .tap_mut(|row| {
+                      let mut icon_row = Flex::row();
+                      let mut iter = 0;
+      
+                      match update_status {
+                        UpdateStatus::Major(_) => iter = 3,
+                        UpdateStatus::Minor(_) => iter = 2,
+                        UpdateStatus::Patch(_) => iter = 1,
+                        UpdateStatus::Error => icon_row.add_child(Icon::new(*REPORT)),
+                        UpdateStatus::Discrepancy(_) => icon_row.add_child(Icon::new(*HELP)),
+                        UpdateStatus::UpToDate => icon_row.add_child(Icon::new(*VERIFIED)),
+                      };
+      
+                      for _ in 0..iter {
+                        icon_row.add_child(Icon::new(*NEW_RELEASES))
+                      }
+      
+                      let tooltip = match update_status {
+                        UpdateStatus::Error => "Error\nThere was an error retrieving or parsing this mod's version information.".to_string(),
+                        UpdateStatus::UpToDate => update_status.to_string(),
+                        UpdateStatus::Discrepancy(_) => "\
+                          Discrepancy\n\
+                          The installed version of this mod is higher than the version available from the server.\n\
+                          This usually means the mod author has forgotten to update their remote version file and is not a cause for alarm.\
+                        ".to_string(),
+                        _ => update_status.to_string()
+                      };
+                      let text_color = color.clone();
+                      let background_color =
+                        <KeyOrValue<Color>>::from(update_status).resolve(env);
+                      row.add_child(
+                        icon_row.stack_tooltip(tooltip)
+                          .with_text_attribute(druid::text::Attribute::TextColor(text_color))
+                          .with_background_color(background_color)
+                          .with_offset((10.0, 10.0))
+                          .lens(lens!(((Option<UpdateStatus>, VersionUnion), bool), 0))
+                          .with_hover_state(false)
+                      )
+                    }),
+                )
+              } else {
+                Label::dynamic(|data: &(Option<UpdateStatus>, VersionUnion), _| data.1.to_string()).boxed()
+              }
             },
           ),
-          || SizedBox::empty()
+          Label::dynamic(|data: &(Option<UpdateStatus>, VersionUnion), _| data.1.to_string())
         )
-        .lens(lens::Identity.compute(|entry: &ViewModEntry| entry.update_status.as_ref().map(|s| (s.clone(), entry.version.clone()))))
+        .lens(lens::Identity.compute(|entry: &ViewModEntry| (entry.update_status.clone(), entry.version.clone())))
         .padding(5.)
         .expand_width()
         .boxed(),

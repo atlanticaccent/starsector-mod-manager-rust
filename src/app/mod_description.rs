@@ -4,7 +4,7 @@ use druid::{
   widget::{Flex, Label, Maybe, SizedBox, ZStack},
   Color, Key, LensExt, Selector, UnitPoint, Widget, WidgetExt,
 };
-use druid_widget_nursery::{material_icons::Icon, prism::OptionSome};
+use druid_widget_nursery::material_icons::Icon;
 
 use crate::{
   nav_bar::{Nav, NavLabel},
@@ -13,11 +13,11 @@ use crate::{
 
 use super::{
   controllers::Rotated,
-  mod_entry::{ModMetadata, ModVersionMeta, UpdateStatus},
+  mod_entry::{ModMetadata, UpdateStatus},
   util::{
-    h1, h2_fixed, h3, h3_fixed, hoverable_text, lensed_bold, Compute, IsSome, LabelExt, LensExtExt,
-    PrismExt, ShadeColor, WidgetExtEx, BLUE_KEY, CHEVRON_LEFT, DELETE, GREEN_KEY, ON_BLUE_KEY,
-    ON_GREEN_KEY, ON_RED_KEY, RED_KEY, SYSTEM_UPDATE, TOGGLE_ON,
+    h1, h2_fixed, h3, h3_fixed, hoverable_text, lensed_bold, Compute, LabelExt, LensExtExt,
+    ShadeColor, WidgetExtEx, BLUE_KEY, CHEVRON_LEFT, DELETE, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY,
+    ON_RED_KEY, RED_KEY, SYSTEM_UPDATE, TOGGLE_ON,
   },
   ViewModEntry as ModEntry,
 };
@@ -206,7 +206,9 @@ impl ModDescription {
                       })
                       .fix_height(42.0)
                       .padding((0.0, 2.0))
-                      .on_click(|_, _, _| {}),
+                      .on_click(|_, data, _| {
+                        
+                      }),
                   ),
               )
               .with_child(h2_fixed("Version"))
@@ -255,41 +257,29 @@ impl ModDescription {
               .with_child(Label::stringify_wrapped().lens(ModEntry::description))
               .with_default_spacer()
               .with_child(
-                h2_fixed("Forum thread")
-                  .prism(OptionSome)
-                  .lens(ModVersionMeta::fractal_id.compute(|s| (!s.is_empty()).then(|| s.clone())))
-                  .prism(OptionSome)
-                  .lens(ModEntry::version_checker),
+                Maybe::or_empty(|| h2_fixed("Forum thread"))
+                  .lens(Compute::new(ModEntry::fractal_link)),
               )
               .with_spacer(4.0)
               .with_child(
-                hoverable_text(Some(Color::rgb8(0x00, 0x7B, 0xFF)))
-                  .on_click(|ctx, data, _| ctx.submit_command(OPEN_IN_BROWSER.with(data.clone())))
-                  .prism(OptionSome)
-                  .lens(ModVersionMeta::fractal_id.compute(|s| {
-                    (!s.is_empty()).then(|| format!("{}{}", ModDescription::FRACTAL_URL, s.clone()))
-                  }))
-                  .prism(OptionSome)
-                  .lens(ModEntry::version_checker),
+                Maybe::or_empty(|| {
+                  hoverable_text(Some(Color::rgb8(0x00, 0x7B, 0xFF)))
+                    .on_click(|ctx, data, _| ctx.submit_command(OPEN_IN_BROWSER.with(data.clone())))
+                })
+                .lens(Compute::new(ModEntry::fractal_link)),
               )
               .with_default_spacer()
               .with_child(
-                h2_fixed("NexusMods page")
-                  .prism(OptionSome)
-                  .lens(ModVersionMeta::nexus_id.compute(|s| (!s.is_empty()).then(|| s.clone())))
-                  .prism(OptionSome)
-                  .lens(ModEntry::version_checker),
+                Maybe::or_empty(|| h2_fixed("NexusMods page"))
+                  .lens(Compute::new(ModEntry::nexus_link)),
               )
               .with_spacer(4.0)
               .with_child(
-                hoverable_text(Some(Color::rgb8(0x00, 0x7B, 0xFF)))
-                  .on_click(|ctx, data, _| ctx.submit_command(OPEN_IN_BROWSER.with(data.clone())))
-                  .prism(OptionSome)
-                  .lens(ModVersionMeta::nexus_id.compute(|s| {
-                    (!s.is_empty()).then(|| format!("{}{}", ModDescription::NEXUS_URL, s.clone()))
-                  }))
-                  .prism(OptionSome)
-                  .lens(ModEntry::version_checker),
+                Maybe::or_empty(|| {
+                  hoverable_text(Some(Color::rgb8(0x00, 0x7B, 0xFF)))
+                    .on_click(|ctx, data, _| ctx.submit_command(OPEN_IN_BROWSER.with(data.clone())))
+                })
+                .lens(Compute::new(ModEntry::nexus_link)),
               )
               .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
               .must_fill_main_axis(true)
