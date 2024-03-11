@@ -283,7 +283,7 @@ impl ModList {
     ctx: &mut impl RequestCtx,
     data: &mut ModList,
   ) -> bool {
-    data.filter_state.sorted_ids = data.sorted_vals().into_iter().cloned().collect();
+    data.filter_state.sorted_ids = data.sorted_vals().cloned().collect();
 
     ctx.request_layout();
     ctx.request_paint();
@@ -451,7 +451,7 @@ impl ModList {
     None
   }
 
-  pub fn sorted_vals(&self) -> Vec<&String> {
+  pub fn sorted_vals(&self) -> impl Iterator<Item = &String> {
     let mut values: Vec<&ModEntry> = self
       .mods
       .iter()
@@ -528,7 +528,7 @@ impl ModList {
       }
     });
 
-    values.into_iter().map(|entry| entry.id()).collect()
+    values.into_iter().map(|entry| entry.id())
   }
 }
 

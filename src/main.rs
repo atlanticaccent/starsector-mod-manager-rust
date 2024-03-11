@@ -49,7 +49,7 @@ fn main() {
       .flatten()
       .map(|e| (e.id.clone(), e)),
   );
-  initial_state.mod_list.filter_state.sorted_ids = initial_state.mod_list.sorted_vals().into_iter().cloned().collect();
+  initial_state.mod_list.filter_state.sorted_ids = initial_state.mod_list.sorted_vals().cloned().collect();
 
   let main_window = WindowDesc::new(app::App::theme_wrapper(initial_state.settings.theme.into()))
     .title(concatcp!(
