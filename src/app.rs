@@ -1,4 +1,4 @@
-use std::{path::PathBuf, rc::Rc, sync::Arc};
+use std::{path::PathBuf, rc::Rc};
 
 use chrono::Local;
 use druid::{
@@ -14,7 +14,6 @@ use druid::{
 use druid_widget_nursery::{
   material_icons::Icon, FutureWidget, Stack, StackChildPosition, WidgetExt as WidgetExtNursery,
 };
-use internment::Intern;
 use strum::IntoEnumIterator;
 use tap::Tap;
 use tokio::runtime::Handle;
@@ -237,7 +236,7 @@ impl App {
             "mod_detail",
             Maybe::new(
               || ModDescription::view(),
-              || ModDescription::empty_builder().lens(lens::Unit),
+              || ModDescription::empty_builder(),
             )
             .lens(lens::Map::new(
               |app: &App| {
@@ -251,25 +250,7 @@ impl App {
                   app.mod_list.mods.insert(entry.id.clone(), entry);
                 }
               },
-            )), // ViewSwitcher::new(
-                //   |data: &App, _| {
-                //     data
-                //       .active
-                //       .clone()
-                //       .and_then(|id| data.mod_list.mods.contains_key(&id).then_some(id))
-                //   },
-                //   |index, _, _| {
-                //     if let Some(index) = index {
-                //       let intern = Intern::new(index.clone());
-                //       ModDescription::view()
-                //         .lens(App::mod_list.then(ModList::mods.deref().index(intern.as_ref())))
-                //         .boxed()
-                //     } else {
-                //       ModDescription::empty_builder().lens(lens::Unit).boxed()
-                //     }
-                //   },
-                // )
-                // .on_change(ModList::on_app_data_change),
+            )),
           ),
           InitialTab::new("settings", Settings::view().lens(App::settings)),
         ]))
