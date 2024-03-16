@@ -287,7 +287,7 @@ impl<T: TableData> FlexTable<T> {
 
 impl<T: TableData> Widget<T> for FlexTable<T> {
   fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
-    let keys: Vec<_> = data.keys().cloned().collect();
+    let keys: Vec<_> = data.keys().collect();
     for (row_num, row_id) in keys.into_iter().enumerate() {
       let columns: Vec<_> = data.columns().cloned().collect();
       let mut row_data = &mut data[&row_id];
@@ -304,7 +304,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
 
   fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &T, env: &Env) {
     if let LifeCycle::WidgetAdded = event {
-      for row_data in data.keys().map(|k| &data[k]) {
+      for row_data in data.keys().map(|k| &data[&k]) {
         let mut row: TableRow<T::Row> = TableRow::new(row_data.id().clone());
         row.children = data
           .columns()
@@ -315,7 +315,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
       ctx.children_changed();
     }
 
-    let keys: Vec<_> = data.keys().cloned().collect();
+    let keys: Vec<_> = data.keys().collect();
     for (row_num, row_id) in keys.into_iter().enumerate() {
       let columns: Vec<_> = data.columns().cloned().collect();
       let row_data = &data[&row_id];
@@ -355,8 +355,8 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
 
     for (row_num, row_id) in data.keys().enumerate() {
       let columns: Vec<_> = data.columns().cloned().collect();
-      let row_data = &data[row_id];
-      if let Some(row) = self.children.get_mut(row_id) {
+      let row_data = &data[&row_id];
+      if let Some(row) = self.children.get_mut(&row_id) {
         for column in columns {
           if let Some(cell) = row.children.get_mut(&column) && cell.is_initialized() {
             let env = env.clone().adding(Self::ROW_IDX, row_num as u64);
@@ -421,7 +421,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
       if cw.need_intrinsic_width() {
         let mut row_width = 0f64;
         let mut found_size = false;
-        let keys: Vec<_> = data.keys().cloned().collect();
+        let keys: Vec<_> = data.keys().collect();
         for (row_num, row_id) in keys.into_iter().enumerate() {
           let row_data = &data[&row_id];
           let row = self.children.get_mut(&row_id).unwrap();
@@ -462,7 +462,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
     let table_width = col_widths.iter().sum::<f64>() + col_border_width_sum;
     let mut table_height = 0f64;
 
-    let keys: Vec<_> = data.keys().cloned().collect();
+    let keys: Vec<_> = data.keys().collect();
     for (row_num, row_id) in keys.into_iter().enumerate() {
       let mut row_height = 0f64;
       let mut found_height = false;
@@ -622,7 +622,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
       });
     }
 
-    let keys: Vec<_> = data.keys().cloned().collect();
+    let keys: Vec<_> = data.keys().collect();
     for (row_num, row_id) in keys.into_iter().enumerate() {
       if let Some(ref row_starts) = self.row_starts {
         if row_num > 0 && row_border_width > 0.0 {

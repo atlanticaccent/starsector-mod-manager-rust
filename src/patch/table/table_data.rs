@@ -39,7 +39,7 @@ pub trait TableData:
   type Row: RowData<Column = Self::Column> + Debug;
   type Column: Hash + Eq + Clone + Debug;
 
-  fn keys(&self) -> impl Iterator<Item = &<Self::Row as RowData>::Id>;
+  fn keys(&self) -> impl Iterator<Item = <Self::Row as RowData>::Id>;
 
   fn columns(&self) -> impl Iterator<Item = &Self::Column>;
 }

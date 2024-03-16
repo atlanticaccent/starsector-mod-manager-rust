@@ -1161,23 +1161,37 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + Data + 'static> Data for xxHashM
   }
 }
 
-impl<K: Clone + Hash + Eq + PartialEq + Eq, V: Clone, S: BuildHasher>
-  From<druid::im::HashMap<K, V, S>> for xxHashMap<K, V>
-{
-  fn from(other: druid::im::HashMap<K, V, S>) -> Self {
-    let mut new = Self::new();
-    new.extend(other.iter().map(|(k, v)| (k.clone(), v.clone())));
-
-    new
-  }
-}
-
 impl<K: Clone + Hash + Eq, V: Clone> From<xxHashMap<K, V>>
   for druid::im::HashMap<K, V, Xxh3Builder>
 {
   fn from(other: xxHashMap<K, V>) -> Self {
     other.0
   }
+}
+
+impl<K: Clone + Hash + Eq + PartialEq + Eq, V: Clone, O: Into<druid::im::HashMap<K, V>>> From<O>
+  for xxHashMap<K, V>
+{
+  fn from(other: O) -> Self {
+    let mut new = Self::new();
+    new.extend(other.into().iter().map(|(k, v)| (k.clone(), v.clone())));
+
+    new
+  }
+}
+
+impl<K: Clone + Hash + Eq, V: Clone> PartialEq for xxHashMap<K, V>
+where
+  druid::im::HashMap<K, V, Xxh3Builder>: PartialEq,
+{
+  fn eq(&self, other: &Self) -> bool {
+    self.0 == other.0
+  }
+}
+
+impl<K: Clone + Hash + Eq, V: Clone> Eq for xxHashMap<K, V> where
+  druid::im::HashMap<K, V, Xxh3Builder>: Eq
+{
 }
 
 pub trait LensExtExt<A: ?Sized, B: ?Sized>: Lens<A, B> {

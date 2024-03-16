@@ -1,4 +1,4 @@
-use std::{default, hash::Hash};
+use std::hash::Hash;
 
 use druid::{
   im::Vector,
@@ -24,7 +24,7 @@ use crate::{app::util::LabelExt, patch::split::Split};
   Serialize,
   Deserialize,
   strum_macros::Display,
-  Default
+  Default,
 )]
 pub enum Heading {
   ID,
@@ -157,6 +157,14 @@ impl Hash for Header {
   }
 }
 
+impl PartialEq for Header {
+  fn eq(&self, other: &Self) -> bool {
+    self.ratios == other.ratios && self.headings == other.headings && self.sort_by == other.sort_by
+  }
+}
+
+impl Eq for Header {}
+
 fn heading_builder(title: Heading) -> impl Widget<Header> {
   Flex::row()
     .with_flex_child(
@@ -196,7 +204,7 @@ fn heading_builder(title: Heading) -> impl Widget<Header> {
       } else {
         data.sort_by = (title, false)
       }
-      ctx.children_changed()
+      ctx.submit_command(ModList::UPDATE_TABLE_SORT)
     })
 }
 

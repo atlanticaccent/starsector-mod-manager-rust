@@ -7,6 +7,10 @@ description = "A mod manager for the game Starsector"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[[bin]]
+name = "moss"
+path = "src/main.rs"
+
 [dependencies]
 druid = { workspace = true, default-features = true, features = ["im", "serde", "raw-win-handle"] }
 druid-widget-nursery = { workspace = true, default-features = false, features = ["material-icons", "async", "hot-reload", "derive"] }
@@ -52,6 +56,8 @@ xxhash-rust = { workspace = true, features = ["xxh3"] }
 wry = { workspace = true }
 thiserror = { workspace = true }
 internment = { workspace = true }
+comemo = { workspace = true }
+fake = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 native-dialog = "0.6.3"
@@ -135,3 +141,5 @@ thiserror = "1.0.50"
 internment = "0.7.4"
 syn = "2.0.48"
 quote = "1.0.35"
+comemo = "0.4.0"
+fake = { version = "2.9.2", features = ["derive", "chrono", "chrono-tz"] }

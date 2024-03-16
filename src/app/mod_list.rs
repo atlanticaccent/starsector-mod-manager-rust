@@ -1,15 +1,19 @@
 use std::{
+  hash::Hash,
   ops::{Deref, Index, IndexMut},
   path::{Path, PathBuf},
 };
 
+use comemo::memoize;
 use druid::{
-  im::Vector, theme,
-  widget::{Flex, Painter}, Data, EventCtx, ExtEventSink, Lens, LensExt, Rect,
-  RenderContext, Selector, SingleUse, Target, Widget, WidgetExt,
+  im::Vector,
+  theme,
+  widget::{Flex, Painter},
+  Data, EventCtx, ExtEventSink, Lens, LensExt, Rect, RenderContext, Selector, SingleUse, Target,
+  Widget, WidgetExt,
 };
 use druid_widget_nursery::{
-  RequestCtx, Stack, StackChildParams, StackChildPosition, WidgetExt as WidgetExtNursery,
+  Stack, StackChildParams, StackChildPosition, WidgetExt as WidgetExtNursery,
 };
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -27,9 +31,7 @@ use super::{
   App,
 };
 use crate::{
-  patch::table::{
-    ComplexTableColumnWidth, FlexTable, RowData, TableColumnWidth, TableData,
-  },
+  patch::table::{ComplexTableColumnWidth, FlexTable, TableColumnWidth, TableData},
   widgets::card::Card,
 };
 
@@ -54,7 +56,7 @@ const CONTROL_WIDTH: f64 = 175.0;
 pub struct ModList {
   pub mods: xxHashMap<String, ModEntry>,
   pub header: Header,
-  search_text: String,
+  pub search_text: String,
   starsector_version: Option<GameVersion>,
   install_state: InstallState,
   pub filter_state: FilterState,
@@ -105,14 +107,18 @@ impl ModList {
               .with_child(FilterButton::view().lens(Self::filter_state))
               .with_child(
                 Search::view()
+                  .scope(|curr| Search::new(curr), Search::buffer)
+                  .lens(Self::search_text)
                   .on_change(|ctx, old, data, _| {
                     if !old.same(&data) {
-                      ctx.submit_command(Self::SEARCH_UPDATE.with(!data.is_empty()));
+                      if data.search_text.is_empty() {
+                        data.header.sort_by = (Heading::Name, true)
+                      } else {
+                        data.header.sort_by = (Heading::Score, true)
+                      };
                       ctx.submit_command(Self::UPDATE_TABLE_SORT)
                     }
-                  })
-                  .scope(|curr| Search::new(curr), Search::buffer)
-                  .lens(Self::search_text),
+                  }),
               )
               .expand_width(),
           )
@@ -140,18 +146,8 @@ impl ModList {
                       .controller(
                         ExtensibleController::new()
                           .on_command(Self::UPDATE_COLUMN_WIDTH, Self::column_resized)
-                          .on_command(Self::UPDATE_TABLE_SORT, |_, ctx, _, data| {
-                            Self::update_sorting(ctx, data)
-                          })
+                          .on_command(Self::UPDATE_TABLE_SORT, Self::update_sorting)
                           .on_command(Self::SUBMIT_ENTRY, Self::entry_submitted)
-                          .on_command(Self::SEARCH_UPDATE, |_, _, searching, data| {
-                            if *searching {
-                              data.header.sort_by = (Heading::Score, true)
-                            } else {
-                              data.header.sort_by = (Heading::Name, true)
-                            };
-                            false
-                          })
                           .on_command(ModMetadata::SUBMIT_MOD_METADATA, Self::metadata_submitted)
                           .on_command(Self::FILTER_UPDATE, Self::on_filter_change)
                           .on_command(Self::FILTER_RESET, Self::on_filter_reset)
@@ -164,7 +160,10 @@ impl ModList {
                   )
                   .on_change(|ctx, old, data, _| {
                     if !old.header.same(&data.header) || !old.mods.same(&data.mods) {
-                      Self::update_sorting(ctx, data);
+                      dbg!("header or modlist change");
+                      ctx.request_paint();
+                      ctx.request_update();
+                      ctx.request_layout();
                     }
                   }),
               ),
@@ -235,7 +234,7 @@ impl ModList {
       .collect::<druid::im::HashMap<_, _>>()
       .into();
 
-    Self::update_sorting(ctx, data);
+    Self::update_sorting(_table, ctx, &(), data);
     ctx.children_changed();
     dbg!("Finished replacing mods");
     false
@@ -279,12 +278,13 @@ impl ModList {
     false
   }
 
-  fn update_sorting(
-    ctx: &mut impl RequestCtx,
-    data: &mut ModList,
+  fn update_sorting<T: Data, P>(
+    _: &mut impl Widget<T>,
+    ctx: &mut EventCtx,
+    _: &P,
+    _: &mut ModList,
   ) -> bool {
-    data.filter_state.sorted_ids = data.sorted_vals().cloned().collect();
-
+    ctx.request_update();
     ctx.request_layout();
     ctx.request_paint();
     false
@@ -331,7 +331,7 @@ impl ModList {
     } else {
       data.filter_state.active_filters.remove(&payload.0)
     };
-    Self::update_sorting(ctx, data);
+    Self::update_sorting(_table, ctx, &(), data);
 
     false
   }
@@ -343,7 +343,7 @@ impl ModList {
     data: &mut ModList,
   ) -> bool {
     data.filter_state.active_filters.clear();
-    Self::update_sorting(ctx, data);
+    Self::update_sorting(_table, ctx, &(), data);
     ctx.request_update();
 
     true
@@ -451,16 +451,43 @@ impl ModList {
     None
   }
 
-  pub fn sorted_vals(&self) -> impl Iterator<Item = &String> {
-    let mut values: Vec<&ModEntry> = self
-      .mods
-      .iter()
-      .filter_map(|(_, entry)| {
-        let search = if let Heading::Score = self.header.sort_by.0 {
-          if !self.search_text.is_empty() {
-            let id_score = best_match(&self.search_text, &entry.id).map(|m| m.score());
-            let name_score = best_match(&self.search_text, &entry.name).map(|m| m.score());
-            let author_score = best_match(&self.search_text, &entry.author).map(|m| m.score());
+  pub fn sorted_vals(
+    mods: xxHashMap<String, ModEntry>,
+    header: Header,
+    search_text: String,
+    filters: Vec<Filters>,
+  ) -> Vec<String> {
+    comemo::evict(20);
+
+    Self::sorted_vals_memo(mods, header, search_text, filters)
+  }
+
+  #[memoize]
+  fn sorted_vals_memo(
+    mods: xxHashMap<String, ModEntry>,
+    header: Header,
+    search_text: String,
+    filters: Vec<Filters>,
+  ) -> Vec<String> {
+    Self::sorted_vals_inner(mods, header, search_text, filters)
+  }
+
+  pub fn sorted_vals_inner(
+    mods: xxHashMap<String, ModEntry>,
+    header: Header,
+    search_text: String,
+    filters: Vec<Filters>,
+  ) -> Vec<String> {
+    dbg!("Actually running sort");
+
+    let mut ids: Vec<_> = mods
+      .values()
+      .filter_map(|entry| {
+        let search = if let Heading::Score = header.sort_by.0 {
+          if !search_text.is_empty() {
+            let id_score = best_match(&search_text, &entry.id).map(|m| m.score());
+            let name_score = best_match(&search_text, &entry.name).map(|m| m.score());
+            let author_score = best_match(&search_text, &entry.author).map(|m| m.score());
 
             id_score.is_some() || name_score.is_some() || author_score.is_some()
           } else {
@@ -469,66 +496,60 @@ impl ModList {
         } else {
           true
         };
-        let filters = self
-          .filter_state
-          .active_filters
-          .iter()
-          .all(|f| f.as_fn()(entry));
+        let filters = filters.iter().all(|f| f.as_fn()(&entry));
 
-        (search && filters).then(|| entry)
+        (search && filters).then(|| entry.id.clone())
       })
       .collect();
 
-    values.sort_unstable_by(|a, b| {
-      let ord = match self.header.sort_by.0 {
-        Heading::ID => a.id.cmp(&b.id),
-        Heading::Name => a.name.cmp(&b.name),
-        Heading::Author => a.author.cmp(&b.author),
-        Heading::GameVersion => a.game_version.cmp(&b.game_version),
-        Heading::Enabled => a.enabled.cmp(&b.enabled),
-        Heading::Version => match (a.update_status.as_ref(), b.update_status.as_ref()) {
-          (None, None) => a.name.cmp(&b.name),
-          (_, _) if a.update_status.cmp(&b.update_status) == std::cmp::Ordering::Equal => {
-            a.name.cmp(&b.name)
-          }
-          (_, _) => a.update_status.cmp(&b.update_status),
-        },
-        Heading::Score => {
-          let scoring = |entry: &ModEntry| -> Option<isize> {
-            let id_score = best_match(&self.search_text, &entry.id).map(|m| m.score());
-            let name_score = best_match(&self.search_text, &entry.name).map(|m| m.score());
-            let author_score = best_match(&self.search_text, &entry.author).map(|m| m.score());
+    macro_rules! sort {
+      ($ids:ident, $field:ident) => {{
+        $ids.sort_unstable_by_key(|id| {
+          let entry = &mods[id];
+          &entry.$field
+        });
+      }};
+      ($ids:ident, $e:expr) => {{
+        $ids.sort_by_cached_key(|id| {
+          let entry: &ModEntry = &mods[id];
+          $e(entry)
+        })
+      }};
+    }
 
-            std::cmp::max(std::cmp::max(id_score, name_score), author_score)
-          };
+    match header.sort_by.0 {
+      Heading::ID => ids.sort_unstable(),
+      Heading::Name => sort!(ids, name),
+      Heading::Author => sort!(ids, author),
+      Heading::GameVersion => sort!(ids, game_version),
+      Heading::Enabled => sort!(ids, enabled),
+      Heading::Version => sort!(ids, |entry: &ModEntry| {
+        entry
+          .update_status
+          .clone()
+          .ok_or_else(|| entry.name.clone())
+      }),
+      Heading::Score => sort!(ids, |entry: &ModEntry| {
+        let id_score = best_match(&search_text, &entry.id).map(|m| m.score());
+        let name_score = best_match(&search_text, &entry.name).map(|m| m.score());
+        let author_score = best_match(&search_text, &entry.author).map(|m| m.score());
 
-          scoring(a).cmp(&scoring(b))
-        }
-        Heading::AutoUpdateSupport => a
+        id_score.max(name_score).max(author_score).ok_or_else(|| entry.name.clone())
+      }),
+      Heading::AutoUpdateSupport => sort!(ids, |entry: &ModEntry| {
+        entry
           .remote_version
-          .as_ref()
-          .and_then(|r| r.direct_download_url.as_ref())
-          .is_some()
-          .cmp(
-            &b.remote_version
-              .as_ref()
-              .and_then(|r| r.direct_download_url.as_ref())
-              .is_some(),
-          ),
-        Heading::InstallDate => a
-          .manager_metadata
-          .install_date
-          .cmp(&b.manager_metadata.install_date),
-      };
+          .clone()
+          .and_then(|r| r.direct_download_url.clone())
+          .ok_or_else(|| entry.name.clone())
+      }),
+      Heading::InstallDate => sort!(ids, |entry: &ModEntry| entry.manager_metadata.install_date),
+    };
 
-      if self.header.sort_by.1 {
-        ord.reverse()
-      } else {
-        ord
-      }
-    });
-
-    values.into_iter().map(|entry| entry.id())
+    if header.sort_by.1 {
+      ids.reverse()
+    }
+    ids
   }
 }
 
@@ -550,8 +571,14 @@ impl TableData for ModList {
   type Row = ModEntry;
   type Column = Heading;
 
-  fn keys(&self) -> impl Iterator<Item = &String> {
-    self.filter_state.sorted_ids.iter()
+  fn keys(&self) -> impl Iterator<Item = String> {
+    ModList::sorted_vals(
+      self.mods.clone(),
+      self.header.clone(),
+      self.search_text.clone(),
+      self.filter_state.active_filters.iter().cloned().collect(),
+    )
+    .into_iter()
   }
 
   fn columns(&self) -> impl Iterator<Item = &Self::Column> {
@@ -600,8 +627,9 @@ impl From<Vec<String>> for EnabledMods {
   }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Hash, Data, EnumIter, Display, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Hash, Data, EnumIter, Display, Debug, Default)]
 pub enum Filters {
+  #[default]
   Enabled,
   Disabled,
   Unimplemented,

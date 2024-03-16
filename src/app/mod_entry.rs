@@ -11,6 +11,7 @@ use druid::{
   Color, Data, ExtEventSink, KeyOrValue, Lens, RenderContext as _, Selector, Widget, WidgetExt,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
+use fake::Dummy;
 use json_comments::strip_comments;
 use serde::{Deserialize, Serialize};
 use serde_aux::prelude::*;
@@ -32,7 +33,7 @@ pub type GameVersion = (
   Option<String>,
 );
 
-#[derive(Debug, Clone, Deserialize, Data, Lens, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Deserialize, Data, Lens, Default, Dummy)]
 pub struct ModEntry<T = ()> {
   pub id: String,
   pub name: String,
@@ -336,6 +337,14 @@ impl ViewModEntry {
   }
 }
 
+impl<T> PartialEq for ModEntry<T> {
+  fn eq(&self, other: &Self) -> bool {
+    self.id == other.id && self.name == other.name && self.author == other.author && self.version == other.version && self.description == other.description && self.raw_game_version == other.raw_game_version && self.game_version == other.game_version && self.enabled == other.enabled && self.version_checker == other.version_checker && self.remote_version == other.remote_version && self.update_status == other.update_status && self.path == other.path && self.display == other.display && self.manager_metadata == other.manager_metadata
+  }
+}
+
+impl<T> Eq for ModEntry<T> {}
+
 impl From<ModEntry> for ViewModEntry {
   fn from(
     ModEntry {
@@ -441,7 +450,7 @@ impl RowData for ViewModEntry {
   }
 }
 
-#[derive(Debug, Clone, Deserialize, Data, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Deserialize, Data, PartialEq, Eq, PartialOrd, Ord, Hash, Dummy)]
 #[serde(untagged)]
 pub enum VersionUnion {
   String(String),
@@ -477,7 +486,7 @@ pub enum ModEntryError {
   FileError,
 }
 
-#[derive(Debug, Clone, Deserialize, Eq, Data, Lens, Hash)]
+#[derive(Debug, Clone, Deserialize, Eq, Data, Lens, Hash, Dummy)]
 pub struct ModVersionMeta {
   #[serde(alias = "masterVersionFile")]
   pub remote_url: String,
@@ -516,7 +525,7 @@ impl Ord for ModVersionMeta {
   }
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq, PartialOrd, Ord, Data, Lens, Hash)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, PartialOrd, Ord, Data, Lens, Hash, Dummy)]
 pub struct Version {
   #[serde(deserialize_with = "deserialize_number_from_string")]
   pub major: i32,
@@ -537,7 +546,7 @@ impl Display for Version {
   }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Data, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Data, Hash, Dummy)]
 pub enum UpdateStatus {
   Error,
   UpToDate,
@@ -609,7 +618,7 @@ impl UpdateStatus {
   }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Data, Lens, Default, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Data, Lens, Default, Hash, Dummy)]
 pub struct ModMetadata {
   #[data(same_fn = "PartialEq::eq")]
   pub install_date: Option<DateTime<Utc>>,

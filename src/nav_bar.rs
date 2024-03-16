@@ -174,7 +174,7 @@ impl Nav {
 
   fn increment_children_depth(&mut self) {
     for child in self.children.iter_mut() {
-      let mut child = Arc::make_mut(child);
+      let child = Arc::get_mut(child).unwrap();
       child.depth += 1;
       child.increment_children_depth()
     }

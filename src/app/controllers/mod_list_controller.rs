@@ -9,7 +9,7 @@ use crate::app::{
   mod_entry::{ModEntry, UpdateStatus},
   mod_list::ModList,
   modal::Modal,
-  util::{get_master_version, LabelExt},
+  util::LabelExt,
   App,
 };
 
@@ -47,7 +47,6 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
             }
             ctx.submit_command(App::LOG_SUCCESS.with(entry.name.clone()));
             data.mod_list.mods.insert(entry.id.clone(), entry.into());
-            data.mod_list.filter_state.sorted_ids = data.mod_list.sorted_vals().cloned().collect();
             ctx.request_update();
           }
           ChannelMessage::Duplicate(conflict, to_install, entry) => ctx.submit_command(

@@ -1,34 +1,8 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-#![recursion_limit = "1000"]
-#![feature(option_zip)]
-#![feature(result_flattening)]
-#![feature(async_closure)]
-#![feature(hash_set_entry)]
-#![feature(string_remove_matches)]
-#![feature(io_error_more)]
-#![feature(try_blocks)]
-#![feature(let_chains)]
-#![feature(iterator_try_collect)]
-#![feature(iter_next_chunk)]
-#![feature(lazy_cell)]
-#![allow(clippy::new_ret_no_self)]
-#![allow(clippy::type_complexity)]
-
-extern crate webview_subsystem;
-
-use app::app_delegate::AppDelegate;
 use const_format::concatcp;
 use druid::{AppLauncher, WindowDesc};
+use starsector_mod_manager::app::{self, app_delegate::AppDelegate};
 use tokio::runtime::Builder;
 use webview_shared::PROJECT;
-
-mod app;
-mod nav_bar;
-#[allow(dead_code)]
-mod patch;
-mod theme;
-#[allow(dead_code)]
-mod widgets;
 
 fn main() {
   std::fs::create_dir_all(PROJECT.cache_dir()).expect("Create cache dir");
@@ -49,7 +23,6 @@ fn main() {
       .flatten()
       .map(|e| (e.id.clone(), e)),
   );
-  initial_state.mod_list.filter_state.sorted_ids = initial_state.mod_list.sorted_vals().cloned().collect();
 
   let main_window = WindowDesc::new(app::App::theme_wrapper(initial_state.settings.theme.into()))
     .title(concatcp!(

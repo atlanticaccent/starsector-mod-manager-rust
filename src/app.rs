@@ -51,7 +51,7 @@ pub mod app_delegate;
 pub mod controllers;
 pub mod installer;
 mod mod_description;
-mod mod_entry;
+pub mod mod_entry;
 pub mod mod_list;
 mod mod_repo;
 pub mod modal;
