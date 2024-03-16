@@ -14,7 +14,7 @@ pub struct Card;
 
 impl Card {
   pub const CARD_INSET: f64 = 12.5;
-  const DEFAULT_INSETS: (f64, f64) = (0.0, 14.0);
+  pub const DEFAULT_INSETS: (f64, f64) = (0.0, 14.0);
 
   pub fn builder<T: Data>() -> CardBuilder<T> {
     CardBuilder::new()

@@ -5,14 +5,15 @@ use druid::{
   im::{OrdMap, Vector},
   lens,
   widget::{
-    Axis, Button, Checkbox, Either, Flex, Label, Maybe, Scope, SizedBox, TextBox, ViewSwitcher,
-    ZStack,
+    Align, Axis, Button, Checkbox, Either, Flex, Label, Maybe, Scope, SizedBox, TextBox,
+    ViewSwitcher, ZStack,
   },
   Data, Event, Lens, LensExt, Selector, SingleUse, Target, Widget, WidgetExt, WidgetId, WindowDesc,
   WindowLevel,
 };
 use druid_widget_nursery::{
-  material_icons::Icon, FutureWidget, Stack, StackChildPosition, WidgetExt as WidgetExtNursery,
+  material_icons::Icon, FutureWidget, Mask, Stack, StackChildPosition,
+  WidgetExt as WidgetExtNursery,
 };
 use strum::IntoEnumIterator;
 use tap::Tap;
@@ -28,6 +29,7 @@ use self::{
   mod_list::{EnabledMods, Filters, ModList},
   mod_repo::ModRepo,
   modal::Modal,
+  overlays::Popup,
   settings::Settings,
   util::{
     bold_text, button_painter, get_quoted_version, h2_fixed, h3_fixed, icons::*, make_column_pair,
@@ -35,7 +37,7 @@ use self::{
   },
 };
 use crate::{
-  app::util::{option_ptr_cmp, WidgetExtEx},
+  app::util::WidgetExtEx,
   nav_bar::{Nav, NavBar, NavLabel},
   patch::{
     split::Split,
@@ -53,6 +55,7 @@ mod mod_entry;
 pub mod mod_list;
 mod mod_repo;
 pub mod modal;
+mod overlays;
 mod settings;
 mod updater;
 #[allow(dead_code)]
@@ -75,10 +78,11 @@ pub struct App {
   log: Vector<String>,
   overwrite_log: Vector<Rc<(StringOrPath, HybridPath, ModEntry)>>,
   duplicate_log: Vector<(ViewModEntry, ViewModEntry)>,
-  #[data(same_fn = "option_ptr_cmp")]
+  #[data(ignore)]
   webview: Option<Rc<WebView>>,
   downloads: OrdMap<i64, (i64, String, f64)>,
   mod_repo: Option<ModRepo>,
+  popup: Option<Popup>,
 }
 
 impl App {
@@ -146,6 +150,7 @@ impl App {
       webview: None,
       downloads: OrdMap::new(),
       mod_repo: None,
+      popup: None,
     }
   }
 
@@ -298,15 +303,25 @@ impl App {
       .controller(AppController)
   }
 
+  fn overlay() -> impl Widget<App> {
+    Mask::new(Self::view())
+      .with_mask(Align::centered(Popup::view()))
+      .dynamic(|data, _| data.popup.is_some())
+      .on_command(Popup::OPEN_POPUP, |_, popup, data| data.popup = Some(popup.clone()))
+      .on_command(Popup::DISMISS, |_, _, data| data.popup = None)
+  }
+
   pub fn theme_wrapper(theme: Theme) -> impl Widget<Self> {
     Scope::from_lens(
       move |data| (data, theme.clone()),
       lens!((Self, Theme), 0),
-      Self::view()
+      Self::overlay()
         .lens(lens!((Self, Theme), 0))
         .background(druid::theme::WINDOW_BACKGROUND_COLOR)
         .env_scope(|env, (_, theme)| theme.clone().apply(env))
-        .on_command(CHANGE_THEME, |_, theme, data| data.1 = theme.clone()),
+        .on_command(CHANGE_THEME, |_, theme: &Theme, data| {
+          data.1 = theme.clone()
+        }),
     )
   }
 

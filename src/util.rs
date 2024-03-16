@@ -52,7 +52,8 @@ pub(crate) mod icons;
 pub use icons::*;
 
 use super::controllers::{
-  DelayedPainter, HeightLinkerShared, HoverState, InvisibleIf, LinkedHeights, OnHover, SharedIdHoverState,
+  DelayedPainter, HeightLinkerShared, HoverState, InvisibleIf, LinkedHeights, OnHover,
+  SharedIdHoverState,
 };
 
 pub const ORANGE_KEY: Key<Color> = Key::new("util.colour.orange");
@@ -941,10 +942,11 @@ impl<S: HoverState + Data + Clone, T: Data, W: Widget<(T, S)> + 'static> WithHov
 }
 
 pub trait WithHoverIdState<T: Data, W: Widget<(T, SharedIdHoverState)> + 'static>:
-Widget<(T, SharedIdHoverState)> + Sized + 'static
+  Widget<(T, SharedIdHoverState)> + Sized + 'static
 {
   fn with_shared_id_hover_state(self, state: SharedIdHoverState) -> Box<dyn Widget<T>> {
-    const HOVER_STATE_CHANGE_FOR_ID: Selector<(WidgetId, bool)> = Selector::new("util.hover_state.change");
+    const HOVER_STATE_CHANGE_FOR_ID: Selector<(WidgetId, bool)> =
+      Selector::new("util.hover_state.change");
 
     let id = state.0;
     Scope::from_lens(
@@ -959,7 +961,8 @@ Widget<(T, SharedIdHoverState)> + Sized + 'static
             ctx.set_cursor(&druid::Cursor::Pointer);
             data.1.set(true);
             ctx.submit_command(HOVER_STATE_CHANGE_FOR_ID.with((id, true)))
-          } else  */if let druid::Event::Command(cmd) = event
+          } else  */
+          if let druid::Event::Command(cmd) = event
             && let Some((target, state)) = cmd.get(HOVER_STATE_CHANGE_FOR_ID)
             && *target == id
           {
@@ -1107,15 +1110,10 @@ impl<T: Any + Send, U: Any + Send, SINK: Default + Collection<T, U> + Send>
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Clone, Default, Debug)]
-pub struct xxHashMap<K: Clone, V: Clone>(druid::im::HashMap<K, V, Xxh3Builder>)
-where
-  druid::im::HashMap<K, V, Xxh3Builder>: Debug;
+#[derive(Clone, Default)]
+pub struct xxHashMap<K: Clone + Hash + Eq, V: Clone>(druid::im::HashMap<K, V, Xxh3Builder>);
 
-impl<K: Clone, V: Clone> xxHashMap<K, V>
-where
-  druid::im::HashMap<K, V, Xxh3Builder>: Debug,
-{
+impl<K: Clone + Hash + Eq, V: Clone> xxHashMap<K, V> {
   pub fn new() -> Self {
     Self(druid::im::HashMap::with_hasher(Xxh3Builder::new()))
   }
@@ -1125,10 +1123,25 @@ where
   }
 }
 
-impl<K: Clone, V: Clone> Deref for xxHashMap<K, V>
+impl<K: Clone + Hash + Eq, V: Clone> Debug for xxHashMap<K, V>
 where
   druid::im::HashMap<K, V, Xxh3Builder>: Debug,
 {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    self.deref().fmt(f)
+  }
+}
+
+impl<K: Clone + Hash + Eq, V: Clone + Hash> Hash for xxHashMap<K, V>
+where
+  druid::im::HashMap<K, V, Xxh3Builder>: Hash,
+{
+  fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    self.deref().hash(state)
+  }
+}
+
+impl<K: Clone + Hash + Eq, V: Clone> Deref for xxHashMap<K, V> {
   type Target = druid::im::HashMap<K, V, Xxh3Builder>;
 
   fn deref(&self) -> &Self::Target {
@@ -1136,28 +1149,20 @@ where
   }
 }
 
-impl<K: Clone, V: Clone> DerefMut for xxHashMap<K, V>
-where
-  druid::im::HashMap<K, V, Xxh3Builder>: Debug,
-{
+impl<K: Clone + Hash + Eq, V: Clone> DerefMut for xxHashMap<K, V> {
   fn deref_mut(&mut self) -> &mut Self::Target {
     &mut self.0
   }
 }
 
-impl<K: Clone + Eq + Hash + 'static, V: Clone + Data + 'static> Data for xxHashMap<K, V>
-where
-  druid::im::HashMap<K, V, Xxh3Builder>: Debug,
-{
+impl<K: Clone + Eq + Hash + 'static, V: Clone + Data + 'static> Data for xxHashMap<K, V> {
   fn same(&self, other: &Self) -> bool {
     self.is_submap_by(&**other, |other, val| other.same(val))
   }
 }
 
-impl<K: Clone + Hash + PartialEq + Eq, V: Clone, S: BuildHasher> From<druid::im::HashMap<K, V, S>> for xxHashMap<K, V>
-where
-  druid::im::HashMap<K, V, Xxh3Builder>: std::fmt::Debug,
-  druid::im::HashMap<K, V, S>: Debug,
+impl<K: Clone + Hash + Eq + PartialEq + Eq, V: Clone, S: BuildHasher>
+  From<druid::im::HashMap<K, V, S>> for xxHashMap<K, V>
 {
   fn from(other: druid::im::HashMap<K, V, S>) -> Self {
     let mut new = Self::new();
@@ -1167,9 +1172,8 @@ where
   }
 }
 
-impl<K: Clone, V: Clone> From<xxHashMap<K, V>> for druid::im::HashMap<K, V, Xxh3Builder>
-where
-  druid::im::HashMap<K, V, Xxh3Builder>: Debug,
+impl<K: Clone + Hash + Eq, V: Clone> From<xxHashMap<K, V>>
+  for druid::im::HashMap<K, V, Xxh3Builder>
 {
   fn from(other: xxHashMap<K, V>) -> Self {
     other.0

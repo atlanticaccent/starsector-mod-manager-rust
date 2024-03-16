@@ -360,20 +360,6 @@ impl Delegate<App> for AppDelegate {
       } else {
         let _ = opener::open(url);
       }
-    } else if let Some(entry) = cmd.get(ModEntry::ASK_DELETE_MOD) {
-      let modal = Modal::<App>::new(&format!("Delete {}", entry.name))
-        .with_content(format!("Do you want to PERMANENTLY delete {}?", entry.name))
-        .with_content("This operation cannot be undone.")
-        .with_button("Confirm", App::CONFIRM_DELETE_MOD.with(entry.clone()))
-        .with_close_label("Cancel")
-        .build();
-
-      let window = WindowDesc::new(modal)
-        .window_size((400., 150.))
-        .show_titlebar(false)
-        .set_level(WindowLevel::AppWindow);
-
-      ctx.new_window(window)
     } else if let Some(entry) = cmd.get(App::CONFIRM_DELETE_MOD) {
       if remove_dir_all(&entry.path).is_ok() {
         data.mod_list.mods.remove(&entry.id);

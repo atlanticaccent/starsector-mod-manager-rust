@@ -1,3 +1,5 @@
+use std::{default, hash::Hash};
+
 use druid::{
   im::Vector,
   widget::{Controller, Flex, Label, Painter, ViewSwitcher},
@@ -11,10 +13,22 @@ use super::{util::icons::*, ModList};
 use crate::{app::util::LabelExt, patch::split::Split};
 
 #[derive(
-  Debug, Clone, Copy, Data, PartialEq, Eq, Hash, EnumIter, Serialize, Deserialize, strum_macros::Display,
+  Debug,
+  Clone,
+  Copy,
+  Data,
+  PartialEq,
+  Eq,
+  Hash,
+  EnumIter,
+  Serialize,
+  Deserialize,
+  strum_macros::Display,
+  Default
 )]
 pub enum Heading {
   ID,
+  #[default]
   Name,
   #[strum(serialize = "Author(s)")]
   Author,
@@ -45,7 +59,7 @@ impl From<Heading> for &str {
   }
 }
 
-#[derive(Clone, Data, Lens)]
+#[derive(Clone, Data, Lens, Default)]
 pub struct Header {
   #[data(same_fn = "PartialEq::eq")]
   pub ratios: Vector<f64>,
@@ -133,6 +147,13 @@ impl Header {
       header.headings.retain(|existing| existing != heading);
       header.ratios = Self::calculate_ratios(header.headings.len());
     })
+  }
+}
+
+impl Hash for Header {
+  fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    self.headings.hash(state);
+    self.sort_by.hash(state);
   }
 }
 

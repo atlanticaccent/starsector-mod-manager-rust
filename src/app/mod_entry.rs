@@ -1,8 +1,5 @@
 use std::{
-  fmt::Display,
-  fs::File,
-  io::{BufRead, BufReader, Read},
-  path::{Path, PathBuf},
+  fmt::Display, fs::File, hash::Hash, io::{BufRead, BufReader, Read}, path::{Path, PathBuf}
 };
 
 use chrono::{DateTime, Local, Utc};
@@ -50,8 +47,6 @@ pub struct ModEntry<T = ()> {
   #[serde(skip)]
   pub enabled: bool,
   #[serde(skip)]
-  highlighted: bool,
-  #[serde(skip)]
   pub version_checker: Option<ModVersionMeta>,
   #[serde(skip)]
   pub remote_version: Option<ModVersionMeta>,
@@ -80,6 +75,23 @@ impl<T> ModEntry<T> {
 
   pub fn nexus_link(&self) -> Option<String> {
     self.version_checker.as_ref().map(|v| &v.nexus_id).and_then(|s| (!s.is_empty()).then(|| format!("{}{}", ModDescription::NEXUS_URL, s.clone())))
+  }
+}
+
+impl<T> Hash for ModEntry<T> {
+  fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    self.id.hash(state);
+    self.name.hash(state);
+    self.author.hash(state);
+    self.version.hash(state);
+    self.description.hash(state);
+    self.game_version.hash(state);
+    self.enabled.hash(state);
+    self.version_checker.hash(state);
+    self.remote_version.hash(state);
+    self.update_status.hash(state);
+    self.path.hash(state);
+    self.manager_metadata.hash(state);
   }
 }
 
@@ -335,7 +347,6 @@ impl From<ModEntry> for ViewModEntry {
       raw_game_version,
       game_version,
       enabled,
-      highlighted,
       version_checker,
       remote_version,
       update_status,
@@ -354,7 +365,6 @@ impl From<ModEntry> for ViewModEntry {
       raw_game_version,
       game_version,
       enabled,
-      highlighted,
       version_checker,
       remote_version,
       update_status,
@@ -383,7 +393,6 @@ impl From<ViewModEntry> for ModEntry {
       raw_game_version,
       game_version,
       enabled,
-      highlighted,
       version_checker,
       remote_version,
       update_status,
@@ -402,7 +411,6 @@ impl From<ViewModEntry> for ModEntry {
       raw_game_version,
       game_version,
       enabled,
-      highlighted,
       version_checker,
       remote_version,
       update_status,
@@ -433,7 +441,7 @@ impl RowData for ViewModEntry {
   }
 }
 
-#[derive(Debug, Clone, Deserialize, Data, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Deserialize, Data, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[serde(untagged)]
 pub enum VersionUnion {
   String(String),
@@ -469,7 +477,7 @@ pub enum ModEntryError {
   FileError,
 }
 
-#[derive(Debug, Clone, Deserialize, Eq, Data, Lens)]
+#[derive(Debug, Clone, Deserialize, Eq, Data, Lens, Hash)]
 pub struct ModVersionMeta {
   #[serde(alias = "masterVersionFile")]
   pub remote_url: String,
@@ -508,7 +516,7 @@ impl Ord for ModVersionMeta {
   }
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq, PartialOrd, Ord, Data, Lens)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, PartialOrd, Ord, Data, Lens, Hash)]
 pub struct Version {
   #[serde(deserialize_with = "deserialize_number_from_string")]
   pub major: i32,
@@ -529,7 +537,7 @@ impl Display for Version {
   }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Data)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Data, Hash)]
 pub enum UpdateStatus {
   Error,
   UpToDate,
@@ -601,7 +609,7 @@ impl UpdateStatus {
   }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Data, Lens, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Data, Lens, Default, Hash)]
 pub struct ModMetadata {
   #[data(same_fn = "PartialEq::eq")]
   pub install_date: Option<DateTime<Utc>>,

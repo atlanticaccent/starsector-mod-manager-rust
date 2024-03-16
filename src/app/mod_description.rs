@@ -14,6 +14,7 @@ use crate::{
 use super::{
   controllers::Rotated,
   mod_entry::{ModMetadata, UpdateStatus},
+  overlays::Popup,
   util::{
     h1, h2_fixed, h3, h3_fixed, hoverable_text, lensed_bold, Compute, LabelExt, LensExtExt,
     ShadeColor, WidgetExtEx, BLUE_KEY, CHEVRON_LEFT, DELETE, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY,
@@ -206,8 +207,10 @@ impl ModDescription {
                       })
                       .fix_height(42.0)
                       .padding((0.0, 2.0))
-                      .on_click(|_, data, _| {
-                        
+                      .on_click(|ctx, data: &mut ModEntry, _| {
+                        let data: &ModEntry = data;
+                        ctx
+                          .submit_command(Popup::OPEN_POPUP.with(Popup::ConfirmDelete(data.into())))
                       }),
                   ),
               )
