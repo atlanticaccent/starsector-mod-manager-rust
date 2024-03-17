@@ -43,7 +43,7 @@ impl FilterOptions {
     let mut width_linker = {
       let mut linker = HeightLinker::new();
       linker.axis = druid::widget::Axis::Horizontal;
-      Some(linker.into_shared())
+      Some(linker.shared())
     };
     let width_linker = &mut width_linker;
     Card::builder()

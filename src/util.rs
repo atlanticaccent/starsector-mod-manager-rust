@@ -867,6 +867,10 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     InvisibleIf::new(func, self)
   }
 
+  fn invisible(self) -> InvisibleIf<T, Self> {
+    InvisibleIf::new(|_| true, self)
+  }
+
   fn on_key_up(
     self,
     key: keyboard_types::Key,
@@ -888,6 +892,10 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     matches: impl Fn(&Event) -> bool + 'static,
   ) -> ControllerHost<Self, OnEvent<T, W>> {
     self.on_event(move |_, _, event, _| matches(event))
+  }
+
+  fn disabled(self) -> impl Widget<T> {
+    self.on_added(|_, ctx, _, _| ctx.set_disabled(true))
   }
 }
 

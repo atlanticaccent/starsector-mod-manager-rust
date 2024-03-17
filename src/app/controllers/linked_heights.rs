@@ -34,6 +34,7 @@ enum HeightLinkerCmd {
 impl HeightLinker {
   const HEIGHT_LINKER_CMD: Selector<(WidgetId, HeightLinkerCmd)> =
     Selector::new("height_linker.command");
+  pub const HEIGHT_LINKER_RESET_ALL: Selector = Selector::new("height_linker.reset.all");
 
   pub fn new() -> Self {
     Self {
@@ -45,11 +46,16 @@ impl HeightLinker {
     }
   }
 
-  pub fn new_shared() -> HeightLinkerShared {
-    Self::new().into_shared()
+  pub fn axis(mut self, axis: Axis) -> Self {
+    self.axis = axis;
+    self
   }
 
-  pub fn into_shared(self) -> HeightLinkerShared {
+  pub fn new_shared() -> HeightLinkerShared {
+    Self::new().shared()
+  }
+
+  pub fn shared(self) -> HeightLinkerShared {
     Rc::new(RefCell::new(self))
   }
 
@@ -134,6 +140,9 @@ impl<T: Data, W: Widget<T>> LinkedHeights<T, W> {
             }
           }
         }
+      } else if cmd.is(HeightLinker::HEIGHT_LINKER_RESET_ALL) {
+        self.constraint = None;
+        ctx.request_layout()
       }
     }
     self.widget.event(ctx, event, data, env)
@@ -166,7 +175,16 @@ impl<T: Data, W: Widget<T>> LinkedHeights<T, W> {
       let mut linker = self.height_linker.borrow_mut();
 
       if linker.resolved() {
-        linker.reset(ctx)
+        if linker.max > unconstrained_value {
+          self.constraint = Some(linker.max);
+          let child_bc = match self.axis {
+            Axis::Horizontal => BoxConstraints::tight(Size::new(linker.max, unconstrained_size.height)),
+            Axis::Vertical => BoxConstraints::tight(Size::new(unconstrained_size.width, linker.max)),
+          };
+          return self.widget.layout(ctx, &child_bc, data, env);
+        } else {
+          linker.reset(ctx)
+        }
       } else {
         linker.increment_resolved(ctx, unconstrained_value);
       }

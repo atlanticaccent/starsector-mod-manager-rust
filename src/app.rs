@@ -57,6 +57,7 @@ mod mod_repo;
 pub mod modal;
 mod overlays;
 mod settings;
+mod tools;
 mod updater;
 #[allow(dead_code)]
 #[path = "./util.rs"]
@@ -123,11 +124,6 @@ impl App {
   pub fn new(runtime: Handle) -> Self {
     let settings = settings::Settings::load()
       .map(|mut settings| {
-        if settings.vmparams_enabled {
-          if let Some(path) = settings.install_dir.clone() {
-            settings.vmparams = settings::vmparams::VMParams::load(path).ok();
-          }
-        }
         if let Some(install_dir) = settings.install_dir.clone() {
           settings.install_dir_buf = install_dir.to_string_lossy().to_string()
         }

@@ -263,7 +263,7 @@ impl<T: VMParamsPath> VMParams<T> {
 mod test {
   use std::{io::Seek, marker::PhantomData, path::PathBuf, sync::Mutex};
 
-  use crate::app::settings::vmparams::{VMParams, VMParamsPath};
+  use super::{VMParams, VMParamsPath};
 
   lazy_static::lazy_static! {
     static ref TEST_FILE: tempfile::NamedTempFile = tempfile::NamedTempFile::new().expect("Couldn't create tempdir - not a real test failure");
