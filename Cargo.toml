@@ -1,3 +1,5 @@
+cargo-features = ["codegen-backend"]
+
 [package]
 name = "starsector_mod_manager"
 version = "0.7.2"
@@ -83,6 +85,9 @@ osx_minimum_system_version = "10.10"
 git = "https://github.com/microsoft/vcpkg"
 rev = "64ca152891d6ab135c6c27881e7eb0ac2fa15bba"
 dependencies = ["libarchive:x64-windows-static"]
+
+# [profile.dev]
+# codegen-backend = "cranelift"
 
 [profile.dev.package."*"]
 opt-level = 3
