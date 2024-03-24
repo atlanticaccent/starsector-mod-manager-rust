@@ -7,11 +7,27 @@ use std::{
   sync::LazyLock,
 };
 
-use druid::{Data, Lens};
+use druid::{
+  lens,
+  widget::{Either, Flex, Label, Maybe, Painter, SizedBox, TextBox, ViewSwitcher},
+  Data, Lens, LensExt, Selector, Widget, WidgetExt as _,
+};
+use druid_widget_nursery::{material_icons::Icon, wrap::Wrap, WidgetExt};
 use regex::{Captures, Regex, RegexBuilder};
 use strum_macros::EnumIter;
 
-use crate::app::util::{LoadError, SaveError};
+use crate::{
+  app::{
+    util::{
+      h2_fixed, LoadError, RootStack, SaveError, ShadeColor, WidgetExtEx, WithHoverState as _,
+    },
+    ARROW_DROP_DOWN, ARROW_LEFT, LINK, LINK_OFF,
+  },
+  patch::separator::Separator,
+  widgets::card::Card,
+};
+
+use super::tool_card;
 
 #[derive(Debug, Clone, Data, Lens)]
 pub struct VMParams<T: VMParamsPath = VMParamsPathDefault> {
@@ -19,7 +35,243 @@ pub struct VMParams<T: VMParamsPath = VMParamsPathDefault> {
   pub heap_max: Value,
   pub thread_stack_size: Value,
   pub verify_none: bool,
+  pub linked: bool,
   _phantom: PhantomData<T>,
+}
+
+impl<T: VMParamsPath + Data> VMParams<T> {
+  const TOGGLE_UNIT_DROP: Selector<bool> = Selector::new("vmparams.toggle_unit_dropdown");
+
+  pub fn view() -> impl Widget<Self> {
+    tool_card()
+      .build(
+        Flex::column()
+          .with_child(h2_fixed("VMParams Editor"))
+          .with_child(Label::new(
+            "This tool allows you to modify the amount of RAM Starsector is allowed to use.",
+          ))
+          .with_child(
+            Wrap::new()
+              .with_child(
+                Flex::row()
+                  .with_child(
+                    TextBox::new()
+                      .with_placeholder("Minimum")
+                      .with_formatter(ValueFormatter)
+                      .update_data_while_editing(true)
+                      .lens(VMParams::heap_init.then(Value::amount))
+                      .padding((0.0, 4.0)),
+                  )
+                  .with_child(
+                    Card::builder()
+                      .with_insets(4.0)
+                      .with_shadow_increase(3.0)
+                      .with_shadow_length(0.0)
+                      .with_border(1.0, druid::Color::BLACK)
+                      .with_background(druid::Color::GRAY.lighter_by(9))
+                      .hoverable(|| {
+                        Flex::row()
+                          .with_child(
+                            Label::dynamic(|unit: &Unit, _| format!("{}b", unit))
+                              .padding((0.0, 2.0)),
+                          )
+                          .with_child(Icon::new(*ARROW_LEFT))
+                          .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
+                          .must_fill_main_axis(true)
+                          .expand_width()
+                      })
+                      .fix_width(56.0)
+                      .lens(lens!((Unit, bool), 0))
+                      .on_click(|ctx, data, _| {
+                        data.1 = !data.1;
+                        if data.1 {
+                          Self::unit_dropdown(ctx, VMParams::heap_init, false);
+                        }
+                      })
+                      .on_command(Self::TOGGLE_UNIT_DROP, |_, payload, data| {
+                        if !*payload {
+                          data.1 = false
+                        }
+                      })
+                      .invisible_if(|(_, data)| *data)
+                      .disabled_if(|(_, data), _| *data)
+                      .scope(|unit| (unit, false), lens!((Unit, bool), 0))
+                      .lens(VMParams::heap_init.then(Value::unit)),
+                  ),
+              )
+              .with_child(SizedBox::empty().fix_width(10.))
+              .with_child(
+                Either::new(
+                  |data: &Self, _| data.linked,
+                  Icon::new(*LINK),
+                  Icon::new(*LINK_OFF),
+                )
+                .on_click(|_, data, _| data.linked = !data.linked)
+                .lens(lens!((Self, bool), 0))
+                .with_hover_state(false),
+              )
+              .with_child(SizedBox::empty().fix_width(10.))
+              .with_child(
+                Flex::row()
+                  .with_child(
+                    TextBox::new()
+                      .with_placeholder("Maximum")
+                      .with_formatter(ValueFormatter)
+                      .update_data_while_editing(true)
+                      .lens(VMParams::heap_max.then(Value::amount))
+                      .padding((0.0, 4.0)),
+                  )
+                  .with_child(
+                    Card::builder()
+                      .with_insets(4.0)
+                      .with_shadow_increase(3.0)
+                      .with_shadow_length(0.0)
+                      .with_border(1.0, druid::Color::BLACK)
+                      .with_background(druid::Color::GRAY.lighter_by(9))
+                      .hoverable(|| {
+                        Flex::row()
+                          .with_child(
+                            Label::dynamic(|unit: &Unit, _| format!("{}b", unit))
+                              .padding((0.0, 2.0)),
+                          )
+                          .with_child(Icon::new(*ARROW_LEFT))
+                          .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
+                          .must_fill_main_axis(true)
+                          .expand_width()
+                      })
+                      .fix_width(56.0)
+                      .lens(lens!((Unit, bool), 0))
+                      .on_click(|ctx, data, _| {
+                        data.1 = !data.1;
+                        if data.1 {
+                          Self::unit_dropdown(ctx, VMParams::heap_max, true);
+                        }
+                      })
+                      .on_command(Self::TOGGLE_UNIT_DROP, |_, payload, data| {
+                        if *payload {
+                          data.1 = false
+                        }
+                      })
+                      .invisible_if(|(_, data)| *data)
+                      .disabled_if(|(_, data), _| *data)
+                      .scope(|unit| (unit, false), lens!((Unit, bool), 0))
+                      .lens(VMParams::heap_max.then(Value::unit)),
+                  ),
+              )
+              .cross_alignment(druid_widget_nursery::wrap::WrapCrossAlignment::Center),
+          )
+          .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+          .padding((Card::CARD_INSET, 0.0)),
+      )
+      .expand_width()
+  }
+
+  fn unit_dropdown(
+    ctx: &mut druid::EventCtx,
+    lens: impl Lens<VMParams, Value> + Clone + 'static,
+    max: bool,
+  ) {
+    RootStack::show(
+      ctx,
+      ctx.window_origin(),
+      move || {
+        let lens = lens.clone();
+        Maybe::or_empty(move || {
+          Card::builder()
+            .with_insets(4.0)
+            .with_shadow_increase(3.0)
+            .with_shadow_length(0.0)
+            .with_border(1.0, druid::Color::BLACK)
+            .with_background(druid::Color::WHITE.darker_by(1))
+            .hoverable(|| {
+              Flex::column()
+                .with_child(
+                  Card::builder()
+                    .with_insets(0.0)
+                    .with_shadow_length(0.0)
+                    .with_border(1.0, druid::Color::BLACK)
+                    .with_background(druid::Color::GRAY.lighter_by(9))
+                    .build(
+                      Flex::row()
+                        .with_child(
+                          Label::dynamic(|unit: &Unit, _| format!("{}b", unit)).padding((0.0, 2.0)),
+                        )
+                        .with_child(Icon::new(*ARROW_DROP_DOWN))
+                        .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
+                        .must_fill_main_axis(true)
+                        .padding(2.0),
+                    )
+                    .expand_width()
+                    .padding(-2.0),
+                )
+                .with_spacer(2.0)
+                .with_child(other_units_dropdown(true).expand_width())
+                .with_spacer(4.)
+                .with_child(other_units_dropdown(false).expand_width())
+                .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+                .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
+                .expand_width()
+            })
+            .fix_width(56.0)
+            .lens(lens.clone().then(Value::unit))
+        })
+        .lens(crate::app::App::settings.then(crate::app::settings::Settings::vmparams))
+        .on_click(move |ctx, _, _| {
+          ctx.submit_command(Self::TOGGLE_UNIT_DROP.with(max));
+          RootStack::dismiss(ctx);
+        })
+        .boxed()
+      },
+      Some(move |ctx: &mut druid::EventCtx| ctx.submit_command(Self::TOGGLE_UNIT_DROP.with(max))),
+    )
+  }
+}
+
+fn other_units_dropdown(higher: bool) -> impl Widget<Unit> {
+  let maker = |unit: Unit| {
+    Card::builder()
+      .with_insets(0.0)
+      .with_shadow_length(0.0)
+      .with_background(druid::Color::WHITE.darker_by(1))
+      .hoverable_distinct(
+        || {
+          Flex::row()
+            .with_child(Label::new(format!("{}b", unit)).padding((0.0, 2.0)))
+            .must_fill_main_axis(true)
+            .padding(2.0)
+            .padding(-1.)
+        },
+        || {
+          Flex::row()
+            .with_child(Label::new(format!("{}b", unit)).padding((0.0, 2.0)))
+            .must_fill_main_axis(true)
+            .padding(2.0)
+            .background(Painter::new(|ctx, _, _| {
+              use druid::RenderContext;
+
+              let path = ctx.size().to_rect().inset(-0.5).to_rounded_rect(3.);
+
+              ctx.stroke(path, &druid::Color::BLACK, 1.)
+            }))
+            .padding(-1.)
+        },
+      )
+      .expand_width()
+      .on_click(move |_, data, _| *data = unit)
+      .boxed()
+  };
+
+  ViewSwitcher::new(
+    |data, _| *data,
+    move |data, _, _| match data {
+      Unit::Giga if higher => maker(Unit::Mega),
+      Unit::Giga => maker(Unit::Kilo),
+      Unit::Mega if higher => maker(Unit::Giga),
+      Unit::Mega => maker(Unit::Kilo),
+      Unit::Kilo if higher => maker(Unit::Giga),
+      Unit::Kilo => maker(Unit::Mega),
+    },
+  )
 }
 
 #[derive(Debug, Clone, Data, Lens)]
@@ -31,6 +283,31 @@ pub struct Value {
 impl Display for Value {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_fmt(format_args!("{}{}", self.amount, self.unit))
+  }
+}
+
+struct ValueFormatter;
+
+impl druid::text::Formatter<i32> for ValueFormatter {
+  fn format(&self, value: &i32) -> String {
+    value.to_string()
+  }
+
+  fn validate_partial_input(
+    &self,
+    input: &str,
+    _sel: &druid::text::Selection,
+  ) -> druid::text::Validation {
+    match input.parse::<i32>() {
+      Err(err) if input.len() != 0 => druid::text::Validation::failure(err),
+      _ => druid::text::Validation::success(),
+    }
+  }
+
+  fn value(&self, input: &str) -> Result<i32, druid::text::ValidationError> {
+    input
+      .parse::<i32>()
+      .map_err(druid::text::ValidationError::new)
   }
 }
 
@@ -142,6 +419,7 @@ impl<T: VMParamsPath> VMParams<T> {
         heap_max,
         thread_stack_size,
         verify_none,
+        linked: true,
         _phantom: PhantomData::default(),
       })
     } else {
@@ -303,7 +581,7 @@ mod test {
       let mut reader =
         std::fs::File::open(root.join(T::path())).expect("Open original file for reading");
 
-      let mut testfile = TEST_FILE.as_file().clone();
+      let mut testfile = TEST_FILE.as_file();
       testfile.set_len(0).expect("Truncate");
       testfile.rewind().expect("Truncate");
 
@@ -314,6 +592,7 @@ mod test {
         heap_max: vmparams.heap_max,
         thread_stack_size: vmparams.thread_stack_size,
         verify_none,
+        linked: vmparams.linked,
         _phantom: PhantomData::default(),
       };
 

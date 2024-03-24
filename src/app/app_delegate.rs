@@ -29,18 +29,10 @@ use webview_shared::{
 use webview_subsystem::init_webview;
 
 use super::{
-  controllers::HoverController,
-  installer::{self, HybridPath, StringOrPath, DOWNLOAD_PROGRESS, DOWNLOAD_STARTED, INSTALL_ALL},
-  mod_description,
-  mod_entry::{ModEntry, ModMetadata, ViewModEntry},
-  mod_list::{install::install_options::InstallOptions, ModList},
-  modal::Modal,
-  settings::{self, Settings, SettingsCommand},
-  util::{
+  controllers::HoverController, installer::{self, HybridPath, StringOrPath, DOWNLOAD_PROGRESS, DOWNLOAD_STARTED, INSTALL_ALL}, mod_description, mod_entry::{ModEntry, ModMetadata, ViewModEntry}, mod_list::{install::install_options::InstallOptions, ModList}, modal::Modal, settings::{self, Settings, SettingsCommand}, tools, util::{
     self, get_latest_manager, get_starsector_version, Button2, CommandExt as _, DummyTransfer,
     LabelExt as _, WidgetExtEx as _, GET_INSTALLED_STARSECTOR,
-  },
-  App,
+  }, App
 };
 
 pub enum AppCommands {
@@ -132,6 +124,7 @@ impl Delegate<App> for AppDelegate {
       if data.settings.install_dir != Some(new_install_dir.clone()) || data.settings.dirty {
         data.settings.install_dir_buf = new_install_dir.to_string_lossy().to_string();
         data.settings.install_dir = Some(new_install_dir.clone());
+        data.settings.vmparams = tools::vmparams::VMParams::load(new_install_dir).ok();
 
         data.runtime.spawn(get_starsector_version(
           ctx.get_external_handle(),

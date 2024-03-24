@@ -1,42 +1,29 @@
-use std::{path::PathBuf, rc::Rc};
+use std::path::PathBuf;
 
 use druid::{
   im::Vector,
   lens,
   text::ParseFormatter,
-  theme,
   widget::{
-    Axis, Button, Checkbox, Controller, Either, Flex, Label, Maybe, Painter, SizedBox, TextBox,
-    TextBoxEvent, ValidationDelegate, ViewSwitcher, WidgetExt,
+    Axis, Button, Checkbox, Flex, Label, TextBox, TextBoxEvent, ValidationDelegate, ViewSwitcher,
+    WidgetExt,
   },
-  Data, Event, EventCtx, Lens, LensExt, Menu, MenuItem, RenderContext, Selector, Widget,
-  WindowConfig,
+  Data, Lens, Selector, Widget,
 };
-use druid_widget_nursery::{
-  material_icons::Icon, wrap::Wrap, DynLens, MultiRadio, WidgetExt as WidgetExtNursery,
-};
+use druid_widget_nursery::{material_icons::Icon, wrap::Wrap};
 use serde::{Deserialize, Serialize};
-use strum::IntoEnumIterator;
-use tap::{Pipe, Tap};
+use tap::Tap;
 
 use super::{
   controllers::{HeightLinker, HoverController},
   mod_list::headings::{Header, Heading},
-  modal::Modal,
+  tools::vmparams::VMParams,
   util::{
-    bold_text, button_painter, default_true, h2_fixed, icons::*, make_column_pair, make_flex_pair,
-    make_flex_settings_row, Button2, CommandExt, LabelExt, LoadError, SaveError, WidgetExtEx,
+    button_painter, default_true, h2_fixed, icons::*, make_column_pair, make_flex_pair, CommandExt,
+    LabelExt, LoadError, SaveError, WidgetExtEx,
   },
-  App,
 };
-use crate::{
-  app::PROJECT,
-  patch::click::Click,
-  theme::{Themes, CHANGE_THEME},
-  widgets::card::Card,
-};
-
-const TRAILING_PADDING: (f64, f64, f64, f64) = (0., 0., 0., 5.);
+use crate::{app::PROJECT, theme::Themes, widgets::card::Card};
 
 #[derive(Clone, Data, Lens, Serialize, Deserialize, Default, Debug)]
 pub struct Settings {
@@ -67,6 +54,8 @@ pub struct Settings {
   jre_managed_mode: bool,
   pub show_auto_update_for_discrepancy: bool,
   pub theme: Themes,
+  #[serde(skip)]
+  pub vmparams: Option<VMParams>,
 }
 
 fn default_headers() -> Vector<Heading> {

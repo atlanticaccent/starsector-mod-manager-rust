@@ -3,7 +3,7 @@ use std::{
   borrow::Borrow,
   collections::{HashMap, VecDeque},
   fmt::Debug,
-  hash::{BuildHasher, Hash},
+  hash::Hash,
   io::Read,
   marker::PhantomData,
   ops::{Deref, DerefMut},
@@ -20,15 +20,16 @@ use druid::{
   widget::{
     Align, Axis, Controller, ControllerHost, DefaultScopePolicy, Either, Flex, Label, LabelText,
     LensScopeTransfer, LensWrap, Painter, RawLabel, Scope, ScopeTransfer, SizedBox,
+    ViewSwitcher,
   },
   Color, Command, Data, Env, Event, EventCtx, ExtEventSink, FontWeight, Key, KeyOrValue, Lens,
-  LensExt as _, MouseEvent, Point, RenderContext, Selector, Target, UnitPoint, Widget, WidgetExt,
-  WidgetId,
+  LensExt as _, MouseEvent, Point, RenderContext, Selector, SingleUse, Target, UnitPoint, Widget,
+  WidgetExt, WidgetId,
 };
 use druid_widget_nursery::{
   animation::Interpolate,
   prism::{Closures, Prism, PrismWrap},
-  CommandCtx,
+  CommandCtx, Stack, StackChildParams, StackChildPosition, WidgetExt as _,
 };
 use json_comments::strip_comments;
 use lazy_static::lazy_static;
@@ -51,9 +52,12 @@ pub(crate) mod icons;
 
 pub use icons::*;
 
-use super::controllers::{
-  DelayedPainter, HeightLinkerShared, HoverState, InvisibleIf, LinkedHeights, OnHover,
-  SharedIdHoverState,
+use super::{
+  controllers::{
+    DelayedPainter, HeightLinkerShared, HoverState, InvisibleIf, LinkedHeights, OnHover,
+    SharedIdHoverState,
+  },
+  App,
 };
 
 pub const ORANGE_KEY: Key<Color> = Key::new("util.colour.orange");
@@ -1363,7 +1367,11 @@ pub fn option_ptr_cmp<T>(this: &Option<Rc<T>>, other: &Option<Rc<T>>) -> bool {
 pub trait ShadeColor {
   fn lighter(self) -> Self;
 
+  fn lighter_by(self, mult: usize) -> Self;
+
   fn darker(self) -> Self;
+
+  fn darker_by(self, mult: usize) -> Self;
 }
 
 impl ShadeColor for Color {
@@ -1371,8 +1379,16 @@ impl ShadeColor for Color {
     self.interpolate(&Color::WHITE, 1.0 / 16.0)
   }
 
+  fn lighter_by(self, mult: usize) -> Self {
+    self.interpolate(&Color::WHITE, mult as f64 / 16.0)
+  }
+
   fn darker(self) -> Self {
     self.interpolate(&Color::BLACK, 1.0 / 16.0)
+  }
+
+  fn darker_by(self, mult: usize) -> Self {
+    self.interpolate(&Color::BLACK, mult as f64 / 16.0)
   }
 }
 
@@ -1391,5 +1407,95 @@ impl<T, U> Prism<T, U> for PrismBox<T, U> {
 
   fn put(&self, data: &mut T, inner: U) {
     self.0.put(data, inner)
+  }
+}
+
+#[derive(Clone, Data, Lens)]
+pub struct RootStack {
+  widget_maker: Option<Rc<Box<dyn Fn() -> Box<dyn Widget<crate::app::App>>>>>,
+  on_dismiss: Option<Rc<Box<dyn Fn(&mut EventCtx)>>>,
+  position: StackChildPosition,
+}
+
+impl RootStack {
+  const SHOW: Selector<
+    SingleUse<(
+      Point,
+      Box<dyn Fn() -> Box<dyn Widget<App>>>,
+      Option<Box<dyn Fn(&mut EventCtx)>>,
+    )>,
+  > = Selector::new("root_stack.new");
+  const DISMISS: Selector = Selector::new("root_stack.dismiss");
+
+  pub fn new(widget: impl Widget<App> + 'static) -> impl Widget<App> {
+    Stack::new()
+      .with_child(
+        widget
+          .lens(lens!((App, RootStack), 0))
+          .on_click(|ctx, data, _| {
+            data.1.widget_maker = None;
+            if let Some(on_dismiss) = data.1.on_dismiss.take() {
+              on_dismiss(ctx)
+            }
+          }),
+      )
+      .with_positioned_child(
+        ViewSwitcher::new(
+          |data: &(App, RootStack), _| data.1.widget_maker.clone(),
+          |maker, _, _| {
+            if let Some(maker) = maker {
+              maker().lens(lens!((App, RootStack), 0)).boxed()
+            } else {
+              SizedBox::empty().boxed()
+            }
+          },
+        ),
+        StackChildParams::dynamic(|data: &(App, RootStack), _| &data.1.position).duration(0.0),
+      )
+      .on_command(Self::SHOW, |ctx, payload, data| {
+        let payload = payload.take().unwrap();
+        data.1.position = StackChildPosition::new()
+          .left(Some(payload.0.x))
+          .top(Some(payload.0.y));
+        data.1.widget_maker = Some(Rc::new(payload.1));
+        data.1.on_dismiss = payload.2.map(Rc::new);
+        ctx.request_update();
+      })
+      .on_command(Self::DISMISS, |ctx, _, data| {
+        data.1.widget_maker = None;
+        if let Some(on_dismiss) = data.1.on_dismiss.take() {
+          on_dismiss(ctx)
+        }
+      })
+      .scope(
+        |app| {
+          (
+            app,
+            RootStack {
+              widget_maker: None,
+              position: StackChildPosition::new(),
+              on_dismiss: None,
+            },
+          )
+        },
+        lens!((App, RootStack), 0),
+      )
+  }
+
+  pub fn show(
+    ctx: &mut impl CommandCtx,
+    point: Point,
+    widget_maker: impl Fn() -> Box<dyn Widget<App>> + 'static,
+    on_dismiss: Option<impl Fn(&mut EventCtx) + 'static>,
+  ) {
+    ctx.submit_command(Self::SHOW.with(SingleUse::new((
+      point,
+      Box::new(widget_maker),
+      on_dismiss.map(|fun| Box::new(fun) as Box<dyn Fn(&mut EventCtx)>),
+    ))))
+  }
+
+  pub fn dismiss(ctx: &mut impl CommandCtx) {
+    ctx.submit_command(Self::DISMISS)
   }
 }

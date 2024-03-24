@@ -31,9 +31,10 @@ use self::{
   modal::Modal,
   overlays::Popup,
   settings::Settings,
+  tools::Tools,
   util::{
     bold_text, button_painter, get_quoted_version, h2_fixed, h3_fixed, icons::*, make_column_pair,
-    xxHashMap, CommandExt, IndyToggleState, LabelExt, LensExtExt as _, Release,
+    xxHashMap, CommandExt, IndyToggleState, LabelExt, LensExtExt as _, Release, RootStack,
   },
 };
 use crate::{
@@ -125,7 +126,8 @@ impl App {
     let settings = settings::Settings::load()
       .map(|mut settings| {
         if let Some(install_dir) = settings.install_dir.clone() {
-          settings.install_dir_buf = install_dir.to_string_lossy().to_string()
+          settings.install_dir_buf = install_dir.to_string_lossy().to_string();
+          settings.vmparams = tools::vmparams::VMParams::load(install_dir).ok();
         }
         settings
       })
@@ -253,6 +255,15 @@ impl App {
               },
             )),
           ),
+          InitialTab::new(
+            "tools",
+            Tools::view().lens(App::settings.map(
+              |settings| Tools {
+                vmparams: settings.vmparams.clone(),
+              },
+              |settings, tools| settings.vmparams = tools.vmparams,
+            )),
+          ),
           InitialTab::new("settings", Settings::view().lens(App::settings)),
         ]))
         .on_command2(Nav::NAV_SELECTOR, |tabs, ctx, label, _| {
@@ -300,10 +311,12 @@ impl App {
   }
 
   fn overlay() -> impl Widget<App> {
-    Mask::new(Self::view())
+    Mask::new(RootStack::new(Self::view()))
       .with_mask(Align::centered(Popup::view()))
       .dynamic(|data, _| data.popup.is_some())
-      .on_command(Popup::OPEN_POPUP, |_, popup, data| data.popup = Some(popup.clone()))
+      .on_command(Popup::OPEN_POPUP, |_, popup, data| {
+        data.popup = Some(popup.clone())
+      })
       .on_command(Popup::DISMISS, |_, _, data| data.popup = None)
   }
 

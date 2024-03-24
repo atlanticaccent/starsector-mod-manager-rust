@@ -7,7 +7,7 @@ mod icons {
       VERIFIED,
     },
     av::{NEW_RELEASES, PLAY_ARROW},
-    content::{ADD_BOX, ADD_CIRCLE, ADD_CIRCLE_OUTLINE, CLEAR, DESELECT, INVENTORY_2, REPORT},
+    content::{ADD_BOX, ADD_CIRCLE, ADD_CIRCLE_OUTLINE, CLEAR, DESELECT, INVENTORY_2, LINK, LINK_OFF, REPORT},
     file::FOLDER,
     image::{NAVIGATE_NEXT, TUNE},
     navigation::{
@@ -69,4 +69,6 @@ icons! {
   icons::DESELECT,
   icons::CLEAR,
   icons::REFRESH,
+  icons::LINK,
+  icons::LINK_OFF,
 }
