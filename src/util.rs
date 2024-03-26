@@ -819,6 +819,13 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     }
   }
 
+  fn link_height_unwrapped(
+    self,
+    height_linker: HeightLinkerShared
+  ) -> LinkedHeights<T, Self> {
+    LinkedHeights::new(self, height_linker)
+  }
+
   fn on_hover(
     self,
     handler: impl Fn(&mut W, &mut EventCtx, &mut T) -> bool + 'static,

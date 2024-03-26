@@ -174,19 +174,22 @@ impl<T: Data, W: Widget<T>> LinkedHeights<T, W> {
       self.last_unconstrained = Some(unconstrained_value);
       let mut linker = self.height_linker.borrow_mut();
 
+      let mut size = None;
+      if linker.max > unconstrained_value {
+        self.constraint = Some(linker.max);
+        let child_bc = match self.axis {
+          Axis::Horizontal => BoxConstraints::tight(Size::new(linker.max, unconstrained_size.height)),
+          Axis::Vertical => BoxConstraints::tight(Size::new(unconstrained_size.width, linker.max)),
+        };
+        size = Some(self.widget.layout(ctx, &child_bc, data, env));
+      }
       if linker.resolved() {
-        if linker.max > unconstrained_value {
-          self.constraint = Some(linker.max);
-          let child_bc = match self.axis {
-            Axis::Horizontal => BoxConstraints::tight(Size::new(linker.max, unconstrained_size.height)),
-            Axis::Vertical => BoxConstraints::tight(Size::new(unconstrained_size.width, linker.max)),
-          };
-          return self.widget.layout(ctx, &child_bc, data, env);
-        } else {
-          linker.reset(ctx)
-        }
+        linker.reset(ctx)
       } else {
         linker.increment_resolved(ctx, unconstrained_value);
+      }
+      if let Some(size) = size {
+        return size;
       }
     }
 

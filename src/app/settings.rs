@@ -5,22 +5,23 @@ use druid::{
   lens,
   text::ParseFormatter,
   widget::{
-    Axis, Button, Checkbox, Flex, Label, TextBox, TextBoxEvent, ValidationDelegate, ViewSwitcher,
-    WidgetExt,
+    Axis, Button, Checkbox, Flex, Label, Painter, TextBox, TextBoxEvent, ValidationDelegate,
+    ViewSwitcher, WidgetExt,
   },
   Data, Lens, Selector, Widget,
 };
-use druid_widget_nursery::{material_icons::Icon, wrap::Wrap};
+use druid_widget_nursery::{material_icons::Icon, wrap::Wrap, WidgetExt as _};
 use serde::{Deserialize, Serialize};
+use strum::IntoEnumIterator;
 use tap::Tap;
 
 use super::{
-  controllers::{HeightLinker, HoverController},
+  controllers::{HeightLinker, HeightLinkerShared, HoverController},
   mod_list::headings::{Header, Heading},
   tools::vmparams::VMParams,
   util::{
     button_painter, default_true, h2_fixed, icons::*, make_column_pair, make_flex_pair, CommandExt,
-    LabelExt, LoadError, SaveError, WidgetExtEx,
+    LabelExt, LoadError, RootStack, SaveError, ShadeColor, WidgetExtEx, WithHoverState,
   },
 };
 use crate::{app::PROJECT, theme::Themes, widgets::card::Card};
@@ -122,18 +123,22 @@ impl Settings {
   }
 
   fn headings_editor() -> impl Widget<Self> {
+    const DISMISS_ADD_COLUMN_DROPDOWN: Selector =
+      Selector::new("settings.add_column_dropdown.dismiss");
+
     ViewSwitcher::new(
       |headings: &Vector<Heading>, _| headings.clone(),
       |_, headings, _| {
         Wrap::new()
           .direction(Axis::Horizontal)
           .alignment(druid_widget_nursery::wrap::WrapAlignment::Start)
-          .tap_mut(|column| {
+          .tap_mut(|row| {
             let mut height_linker = None;
             let mut width_linker = Some(HeightLinker::new().axis(Axis::Horizontal).shared());
             for (idx, heading) in headings.iter().cloned().enumerate() {
-              column.add_child(
+              row.add_child(
                 Card::builder()
+                  .with_shadow_length(6.)
                   .with_background(druid::theme::BACKGROUND_DARK)
                   .build(
                     Flex::row()
@@ -189,7 +194,75 @@ impl Settings {
                       .with_default_spacer()
                       .padding((0., 5., 0., 5.)),
                   )
+                  .padding(2.)
                   .link_height_with(&mut height_linker)
+                  .boxed(),
+              )
+            }
+            let missing = Heading::iter()
+              .filter(|h| !headings.contains(h))
+              .collect::<Vec<_>>();
+            if !missing.is_empty() {
+              row.add_child(
+                Card::builder()
+                  .with_insets((-4., 18.))
+                  .with_shadow_length(6.0)
+                  .with_shadow_increase(2.0)
+                  .with_background(druid::Color::GRAY.lighter_by(9))
+                  .hoverable_distinct(
+                    {
+                      let width_linker = width_linker.clone().unwrap();
+                      move || {
+                        Flex::row()
+                          .with_default_spacer()
+                          .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
+                          .with_child(
+                            Label::wrapped("Add Column")
+                              .with_text_alignment(druid::TextAlignment::Center)
+                              .link_height_unwrapped(width_linker.clone())
+                              .padding((5.0, 0.0)),
+                          )
+                          .with_child(Icon::new(*ADD_CIRCLE_OUTLINE))
+                          .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
+                          .with_default_spacer()
+                          .padding((0., 5., 0., 5.))
+                      }
+                    },
+                    {
+                      let width_linker = width_linker.clone().unwrap();
+                      move || {
+                        Flex::row()
+                          .with_default_spacer()
+                          .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
+                          .with_child(
+                            Label::wrapped("Add Column")
+                              .with_text_alignment(druid::TextAlignment::Center)
+                              .link_height_unwrapped(width_linker.clone())
+                              .padding((5.0, 0.0)),
+                          )
+                          .with_child(Icon::new(*ADD_CIRCLE))
+                          .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
+                          .with_default_spacer()
+                          .padding((0., 5., 0., 5.))
+                      }
+                    },
+                  )
+                  .link_height_with(&mut height_linker)
+                  .on_click(move |ctx, data, _| {
+                    *data = true;
+                    RootStack::show(
+                      ctx,
+                      ctx.window_origin(),
+                      Self::add_column_dropdown(width_linker.clone().unwrap()),
+                      Some(|ctx: &mut druid::EventCtx| {
+                        ctx.submit_command(DISMISS_ADD_COLUMN_DROPDOWN)
+                      }),
+                    )
+                  })
+                  .disabled_if(|data, _| *data)
+                  .invisible_if(|data| *data)
+                  .on_command(DISMISS_ADD_COLUMN_DROPDOWN, |_, _, data| *data = false)
+                  .scope_independent(|| false)
                   .boxed(),
               )
             }
@@ -198,6 +271,72 @@ impl Settings {
       },
     )
     .lens(Settings::headings)
+  }
+
+  fn add_column_dropdown(
+    width_linker: HeightLinkerShared,
+  ) -> impl Fn() -> Box<dyn Widget<super::App>> {
+    move || {
+      let width_linker = width_linker.clone();
+      let card_width_linker = HeightLinker::new().axis(Axis::Horizontal).shared();
+
+      let padded_row = || {
+        Flex::<super::App>::row()
+          .must_fill_main_axis(true)
+          .with_default_spacer()
+          .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
+      };
+
+      Card::builder()
+        .with_insets((-4., 18.))
+        .with_shadow_length(6.0)
+        .with_shadow_increase(2.0)
+        .with_background(druid::Color::WHITE.darker())
+        .hoverable(move || {
+          Flex::column()
+            .with_child(
+              Card::builder()
+                .with_insets(0.0)
+                .with_shadow_length(0.0)
+                .with_background(druid::Color::GRAY.lighter_by(9))
+                .build(
+                  Flex::row()
+                    .with_default_spacer()
+                    .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
+                    .with_child(
+                      Label::wrapped("Add Column")
+                        .with_text_alignment(druid::TextAlignment::Center)
+                        .link_height_unwrapped(width_linker.clone())
+                        .padding((5., 17.)),
+                    )
+                    .with_child(Icon::new(*ADD_CIRCLE))
+                    .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
+                    .with_default_spacer(),
+                )
+                .expand_width()
+                .padding((0., -9.))
+                .link_height_unwrapped(card_width_linker.clone()),
+            )
+            .with_spacer(10.)
+            .with_child(
+              padded_row()
+                .with_child(Label::new("fooooo"))
+                .lens(lens!((super::App, bool), 0))
+                .background(Painter::new(|ctx, data: &(super::App, bool), _| {
+                  use druid::RenderContext;
+
+                  if data.1 {
+                    let path = ctx.size().to_rect().inset(-0.5).to_rounded_rect(3.);
+
+                    ctx.stroke(path, &druid::Color::BLACK, 1.)
+                  }
+                }))
+                .with_hover_state(false)
+                .link_height_unwrapped(card_width_linker.clone()),
+            )
+        })
+        .boxed()
+    }
   }
 
   pub fn install_dir_browser_builder(axis: Axis) -> Flex<Self> {

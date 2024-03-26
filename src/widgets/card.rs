@@ -52,7 +52,11 @@ impl Card {
         .lens(lens!((T, bool), 0)),
       card(builder.shadow_length.unwrap_or(6.0))
         .build(unhovered())
-        .lens(lens!((T, bool), 0)),
+        .lens(lens!((T, bool), 0))
+        .on_added(|_, ctx, _, _| {
+          ctx.request_layout();
+          ctx.request_paint();
+        }),
     )
     .with_hover_state(false)
   }
