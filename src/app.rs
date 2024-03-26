@@ -282,8 +282,9 @@ impl App {
               ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Mods, true)));
               ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::ModDetails, true)));
               tabs.set_tab_index(1)
-            }
-            NavLabel::Settings => tabs.set_tab_index(2),
+            },
+            NavLabel::Tools => tabs.set_tab_index(2),
+            NavLabel::Settings => tabs.set_tab_index(3),
             _ => eprintln!("Failed to open an item for a nav bar control"),
           }
           true
