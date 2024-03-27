@@ -43,6 +43,12 @@ pub enum Heading {
   InstallDate,
 }
 
+impl Heading {
+  pub fn visible(&self) -> bool {
+    matches!(self, Heading::Enabled | Heading::Score)
+  }
+}
+
 impl From<Heading> for &str {
   fn from(sorting: Heading) -> Self {
     match sorting {
@@ -139,13 +145,28 @@ impl Header {
     .on_command(Header::SWAP_HEADINGS, |_, (idx, jdx), header| {
       header.headings.swap(*idx, *jdx)
     })
-    .on_command(Header::ADD_HEADING, |_, heading, header| {
+    .on_command(Header::ADD_HEADING, |ctx, heading, header| {
       header.headings.push_back(*heading);
       header.ratios = Self::calculate_ratios(header.headings.len());
+      for (idx, ratio) in header.ratios.iter().enumerate() {
+        ctx.submit_command(ModList::UPDATE_COLUMN_WIDTH.with((idx + 1, *ratio)))
+      }
+      ctx.submit_command(crate::app::controllers::HeightLinker::HEIGHT_LINKER_RESET_ALL);
+      ctx.submit_command(ModList::REBUILD)
     })
-    .on_command(Header::REMOVE_HEADING, |_, heading, header| {
+    .on_command(Header::REMOVE_HEADING, |ctx, heading, header| {
       header.headings.retain(|existing| existing != heading);
+      if header.sort_by.0 == *heading
+        && let Some(new_sort) = header.headings.iter().filter(|h| h.visible()).next()
+      {
+        header.sort_by.0 = *new_sort
+      }
       header.ratios = Self::calculate_ratios(header.headings.len());
+      for (idx, ratio) in header.ratios.iter().enumerate() {
+        ctx.submit_command(ModList::UPDATE_COLUMN_WIDTH.with((idx + 1, *ratio)))
+      }
+      ctx.submit_command(crate::app::controllers::HeightLinker::HEIGHT_LINKER_RESET_ALL);
+      ctx.submit_command(ModList::REBUILD)
     })
   }
 }

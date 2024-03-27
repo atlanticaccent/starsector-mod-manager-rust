@@ -74,6 +74,7 @@ impl ModList {
   pub const DUPLICATE: Selector<(ModEntry, ModEntry)> =
     Selector::new("mod_list.submit_entry.duplicate");
 
+  pub const REBUILD: Selector = Selector::new("mod_list.table.rebuild");
   pub const UPDATE_COLUMN_WIDTH: Selector<(usize, f64)> =
     Selector::new("mod_list.column.update_width");
   const UPDATE_TABLE_SORT: Selector = Selector::new("mod_list.table.update_sorting");
@@ -151,7 +152,16 @@ impl ModList {
                           .on_command(ModMetadata::SUBMIT_MOD_METADATA, Self::metadata_submitted)
                           .on_command(Self::FILTER_UPDATE, Self::on_filter_change)
                           .on_command(Self::FILTER_RESET, Self::on_filter_reset)
-                          .on_command(App::REPLACE_MODS, Self::replace_mods),
+                          .on_command(App::REPLACE_MODS, Self::replace_mods)
+                          .on_command(Self::REBUILD, |table, ctx, _, _| {
+                            table.clear();
+                            ctx.children_changed();
+                            ctx.request_update();
+                            ctx.request_layout();
+                            ctx.request_paint();
+
+                            false
+                          }),
                       )
                       .scroll()
                       .vertical()

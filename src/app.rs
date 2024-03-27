@@ -277,7 +277,10 @@ impl App {
           }
 
           match label {
-            NavLabel::Mods => tabs.set_tab_index(0),
+            NavLabel::Mods => {
+              tabs.set_tab_index(0);
+              ctx.submit_command(ModList::REBUILD)
+            },
             NavLabel::ModDetails => {
               ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Mods, true)));
               ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::ModDetails, true)));

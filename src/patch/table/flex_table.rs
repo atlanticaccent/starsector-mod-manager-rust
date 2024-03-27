@@ -283,6 +283,11 @@ impl<T: TableData> FlexTable<T> {
   pub fn rows(&mut self) -> impl Iterator<Item = &mut TableRow<T::Row>> {
     self.children.values_mut()
   }
+
+  pub fn clear(&mut self) {
+    self.children.clear();
+    self.row_starts = None;
+  }
 }
 
 impl<T: TableData> Widget<T> for FlexTable<T> {
@@ -353,16 +358,23 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
       }
     }
 
+    let columns: Vec<_> = data.columns().cloned().collect();
+
+    if self.column_widths.len() != columns.len() {
+      self.column_widths.resize_with(columns.len(), || {
+        ComplexTableColumnWidth::Simple(TableColumnWidth::Flex(1.0))
+      })
+    }
+
     for (row_num, row_id) in data.keys().enumerate() {
-      let columns: Vec<_> = data.columns().cloned().collect();
       let row_data = &data[&row_id];
       if let Some(row) = self.children.get_mut(&row_id) {
-        for column in columns {
-          if let Some(cell) = row.children.get_mut(&column) && cell.is_initialized() {
+        for column in &columns {
+          if let Some(cell) = row.children.get_mut(column) && cell.is_initialized() {
             let env = env.clone().adding(Self::ROW_IDX, row_num as u64);
             cell.update(ctx, &row_data, &env)
           } else {
-            row.children.insert(column.clone(), WidgetPod::new(row_data.cell(&column)));
+            row.children.insert(column.clone(), WidgetPod::new(row_data.cell(column)));
             ctx.children_changed()
           }
         }

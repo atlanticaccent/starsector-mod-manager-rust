@@ -60,6 +60,7 @@ thiserror = { workspace = true }
 internment = { workspace = true }
 comemo = { workspace = true }
 fake = { workspace = true }
+extend = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 native-dialog = "0.6.3"
@@ -148,3 +149,4 @@ syn = "2.0.48"
 quote = "1.0.35"
 comemo = "0.4.0"
 fake = { version = "2.9.2", features = ["derive", "chrono", "chrono-tz"] }
+extend = "1.2.0"

@@ -142,6 +142,9 @@ impl<T: Data, W: Widget<T>> LinkedHeights<T, W> {
         }
       } else if cmd.is(HeightLinker::HEIGHT_LINKER_RESET_ALL) {
         self.constraint = None;
+        let mut linker = self.height_linker.borrow_mut();
+        linker.resolved = 0;
+        linker.max = f64::NEG_INFINITY;
         ctx.request_layout()
       }
     }

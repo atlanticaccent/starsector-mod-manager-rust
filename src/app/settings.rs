@@ -8,15 +8,16 @@ use druid::{
     Axis, Button, Checkbox, Flex, Label, Painter, TextBox, TextBoxEvent, ValidationDelegate,
     ViewSwitcher, WidgetExt,
   },
-  Data, Lens, Selector, Widget,
+  Data, Lens, LensExt, Selector, Widget,
 };
 use druid_widget_nursery::{material_icons::Icon, wrap::Wrap, WidgetExt as _};
+use extend::ext;
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use tap::Tap;
 
 use super::{
-  controllers::{HeightLinker, HeightLinkerShared, HoverController},
+  controllers::HoverController,
   mod_list::headings::{Header, Heading},
   tools::vmparams::VMParams,
   util::{
@@ -134,7 +135,6 @@ impl Settings {
           .alignment(druid_widget_nursery::wrap::WrapAlignment::Start)
           .tap_mut(|row| {
             let mut height_linker = None;
-            let mut width_linker = Some(HeightLinker::new().axis(Axis::Horizontal).shared());
             for (idx, heading) in headings.iter().cloned().enumerate() {
               row.add_child(
                 Card::builder()
@@ -149,19 +149,21 @@ impl Settings {
                         if idx > 0 {
                           icon
                             .controller(HoverController::default())
-                            .on_click(move |_, data: &mut Vector<Heading>, _| {
+                            .on_click(move |ctx, data: &mut Vector<Heading>, _| {
                               data.swap(idx - 1, idx);
+                              ctx.submit_command(Header::SWAP_HEADINGS.with((idx - 1, idx)))
                             })
                             .boxed()
                         } else {
                           icon.disabled().invisible().boxed()
                         }
                       })
-                      .with_child(
+                      .with_flex_child(
                         Label::wrapped(format!("{}. {}", idx + 1, heading))
                           .with_text_alignment(druid::TextAlignment::Center)
-                          .link_height_with(&mut width_linker)
+                          .expand_width()
                           .padding((5.0, 0.0)),
+                        1.,
                       )
                       .with_child(
                         Icon::new(*CLOSE)
@@ -183,8 +185,9 @@ impl Settings {
                         if idx < headings.len() - 1 {
                           icon
                             .controller(HoverController::default())
-                            .on_click(move |_, data: &mut Vector<Heading>, _| {
+                            .on_click(move |ctx, data: &mut Vector<Heading>, _| {
                               data.swap(idx, idx + 1);
+                              ctx.submit_command(Header::SWAP_HEADINGS.with((idx, idx + 1)))
                             })
                             .boxed()
                         } else {
@@ -192,15 +195,18 @@ impl Settings {
                         }
                       })
                       .with_default_spacer()
+                      .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
+                      .must_fill_main_axis(true)
                       .padding((0., 5., 0., 5.)),
                   )
                   .padding(2.)
+                  .fix_width(300.)
                   .link_height_with(&mut height_linker)
                   .boxed(),
               )
             }
             let missing = Heading::iter()
-              .filter(|h| !headings.contains(h))
+              .filter(|h| !headings.contains(h) && !matches!(h, Heading::Enabled | Heading::Score))
               .collect::<Vec<_>>();
             if !missing.is_empty() {
               row.add_child(
@@ -211,49 +217,54 @@ impl Settings {
                   .with_background(druid::Color::GRAY.lighter_by(9))
                   .hoverable_distinct(
                     {
-                      let width_linker = width_linker.clone().unwrap();
                       move || {
                         Flex::row()
                           .with_default_spacer()
                           .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
-                          .with_child(
+                          .with_flex_child(
                             Label::wrapped("Add Column")
                               .with_text_alignment(druid::TextAlignment::Center)
-                              .link_height_unwrapped(width_linker.clone())
+                              .expand_width()
                               .padding((5.0, 0.0)),
+                            1.,
                           )
                           .with_child(Icon::new(*ADD_CIRCLE_OUTLINE))
                           .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
                           .with_default_spacer()
+                          .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
+                          .must_fill_main_axis(true)
                           .padding((0., 5., 0., 5.))
                       }
                     },
                     {
-                      let width_linker = width_linker.clone().unwrap();
                       move || {
                         Flex::row()
                           .with_default_spacer()
                           .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
-                          .with_child(
+                          .with_flex_child(
                             Label::wrapped("Add Column")
                               .with_text_alignment(druid::TextAlignment::Center)
-                              .link_height_unwrapped(width_linker.clone())
+                              .expand_width()
                               .padding((5.0, 0.0)),
+                            1.,
                           )
                           .with_child(Icon::new(*ADD_CIRCLE))
                           .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
                           .with_default_spacer()
+                          .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
+                          .must_fill_main_axis(true)
                           .padding((0., 5., 0., 5.))
                       }
                     },
                   )
+                  .fix_width(300.)
                   .link_height_with(&mut height_linker)
                   .on_click(move |ctx, data, _| {
                     *data = true;
                     RootStack::show(
                       ctx,
                       ctx.window_origin(),
-                      Self::add_column_dropdown(width_linker.clone().unwrap()),
+                      Self::add_column_dropdown(missing.clone()),
                       Some(|ctx: &mut druid::EventCtx| {
                         ctx.submit_command(DISMISS_ADD_COLUMN_DROPDOWN)
                       }),
@@ -273,19 +284,38 @@ impl Settings {
     .lens(Settings::headings)
   }
 
-  fn add_column_dropdown(
-    width_linker: HeightLinkerShared,
-  ) -> impl Fn() -> Box<dyn Widget<super::App>> {
+  fn add_column_dropdown(missing: Vec<Heading>) -> impl Fn() -> Box<dyn Widget<super::App>> {
     move || {
-      let width_linker = width_linker.clone();
-      let card_width_linker = HeightLinker::new().axis(Axis::Horizontal).shared();
+      let missing = missing.clone();
 
-      let padded_row = || {
-        Flex::<super::App>::row()
-          .must_fill_main_axis(true)
-          .with_default_spacer()
-          .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
-      };
+      #[ext]
+      impl<T: Data> Flex<T> {
+        fn padded_row() -> Flex<T> {
+          Flex::row()
+            .must_fill_main_axis(true)
+            .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
+            .with_default_spacer()
+            .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
+        }
+
+        fn with_content(self, widget: impl Widget<T> + 'static) -> impl Widget<T> {
+          self
+            .with_flex_child(widget.expand_width().padding((5., 17.)), 1.)
+            .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
+            .with_default_spacer()
+            .lens(lens!((T, bool), 0))
+            .background(Painter::new(|ctx, data: &(T, bool), _| {
+              use druid::RenderContext;
+
+              if data.1 {
+                let path = ctx.size().to_rect().inset(-0.5).to_rounded_rect(3.);
+
+                ctx.stroke(path, &druid::Color::BLACK, 1.)
+              }
+            }))
+            .with_hover_state(false)
+        }
+      }
 
       Card::builder()
         .with_insets((-4., 18.))
@@ -293,7 +323,7 @@ impl Settings {
         .with_shadow_increase(2.0)
         .with_background(druid::Color::WHITE.darker())
         .hoverable(move || {
-          Flex::column()
+          let mut column = Flex::column()
             .with_child(
               Card::builder()
                 .with_insets(0.0)
@@ -303,38 +333,42 @@ impl Settings {
                   Flex::row()
                     .with_default_spacer()
                     .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
-                    .with_child(
+                    .with_flex_child(
                       Label::wrapped("Add Column")
                         .with_text_alignment(druid::TextAlignment::Center)
-                        .link_height_unwrapped(width_linker.clone())
+                        .expand_width()
                         .padding((5., 17.)),
+                      1.,
                     )
                     .with_child(Icon::new(*ADD_CIRCLE))
                     .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
-                    .with_default_spacer(),
+                    .with_default_spacer()
+                    .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
+                    .must_fill_main_axis(true),
                 )
-                .expand_width()
-                .padding((0., -9.))
-                .link_height_unwrapped(card_width_linker.clone()),
+                .padding((0., -9., 0., 0.)),
             )
-            .with_spacer(10.)
-            .with_child(
-              padded_row()
-                .with_child(Label::new("fooooo"))
-                .lens(lens!((super::App, bool), 0))
-                .background(Painter::new(|ctx, data: &(super::App, bool), _| {
-                  use druid::RenderContext;
+            .with_spacer(10.);
 
-                  if data.1 {
-                    let path = ctx.size().to_rect().inset(-0.5).to_rounded_rect(3.);
+          for heading in missing.clone() {
+            column.add_child(
+              Flex::padded_row()
+                .with_content(
+                  Label::wrapped(heading.to_string())
+                    .with_text_alignment(druid::TextAlignment::Center),
+                )
+                .on_click(move |ctx, data: &mut Vector<Heading>, _| {
+                  data.push_back(heading);
+                  ctx.submit_command(Header::ADD_HEADING.with(heading))
+                }),
+            );
+          }
 
-                    ctx.stroke(path, &druid::Color::BLACK, 1.)
-                  }
-                }))
-                .with_hover_state(false)
-                .link_height_unwrapped(card_width_linker.clone()),
-            )
+          column
         })
+        .fix_width(300.)
+        .lens(super::App::settings.then(Settings::headings))
+        .on_click(|ctx, _, _| RootStack::dismiss(ctx))
         .boxed()
     }
   }
