@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::Context;
 use compress_tools::uncompress_archive;
-use druid::{ExtEventSink, Selector, Target};
+use druid::{Data, ExtEventSink, Selector, Target, Widget};
 use flate2::read::GzDecoder;
 use rand::random;
 use serde::{Deserialize, Serialize};
@@ -18,7 +18,18 @@ use tokio::runtime::Handle;
 
 use crate::app::App;
 
+use super::tool_card;
+
 pub const SWAP_COMPLETE: Selector = Selector::new("settings.jre.swap_complete");
+
+pub struct Swapper;
+
+// impl Swapper {
+//   pub fn view<T: Data>() -> impl Widget<T> {
+//     tool_card()
+//       .build()
+//   }
+// }
 
 #[derive(Copy, Clone, Display, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Flavour {

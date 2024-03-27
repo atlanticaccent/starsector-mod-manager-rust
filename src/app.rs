@@ -260,6 +260,7 @@ impl App {
             Tools::view().lens(App::settings.map(
               |settings| Tools {
                 vmparams: settings.vmparams.clone(),
+                install_path: settings.install_dir.clone(),
               },
               |settings, tools| settings.vmparams = tools.vmparams,
             )),
@@ -280,12 +281,12 @@ impl App {
             NavLabel::Mods => {
               tabs.set_tab_index(0);
               ctx.submit_command(ModList::REBUILD)
-            },
+            }
             NavLabel::ModDetails => {
               ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Mods, true)));
               ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::ModDetails, true)));
               tabs.set_tab_index(1)
-            },
+            }
             NavLabel::Tools => tabs.set_tab_index(2),
             NavLabel::Settings => tabs.set_tab_index(3),
             _ => eprintln!("Failed to open an item for a nav bar control"),

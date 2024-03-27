@@ -23,7 +23,6 @@ use crate::{
     },
     ARROW_DROP_DOWN, ARROW_LEFT, LINK, LINK_OFF,
   },
-  patch::separator::Separator,
   widgets::card::Card,
 };
 
@@ -39,8 +38,8 @@ pub struct VMParams<T: VMParamsPath = VMParamsPathDefault> {
   _phantom: PhantomData<T>,
 }
 
-impl<T: VMParamsPath + Data> VMParams<T> {
-  const TOGGLE_UNIT_DROP: Selector<bool> = Selector::new("vmparams.toggle_unit_dropdown");
+impl VMParams {
+  pub const TOGGLE_UNIT_DROP: Selector<bool> = Selector::new("vmparams.toggle_unit_dropdown");
 
   pub fn view() -> impl Widget<Self> {
     tool_card()
@@ -59,7 +58,7 @@ impl<T: VMParamsPath + Data> VMParams<T> {
                       .with_placeholder("Minimum")
                       .with_formatter(ValueFormatter)
                       .update_data_while_editing(true)
-                      .lens(VMParams::heap_init.then(Value::amount))
+                      .lens(Value::amount)
                       .padding((0.0, 4.0)),
                   )
                   .with_child(
@@ -96,8 +95,15 @@ impl<T: VMParamsPath + Data> VMParams<T> {
                       .invisible_if(|(_, data)| *data)
                       .disabled_if(|(_, data), _| *data)
                       .scope(|unit| (unit, false), lens!((Unit, bool), 0))
-                      .lens(VMParams::heap_init.then(Value::unit)),
-                  ),
+                      .lens(Value::unit),
+                  )
+                  .lens(VMParams::heap_init)
+                  .on_change(|ctx, old, data, _| {
+                    if data.linked && old.heap_init != data.heap_init {
+                      data.heap_max = data.heap_init.clone();
+                      ctx.request_update();
+                    }
+                  }),
               )
               .with_child(SizedBox::empty().fix_width(10.))
               .with_child(
@@ -106,7 +112,12 @@ impl<T: VMParamsPath + Data> VMParams<T> {
                   Icon::new(*LINK),
                   Icon::new(*LINK_OFF),
                 )
-                .on_click(|_, data, _| data.linked = !data.linked)
+                .on_click(|_, data, _| {
+                  data.linked = !data.linked;
+                  if data.linked {
+                    data.heap_max = data.heap_init.clone();
+                  }
+                })
                 .lens(lens!((Self, bool), 0))
                 .with_hover_state(false),
               )
@@ -118,7 +129,7 @@ impl<T: VMParamsPath + Data> VMParams<T> {
                       .with_placeholder("Maximum")
                       .with_formatter(ValueFormatter)
                       .update_data_while_editing(true)
-                      .lens(VMParams::heap_max.then(Value::amount))
+                      .lens(Value::amount)
                       .padding((0.0, 4.0)),
                   )
                   .with_child(
@@ -155,8 +166,10 @@ impl<T: VMParamsPath + Data> VMParams<T> {
                       .invisible_if(|(_, data)| *data)
                       .disabled_if(|(_, data), _| *data)
                       .scope(|unit| (unit, false), lens!((Unit, bool), 0))
-                      .lens(VMParams::heap_max.then(Value::unit)),
-                  ),
+                      .lens(Value::unit),
+                  )
+                  .lens(VMParams::heap_max)
+                  .disabled_if(|data, _| data.linked),
               )
               .cross_alignment(druid_widget_nursery::wrap::WrapCrossAlignment::Center),
           )
@@ -274,7 +287,7 @@ fn other_units_dropdown(higher: bool) -> impl Widget<Unit> {
   )
 }
 
-#[derive(Debug, Clone, Data, Lens)]
+#[derive(Debug, Clone, Data, Lens, PartialEq)]
 pub struct Value {
   pub amount: i32,
   pub unit: Unit,
@@ -419,7 +432,7 @@ impl<T: VMParamsPath> VMParams<T> {
         heap_max,
         thread_stack_size,
         verify_none,
-        linked: true,
+        linked: false,
         _phantom: PhantomData::default(),
       })
     } else {
