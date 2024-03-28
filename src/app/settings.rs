@@ -49,11 +49,6 @@ pub struct Settings {
   #[serde(default = "default_headers")]
   #[data(same_fn = "PartialEq::eq")]
   pub headings: Vector<Heading>,
-  #[serde(skip)]
-  show_jre_swapper: bool,
-  #[serde(skip)]
-  jre_swap_in_progress: bool,
-  jre_managed_mode: bool,
   pub show_auto_update_for_discrepancy: bool,
   pub theme: Themes,
   #[serde(skip)]

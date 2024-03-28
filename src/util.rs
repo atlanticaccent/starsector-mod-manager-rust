@@ -1379,6 +1379,8 @@ pub trait ShadeColor {
   fn darker(self) -> Self;
 
   fn darker_by(self, mult: usize) -> Self;
+
+  fn interpolate_with(self, other: Self, mult: usize) -> Self;
 }
 
 impl ShadeColor for Color {
@@ -1396,6 +1398,10 @@ impl ShadeColor for Color {
 
   fn darker_by(self, mult: usize) -> Self {
     self.interpolate(&Color::BLACK, mult as f64 / 16.0)
+  }
+
+  fn interpolate_with(self, other: Self, mult: usize) -> Self {
+    self.interpolate(&other, mult as f64 / 16.)
   }
 }
 

@@ -6,7 +6,11 @@ use std::{
 
 use anyhow::Context;
 use compress_tools::uncompress_archive;
-use druid::{Data, ExtEventSink, Selector, Target, Widget};
+use druid::{
+  widget::{Flex, Label, Radio},
+  Data, ExtEventSink, Lens, Selector, Target, Widget, WidgetExt,
+};
+use druid_widget_nursery::table::{FlexTable, TableRow};
 use flate2::read::GzDecoder;
 use rand::random;
 use serde::{Deserialize, Serialize};
@@ -16,27 +20,101 @@ use tar::Archive;
 use tempfile::TempDir;
 use tokio::runtime::Handle;
 
-use crate::app::App;
+use crate::{
+  app::{
+    util::{h2_fixed, LabelExt, ShadeColor, WidgetExtEx},
+    App,
+  },
+  widgets::card::Card,
+};
 
 use super::tool_card;
 
 pub const SWAP_COMPLETE: Selector = Selector::new("settings.jre.swap_complete");
 
-pub struct Swapper;
+#[derive(Clone, Data, Lens)]
+pub struct Swapper {
+  pub current_flavour: Flavour,
+  pub jre_swap_in_progress: bool,
+}
 
-// impl Swapper {
-//   pub fn view<T: Data>() -> impl Widget<T> {
-//     tool_card()
-//       .build()
-//   }
-// }
+impl Swapper {
+  pub fn view() -> impl Widget<Self> {
+    tool_card().build(
+      Flex::column()
+        .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+        .with_child(h2_fixed("Java Runtime Swapper"))
+        .with_child(Label::wrapped(
+          "\
+            Starsector uses Java 7 by default. \
+            Replacing it with the newer Java 8 usually improves long term \
+            performance, memory usage and reliability.\
+          ",
+        ))
+        .with_default_spacer()
+        .with_child(
+          Flex::row()
+            .with_flex_child(
+              FlexTable::new()
+                .with_row(Self::swapper_row(Flavour::Original, "Original (Java 7)"))
+                .with_row(Self::swapper_row(
+                  Flavour::Wisp,
+                  "Archived Java 8 (Recommended)",
+                ))
+                .with_row(Self::swapper_row(
+                  Flavour::Azul,
+                  "Azul Java 8 (Requested for testing by Alex)",
+                )),
+              2.,
+            )
+            .with_flex_spacer(1.)
+            .env_scope(|env, _| env.set(druid::theme::CURSOR_COLOR, druid::Color::BLACK.lighter())),
+        )
+        .padding((Card::CARD_INSET, 0.0)),
+    )
+  }
 
-#[derive(Copy, Clone, Display, Serialize, Deserialize, PartialEq, Eq)]
+  fn swapper_row(flavour: Flavour, label: &str) -> TableRow<Self> {
+    TableRow::new()
+      .with_child(Radio::new(label, flavour).lens(Swapper::current_flavour))
+      .with_child({
+        let button = Card::builder()
+          .with_insets((0., 10.))
+          .with_background(druid::Color::from_hex_str("#31efb8").unwrap())
+          .with_corner_radius(2.)
+          .with_shadow_length(1.)
+          .with_shadow_increase(1.)
+          .hoverable(|| {
+            Label::new("Download")
+              .env_scope(|env, _| {
+                env.set(
+                  druid::theme::TEXT_SIZE_NORMAL,
+                  env.get(druid::theme::TEXT_SIZE_NORMAL) * 0.8,
+                )
+              })
+              .padding((15., -2.5))
+          });
+
+        if flavour != Flavour::Original {
+          button
+            .on_click(move |ctx, _, _| {
+              flavour;
+            })
+            .boxed()
+        } else {
+          button.invisible().disabled().boxed()
+        }
+      })
+  }
+}
+
+#[derive(Copy, Clone, Display, Serialize, Deserialize, PartialEq, Eq, Data)]
 pub enum Flavour {
   Coretto,
   Hotspot,
   Wisp,
   Azul,
+  Original,
 }
 
 const ORIGINAL_JRE_BACKUP: &str = "jre7";
@@ -149,6 +227,7 @@ impl Flavour {
       Flavour::Hotspot => consts::HOTSPOT,
       Flavour::Wisp => consts::WISP,
       Flavour::Azul => consts::AZUL,
+      Flavour::Original => unimplemented!(),
     }
   }
 

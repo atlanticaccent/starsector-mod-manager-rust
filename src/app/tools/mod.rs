@@ -8,7 +8,9 @@ use druid_widget_nursery::WidgetExt as _;
 
 use crate::widgets::card::{Card, CardBuilder};
 
-use self::vmparams::VMParams;
+use self::{jre::Swapper, vmparams::VMParams};
+
+use super::util::WidgetExtEx;
 
 pub mod jre;
 pub mod vmparams;
@@ -22,17 +24,34 @@ pub struct Tools {
 
 impl Tools {
   pub fn view() -> impl Widget<Self> {
-    Flex::column().must_fill_main_axis(true).with_child(
-      Maybe::or_empty(|| VMParams::view())
-        .lens(Tools::vmparams)
-        .on_change(|_, _, data, _| data.write_vmparams())
-        .on_command(VMParams::TOGGLE_UNIT_DROP, |ctx, _, data| {
-          ctx.request_update();
-          ctx.request_layout();
-          ctx.request_paint();
-          data.write_vmparams()
-        }),
-    )
+    Flex::column()
+      .must_fill_main_axis(true)
+      .with_child(Self::vmparams_wrapped())
+      .with_default_spacer()
+      .with_child(Self::jre_swapper())
+  }
+
+  fn vmparams_wrapped() -> impl Widget<Self> {
+    Maybe::or_empty(|| VMParams::view())
+      .lens(Tools::vmparams)
+      .on_change(|_, _, data, _| data.write_vmparams())
+      .on_command(VMParams::TOGGLE_UNIT_DROP, |_, payload, data| {
+        if let Some(vmparams) = data.vmparams.as_mut()
+          && vmparams.linked
+          && !*payload
+        {
+          vmparams.heap_max = vmparams.heap_init.clone()
+        }
+        data.write_vmparams()
+      })
+  }
+
+  fn jre_swapper() -> impl Widget<Self> {
+    Swapper::view()
+      .scope_independent(|| Swapper {
+        current_flavour: jre::Flavour::Original,
+        jre_swap_in_progress: false,
+    })
   }
 
   fn write_vmparams(&self) {
