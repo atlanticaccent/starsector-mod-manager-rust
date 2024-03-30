@@ -53,6 +53,7 @@ pub struct Settings {
   pub theme: Themes,
   #[serde(skip)]
   pub vmparams: Option<VMParams>,
+  pub vmparams_linked: bool,
 }
 
 fn default_headers() -> Vector<Heading> {
@@ -114,7 +115,8 @@ impl Settings {
         .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
         .must_fill_main_axis(true)
         .padding((12.0, 0.0))
-        .expand(),
+        .expand()
+        .on_change(Self::save_on_change),
     )
   }
 
@@ -451,6 +453,17 @@ impl Settings {
     file
       .write_all(json.as_bytes())
       .map_err(|_| SaveError::Write)
+  }
+
+  pub fn save_on_change(
+    _ctx: &mut druid::EventCtx,
+    _old: &Self,
+    data: &mut Self,
+    _env: &druid::Env,
+  ) {
+    if let Err(e) = data.save() {
+      eprintln!("{:?}", e)
+    }
   }
 }
 

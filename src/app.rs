@@ -257,13 +257,10 @@ impl App {
           ),
           InitialTab::new(
             "tools",
-            Tools::view().lens(App::settings.map(
-              |settings| Tools {
-                vmparams: settings.vmparams.clone(),
-                install_path: settings.install_dir.clone(),
-              },
-              |settings, tools| settings.vmparams = tools.vmparams,
-            )),
+            Tools::view()
+              .lens(Tools::settings_sync())
+              .on_change(Settings::save_on_change)
+              .lens(App::settings),
           ),
           InitialTab::new("settings", Settings::view().lens(App::settings)),
         ]))

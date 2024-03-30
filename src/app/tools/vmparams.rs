@@ -39,7 +39,8 @@ pub struct VMParams<T: VMParamsPath = VMParamsPathDefault> {
 }
 
 impl VMParams {
-  pub const TOGGLE_UNIT_DROP: Selector<bool> = Selector::new("vmparams.toggle_unit_dropdown");
+  const TOGGLE_UNIT_DROP: Selector<bool> = Selector::new("vmparams.toggle_unit_dropdown");
+  pub const SAVE_VMPARAMS: Selector = Selector::new("vmparams.save");
 
   pub fn view() -> impl Widget<Self> {
     tool_card()
@@ -177,6 +178,12 @@ impl VMParams {
           .padding((Card::CARD_INSET, 0.0)),
       )
       .expand_width()
+      .on_command(Self::TOGGLE_UNIT_DROP, |ctx, payload, vmparams| {
+        if vmparams.linked && !*payload {
+          vmparams.heap_max = vmparams.heap_init.clone()
+        }
+        ctx.submit_notification(Self::SAVE_VMPARAMS)
+      })
   }
 
   fn unit_dropdown(
@@ -230,7 +237,6 @@ impl VMParams {
         })
         .lens(crate::app::App::settings.then(crate::app::settings::Settings::vmparams))
         .on_click(move |ctx, _, _| {
-          ctx.submit_command(Self::TOGGLE_UNIT_DROP.with(max));
           RootStack::dismiss(ctx);
         })
         .boxed()

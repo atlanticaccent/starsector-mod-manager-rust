@@ -1,16 +1,19 @@
 use std::path::PathBuf;
 
 use druid::{
-  widget::{Flex, Maybe},
+  widget::{Flex, Maybe, SizedBox},
   Data, Lens, Widget, WidgetExt,
 };
-use druid_widget_nursery::WidgetExt as _;
+use druid_widget_nursery::{FutureWidget, WidgetExt as _};
 
 use crate::widgets::card::{Card, CardBuilder};
 
 use self::{jre::Swapper, vmparams::VMParams};
 
-use super::util::WidgetExtEx;
+use super::{
+  settings::Settings,
+  util::{LensExtExt, WidgetExtEx},
+};
 
 pub mod jre;
 pub mod vmparams;
@@ -23,6 +26,26 @@ pub struct Tools {
 }
 
 impl Tools {
+  pub fn settings_sync() -> impl Lens<Settings, Tools> {
+    druid::lens::Map::new(
+      |settings: &Settings| Tools {
+        vmparams: settings.vmparams.clone().map(|mut v| {
+          v.linked = settings.vmparams_linked;
+          v
+        }),
+        install_path: settings.install_dir.clone(),
+      },
+      |settings, tools| {
+        settings.vmparams = tools.vmparams;
+        settings.vmparams_linked = settings
+          .vmparams
+          .as_ref()
+          .map(|v| v.linked)
+          .unwrap_or_default()
+      },
+    )
+  }
+
   pub fn view() -> impl Widget<Self> {
     Flex::column()
       .must_fill_main_axis(true)
@@ -35,15 +58,7 @@ impl Tools {
     Maybe::or_empty(|| VMParams::view())
       .lens(Tools::vmparams)
       .on_change(|_, _, data, _| data.write_vmparams())
-      .on_command(VMParams::TOGGLE_UNIT_DROP, |_, payload, data| {
-        if let Some(vmparams) = data.vmparams.as_mut()
-          && vmparams.linked
-          && !*payload
-        {
-          vmparams.heap_max = vmparams.heap_init.clone()
-        }
-        data.write_vmparams()
-      })
+      .on_notification(VMParams::SAVE_VMPARAMS, |_, _, data| data.write_vmparams())
   }
 
   fn jre_swapper() -> impl Widget<Self> {
