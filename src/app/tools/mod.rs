@@ -57,7 +57,6 @@ impl Tools {
   fn vmparams_wrapped() -> impl Widget<Self> {
     Maybe::or_empty(|| VMParams::view())
       .lens(Tools::vmparams)
-      .on_change(|_, _, data, _| data.write_vmparams())
       .on_command(VMParams::SAVE_VMPARAMS, |_, _, data| {
         eprintln!("saving vmparams");
         data.write_vmparams()

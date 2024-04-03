@@ -98,13 +98,7 @@ impl VMParams {
                       .scope(|unit| (unit, false), lens!((Unit, bool), 0))
                       .lens(Value::unit),
                   )
-                  .lens(VMParams::heap_init)
-                  .on_change(|ctx, old, data, _| {
-                    if data.linked && old.heap_init != data.heap_init {
-                      data.heap_max = data.heap_init.clone();
-                      ctx.request_update();
-                    }
-                  }),
+                  .lens(VMParams::heap_init),
               )
               .with_child(SizedBox::empty().fix_width(10.))
               .with_child(
@@ -179,10 +173,21 @@ impl VMParams {
       )
       .expand_width()
       .on_command(Self::TOGGLE_UNIT_DROP, |ctx, payload, vmparams| {
-        if vmparams.linked && !*payload {
-          vmparams.heap_max = vmparams.heap_init.clone()
+        let min_heap_exceeds_max_heap = dbg!(vmparams.heap_init.as_bytes()) > dbg!(vmparams.heap_max.as_bytes());
+        if vmparams.linked && !*payload || min_heap_exceeds_max_heap {
+          vmparams.heap_max = vmparams.heap_init.clone();
+          ctx.request_update();
         }
         ctx.submit_command(Self::SAVE_VMPARAMS)
+      })
+      .on_change(|ctx, old, data, _| {
+        let linked_and_min_changed = data.linked && old.heap_init != data.heap_init;
+        let min_heap_exceeds_max_heap = data.heap_init.as_bytes() > data.heap_max.as_bytes();
+        if linked_and_min_changed || min_heap_exceeds_max_heap {
+          data.heap_max = data.heap_init.clone();
+          ctx.request_update();
+        }
+        ctx.submit_command(VMParams::SAVE_VMPARAMS)
       })
   }
 
@@ -295,8 +300,18 @@ fn other_units_dropdown(higher: bool) -> impl Widget<Unit> {
 
 #[derive(Debug, Clone, Data, Lens, PartialEq)]
 pub struct Value {
-  pub amount: i32,
+  pub amount: u32,
   pub unit: Unit,
+}
+
+impl Value {
+  pub fn as_bytes(&self) -> u64 {
+    1024_u64.pow(match self.unit {
+      Unit::Giga => 3,
+      Unit::Mega => 2,
+      Unit::Kilo => 1,
+    }) * self.amount as u64
+  }
 }
 
 impl Display for Value {
@@ -307,8 +322,8 @@ impl Display for Value {
 
 struct ValueFormatter;
 
-impl druid::text::Formatter<i32> for ValueFormatter {
-  fn format(&self, value: &i32) -> String {
+impl druid::text::Formatter<u32> for ValueFormatter {
+  fn format(&self, value: &u32) -> String {
     value.to_string()
   }
 
@@ -317,15 +332,15 @@ impl druid::text::Formatter<i32> for ValueFormatter {
     input: &str,
     _sel: &druid::text::Selection,
   ) -> druid::text::Validation {
-    match input.parse::<i32>() {
+    match input.parse::<u32>() {
       Err(err) if input.len() != 0 => druid::text::Validation::failure(err),
       _ => druid::text::Validation::success(),
     }
   }
 
-  fn value(&self, input: &str) -> Result<i32, druid::text::ValidationError> {
+  fn value(&self, input: &str) -> Result<u32, druid::text::ValidationError> {
     input
-      .parse::<i32>()
+      .parse::<u32>()
       .map_err(druid::text::ValidationError::new)
   }
 }
@@ -388,12 +403,12 @@ impl<T: VMParamsPath> VMParams<T> {
       .map_err(|_| LoadError::ReadError)?;
 
     /* let verify_none = XVERIFY_REGEX
-      .captures(&params_string)
-      .is_some_and(|captures| {
-        captures
-          .get(1)
-          .is_some_and(|val| val.as_str().eq_ignore_ascii_case("none"))
-      }); */
+    .captures(&params_string)
+    .is_some_and(|captures| {
+      captures
+        .get(1)
+        .is_some_and(|val| val.as_str().eq_ignore_ascii_case("none"))
+    }); */
 
     let (mut heap_init, mut heap_max, mut thread_stack_size) = (None, None, None);
     for param in params_string.split_ascii_whitespace() {
@@ -405,8 +420,8 @@ impl<T: VMParamsPath> VMParams<T> {
           Some(_) | None => None,
         }
       };
-      let amount = || -> Result<i32, LoadError> {
-        let val = &param[4..param.len() - 1].to_string().parse::<i32>();
+      let amount = || -> Result<u32, LoadError> {
+        let val = &param[4..param.len() - 1].to_string().parse::<u32>();
         val.clone().map_err(|_| LoadError::FormatError)
       };
       let parse_pair = || -> Result<Option<Value>, LoadError> {
@@ -476,7 +491,7 @@ impl<T: VMParamsPath> VMParams<T> {
     let mut input_iter = params_string.chars().peekable();
     while let Some(ch) = input_iter.next() {
       output.push(ch);
-      if ch == '-' { 
+      if ch == '-' {
         let key: String = input_iter
           .next_chunk::<3>()
           .map_or_else(|iter| iter.collect(), |arr| arr.iter().collect());
