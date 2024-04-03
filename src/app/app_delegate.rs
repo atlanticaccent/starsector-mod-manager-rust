@@ -144,6 +144,7 @@ impl Delegate<App> for AppDelegate {
         };
         data.mod_list.install_dir_available = true
       }
+      ctx.submit_command(App::ENABLE);
       return Handled::Yes;
     } else if let Some(entry) = cmd.get(ModList::AUTO_UPDATE) {
       ctx.submit_command(App::LOG_MESSAGE.with(format!("Begin auto-update of {}", entry.name)));
