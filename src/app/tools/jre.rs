@@ -118,8 +118,7 @@ impl Swapper {
             data.current_flavour == flavour || data.cached_flavours.contains(&flavour)
           },
           builder
-            .clone()
-            .into()
+            .convert()
             .with_background(druid::Color::GRAY.lighter_by(3))
             .hoverable(|| {
               Label::new("Downloaded")

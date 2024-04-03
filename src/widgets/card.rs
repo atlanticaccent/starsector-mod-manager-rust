@@ -259,28 +259,7 @@ pub struct CardBuilder<T: Data> {
 
 impl<T: Data> Clone for CardBuilder<T> {
   fn clone(&self) -> Self {
-    let clone_brush = |brush: Option<&BackgroundBrush<T>>| match brush {
-      Some(brush) => Some(match brush {
-        BackgroundBrush::Color(inner) => BackgroundBrush::Color(inner.clone()),
-        BackgroundBrush::ColorKey(inner) => BackgroundBrush::ColorKey(inner.clone()),
-        BackgroundBrush::Linear(inner) => BackgroundBrush::Linear(inner.clone()),
-        BackgroundBrush::Radial(inner) => BackgroundBrush::Radial(inner.clone()),
-        BackgroundBrush::Fixed(inner) => BackgroundBrush::Fixed(inner.clone()),
-        BackgroundBrush::Painter(_) => unimplemented!(),
-        _ => todo!(),
-      }),
-      None => None,
-    };
-
-    Self {
-      insets: self.insets.clone(),
-      corner_radius: self.corner_radius.clone(),
-      shadow_length: self.shadow_length.clone(),
-      border: self.border.clone(),
-      background: clone_brush(self.background.as_ref()),
-      on_hover: clone_brush(self.on_hover.as_ref()),
-      shadow_increase: self.shadow_increase.clone(),
-    }
+    self.convert()
   }
 }
 
@@ -367,7 +346,7 @@ impl<T: Data> CardBuilder<T> {
     Card::hoverable_distinct(unhovered, hovered, self)
   }
 
-  pub fn into<U: Data>(self) -> CardBuilder<U> {
+  pub fn convert<U: Data>(&self) -> CardBuilder<U> {
     let clone_brush = |brush: Option<&BackgroundBrush<T>>| match brush {
       Some(brush) => Some(match brush {
         BackgroundBrush::Color(inner) => BackgroundBrush::Color(inner.clone()),
