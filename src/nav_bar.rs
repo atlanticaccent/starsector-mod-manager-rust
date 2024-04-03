@@ -124,7 +124,7 @@ pub enum NavLabel {
   Mods,
   ModDetails,
   Profiles,
-  Tools,
+  Performance,
   ModBrowsers,
   Starmodder,
   StarmodderDetails,

@@ -173,7 +173,7 @@ impl App {
               .overridden(false)
               .with_children(Some(Nav::new(NavLabel::ModDetails))),
             Nav::new(NavLabel::Profiles),
-            Nav::new(NavLabel::Tools),
+            Nav::new(NavLabel::Performance),
             Nav::new(NavLabel::ModBrowsers)
               .with_children(vec![
                 Nav::new(NavLabel::Starmodder)
@@ -284,7 +284,7 @@ impl App {
               ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::ModDetails, true)));
               tabs.set_tab_index(1)
             }
-            NavLabel::Tools => tabs.set_tab_index(2),
+            NavLabel::Performance => tabs.set_tab_index(2),
             NavLabel::Settings => tabs.set_tab_index(3),
             _ => eprintln!("Failed to open an item for a nav bar control"),
           }
@@ -314,7 +314,7 @@ impl App {
 
   fn overlay() -> impl Widget<App> {
     Mask::new(RootStack::new(Self::view()))
-      .with_mask(Align::centered(Popup::view()))
+      .with_mask(Align::centered(Popup::view().lens(App::popup)))
       .dynamic(|data, _| data.popup.is_some())
       .on_command(Popup::OPEN_POPUP, |_, popup, data| {
         data.popup = Some(popup.clone())

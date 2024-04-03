@@ -7,35 +7,42 @@ use std::{
 use anyhow::Context;
 use compress_tools::uncompress_archive;
 use druid::{
-  widget::{Flex, Label, Radio},
-  Data, ExtEventSink, Lens, Selector, Target, Widget, WidgetExt,
+  im::Vector,
+  widget::{Either, Flex, Label, Radio, Spinner},
+  Data, Lens, Selector, Widget, WidgetExt, WidgetId,
 };
-use druid_widget_nursery::table::{FlexTable, TableRow};
+use druid_widget_nursery::{
+  table::{FlexTable, TableRow},
+  WidgetExt as _,
+};
 use flate2::read::GzDecoder;
 use rand::random;
 use serde::{Deserialize, Serialize};
+use strum::IntoEnumIterator;
 use strum_macros::Display;
 use tap::Pipe;
 use tar::Archive;
 use tempfile::TempDir;
 use tokio::runtime::Handle;
+use webview_shared::ExtEventSinkExt;
 
 use crate::{
   app::{
+    controllers::AnimController,
+    overlays::Popup,
     util::{h2_fixed, LabelExt, ShadeColor, WidgetExtEx},
-    App,
   },
   widgets::card::Card,
 };
 
-use super::tool_card;
-
-pub const SWAP_COMPLETE: Selector = Selector::new("settings.jre.swap_complete");
+use super::{tool_card, vmparams::VMParams};
 
 #[derive(Clone, Data, Lens)]
 pub struct Swapper {
   pub current_flavour: Flavour,
-  pub jre_swap_in_progress: bool,
+  pub cached_flavours: Vector<Flavour>,
+  #[data(eq)]
+  pub install_dir: PathBuf,
 }
 
 impl Swapper {
@@ -61,10 +68,7 @@ impl Swapper {
                   Flavour::Wisp,
                   "Archived Java 8 (Recommended)",
                 ))
-                .with_row(Self::swapper_row(
-                  Flavour::Azul,
-                  "Azul Java 8 (Requested for testing by Alex)",
-                )),
+                .with_row(Self::swapper_row(Flavour::Azul, "Azul Java 8")),
               2.,
             )
             .with_flex_spacer(1.)
@@ -76,29 +80,159 @@ impl Swapper {
 
   fn swapper_row(flavour: Flavour, label: &str) -> TableRow<Self> {
     TableRow::new()
-      .with_child(Radio::new(label, flavour).lens(Swapper::current_flavour))
+      .with_child(
+        Radio::new(label, flavour)
+          .lens(Swapper::current_flavour)
+          .on_change(move |ctx, _, data, _| {
+            ctx.submit_command(VMParams::SAVE_VMPARAMS);
+            ctx.submit_command(Popup::OPEN_POPUP.with(Popup::custom(Self::swap_in_progress_popup)));
+            let install_dir = data.install_dir.clone();
+            let ext_ctx = ctx.get_external_handle();
+            tokio::spawn(async move {
+              let res = if flavour == Flavour::Original {
+                revert_jre(install_dir).await
+              } else {
+                flavour.swap_jre(install_dir).await
+              };
+
+              if res.is_ok() {
+                let _ = ext_ctx.submit_command_global(Popup::DISMISS, ());
+              }
+            });
+          })
+          .disabled_if(move |data, _| {
+            !(flavour == Flavour::Original
+              || data.current_flavour == flavour
+              || data.cached_flavours.contains(&flavour))
+          }),
+      )
       .with_child({
-        let button = Card::builder()
+        let id = WidgetId::next();
+        let builder = Card::builder()
           .with_insets((0., 10.))
-          .with_background(druid::Color::from_hex_str("#31efb8").unwrap())
           .with_corner_radius(2.)
           .with_shadow_length(1.)
-          .with_shadow_increase(1.)
-          .hoverable(|| {
-            Label::new("Download")
-              .env_scope(|env, _| {
-                env.set(
-                  druid::theme::TEXT_SIZE_NORMAL,
-                  env.get(druid::theme::TEXT_SIZE_NORMAL) * 0.8,
+          .with_shadow_increase(1.);
+        let button = Either::new(
+          move |data: &Swapper, _: &druid::Env| {
+            data.current_flavour == flavour || data.cached_flavours.contains(&flavour)
+          },
+          builder
+            .clone()
+            .into()
+            .with_background(druid::Color::GRAY.lighter_by(3))
+            .hoverable(|| {
+              Label::new("Downloaded")
+                .with_text_color(druid::Color::BLACK)
+                .env_scope(|env, _| {
+                  env.set(
+                    druid::theme::TEXT_SIZE_NORMAL,
+                    env.get(druid::theme::TEXT_SIZE_NORMAL) * 0.6,
+                  );
+                  env.set(
+                    druid::theme::DISABLED_TEXT_COLOR,
+                    env.get(druid::theme::TEXT_COLOR),
+                  );
+                })
+                .align_horizontal(druid::UnitPoint::CENTER)
+                .expand_width()
+                .padding((0., -2.5))
+            }),
+          Either::new(
+            |data, _: &druid::Env| *data,
+            builder
+              .clone()
+              .with_background(druid::Color::from_hex_str("#31efb8").unwrap())
+              .hoverable(|| {
+                Label::new("Download")
+                  .env_scope(|env, _| {
+                    env.set(
+                      druid::theme::TEXT_SIZE_NORMAL,
+                      env.get(druid::theme::TEXT_SIZE_NORMAL) * 0.6,
+                    )
+                  })
+                  .align_horizontal(druid::UnitPoint::CENTER)
+                  .expand_width()
+                  .padding((0., -2.5))
+              }),
+            builder
+              .with_background(druid::Color::from_hex_str("#31efb8").unwrap())
+              .hoverable(move || {
+                Label::dynamic(|data: &f64, _| {
+                  format!("Downloading{}", ".".repeat(data.floor() as usize))
+                })
+                .controller(
+                  AnimController::new(
+                    0.,
+                    4.,
+                    druid_widget_nursery::animation::AnimationCurve::LINEAR,
+                  )
+                  .with_transform(|v| v.floor())
+                  .with_duration(2.5)
+                  .looping(),
                 )
+                .with_id(id)
+                .on_command(DOWNLOAD_STARTED, move |ctx, payload, _| {
+                  if *payload == flavour {
+                    ctx.submit_command(AnimController::<f64>::ANIM_START.to(id));
+                  }
+                })
+                .scope_independent(|| 0.)
+                .env_scope(|env, _| {
+                  env.set(
+                    druid::theme::TEXT_SIZE_NORMAL,
+                    env.get(druid::theme::TEXT_SIZE_NORMAL) * 0.6,
+                  );
+                  env.set(
+                    druid::theme::DISABLED_TEXT_COLOR,
+                    env.get(druid::theme::TEXT_COLOR),
+                  );
+                })
+                .align_horizontal(druid::UnitPoint::CENTER)
+                .expand_width()
+                .padding((0., -2.5))
               })
-              .padding((15., -2.5))
-          });
+              .disabled(),
+          )
+          .on_command(DOWNLOAD_STARTED, move |_, payload, data| {
+            if *payload == flavour {
+              *data = false;
+            }
+          })
+          .scope_independent(|| true),
+        )
+        .fix_width(175.);
 
+        const DOWNLOAD_COMPLETE: Selector<Flavour> = Selector::new("jre.download.complete");
+        const DOWNLOAD_STARTED: Selector<Flavour> = Selector::new("jre.download.start");
         if flavour != Flavour::Original {
           button
-            .on_click(move |ctx, _, _| {
-              flavour;
+            .on_click(move |ctx, data, _| {
+              let install_dir = data.install_dir.clone();
+              let ext_ctx = ctx.get_external_handle();
+              tokio::spawn(async move {
+                let res = flavour.download(install_dir).await;
+                match res {
+                  Ok(_) => {
+                    if let Err(err) = ext_ctx.submit_command_global(DOWNLOAD_COMPLETE, flavour) {
+                      dbg!(err);
+                    }
+                  }
+                  Err(err) => {
+                    dbg!(err);
+                  }
+                }
+              });
+              ctx.set_disabled(true);
+              ctx.submit_command(DOWNLOAD_STARTED.with(flavour))
+            })
+            .on_command(DOWNLOAD_COMPLETE, move |_, payload, data| {
+              if *payload == flavour {
+                data.cached_flavours.push_back(flavour)
+              }
+            })
+            .disabled_if(move |data: &Swapper, _| {
+              data.current_flavour == flavour || data.cached_flavours.contains(&flavour)
             })
             .boxed()
         } else {
@@ -106,9 +240,54 @@ impl Swapper {
         }
       })
   }
+
+  pub async fn get_cached_jres(install_dir: PathBuf) -> (Flavour, Vec<Flavour>) {
+    let mut available: Vec<Flavour> = Flavour::iter()
+      .filter_map(|f| {
+        let sub_path = if f == Flavour::Original {
+          ORIGINAL_JRE_BACKUP.to_owned()
+        } else {
+          format!("jre_{}", f)
+        };
+        let path = install_dir.join(sub_path);
+
+        path.exists().then_some(f)
+      })
+      .collect();
+
+    let current_jre = install_dir.join(consts::JRE_PATH);
+
+    let val: anyhow::Result<Flavour> = std::fs::read_to_string(current_jre.join(".moss"))
+      .map_err(anyhow::Error::new)
+      .and_then(|s| serde_json::from_str(&s).map_err(anyhow::Error::new));
+
+    let current = val
+      .ok()
+      .or_else(|| {
+        std::fs::read_to_string(current_jre.join("release"))
+          .is_ok_and(|release| {
+            release
+              .split_ascii_whitespace()
+              .next()
+              .is_some_and(|version| version.eq_ignore_ascii_case(r#"JAVA_VERSION="1.7.0""#))
+          })
+          .then_some(Flavour::Original)
+      })
+      .expect("Determine current JRE flavour");
+
+    available.push(current);
+
+    (current, available)
+  }
+
+  fn swap_in_progress_popup() -> Box<dyn Widget<()>> {
+    Spinner::new().fix_size(50., 50.).boxed()
+  }
 }
 
-#[derive(Copy, Clone, Display, Serialize, Deserialize, PartialEq, Eq, Data)]
+#[derive(
+  Copy, Clone, Display, Serialize, Deserialize, PartialEq, Eq, Data, strum_macros::EnumIter,
+)]
 pub enum Flavour {
   Coretto,
   Hotspot,
@@ -121,37 +300,31 @@ const ORIGINAL_JRE_BACKUP: &str = "jre7";
 const JRE_BACKUP: &str = "jre.bak";
 
 impl Flavour {
-  pub async fn swap(&self, ext_ctx: ExtEventSink, root: PathBuf, managed: bool) {
-    ext_ctx
-      .submit_command(
-        App::LOG_MESSAGE,
-        format!(
-          "Beginning JRE upgrade - installing {}. This may take a while...",
-          self
-        ),
-        Target::Auto,
-      )
-      .expect("Send message");
+  async fn download(self, install_dir: PathBuf) -> Result<(), anyhow::Error> {
+    let cached_jre = install_dir.join(format!("jre_{}", self));
 
-    let res = self
-      .swap_jre(&root, managed, webview_shared::PROJECT.data_dir())
-      .await;
+    if !cached_jre.exists() {
+      let tempdir = self.unpack(&install_dir).await?;
 
-    match res {
-      Ok(true) => ext_ctx.submit_command(App::LOG_MESSAGE, format!("JRE {} already installed!", self), Target::Auto).expect("Send message"),
-      Ok(false) => ext_ctx.submit_command(App::LOG_MESSAGE, String::from("JRE upgrade complete!"), Target::Auto).expect("Send message"),
-      Err(err) => ext_ctx.submit_command(App::LOG_MESSAGE, format!("ERROR: Failed to upgrade JRE. Your Starsector installation may be corrupted.\nError: {:?}", err), Target::Auto).expect("Send message")
+      let search_stratgey = self.get_search_strategy();
+      let jre_8 = Self::find_jre(tempdir.path(), search_stratgey).await?;
+
+      serde_json::to_writer_pretty(
+        std::fs::OpenOptions::new()
+          .create(true)
+          .write(true)
+          .open(jre_8.join(".moss"))?,
+        &self,
+      )?;
+
+      std::fs::rename(jre_8, &cached_jre)?;
     }
-    let _ = ext_ctx.submit_command(SWAP_COMPLETE, (), Target::Auto);
+
+    Ok(())
   }
 
-  async fn swap_jre(
-    &self,
-    root: &Path,
-    managed: bool,
-    project_data: &Path,
-  ) -> anyhow::Result<bool> {
-    let cached_jre = if managed { project_data } else { root }.join(format!("jre_{}", self));
+  async fn swap_jre(self, root: PathBuf) -> anyhow::Result<bool> {
+    let cached_jre = root.join(format!("jre_{}", self));
     let stock_jre = root.join(consts::JRE_PATH);
 
     let already_installed = stock_jre
@@ -160,7 +333,7 @@ impl Flavour {
         if dot_file.exists() {
           let flavour: Flavour = serde_json::from_str(&std::fs::read_to_string(dot_file)?)?;
 
-          if flavour == *self {
+          if flavour == self {
             return Ok(true);
           }
         }
@@ -173,9 +346,7 @@ impl Flavour {
 
     let tempdir: TempDir;
     let jre_8 = if !cached_jre.exists() {
-      tempdir = self
-        .unpack(if managed { project_data } else { root })
-        .await?;
+      tempdir = self.unpack(&root).await?;
 
       let search_stratgey = self.get_search_strategy();
       let jre_8 = Self::find_jre(tempdir.path(), search_stratgey).await?;
@@ -195,28 +366,28 @@ impl Flavour {
       cached_jre
     };
 
-    if !managed {
-      if stock_jre.exists() {
-        std::fs::rename(&stock_jre, get_backup_path(&stock_jre)?)?;
-      }
-      std::fs::rename(jre_8, &stock_jre)?;
-    } else {
-      if stock_jre.exists() {
-        if !std::fs::symlink_metadata(&stock_jre)?.is_symlink() {
-          std::fs::rename(&stock_jre, get_backup_path(&stock_jre)?)?;
-        } else {
-          #[cfg(target_os = "windows")]
-          std::fs::remove_dir(&stock_jre)?;
-          #[cfg(target_family = "unix")]
-          std::fs::remove_file(&stock_jre)?;
-        }
-      }
-
-      #[cfg(target_os = "windows")]
-      std::os::windows::fs::symlink_dir(jre_8, &stock_jre)?;
-      #[cfg(target_family = "unix")]
-      std::os::unix::fs::symlink(jre_8, &stock_jre)?;
+    if stock_jre.exists() {
+      std::fs::rename(&stock_jre, get_backup_path(&stock_jre)?)?;
     }
+    std::fs::rename(jre_8, &stock_jre)?;
+    // if !managed {
+    // } else {
+    //   if stock_jre.exists() {
+    //     if !std::fs::symlink_metadata(&stock_jre)?.is_symlink() {
+    //       std::fs::rename(&stock_jre, get_backup_path(&stock_jre)?)?;
+    //     } else {
+    //       #[cfg(target_os = "windows")]
+    //       std::fs::remove_dir(&stock_jre)?;
+    //       #[cfg(target_family = "unix")]
+    //       std::fs::remove_file(&stock_jre)?;
+    //     }
+    //   }
+
+    //   #[cfg(target_os = "windows")]
+    //   std::os::windows::fs::symlink_dir(jre_8, &stock_jre)?;
+    //   #[cfg(target_family = "unix")]
+    //   std::os::unix::fs::symlink(jre_8, &stock_jre)?;
+    // }
 
     Ok(false)
   }
@@ -328,26 +499,7 @@ fn get_backup_path(stock_jre: &Path) -> Result<PathBuf, anyhow::Error> {
   Ok(backup)
 }
 
-pub async fn revert(ext_ctx: ExtEventSink, root: PathBuf) {
-  ext_ctx
-    .submit_command(
-      App::LOG_MESSAGE,
-      String::from("Attempting to revert to JRE 7"),
-      Target::Auto,
-    )
-    .expect("Send message");
-
-  let res = revert_jre(&root).await;
-
-  match res {
-    Ok(true) => ext_ctx.submit_command(App::LOG_MESSAGE, String::from("Succesfully reverted to JRE 7"), Target::Auto).expect("Send message"),
-    Ok(false) => ext_ctx.submit_command(App::LOG_MESSAGE, String::from("ERROR: Could not revert to JRE 7 - no JRE 7 backup found"), Target::Auto).expect("Send message"),
-    Err(err) => ext_ctx.submit_command(App::LOG_MESSAGE, format!("ERROR: Failed to revert JRE. Your Starsector installation may be corrupted.\nError: {:?}", err), Target::Auto).expect("Send message")
-  }
-  let _ = ext_ctx.submit_command(SWAP_COMPLETE, (), Target::Auto);
-}
-
-async fn revert_jre(root: &Path) -> anyhow::Result<bool> {
+async fn revert_jre(root: PathBuf) -> anyhow::Result<bool> {
   let current_jre = root.join(consts::JRE_PATH);
   let original_backup = current_jre.with_file_name(ORIGINAL_JRE_BACKUP);
 
@@ -441,7 +593,6 @@ mod test {
     mock_original: impl Into<Option<bool>>,
     test_dir: impl Into<Option<TempDir>>,
     project_test_dir: Option<TempDir>,
-    managed: bool,
     expected: bool,
   ) -> (TempDir, TempDir) {
     let mock_original: Option<bool> = mock_original.into();
@@ -472,7 +623,7 @@ mod test {
       }
 
       let res = flavour
-        .swap_jre(test_dir.path(), managed, project_test_dir.path())
+        .swap_jre(test_dir.path().to_path_buf())
         .await
         .expect("Swap JRE");
 
@@ -501,27 +652,27 @@ mod test {
 
   #[test]
   fn coretto() {
-    base_test(Flavour::Coretto, true, None, None, false, false);
+    base_test(Flavour::Coretto, true, None, None, false);
   }
 
   #[test]
   fn hotspot() {
-    base_test(Flavour::Hotspot, true, None, None, false, false);
+    base_test(Flavour::Hotspot, true, None, None, false);
   }
 
   #[test]
   fn wisp() {
-    base_test(Flavour::Wisp, true, None, None, false, false);
+    base_test(Flavour::Wisp, true, None, None, false);
   }
 
   #[test]
   fn azul() {
-    base_test(Flavour::Azul, true, None, None, false, false);
+    base_test(Flavour::Azul, true, None, None, false);
   }
 
   #[test]
   fn installs_even_if_actual_is_missing_and_unmanaged() {
-    base_test(Flavour::Coretto, None, None, None, false, false);
+    base_test(Flavour::Coretto, None, None, None, false);
   }
 
   // #[test]
@@ -531,14 +682,16 @@ mod test {
 
   #[test]
   fn does_not_revert_when_no_original() {
-    let (test_dir, _) = base_test(Flavour::Coretto, false, None, None, false, false);
+    let (test_dir, _) = base_test(Flavour::Coretto, false, None, None, false);
 
     let runtime = tokio::runtime::Builder::new_current_thread()
       .enable_all()
       .build()
       .expect("Build runtime");
 
-    let res = runtime.block_on(revert_jre(test_dir.path())).unwrap();
+    let res = runtime
+      .block_on(revert_jre(test_dir.path().to_owned()))
+      .unwrap();
 
     assert!(!res);
     assert!(test_dir
@@ -551,14 +704,16 @@ mod test {
 
   #[test]
   fn revert_when_original_present_and_unmanaged() {
-    let (test_dir, _) = base_test(Flavour::Coretto, true, None, None, false, false);
+    let (test_dir, _) = base_test(Flavour::Coretto, true, None, None, false);
 
     let runtime = tokio::runtime::Builder::new_current_thread()
       .enable_all()
       .build()
       .expect("Build runtime");
 
-    let res = runtime.block_on(revert_jre(test_dir.path())).unwrap();
+    let res = runtime
+      .block_on(revert_jre(test_dir.path().to_owned()))
+      .unwrap();
 
     assert!(res);
     assert!(test_dir
@@ -610,7 +765,9 @@ mod test {
       .build()
       .expect("Build runtime");
 
-    let res = runtime.block_on(revert_jre(test_dir.path())).unwrap();
+    let res = runtime
+      .block_on(revert_jre(test_dir.path().to_owned()))
+      .unwrap();
 
     assert!(res);
     assert!(test_dir.path().join(consts::JRE_PATH).exists());
@@ -716,8 +873,6 @@ mod test {
     )
     .expect("Write installed flavour to dot file");
 
-    let (test_dir, _) = base_test(flavour, true, None, Some(project_test_dir), false, false);
-
-    base_test(flavour, None, test_dir, None, false, true);
+    base_test(flavour, true, None, Some(project_test_dir), false);
   }
 }

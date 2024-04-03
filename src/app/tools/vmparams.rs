@@ -182,7 +182,7 @@ impl VMParams {
         if vmparams.linked && !*payload {
           vmparams.heap_max = vmparams.heap_init.clone()
         }
-        ctx.submit_notification(Self::SAVE_VMPARAMS)
+        ctx.submit_command(Self::SAVE_VMPARAMS)
       })
   }
 
@@ -387,13 +387,13 @@ impl<T: VMParamsPath> VMParams<T> {
       .read_to_string(&mut params_string)
       .map_err(|_| LoadError::ReadError)?;
 
-    let verify_none = XVERIFY_REGEX
+    /* let verify_none = XVERIFY_REGEX
       .captures(&params_string)
       .is_some_and(|captures| {
         captures
           .get(1)
           .is_some_and(|val| val.as_str().eq_ignore_ascii_case("none"))
-      });
+      }); */
 
     let (mut heap_init, mut heap_max, mut thread_stack_size) = (None, None, None);
     for param in params_string.split_ascii_whitespace() {
@@ -437,7 +437,7 @@ impl<T: VMParamsPath> VMParams<T> {
         heap_init,
         heap_max,
         thread_stack_size,
-        verify_none,
+        verify_none: true,
         linked: false,
         _phantom: PhantomData::default(),
       })
@@ -470,12 +470,13 @@ impl<T: VMParamsPath> VMParams<T> {
     } else {
       false
     };
+    // dbg!(write_verify_manually);
 
     let mut output = String::new();
     let mut input_iter = params_string.chars().peekable();
     while let Some(ch) = input_iter.next() {
       output.push(ch);
-      if ch == '-' {
+      if ch == '-' { 
         let key: String = input_iter
           .next_chunk::<3>()
           .map_or_else(|iter| iter.collect(), |arr| arr.iter().collect());
@@ -513,7 +514,7 @@ impl<T: VMParamsPath> VMParams<T> {
         output.push_str(&chunk);
 
         if chunk == "ava.exe" {
-          output.push_str(" -Xverify:none ")
+          output.push_str(" -Xverify:none")
         }
       }
     }

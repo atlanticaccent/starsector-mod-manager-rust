@@ -1,3 +1,4 @@
+mod anim_controller;
 mod app_controller;
 mod delayed_painter;
 mod extensible_controller;
@@ -13,6 +14,7 @@ mod on_hover;
 mod on_notif;
 mod rotate;
 
+pub use anim_controller::AnimController;
 pub use app_controller::AppController;
 pub use delayed_painter::DelayedPainter;
 pub use extensible_controller::ExtensibleController;

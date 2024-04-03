@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use druid::{
-  widget::{Flex, Maybe, SizedBox},
+  widget::{Flex, Maybe, SizedBox, ViewSwitcher},
   Data, Lens, Widget, WidgetExt,
 };
 use druid_widget_nursery::{FutureWidget, WidgetExt as _};
@@ -58,15 +58,41 @@ impl Tools {
     Maybe::or_empty(|| VMParams::view())
       .lens(Tools::vmparams)
       .on_change(|_, _, data, _| data.write_vmparams())
-      .on_notification(VMParams::SAVE_VMPARAMS, |_, _, data| data.write_vmparams())
+      .on_command(VMParams::SAVE_VMPARAMS, |_, _, data| {
+        eprintln!("saving vmparams");
+        data.write_vmparams()
+      })
   }
 
   fn jre_swapper() -> impl Widget<Self> {
-    Swapper::view()
-      .scope_independent(|| Swapper {
-        current_flavour: jre::Flavour::Original,
-        jre_swap_in_progress: false,
-    })
+    #[derive(Clone, Data)]
+    struct PathWrapper(#[data(eq)] PathBuf);
+
+    ViewSwitcher::new(
+      |data: &Option<PathWrapper>, _| data.clone(),
+      |_, _, _| {
+        Maybe::or_empty(|| {
+          FutureWidget::new(
+            |data: &PathWrapper, _| Swapper::get_cached_jres(data.0.clone()),
+            SizedBox::empty(),
+            |res, data, _| {
+              let (current_flavour, cached_flavours) = *res;
+              let cached_flavours: druid::im::Vector<_> = cached_flavours.into();
+              let install_dir = data.0.clone();
+              Swapper::view()
+                .scope_independent(move || Swapper {
+                  current_flavour,
+                  cached_flavours: cached_flavours.clone(),
+                  install_dir: install_dir.clone(),
+                })
+                .boxed()
+            },
+          )
+        })
+        .boxed()
+      },
+    )
+    .lens(Tools::install_path.compute(|p| p.clone().map(PathWrapper)))
   }
 
   fn write_vmparams(&self) {

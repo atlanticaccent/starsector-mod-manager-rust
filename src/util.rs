@@ -27,7 +27,7 @@ use druid::{
   WidgetExt, WidgetId,
 };
 use druid_widget_nursery::{
-  animation::Interpolate,
+  animation::{Animated, Interpolate},
   prism::{Closures, Prism, PrismWrap},
   CommandCtx, Stack, StackChildParams, StackChildPosition, WidgetExt as _,
 };
