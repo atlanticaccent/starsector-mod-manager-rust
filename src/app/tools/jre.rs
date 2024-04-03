@@ -262,8 +262,7 @@ impl Swapper {
       .and_then(|s| serde_json::from_str(&s).map_err(anyhow::Error::new));
 
     let current = val
-      .ok()
-      .or_else(|| {
+      .or_else(|_| {
         std::fs::read_to_string(current_jre.join("release"))
           .is_ok_and(|release| {
             release
@@ -272,8 +271,11 @@ impl Swapper {
               .is_some_and(|version| version.eq_ignore_ascii_case(r#"JAVA_VERSION="1.7.0""#))
           })
           .then_some(Flavour::Original)
+          .ok_or(anyhow::anyhow!(
+            "Could not parse release file in (assumed) Java 7 folder"
+          ))
       })
-      .expect("Determine current JRE flavour");
+      .unwrap_or(Flavour::Original);
 
     available.push(current);
 
