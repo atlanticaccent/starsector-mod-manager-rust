@@ -309,17 +309,17 @@ impl App {
         }),
         1.0,
       )
-      .controller(AppController)
   }
 
   fn overlay() -> impl Widget<App> {
     Mask::new(RootStack::new(Self::view()))
-      .with_mask(Align::centered(Popup::view().lens(App::popup)))
+      .with_mask(Align::centered(Popup::view()))
       .dynamic(|data, _| data.popup.is_some())
       .on_command(Popup::OPEN_POPUP, |_, popup, data| {
         data.popup = Some(popup.clone())
       })
       .on_command(Popup::DISMISS, |_, _, data| data.popup = None)
+      .controller(AppController)
   }
 
   pub fn theme_wrapper(theme: Theme) -> impl Widget<Self> {

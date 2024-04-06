@@ -2,6 +2,7 @@ use std::process;
 
 use druid::{commands, widget::Controller, Env, Event, EventCtx, Target, Widget};
 use self_update::version::bump_is_greater;
+use webview_shared::ExtEventSinkExt;
 
 use crate::app::{
   modal::Modal,
@@ -33,14 +34,14 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
             .flatten();
 
           if let Some(handle) = res {
-            ext_ctx.submit_command(
+            if let Err(err) = ext_ctx.submit_command_global(
               Settings::SELECTOR,
               SettingsCommand::UpdateInstallDir(handle),
-              Target::Auto,
-            )
-          } else {
-            ext_ctx.submit_command(App::ENABLE, (), Target::Auto)
+            ) {
+              dbg!(err);
+            }
           }
+          let _ = ext_ctx.submit_command_global(App::ENABLE, ());
         });
       } else if let Some(()) = cmd.get(App::DUMB_UNIVERSAL_ESCAPE) {
         ctx.set_focus(data.widget_id);

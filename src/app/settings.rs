@@ -21,8 +21,9 @@ use super::{
   mod_list::headings::{Header, Heading},
   tools::vmparams::VMParams,
   util::{
-    button_painter, default_true, h2_fixed, icons::*, make_column_pair, make_flex_pair, CommandExt,
-    LabelExt, LoadError, RootStack, SaveError, ShadeColor, WidgetExtEx, WithHoverState,
+    button_painter, default_true, h2_fixed, hoverable_text, icons::*, make_column_pair,
+    make_flex_pair, CommandExt, LabelExt, LoadError, RootStack, SaveError, ShadeColor, WidgetExtEx,
+    WithHoverState,
   },
 };
 use crate::{app::PROJECT, theme::Themes, widgets::card::Card};
@@ -82,8 +83,8 @@ impl Settings {
               TextBox::multiline()
                 .with_line_wrapping(true)
                 .with_formatter(ParseFormatter::new())
-                .delegate(InstallDirDelegate {})
-                .lens(lens!(Settings, install_dir_buf))
+                .delegate(InstallDirDelegate)
+                .lens(Settings::install_dir_buf)
                 .expand_width(),
               1.,
             )
@@ -111,6 +112,9 @@ impl Settings {
         .with_child(h2_fixed("Edit columns:"))
         .with_child(Self::headings_editor())
         .with_default_spacer()
+        .with_child(hoverable_text(Some(druid::Color::BLACK)).constant("Open config.json".to_owned()).on_click(|_, _, _| {
+          let _ = opener::open(Settings::path(false));
+        }).align_right().expand_width())
         .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
         .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
         .must_fill_main_axis(true)
@@ -472,7 +476,7 @@ pub enum SettingsCommand {
   SelectInstallDir,
 }
 
-struct InstallDirDelegate {}
+pub struct InstallDirDelegate;
 
 impl ValidationDelegate for InstallDirDelegate {
   fn event(&mut self, ctx: &mut druid::EventCtx, event: TextBoxEvent, current_text: &str) {

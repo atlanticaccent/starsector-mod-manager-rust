@@ -6,13 +6,17 @@ use druid::{
 };
 
 mod confirm_delete;
-use confirm_delete::*;
+mod select_install;
 
-use super::{mod_entry::ModEntry, util::WidgetExtEx};
+use confirm_delete::*;
+use select_install::*;
+
+use super::{mod_entry::ModEntry, util::WidgetExtEx, App};
 
 #[derive(Clone, Data)]
 pub enum Popup {
   ConfirmDelete(ModEntry),
+  SelectInstall,
   Custom(Rc<dyn Fn() -> Box<dyn Widget<()>>>),
 }
 
@@ -20,13 +24,14 @@ impl Popup {
   pub const DISMISS: Selector = Selector::new("app.popup.dismiss");
   pub const OPEN_POPUP: Selector<Popup> = Selector::new("app.popup.open");
 
-  pub fn view() -> impl Widget<Option<Popup>> {
+  pub fn view() -> impl Widget<App> {
     ViewSwitcher::new(
-      |data: &Option<Popup>, _| data.clone(),
-      |_, data, _| {
+      |data: &App, _| data.popup.clone(),
+      |data, _, _| {
         if let Some(popup) = &data {
           match popup {
             Popup::ConfirmDelete(entry) => ConfirmDelete::view(entry).boxed(),
+            Popup::SelectInstall => SelectInstall::view().boxed(),
             Popup::Custom(maker) => maker().constant(()).boxed(),
           }
         } else {

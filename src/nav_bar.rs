@@ -18,9 +18,9 @@ use crate::{
 
 pub struct NavBar;
 
-const RECURSE_SET_EXPANDED: Selector<NavLabel> = Selector::new("recurse_set_expanded_tree");
 
 impl NavBar {
+  pub const RECURSE_SET_EXPANDED: Selector<NavLabel> = Selector::new("recurse_set_expanded_tree");
   pub const SET_OVERRIDE: Selector<(NavLabel, bool)> = Selector::new("nav_bar.override");
   pub const REMOVE_OVERRIDE: Selector<NavLabel> = Selector::new("nav_bar.remove_override");
 
@@ -33,8 +33,6 @@ impl NavBar {
   }
 
   fn view(default: NavLabel) -> impl Widget<Nav> {
-    let default = default.to_owned();
-
     Tree::new(
       || {
         Either::new(
@@ -64,14 +62,14 @@ impl NavBar {
                   if !data.root {
                     ctx.submit_command(Nav::NAV_SELECTOR.with(data.linked.unwrap_or(data.label)));
                     ctx
-                      .submit_command(RECURSE_SET_EXPANDED.with(data.linked.unwrap_or(data.label)));
+                      .submit_command(NavBar::RECURSE_SET_EXPANDED.with(data.linked.unwrap_or(data.label)));
                   }
                 }),
             )
             .cross_axis_alignment(druid::widget::CrossAxisAlignment::Center)
             .padding((4., 6.))
             .expand_width()
-            .on_command(RECURSE_SET_EXPANDED, |ctx, label, data| {
+            .on_command(NavBar::RECURSE_SET_EXPANDED, |ctx, label, data| {
               if data.root {
                 data.set_ancestors_expanded(*label);
               }
@@ -90,7 +88,7 @@ impl NavBar {
     .with_opener_dimensions((0., 0.))
     .with_max_label_height(26.)
     .with_indent(|data: &Nav| if data.depth > 1 { 16. } else { 0. })
-    .on_added(move |_, ctx, _, _| ctx.submit_command(RECURSE_SET_EXPANDED.with(default)))
+    .on_added(move |_, ctx, _, _| ctx.submit_command(NavBar::RECURSE_SET_EXPANDED.with(default)))
     .on_command(Self::SET_OVERRIDE, |_, (label, override_), data| {
       data.set_override(*label, Some(*override_))
     })

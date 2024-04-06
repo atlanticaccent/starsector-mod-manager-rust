@@ -29,10 +29,20 @@ use webview_shared::{
 use webview_subsystem::init_webview;
 
 use super::{
-  controllers::HoverController, installer::{self, HybridPath, StringOrPath, DOWNLOAD_PROGRESS, DOWNLOAD_STARTED, INSTALL_ALL}, mod_description, mod_entry::{ModEntry, ModMetadata, ViewModEntry}, mod_list::{install::install_options::InstallOptions, ModList}, modal::Modal, settings::{self, Settings, SettingsCommand}, tools, util::{
+  controllers::HoverController,
+  installer::{self, HybridPath, StringOrPath, DOWNLOAD_PROGRESS, DOWNLOAD_STARTED, INSTALL_ALL},
+  mod_description,
+  mod_entry::{ModEntry, ModMetadata, ViewModEntry},
+  mod_list::{install::install_options::InstallOptions, ModList},
+  modal::Modal,
+  overlays::Popup,
+  settings::{self, Settings, SettingsCommand},
+  tools,
+  util::{
     self, get_latest_manager, get_starsector_version, Button2, CommandExt as _, DummyTransfer,
     LabelExt as _, WidgetExtEx as _, GET_INSTALLED_STARSECTOR,
-  }, App
+  },
+  App,
 };
 
 pub enum AppCommands {
@@ -130,7 +140,7 @@ impl Delegate<App> for AppDelegate {
           ctx.get_external_handle(),
           new_install_dir.clone(),
         ));
-        if !data.settings.dirty {
+        if !data.settings.dirty || data.mod_list.mods.is_empty() {
           data.mod_list.mods.clear();
           data.runtime.spawn(ModList::parse_mod_folder(
             Some(ctx.get_external_handle()),
@@ -144,8 +154,7 @@ impl Delegate<App> for AppDelegate {
         };
         data.mod_list.install_dir_available = true
       }
-      ctx.submit_command(App::ENABLE);
-      return Handled::Yes;
+      return Handled::No;
     } else if let Some(entry) = cmd.get(ModList::AUTO_UPDATE) {
       ctx.submit_command(App::LOG_MESSAGE.with(format!("Begin auto-update of {}", entry.name)));
       data
@@ -574,16 +583,26 @@ impl Delegate<App> for AppDelegate {
       Event::WindowConnected => {
         if self.root_id.is_none() {
           self.root_id = Some(window_id);
-          if data.settings.dirty {
-            ctx.submit_command(Settings::SELECTOR.with(SettingsCommand::UpdateInstallDir(
-              data.settings.install_dir.clone().unwrap_or_default(),
-            )));
+          if data.settings.dirty
+            && let Some(install_dir) = data.settings.install_dir.as_ref()
+          {
+            ctx.submit_command(
+              Settings::SELECTOR.with(SettingsCommand::UpdateInstallDir(install_dir.clone())),
+            );
           }
           let ext_ctx = ctx.get_external_handle();
           data.runtime.spawn(async move {
             let release = get_latest_manager().await;
             ext_ctx.submit_command(App::UPDATE_AVAILABLE, release, Target::Auto)
           });
+          if !data
+            .settings
+            .install_dir
+            .as_ref()
+            .is_some_and(|p| p.exists())
+          {
+            ctx.submit_command(Popup::OPEN_POPUP.with(Popup::SelectInstall))
+          }
         }
       }
       Event::KeyDown(KeyEvent {
