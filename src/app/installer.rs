@@ -19,7 +19,10 @@ use tokio::{
   time::timeout,
 };
 
-use super::{mod_entry::ModMetadata, util::get_master_version};
+use super::{
+  mod_entry::{ModMetadata, UpdateStatus},
+  util::get_master_version,
+};
 use crate::app::{mod_entry::ModEntry, util::LoadBalancer};
 
 #[derive(Clone)]
@@ -160,14 +163,14 @@ async fn handle_path(
               .connect_timeout(std::time::Duration::from_millis(500))
               .build()
               .expect("Build reqwest client");
-            mod_info.version_checker = get_master_version(&client, None, version_checker).await;
+            mod_info.remote_version = get_master_version(&client, None, &version_checker).await;
+            mod_info.update_status = Some(UpdateStatus::from((
+              &version_checker,
+              &mod_info.remote_version,
+            )));
           }
           ext_ctx
-            .submit_command(
-              INSTALL,
-              ChannelMessage::Success(mod_info),
-              Target::Auto,
-            )
+            .submit_command(INSTALL, ChannelMessage::Success(mod_info), Target::Auto)
             .expect("Send success over async channel");
         }
 
@@ -316,19 +319,24 @@ async fn handle_delete(
   new_path: HybridPath,
   old_path: PathBuf,
 ) -> anyhow::Result<()> {
-  let destination = old_path.canonicalize().expect("Canonicalize destination");
-  remove_dir_all(destination).expect("Remove old mod");
+  if old_path.exists() {
+    remove_dir_all(&old_path)?;
+  }
 
   let origin = new_path.get_path_copy();
   move_or_copy(origin, old_path.clone()).await;
   entry.set_path(old_path);
-  if let Some(version_checker) = entry.version_checker.clone() {
+  if let Some(version_checker) = dbg!(entry.version_checker.clone()) {
     let client = reqwest::Client::builder()
       .timeout(std::time::Duration::from_millis(500))
       .connect_timeout(std::time::Duration::from_millis(500))
       .build()
       .expect("Build reqwest client");
-    entry.version_checker = get_master_version(&client, None, version_checker).await;
+    entry.remote_version = dbg!(get_master_version(&client, None, &version_checker).await);
+    entry.update_status = Some(UpdateStatus::from((
+      &version_checker,
+      &entry.remote_version,
+    )));
   }
 
   ext_ctx

@@ -19,15 +19,14 @@ use druid::{
   theme,
   widget::{
     Align, Axis, Controller, ControllerHost, DefaultScopePolicy, Either, Flex, Label, LabelText,
-    LensScopeTransfer, LensWrap, Painter, RawLabel, Scope, ScopeTransfer, SizedBox,
-    ViewSwitcher,
+    LensScopeTransfer, LensWrap, Painter, RawLabel, Scope, ScopeTransfer, SizedBox, ViewSwitcher,
   },
   Color, Command, Data, Env, Event, EventCtx, ExtEventSink, FontWeight, Key, KeyOrValue, Lens,
   LensExt as _, MouseEvent, Point, RenderContext, Selector, SingleUse, Target, UnitPoint, Widget,
   WidgetExt, WidgetId,
 };
 use druid_widget_nursery::{
-  animation::{Animated, Interpolate},
+  animation::Interpolate,
   prism::{Closures, Prism, PrismWrap},
   CommandCtx, Stack, StackChildParams, StackChildPosition, WidgetExt as _,
 };
@@ -45,7 +44,7 @@ use crate::{
     controllers::{ExtensibleController, HoverController, OnEvent, OnNotif},
     mod_entry::{GameVersion, ModEntry, ModVersionMeta},
   },
-  patch::click::Click,
+  patch::click::Click, widgets::card::{Card, CardBuilder},
 };
 
 pub(crate) mod icons;
@@ -56,8 +55,7 @@ use super::{
   controllers::{
     DelayedPainter, HeightLinkerShared, HoverState, InvisibleIf, LinkedHeights, OnHover,
     SharedIdHoverState,
-  },
-  App,
+  }, overlays::Popup, App
 };
 
 pub const ORANGE_KEY: Key<Color> = Key::new("util.colour.orange");
@@ -219,7 +217,7 @@ pub const MASTER_VERSION_RECEIVED: Selector<(String, Result<ModVersionMeta, Stri
 pub async fn get_master_version(
   client: &Client,
   ext_sink: Option<ExtEventSink>,
-  local: ModVersionMeta,
+  local: &ModVersionMeta,
 ) -> Option<ModVersionMeta> {
   let res = send_request(client, local.remote_url.clone()).await;
 
@@ -680,6 +678,14 @@ pub trait CommandExt: CommandCtx {
     let cmd: Command = cmd.into();
     self.submit_command(cmd.to(Target::Global))
   }
+
+  fn display_popup(&mut self, popup: Popup) {
+    self.submit_command(Popup::OPEN_POPUP.with(popup))
+  }
+
+  fn queue_popup(&mut self, popup: Popup) {
+    self.submit_command(Popup::QUEUE_POPUP.with(popup))
+  }
 }
 
 impl<T: CommandCtx> CommandExt for T {}
@@ -819,10 +825,7 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     }
   }
 
-  fn link_height_unwrapped(
-    self,
-    height_linker: HeightLinkerShared
-  ) -> LinkedHeights<T, Self> {
+  fn link_height_unwrapped(self, height_linker: HeightLinkerShared) -> LinkedHeights<T, Self> {
     LinkedHeights::new(self, height_linker)
   }
 
@@ -907,6 +910,14 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
 
   fn disabled(self) -> impl Widget<T> {
     self.on_added(|_, ctx, _, _| ctx.set_disabled(true))
+  }
+
+  fn in_card(self) -> impl Widget<T> {
+    Card::new(self)
+  }
+
+  fn in_card_builder(self, builder: CardBuilder<T>) -> impl Widget<T> {
+    builder.build(self)
   }
 }
 

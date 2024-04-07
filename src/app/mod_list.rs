@@ -420,7 +420,7 @@ impl ModList {
           .map(|mut entry| {
             if let Some(version) = entry.version_checker.clone() {
               let master_version =
-                handle.block_on(util::get_master_version(&client, None, version.clone()));
+                handle.block_on(util::get_master_version(&client, None, &version));
               entry.remote_version = master_version.clone();
               entry.update_status = Some(UpdateStatus::from((&version, &master_version)));
             }
