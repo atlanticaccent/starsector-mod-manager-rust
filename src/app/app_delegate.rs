@@ -6,41 +6,32 @@ use std::{
 };
 
 use base64::{decode, encode};
-use chrono::{DateTime, Local, TimeZone as _};
+use chrono::{DateTime, Local};
 use druid::{
   commands,
-  im::Vector,
   keyboard_types::Key,
-  lens,
-  widget::{Button, Either, Flex, Label, List, Maybe, Scope, Spinner, ViewSwitcher},
-  AppDelegate as Delegate, Command, DelegateCtx, Env, Event, EventCtx, Handled, KeyEvent,
-  LensExt as _, SingleUse, Size, Target, Widget, WidgetExt as _, WindowDesc, WindowHandle,
-  WindowId, WindowLevel,
+  widget::{Button, Flex, Label},
+  AppDelegate as Delegate, Command, DelegateCtx, Env, Event, Handled, KeyEvent, LensExt as _,
+  SingleUse, Size, Target, Widget, WidgetExt as _, WindowDesc, WindowHandle, WindowId, WindowLevel,
 };
-use druid_widget_nursery::{material_icons::Icon, ProgressBar, Separator};
 use rand::random;
 use remove_dir_all::remove_dir_all;
 use reqwest::Url;
-use tap::Pipe as _;
-use util::{CLOSE, VERIFIED};
 use webview_shared::{
   InstallType, UserEvent, PROJECT, WEBVIEW_EVENT, WEBVIEW_INSTALL, WEBVIEW_OFFSET,
 };
 use webview_subsystem::init_webview;
 
 use super::{
-  controllers::HoverController,
-  installer::{self, HybridPath, StringOrPath, DOWNLOAD_PROGRESS, DOWNLOAD_STARTED, INSTALL_ALL},
+  installer::{self, HybridPath, StringOrPath, DOWNLOAD_PROGRESS, DOWNLOAD_STARTED},
   mod_description,
-  mod_entry::{ModEntry, ModMetadata, ViewModEntry},
+  mod_entry::{ModEntry, ViewModEntry},
   mod_list::{install::install_options::InstallOptions, ModList},
-  modal::Modal,
   overlays::Popup,
   settings::{self, Settings, SettingsCommand},
   tools,
   util::{
-    self, get_latest_manager, get_starsector_version, Button2, CommandExt as _, DummyTransfer,
-    LabelExt as _, WidgetExtEx as _, GET_INSTALLED_STARSECTOR,
+    self, get_latest_manager, get_starsector_version, LabelExt as _, GET_INSTALLED_STARSECTOR,
   },
   App,
 };
@@ -180,8 +171,6 @@ impl Delegate<App> for AppDelegate {
         .put(data, res.as_ref().ok().cloned());
     } else if let Some(name) = cmd.get(App::LOG_SUCCESS) {
       data.log_message(&format!("Successfully installed {}", name));
-      self.display_if_closed(ctx, SubwindowType::Log);
-
       return Handled::Yes;
     } else if let Some(()) = cmd.get(App::CLEAR_LOG) {
       data.log.clear();
@@ -189,17 +178,12 @@ impl Delegate<App> for AppDelegate {
       return Handled::Yes;
     } else if let Some((name, err)) = cmd.get(App::LOG_ERROR) {
       data.log_message(&format!("Failed to install {}. Error: {}", name, err));
-      self.display_if_closed(ctx, SubwindowType::Log);
-
       return Handled::Yes;
     } else if let Some(message) = cmd.get(App::LOG_MESSAGE) {
       data.log_message(message);
-      self.display_if_closed(ctx, SubwindowType::Log);
-
       return Handled::Yes;
-    } else if let Some(message) = cmd.get(App::LOG_OVERWRITE) {
-      data.push_overwrite(message.clone());
-      self.display_if_closed(ctx, SubwindowType::Overwrite);
+    } else if let Some((conflict, to_install, entry)) = cmd.get(App::LOG_OVERWRITE) {
+      ctx.submit_command(Popup::QUEUE_POPUP.with(Popup::overwrite(conflict, to_install, entry)));
 
       return Handled::Yes;
     } else if let Some(ovewrite_all) = cmd.get(App::CLEAR_OVERWRITE_LOG) {
@@ -254,7 +238,7 @@ impl Delegate<App> for AppDelegate {
                 .build()
                 .expect("Build reqwest client"),
               Some(ext_ctx),
-              version_meta,
+              &version_meta,
             )
             .await;
           }
@@ -633,16 +617,6 @@ impl Delegate<App> for AppDelegate {
 }
 
 impl AppDelegate {
-  pub fn build_log_window() -> impl Widget<App> {
-    let modal = Modal::new("Log").with_content("").with_content(
-      List::new(|| Label::wrapped_func(|val: &String, _| val.clone()))
-        .lens(App::log)
-        .boxed(),
-    );
-
-    modal.with_button("Close", App::CLEAR_LOG).build().boxed()
-  }
-
   pub fn display_if_closed(&mut self, ctx: &mut DelegateCtx, window_type: SubwindowType) {
     let window_id = match window_type {
       SubwindowType::Log => &mut self.log_window,
@@ -655,8 +629,7 @@ impl AppDelegate {
       ctx.submit_command(commands::SHOW_WINDOW.to(*id))
     } else {
       let modal = match window_type {
-        SubwindowType::Log => AppDelegate::build_log_window().boxed(),
-        SubwindowType::Overwrite => AppDelegate::build_overwrite_window().boxed(),
+        _ => unimplemented!(),
         SubwindowType::Duplicate => AppDelegate::build_duplicate_window().boxed(),
         SubwindowType::Download => AppDelegate::build_progress_bars().boxed(),
       };
@@ -672,158 +645,50 @@ impl AppDelegate {
     }
   }
 
-  pub fn build_overwrite_window() -> impl Widget<App> {
-    ViewSwitcher::new(
-      |data: &App, _| data.overwrite_log.len(),
-      |_, data: &App, _| {
-        let mut modal = Modal::new("Overwrite?");
-
-        for val in data.overwrite_log.iter() {
-          let (conflict, to_install, entry) = val.as_ref();
-          modal = modal
-            .with_content(match conflict {
-              StringOrPath::String(id) => {
-                format!("A mod with ID {} alread exists.", id)
-              }
-              StringOrPath::Path(path) => format!(
-                "Found a folder at the path {} when trying to install {}.",
-                path.to_string_lossy(),
-                entry.id
-              ),
-            })
-            .with_content(
-              Maybe::or_empty(|| {
-                Label::wrapped(
-                  "\
-              NOTE: A .git directory has been detected in the target directory. \
-              Are you sure this isn't being used for development?\
-            ",
-                )
-              })
-              .lens(lens::Constant(
-                data
-                  .settings
-                  .git_warn
-                  .then(|| {
-                    if entry.path.join(".git").exists() {
-                      Some(())
-                    } else {
-                      None
-                    }
-                  })
-                  .flatten(),
-              ))
-              .boxed(),
-            )
-            .with_content(format!(
-              "Would you like to replace the existing {}?",
-              if let StringOrPath::String(_) = conflict {
-                "mod"
-              } else {
-                "folder"
-              }
-            ))
-            .with_content(
-              Flex::row()
-                .with_flex_spacer(1.)
-                .with_child(Button::new("Overwrite").on_click({
-                  let conflict = conflict.clone();
-                  let to_install = to_install.clone();
-                  let entry = entry.clone();
-                  move |ctx: &mut EventCtx, data: &mut App, _| {
-                    ctx.submit_command(
-                      App::REMOVE_OVERWRITE_LOG_ENTRY
-                        .with(conflict.clone())
-                        .to(Target::Global),
-                    );
-                    ctx.submit_command(
-                      ModList::OVERWRITE
-                        .with((
-                          match &conflict {
-                            StringOrPath::String(id) => {
-                              data.mod_list.mods.get(id).unwrap().path.clone()
-                            }
-                            StringOrPath::Path(path) => path.clone(),
-                          },
-                          to_install.clone(),
-                          entry.clone(),
-                        ))
-                        .to(Target::Global),
-                    );
-                  }
-                }))
-                .with_child(Button::new("Cancel").on_click({
-                  let conflict = conflict.clone();
-                  move |ctx, _, _| {
-                    ctx.submit_command(App::REMOVE_OVERWRITE_LOG_ENTRY.with(conflict.clone()));
-                  }
-                }))
-                .boxed(),
-            )
-            .with_content(
-              Separator::new()
-                .with_width(2.0)
-                .with_color(druid::Color::GRAY)
-                .padding((0., 0., 0., 10.))
-                .boxed(),
-            );
-        }
-
-        if data.overwrite_log.len() > 1 {
-          modal
-            .with_button("Overwrite All", App::CLEAR_OVERWRITE_LOG.with(true))
-            .with_button("Cancel All", App::CLEAR_OVERWRITE_LOG.with(false))
-        } else {
-          modal.with_button("Close", App::CLEAR_OVERWRITE_LOG.with(false))
-        }
-        .build()
-        .boxed()
-      },
-    )
-  }
-
   pub fn build_duplicate_window() -> impl Widget<App> {
-    ViewSwitcher::new(
-      |app: &App, _| app.duplicate_log.len(),
-      |_, app, _| {
-        Modal::new("Duplicate detected")
-          .pipe(|mut modal| {
-            for (dupe_a, dupe_b) in &app.duplicate_log {
-              modal = modal
-                .with_content(format!(
-                  "Detected duplicate installs of mod with ID {}.",
-                  dupe_a.id
-                ))
-                .with_content(
-                  Flex::row()
-                    .with_flex_child(Self::make_dupe_col(dupe_a, dupe_b), 1.)
-                    .with_flex_child(Self::make_dupe_col(dupe_b, dupe_a), 1.)
-                    .boxed(),
-                )
-                .with_content(
-                  Flex::row()
-                    .with_flex_spacer(1.)
-                    .with_child(Button::new("Ignore").on_click({
-                      let id = dupe_a.id.clone();
-                      move |ctx, _, _| {
-                        ctx.submit_command(
-                          App::REMOVE_DUPLICATE_LOG_ENTRY
-                            .with(id.clone())
-                            .to(Target::Global),
-                        )
-                      }
-                    }))
-                    .boxed(),
-                )
-                .with_content(Separator::new().padding((0., 0., 0., 10.)).boxed())
-            }
-            modal
-          })
-          .with_button("Ignore All", App::CLEAR_DUPLICATE_LOG)
-          .build()
-          .boxed()
-      },
-    )
+    /* ViewSwitcher::new(
+       |app: &App, _| app.duplicate_log.len(),
+       |_, app, _| {
+         Modal::new("Duplicate detected")
+           .pipe(|mut modal| {
+             for (dupe_a, dupe_b) in &app.duplicate_log {
+               modal = modal
+                 .with_content(format!(
+                   "Detected duplicate installs of mod with ID {}.",
+                   dupe_a.id
+                 ))
+                 .with_content(
+                   Flex::row()
+                     .with_flex_child(Self::make_dupe_col(dupe_a, dupe_b), 1.)
+                     .with_flex_child(Self::make_dupe_col(dupe_b, dupe_a), 1.)
+                     .boxed(),
+                 )
+                 .with_content(
+                   Flex::row()
+                     .with_flex_spacer(1.)
+                     .with_child(Button::new("Ignore").on_click({
+                       let id = dupe_a.id.clone();
+                       move |ctx, _, _| {
+                         ctx.submit_command(
+                           App::REMOVE_DUPLICATE_LOG_ENTRY
+                             .with(id.clone())
+                             .to(Target::Global),
+                         )
+                       }
+                     }))
+                     .boxed(),
+                 )
+                 .with_content(Separator::new().padding((0., 0., 0., 10.)).boxed())
+             }
+             modal
+           })
+           .with_button("Ignore All", App::CLEAR_DUPLICATE_LOG)
+           .build()
+           .boxed()
+       },
+     )
+    */
+    Label::new("foo")
   }
 
   pub fn make_dupe_col(dupe_a: &ViewModEntry, dupe_b: &ViewModEntry) -> Flex<App> {
@@ -871,62 +736,63 @@ impl AppDelegate {
   }
 
   pub fn build_progress_bars() -> impl Widget<App> {
-    Modal::new("Downloads")
-      .with_content(
-        List::new(|| {
-          Flex::column()
-            .with_child(Label::wrapped_lens(lens!((i64, String, f64), 1)))
-            .with_child(
-              Label::wrapped_func(|data, _| {
-                let start_time = Local.timestamp_opt(*data, 0).unwrap().format("%I:%M%p");
+    /* Modal::new("Downloads")
+    .with_content(
+      List::new(|| {
+        Flex::column()
+          .with_child(Label::wrapped_lens(lens!((i64, String, f64), 1)))
+          .with_child(
+            Label::wrapped_func(|data, _| {
+              let start_time = Local.timestamp_opt(*data, 0).unwrap().format("%I:%M%p");
 
-                format!("Started at: {}", start_time)
-              })
-              .lens(lens!((i64, String, f64), 0)),
-            )
-            .with_child(
-              Flex::row()
-                .with_flex_child(
-                  ProgressBar::new()
-                    .with_corner_radius(0.0)
-                    .with_bar_brush(druid::Color::GREEN.into())
-                    .expand_width()
-                    .lens(lens!((i64, String, f64), 2)),
-                  1.,
-                )
-                .with_child(
-                  Either::new(
-                    |fraction, _| *fraction < 1.0,
-                    Spinner::new(),
-                    Icon::new(*VERIFIED),
-                  )
+              format!("Started at: {}", start_time)
+            })
+            .lens(lens!((i64, String, f64), 0)),
+          )
+          .with_child(
+            Flex::row()
+              .with_flex_child(
+                ProgressBar::new()
+                  .with_corner_radius(0.0)
+                  .with_bar_brush(druid::Color::GREEN.into())
+                  .expand_width()
                   .lens(lens!((i64, String, f64), 2)),
+                1.,
+              )
+              .with_child(
+                Either::new(
+                  |fraction, _| *fraction < 1.0,
+                  Spinner::new(),
+                  Icon::new(*VERIFIED),
                 )
-                .with_child(
-                  Either::new(
-                    |fraction, _| *fraction < 1.0,
-                    Icon::new(*CLOSE).with_color(druid::Color::GRAY),
-                    Icon::new(*CLOSE),
-                  )
-                  .lens(lens!((i64, String, f64), 2))
-                  .controller(HoverController::default())
-                  .on_click(|ctx, data, _| {
-                    ctx.submit_command(App::REMOVE_DOWNLOAD_BAR.with(data.0))
-                  })
-                  .disabled_if(|data, _| data.2 < 1.0),
-                ),
-            )
-            .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-        })
-        .lens(App::downloads)
-        .boxed(),
-      )
-      .with_close()
-      .build()
+                .lens(lens!((i64, String, f64), 2)),
+              )
+              .with_child(
+                Either::new(
+                  |fraction, _| *fraction < 1.0,
+                  Icon::new(*CLOSE).with_color(druid::Color::GRAY),
+                  Icon::new(*CLOSE),
+                )
+                .lens(lens!((i64, String, f64), 2))
+                .controller(HoverController::default())
+                .on_click(|ctx, data, _| {
+                  ctx.submit_command(App::REMOVE_DOWNLOAD_BAR.with(data.0))
+                })
+                .disabled_if(|data, _| data.2 < 1.0),
+              ),
+          )
+          .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+      })
+      .lens(App::downloads)
+      .boxed(),
+    )
+    .with_close()
+    .build() */
+    Label::new("foo")
   }
 
   pub fn build_found_multiple(source: HybridPath, found_paths: Vec<PathBuf>) -> impl Widget<App> {
-    let title = format!(
+    /* let title = format!(
       "Found multiple mods in {}",
       match source {
         HybridPath::PathBuf(_) => "folder",
@@ -1008,7 +874,8 @@ impl AppDelegate {
       .with_close_label("Ignore All")
       .build();
 
-    Scope::from_function(move |_| mods, DummyTransfer::default(), modal)
+    Scope::from_function(move |_| mods, DummyTransfer::default(), modal) */
+    Label::new("foo")
   }
 }
 

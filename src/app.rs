@@ -4,50 +4,28 @@ use chrono::Local;
 use druid::{
   im::{OrdMap, Vector},
   lens,
-  widget::{
-    Align, Axis, Button, Checkbox, Either, Flex, Label, Maybe, Scope, SizedBox, TextBox,
-    ViewSwitcher, ZStack,
-  },
-  Data, Event, Lens, LensExt, Selector, SingleUse, Target, Widget, WidgetExt, WidgetId, WindowDesc,
-  WindowLevel,
+  widget::{Flex, Maybe, Scope, ZStack},
+  Data, Lens, LensExt, Selector, SingleUse, Widget, WidgetExt, WidgetId,
 };
-use druid_widget_nursery::{
-  material_icons::Icon, FutureWidget, Mask, Stack, StackChildPosition,
-  WidgetExt as WidgetExtNursery,
-};
-use strum::IntoEnumIterator;
-use tap::Tap;
+use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
 use tokio::runtime::Handle;
-use webview_shared::{FRACTAL_INDEX, FRACTAL_MODDING_SUBFORUM, FRACTAL_MODS_FORUM, PROJECT};
+use webview_shared::PROJECT;
 use wry::WebView;
 
 use self::{
-  controllers::{AppController, HoverController, InstallController, ModListController},
-  installer::{HybridPath, StringOrPath},
-  mod_description::ModDescription,
-  mod_entry::{ModEntry, UpdateStatus, ViewModEntry},
-  mod_list::{EnabledMods, Filters, ModList},
-  mod_repo::ModRepo,
-  modal::Modal,
-  overlays::Popup,
-  settings::Settings,
-  tools::Tools,
-  util::{
-    bold_text, button_painter, get_quoted_version, h2_fixed, h3_fixed, icons::*, make_column_pair,
-    xxHashMap, CommandExt, IndyToggleState, LabelExt, LensExtExt as _, Release, RootStack,
-  },
+  activity::Activity, controllers::{AppController, HoverController, ModListController}, installer::{HybridPath, StringOrPath}, mod_description::ModDescription, mod_entry::{ModEntry, UpdateStatus, ViewModEntry}, mod_list::ModList, mod_repo::ModRepo, overlays::Popup, settings::Settings, tools::Tools, util::{bold_text, icons::*, xxHashMap, Release, RootStack}
 };
 use crate::{
   app::util::WidgetExtEx,
   nav_bar::{Nav, NavBar, NavLabel},
   patch::{
-    split::Split,
     tabs::tab::{InitialTab, Tabs, TabsPolicy},
     tabs_policy::StaticTabsForked,
   },
   theme::{Theme, CHANGE_THEME},
 };
 
+mod activity;
 pub mod app_delegate;
 pub mod controllers;
 pub mod installer;
@@ -84,7 +62,7 @@ pub struct App {
   webview: Option<Rc<WebView>>,
   downloads: OrdMap<i64, (i64, String, f64)>,
   mod_repo: Option<ModRepo>,
-  popup: Option<Popup>,
+  popup: Vector<Popup>,
 }
 
 impl App {
@@ -148,7 +126,7 @@ impl App {
       webview: None,
       downloads: OrdMap::new(),
       mod_repo: None,
-      popup: None,
+      popup: Vector::new(),
     }
   }
 
@@ -262,6 +240,7 @@ impl App {
               .on_change(Settings::save_on_change)
               .lens(App::settings),
           ),
+          InitialTab::new("activity", Activity::view().lens(App::log)),
           InitialTab::new("settings", Settings::view().lens(App::settings)),
         ]))
         .on_command2(Nav::NAV_SELECTOR, |tabs, ctx, label, _| {
@@ -312,14 +291,7 @@ impl App {
   }
 
   fn overlay() -> impl Widget<App> {
-    Mask::new(RootStack::new(Self::view()))
-      .with_mask(Align::centered(Popup::view()))
-      .dynamic(|data, _| data.popup.is_some())
-      .on_command(Popup::OPEN_POPUP, |_, popup, data| {
-        data.popup = Some(popup.clone())
-      })
-      .on_command(Popup::DISMISS, |_, _, data| data.popup = None)
-      .controller(AppController)
+    Popup::overlay(RootStack::new(Self::view())).controller(AppController)
   }
 
   pub fn theme_wrapper(theme: Theme) -> impl Widget<Self> {
@@ -334,392 +306,6 @@ impl App {
           data.1 = theme.clone()
         }),
     )
-  }
-
-  pub fn view_() -> impl Widget<Self> {
-    let refresh = Flex::row()
-      .with_child(
-        Flex::row()
-          .with_child(Label::new("Refresh").with_text_size(18.))
-          .with_spacer(5.)
-          .with_child(Icon::new(*SYNC))
-          .padding((8., 4.))
-          .background(button_painter())
-          .controller(HoverController::default())
-          .on_click(|event_ctx, _, _| event_ctx.submit_command(App::REFRESH)),
-      )
-      .expand_width();
-    let install_dir_browser =
-      Settings::install_dir_browser_builder(Axis::Vertical).lens(App::settings);
-    let install_mod_button = Flex::row()
-      .with_child(Label::new("Install Mod(s)").with_text_size(18.))
-      .with_spacer(5.)
-      .with_child(Icon::new(*INSTALL_DESKTOP))
-      .padding((8., 4.))
-      .background(button_painter())
-      .controller(HoverController::default())
-      .on_click(|_, _, _| {})
-      .controller(InstallController)
-      .disabled_if(|data, _| data.settings.install_dir.is_none());
-    let browse_index_button = Flex::row()
-      .with_child(Label::new("Open Mod Browser").with_text_size(18.))
-      .with_spacer(5.)
-      .with_child(Icon::new(*OPEN_BROWSER))
-      .padding((8., 4.))
-      .background(button_painter())
-      .controller(HoverController::default())
-      .on_click(|event_ctx, _, _| event_ctx.submit_command(App::OPEN_WEBVIEW.with(None)))
-      .expand_width()
-      .disabled_if(|data: &App, _| data.settings.install_dir.is_none());
-    let mod_repo = FutureWidget::new(
-      |_, _| ModRepo::get_mod_repo(),
-      Flex::row()
-        .with_child(Label::new("Open Unofficial Mod Repo").with_text_size(18.))
-        .with_spacer(5.)
-        .with_child(Icon::new(*EXTENSION))
-        .padding((8., 4.))
-        .background(button_painter()),
-      |value, data: &mut App, _| {
-        data.mod_repo = value.inspect_err(|err| eprintln!("{:?}", err)).ok();
-
-        Flex::row()
-          .with_child(Label::new("Open Unofficial Mod Repo").with_text_size(18.))
-          .with_spacer(5.)
-          .with_child(Icon::new(*EXTENSION))
-          .padding((8., 4.))
-          .background(button_painter())
-          .controller(HoverController::default())
-          .on_click(|ctx, data: &mut App, _| {
-            if data.mod_repo.is_some() {
-              let modal = Stack::new()
-                .with_child(ModRepo::view().disabled_if(|data: &ModRepo, _| data.modal_open()))
-                .with_positioned_child(
-                  Either::new(
-                    |modal: &Option<String>, _| modal.is_some(),
-                    Modal::new("Open in Discord?")
-                      .with_content("Attempt to open this link in the Discord app?")
-                      .with_button("Open", ModRepo::OPEN_IN_DISCORD)
-                      .with_close()
-                      .with_on_close_override(|ctx, _| {
-                        ctx.submit_command_global(ModRepo::CLEAR_MODAL)
-                      })
-                      .build()
-                      .background(druid::theme::BACKGROUND_DARK)
-                      .border(druid::Color::BLACK, 2.)
-                      .fix_size(300., 125.),
-                    SizedBox::empty(),
-                  )
-                  .lens(ModRepo::modal),
-                  StackChildPosition::new().top(Some(20.)),
-                )
-                .align(druid::UnitPoint::CENTER)
-                .lens(App::mod_repo.map(
-                  |data| data.clone().unwrap(),
-                  |orig, new| {
-                    orig.replace(new);
-                  },
-                ));
-
-              let window = WindowDesc::new(modal.boxed())
-                .window_size((1000., 400.))
-                .show_titlebar(false)
-                .set_level(WindowLevel::AppWindow);
-
-              ctx.new_window(window);
-            }
-          })
-          .boxed()
-      },
-    )
-    .disabled_if(|data, _| data.mod_repo.is_none());
-    let mod_list = ViewSwitcher::new(
-      |data: &ModList, _| data.header.headings.clone(),
-      |_, _, _| mod_list::ModList::view().boxed(),
-    )
-    .lens(App::mod_list)
-    .on_change(|_ctx, _old, data, _env| {
-      if let Some(install_dir) = &data.settings.install_dir {
-        let enabled: Vec<ViewModEntry> = data
-          .mod_list
-          .mods
-          .iter()
-          .filter_map(|(_, v)| v.enabled.then(|| v.clone()))
-          .collect();
-
-        if let Err(err) = EnabledMods::from(enabled).save(install_dir) {
-          eprintln!("{:?}", err)
-        };
-      }
-    })
-    .expand()
-    .controller(ModListController);
-    let tool_panel = Flex::column()
-      .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-      .with_child(h2_fixed("Search"))
-      .with_child(
-        TextBox::new()
-          .on_change(|ctx, _, _, _| {
-            ctx.submit_command(ModList::SEARCH_UPDATE.with(false));
-          })
-          .lens(App::mod_list.then(ModList::search_text))
-          .expand_width(),
-      )
-      .with_default_spacer()
-      .with_child(h2_fixed("Toggles"))
-      .with_child(
-        Button::new("Enable All")
-          .controller(HoverController::default())
-          .on_click(|_, data: &mut App, _| {
-            if let Some(install_dir) = data.settings.install_dir.as_ref().cloned() {
-              let ids: Vec<String> = data.mod_list.mods.keys().cloned().collect();
-
-              for id in ids.iter() {
-                if let Some(mut entry) = data.mod_list.mods.remove(id) {
-                  entry.enabled = true;
-                  data.mod_list.mods.insert(id.clone(), entry);
-                }
-              }
-              if let Err(err) = EnabledMods::from(ids).save(&install_dir) {
-                eprintln!("{:?}", err)
-              }
-            }
-          })
-          .disabled_if(|data: &App, _| data.mod_list.mods.values().all(|e| e.enabled))
-          .expand_width(),
-      )
-      .with_spacer(5.)
-      .with_child(
-        Button::new("Disable All")
-          .controller(HoverController::default())
-          .on_click(|_, data: &mut App, _| {
-            if let Some(install_dir) = data.settings.install_dir.as_ref() {
-              let ids: Vec<String> = data.mod_list.mods.keys().cloned().collect();
-
-              for id in ids.iter() {
-                if let Some(mut entry) = data.mod_list.mods.remove(id) {
-                  entry.enabled = false;
-                  data.mod_list.mods.insert(id.clone(), entry);
-                }
-              }
-              if let Err(err) = EnabledMods::empty().save(install_dir) {
-                eprintln!("{:?}", err)
-              }
-            }
-          })
-          .disabled_if(|data: &App, _| data.mod_list.mods.values().all(|e| !e.enabled))
-          .expand_width(),
-      )
-      .with_default_spacer()
-      .with_child(h2_fixed("Filters"))
-      .tap_mut(|panel| {
-        for filter in Filters::iter() {
-          match filter {
-            Filters::Enabled => panel.add_child(h3_fixed("Status")),
-            Filters::Unimplemented => panel.add_child(h3_fixed("Version Checker")),
-            Filters::AutoUpdateAvailable => panel.add_child(h3_fixed("Auto Update Support")),
-            _ => {}
-          };
-          panel.add_child(
-            Scope::from_function(
-              |state: bool| state,
-              IndyToggleState::default(),
-              Checkbox::from_label(Label::wrapped(filter.to_string())).on_change(
-                move |ctx, _, new, _| {
-                  // ctx.submit_command(ModList::FILTER_UPDATE.with((filter, !*new)))
-                },
-              ),
-            )
-            .lens(lens::Constant(true)),
-          )
-        }
-      })
-      .padding(20.);
-    let launch_panel = Flex::column()
-      .with_child(make_column_pair(
-        h2_fixed("Starsector Version:"),
-        Maybe::new(
-          || Label::wrapped_func(|v: &String, _| v.clone()),
-          || Label::new("Unknown"),
-        )
-        .lens(
-          App::mod_list
-            .then(ModList::starsector_version)
-            .map(|v| v.as_ref().and_then(get_quoted_version), |_, _| {}),
-        ),
-      ))
-      .with_default_spacer()
-      .with_child(install_dir_browser)
-      .with_default_spacer()
-      .with_child(ViewSwitcher::new(
-        |data: &App, _| data.settings.install_dir.is_some(),
-        move |has_dir, _, _| {
-          if *has_dir {
-            Box::new(
-              Flex::row()
-                .with_flex_child(h2_fixed("Launch Starsector").expand_width(), 2.)
-                .with_flex_child(Icon::new(*PLAY_ARROW).expand_width(), 1.)
-                .padding((8., 4.))
-                .background(button_painter())
-                .controller(HoverController::default())
-                .on_click(|ctx, data: &mut App, _| {
-                  if let Some(install_dir) = data.settings.install_dir.clone() {
-                    ctx.submit_command(App::DISABLE);
-                    let ext_ctx = ctx.get_external_handle();
-                    let experimental_launch = data.settings.experimental_launch;
-                    let resolution = data.settings.experimental_resolution;
-                    data.runtime.spawn(async move {
-                      if let Err(err) =
-                        App::launch_starsector(install_dir, experimental_launch, resolution).await
-                      {
-                        dbg!(err);
-                      };
-                      ext_ctx.submit_command(App::ENABLE, (), Target::Auto)
-                    });
-                  }
-                })
-                .expand_width(),
-            )
-          } else {
-            Box::new(SizedBox::empty())
-          }
-        },
-      ))
-      .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
-      .expand()
-      .padding(20.);
-    let side_panel = Tabs::for_policy(
-      StaticTabsForked::build(vec![
-        InitialTab::new("Launch", launch_panel),
-        InitialTab::new("Tools & Filters", tool_panel),
-      ])
-      .set_label_height(40.0),
-    );
-
-    Flex::column()
-      .with_child(Either::new(
-        |app: &App, _| app.webview.is_none(),
-        Flex::row()
-          .with_child(install_mod_button)
-          .with_spacer(10.)
-          .with_child(browse_index_button)
-          .with_spacer(10.)
-          .with_child(mod_repo)
-          .with_spacer(10.)
-          .with_child(refresh)
-          .with_spacer(10.)
-          .with_child(
-            ViewSwitcher::new(
-              |len: &usize, _| *len,
-              |len, _, _| Box::new(h3_fixed(&format!("Installed: {}", len))),
-            )
-            .lens(App::mod_list.then(ModList::mods).compute(|data| data.len())),
-          )
-          .with_spacer(10.)
-          .with_child(
-            ViewSwitcher::new(
-              |len: &usize, _| *len,
-              |len, _, _| Box::new(h3_fixed(&format!("Active: {}", len))),
-            )
-            .lens(
-              App::mod_list
-                .then(ModList::mods)
-                .compute(|data| data.values().filter(|e| e.enabled).count()),
-            ),
-          )
-          .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
-          .expand_width(),
-        Flex::row()
-          .with_child(
-            Flex::row()
-              .with_child(Label::new("Mod Index").with_text_size(18.))
-              .with_spacer(5.)
-              .with_child(Icon::new(*NAVIGATE_NEXT))
-              .padding((8., 4.))
-              .background(button_painter())
-              .controller(HoverController::default())
-              .on_click(|_, data: &mut App, _| {
-                if let Some(webview) = &data.webview {
-                  if webview.url().as_str() != FRACTAL_INDEX {
-                    webview.load_url(FRACTAL_INDEX)
-                  }
-                }
-              }),
-          )
-          .with_spacer(10.)
-          .with_child(
-            Flex::row()
-              .with_child(Label::new("Mods Subforum").with_text_size(18.))
-              .with_spacer(5.)
-              .with_child(Icon::new(*NAVIGATE_NEXT))
-              .padding((8., 4.))
-              .background(button_painter())
-              .controller(HoverController::default())
-              .on_click(|_, data: &mut App, _| {
-                if let Some(webview) = &data.webview {
-                  if webview.url().as_str() != FRACTAL_MODS_FORUM {
-                    webview.load_url(FRACTAL_MODS_FORUM)
-                  }
-                }
-              }),
-          )
-          .with_spacer(10.)
-          .with_child(
-            Flex::row()
-              .with_child(Label::new("Modding Subforum").with_text_size(18.))
-              .with_spacer(5.)
-              .with_child(Icon::new(*NAVIGATE_NEXT))
-              .padding((8., 4.))
-              .background(button_painter())
-              .controller(HoverController::default())
-              .on_click(|_, data: &mut App, _| {
-                if let Some(webview) = &data.webview {
-                  if webview.url().as_str() != FRACTAL_MODDING_SUBFORUM {
-                    webview.load_url(FRACTAL_MODDING_SUBFORUM)
-                  }
-                }
-              }),
-          )
-          .with_flex_spacer(1.0)
-          .with_child(
-            Flex::row()
-              .with_child(Label::new("Close Mod Browser").with_text_size(18.))
-              .with_spacer(5.)
-              .with_child(Icon::new(*CLOSE))
-              .padding((8., 4.))
-              .background(button_painter())
-              .controller(HoverController::default())
-              .on_click(|ctx, data: &mut App, _| {
-                data
-                  .webview
-                  .as_mut()
-                  .inspect(|webview| webview.set_visible(false));
-                data.webview = None;
-                ctx.submit_command(App::ENABLE)
-              }),
-          ),
-      ))
-      .with_spacer(20.)
-      .with_flex_child(
-        Split::columns(mod_list, side_panel)
-          .split_point(0.8)
-          .draggable(true)
-          .expand_height()
-          .on_event(|_, ctx, event, _| {
-            if let Event::Command(cmd) = event {
-              if (cmd.is(ModList::SUBMIT_ENTRY) || cmd.is(App::ENABLE)) && ctx.is_disabled() {
-                ctx.set_disabled(false);
-              } else if cmd.is(App::DISABLE) {
-                ctx.set_disabled(true);
-              }
-            }
-            false
-          }),
-        2.0,
-      )
-      .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-      .must_fill_main_axis(true)
-      .controller(AppController)
-      .with_id(WidgetId::reserved(0))
   }
 
   async fn launch_starsector(
@@ -821,12 +407,6 @@ impl App {
     self
       .log
       .push_back(format!("[{}] {}", Local::now().format("%H:%M:%S"), message))
-  }
-
-  fn push_overwrite(&mut self, message: (StringOrPath, HybridPath, ModEntry)) {
-    if !self.overwrite_log.iter().any(|val| val.0 == message.0) {
-      self.overwrite_log.push_back(Rc::new(message))
-    }
   }
 
   fn push_duplicate(&mut self, duplicates: &(ViewModEntry, ViewModEntry)) {
