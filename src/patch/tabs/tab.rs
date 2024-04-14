@@ -27,6 +27,8 @@ use druid::{
   Affine, Data, Insets, Lens, Point, SingleUse, WidgetExt, WidgetPod,
 };
 
+use super::tabs_policy::StaticTabsForked;
+
 type TabsScope<TP> = Scope<TabsScopePolicy<TP>, Box<dyn Widget<TabsState<TP>>>>;
 type TabBodyPod<TP> = WidgetPod<<TP as TabsPolicy>::Input, <TP as TabsPolicy>::BodyWidget>;
 type TabBarPod<TP> = WidgetPod<TabsState<TP>, Box<dyn Widget<TabsState<TP>>>>;
@@ -698,14 +700,14 @@ impl Default for TabsEdge {
 }
 
 pub struct InitialTab<T> {
-  pub name: SingleUse<LabelText<T>>, // This is to avoid cloning provided label texts
+  pub name: String, // This is to avoid cloning provided label texts
   pub child: SingleUse<Box<dyn Widget<T>>>, // This is to avoid cloning provided tabs
 }
 
 impl<T: Data> InitialTab<T> {
-  pub fn new(name: impl Into<LabelText<T>>, child: impl Widget<T> + 'static) -> Self {
+  pub fn new(name: impl Into<String>, child: impl Widget<T> + 'static) -> Self {
     InitialTab {
-      name: SingleUse::new(name.into()),
+      name: name.into(),
       child: SingleUse::new(child.boxed()),
     }
   }
@@ -893,6 +895,17 @@ impl<TP: TabsPolicy> Tabs<TP> {
       TabsScopePolicy::new(tabs_from_data, idx),
       Box::new(layout),
     ))
+  }
+}
+
+impl<T: Data> Tabs<StaticTabsForked<T>> {
+  pub fn set_tab_index_by_label(&mut self, label: impl AsRef<str>) {
+    if let TabsContent::Running { scope, .. } = &mut self.content {
+      if let Some(state) = scope.widget_mut().state_mut() {
+        let idx = state.policy.label_idx(label.as_ref());
+        state.selected = idx
+      }
+    }
   }
 }
 

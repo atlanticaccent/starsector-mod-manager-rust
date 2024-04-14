@@ -7,10 +7,12 @@ use druid::{
 use druid_widget_nursery::{Mask, WidgetExt as _};
 
 mod confirm_delete;
+mod duplicate;
 mod overwrite;
 mod select_install;
 
 use confirm_delete::*;
+use duplicate::*;
 use overwrite::*;
 use select_install::*;
 
@@ -26,6 +28,7 @@ pub enum Popup {
   ConfirmDelete(ModEntry),
   SelectInstall,
   Ovewrite(Overwrite),
+  Duplicate(Duplicate),
   Custom(Rc<dyn Fn() -> Box<dyn Widget<()>>>),
 }
 
@@ -58,6 +61,7 @@ impl Popup {
             Popup::ConfirmDelete(entry) => ConfirmDelete::view(entry).boxed(),
             Popup::SelectInstall => SelectInstall::view().boxed(),
             Popup::Ovewrite(overwrite) => Overwrite::view(overwrite).boxed(),
+            Popup::Duplicate(duplicate) => Duplicate::view(duplicate).boxed(),
             Popup::Custom(maker) => maker().constant(()).boxed(),
           }
         } else {

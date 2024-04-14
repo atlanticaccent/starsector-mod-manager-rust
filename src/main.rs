@@ -1,3 +1,5 @@
+#![feature(let_chains)]
+
 use const_format::concatcp;
 use druid::{AppLauncher, WindowDesc};
 use starsector_mod_manager::app::{self, app_delegate::AppDelegate};
@@ -10,19 +12,22 @@ fn main() {
 
   let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
 
+  let _guard = runtime.enter();
+
   // create the initial app state
   let mut initial_state = app::App::new(runtime.handle().clone());
 
-  initial_state.mod_list.mods.extend(
-    runtime
-      .block_on(app::mod_list::ModList::parse_mod_folder(
-        None,
-        initial_state.settings.install_dir.clone(),
-      ))
-      .into_iter()
-      .flatten()
-      .map(|e| (e.id.clone(), e)),
-  );
+  if let Some(install_dir) = initial_state.settings.install_dir.as_ref() {
+    match app::mod_list::ModList::parse_mod_folder(install_dir.clone()) {
+      Ok(mods) => initial_state.mod_list.mods.extend(
+        mods
+          .inner()
+          .into_iter()
+          .map(|(id, entry)| (id, app::mod_entry::ViewModEntry::from(entry))),
+      ),
+      Err((mods, duplicates)) => todo!(),
+    }
+  }
 
   let main_window = WindowDesc::new(app::App::theme_wrapper(initial_state.settings.theme.into()))
     .title(concatcp!(
@@ -30,8 +35,6 @@ fn main() {
       env!("CARGO_PKG_VERSION")
     ))
     .window_size((1280., 1024.));
-
-  let _guard = runtime.enter();
 
   // start the application
   AppLauncher::with_window(main_window)

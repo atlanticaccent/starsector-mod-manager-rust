@@ -18,7 +18,6 @@ use crate::{
 
 pub struct NavBar;
 
-
 impl NavBar {
   pub const RECURSE_SET_EXPANDED: Selector<NavLabel> = Selector::new("recurse_set_expanded_tree");
   pub const SET_OVERRIDE: Selector<(NavLabel, bool)> = Selector::new("nav_bar.override");
@@ -61,8 +60,9 @@ impl NavBar {
                 .on_click(|ctx, data, _| {
                   if !data.root {
                     ctx.submit_command(Nav::NAV_SELECTOR.with(data.linked.unwrap_or(data.label)));
-                    ctx
-                      .submit_command(NavBar::RECURSE_SET_EXPANDED.with(data.linked.unwrap_or(data.label)));
+                    ctx.submit_command(
+                      NavBar::RECURSE_SET_EXPANDED.with(data.linked.unwrap_or(data.label)),
+                    );
                   }
                 }),
             )
@@ -115,7 +115,7 @@ pub struct Nav {
   pub override_: Option<bool>,
 }
 
-#[derive(strum_macros::Display, Clone, Copy, PartialEq, Debug)]
+#[derive(strum_macros::Display, strum_macros::AsRefStr, Clone, Copy, PartialEq, Debug)]
 #[strum(serialize_all = "title_case")]
 pub enum NavLabel {
   Root,
@@ -131,6 +131,12 @@ pub enum NavLabel {
   Downloads,
   Settings,
   Separator,
+}
+
+impl From<NavLabel> for String {
+  fn from(value: NavLabel) -> Self {
+    value.to_string()
+  }
 }
 
 impl Nav {

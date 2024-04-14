@@ -1,4 +1,5 @@
 use std::{
+  collections::HashMap,
   hash::Hash,
   ops::{Deref, Index, IndexMut},
   path::{Path, PathBuf},
@@ -19,7 +20,6 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter};
 use sublime_fuzzy::best_match;
-use tap::Tap;
 
 use super::{
   controllers::ExtensibleController,
@@ -64,7 +64,6 @@ pub struct ModList {
 }
 
 impl ModList {
-  pub const SUBMIT_ENTRY: Selector<Vec<ModEntry>> = Selector::new("mod_list.submit_entry");
   pub const OVERWRITE: Selector<(PathBuf, HybridPath, RawModEntry)> =
     Selector::new("mod_list.install.overwrite");
   pub const AUTO_UPDATE: Selector<ModEntry> = Selector::new("mod_list.install.auto_update");
@@ -148,7 +147,6 @@ impl ModList {
                         ExtensibleController::new()
                           .on_command(Self::UPDATE_COLUMN_WIDTH, Self::column_resized)
                           .on_command(Self::UPDATE_TABLE_SORT, Self::update_sorting)
-                          .on_command(Self::SUBMIT_ENTRY, Self::entry_submitted)
                           .on_command(ModMetadata::SUBMIT_MOD_METADATA, Self::metadata_submitted)
                           .on_command(Self::FILTER_UPDATE, Self::on_filter_change)
                           .on_command(Self::FILTER_RESET, Self::on_filter_reset)
@@ -204,29 +202,6 @@ impl ModList {
         data.filter_state.stack_position.top = Some(rect.height());
         data.filter_state.stack_position.left = Some(rect.width());
       })
-  }
-
-  fn entry_submitted(
-    _table: &mut FlexTable<ModList>,
-    ctx: &mut EventCtx,
-    payload: &Vec<ModEntry>,
-    data: &mut ModList,
-  ) -> bool {
-    for entry in payload {
-      *data.mods = data.mods.alter(
-        |existing| {
-          if let Some(inner) = &existing {
-            ctx.submit_command(ModList::DUPLICATE.with((inner.clone(), entry.clone())));
-            existing
-          } else {
-            Some(entry.clone())
-          }
-        },
-        entry.id.clone(),
-      );
-    }
-    ctx.children_changed();
-    false
   }
 
   fn replace_mods(
@@ -359,106 +334,122 @@ impl ModList {
     true
   }
 
-  pub async fn parse_mod_folder(
-    event_sink: Option<ExtEventSink>,
-    root_dir: Option<PathBuf>,
-  ) -> Option<Vec<RawModEntry>> {
+  pub fn parse_mod_folder(
+    root_dir: PathBuf,
+  ) -> Result<xxHashMap<String, RawModEntry>, (xxHashMap<String, RawModEntry>, Vec<Vec<RawModEntry>>)>
+  {
     eprintln!("parsing mods");
     let handle = tokio::runtime::Handle::current();
 
-    if let Some(root_dir) = root_dir {
-      let mod_dir = root_dir.join("mods");
-      let enabled_mods_filename = mod_dir.join("enabled_mods.json");
+    let mod_dir = root_dir.join("mods");
+    let enabled_mods_filename = mod_dir.join("enabled_mods.json");
 
-      let enabled_mods = if !enabled_mods_filename.exists() {
-        vec![]
-      } else if let Ok(enabled_mods_text) = std::fs::read_to_string(enabled_mods_filename)
-        && let Ok(EnabledMods { enabled_mods }) =
-          serde_json::from_str::<EnabledMods>(&enabled_mods_text)
-      {
-        enabled_mods
-      } else {
-        return None;
-      };
+    let enabled_mods = if !enabled_mods_filename.exists() {
+      vec![]
+    } else if let Ok(enabled_mods_text) = std::fs::read_to_string(enabled_mods_filename)
+      && let Ok(EnabledMods { enabled_mods }) =
+        serde_json::from_str::<EnabledMods>(&enabled_mods_text)
+    {
+      enabled_mods
+    } else {
+      vec![]
+    };
 
-      if let Ok(dir_iter) = std::fs::read_dir(mod_dir) {
-        let enabled_mods_iter = enabled_mods.par_iter();
+    let dir_iter = std::fs::read_dir(mod_dir).expect("Get mods dir iter");
+    let enabled_mods_iter = enabled_mods.par_iter();
 
-        let client = reqwest::Client::builder()
-          .connect_timeout(std::time::Duration::from_millis(500))
-          .timeout(std::time::Duration::from_millis(500))
-          .build()
-          .expect("Build reqwest client");
-        let mods = dir_iter
-          .par_bridge()
-          .filter_map(|entry| entry.ok())
-          .filter(|entry| {
-            if let Ok(file_type) = entry.file_type() {
-              file_type.is_dir()
-            } else {
-              false
-            }
-          })
-          .filter_map(
-            |entry| match RawModEntry::from_file(&entry.path(), ModMetadata::default()) {
-              Ok(mut mod_info) => {
-                mod_info.set_enabled(
-                  enabled_mods_iter
-                    .clone()
-                    .find_any(|id| mod_info.id.clone().eq(*id))
-                    .is_some(),
-                );
-                Some(mod_info)
-              }
-              Err(err) => {
-                eprintln!("Failed to get mod info for mod at: {:?}", entry.path());
-                eprintln!("With err: {:?}", err);
-                None
-              }
-            },
-          )
-          .map(|mut entry| {
-            if let Some(version) = entry.version_checker.clone() {
-              let master_version =
-                handle.block_on(util::get_master_version(&client, None, &version));
-              entry.remote_version = master_version.clone();
-              entry.update_status = Some(UpdateStatus::from((&version, &master_version)));
-            }
-            if ModMetadata::path(&entry.path).exists() {
-              if let Some(mod_metadata) = handle.block_on(ModMetadata::parse_and_send(
-                entry.id.clone(),
-                entry.path.clone(),
-                None,
-              )) {
-                entry.manager_metadata = mod_metadata;
-              }
-            }
-
-            entry
-          });
-
-        if let Some(event_sink) = event_sink.as_ref() {
-          let map = xxHashMap::new().tap_mut(|map| {
-            map.extend(
-              mods
-                .map(|entry| (entry.id.clone(), entry))
-                .collect::<Vec<_>>()
-                .into_iter(),
-            )
-          });
-
-          if let Err(err) =
-            event_sink.submit_command(super::App::REPLACE_MODS, SingleUse::new(map), Target::Auto)
-          {
-            eprintln!("{:?}", err)
-          }
+    let client = reqwest::Client::builder()
+      .connect_timeout(std::time::Duration::from_millis(500))
+      .timeout(std::time::Duration::from_millis(500))
+      .build()
+      .expect("Build reqwest client");
+    let mods = dir_iter
+      .par_bridge()
+      .filter_map(|entry| entry.ok())
+      .filter(|entry| {
+        if let Ok(file_type) = entry.file_type() {
+          file_type.is_dir()
         } else {
-          return Some(mods.collect::<Vec<_>>());
+          false
         }
+      })
+      .filter_map(
+        |entry| match RawModEntry::from_file(&entry.path(), ModMetadata::default()) {
+          Ok(mut mod_info) => {
+            mod_info.set_enabled(
+              enabled_mods_iter
+                .clone()
+                .find_any(|id| mod_info.id.clone().eq(*id))
+                .is_some(),
+            );
+            Some(mod_info)
+          }
+          Err(err) => {
+            eprintln!("Failed to get mod info for mod at: {:?}", entry.path());
+            eprintln!("With err: {:?}", err);
+            None
+          }
+        },
+      )
+      .map(|mut entry| {
+        if let Some(version) = entry.version_checker.clone() {
+          let master_version = handle.block_on(util::get_master_version(&client, None, &version));
+          entry.remote_version = master_version.clone();
+          entry.update_status = Some(UpdateStatus::from((&version, &master_version)));
+        }
+        if ModMetadata::path(&entry.path).exists() {
+          if let Some(mod_metadata) = handle.block_on(ModMetadata::parse_and_send(
+            entry.id.clone(),
+            entry.path.clone(),
+            None,
+          )) {
+            entry.manager_metadata = mod_metadata;
+          }
+        }
+
+        entry
+      })
+      .collect::<Vec<_>>();
+
+    let mut bucket_map: HashMap<String, Vec<RawModEntry>> = HashMap::new();
+
+    for entry in mods {
+      if let Some(bucket) = bucket_map.get_mut(&entry.id) {
+        bucket.push(entry)
+      } else {
+        bucket_map.insert(entry.id.clone(), vec![entry]);
       }
     }
 
-    None
+    let (map, duplicates): (Vec<_>, _) = bucket_map
+      .into_iter()
+      .partition(|(_, bucket)| bucket.len() == 1);
+
+    let mut out = xxHashMap::new();
+    *out = map
+      .into_iter()
+      .map(|(id, mut bucket)| (id, bucket.swap_remove(0)))
+      .collect();
+
+    if !duplicates.is_empty() {
+      let duplicates = duplicates.into_iter().map(|(_, bucket)| bucket).collect();
+
+      return Err((out, duplicates));
+    }
+
+    Ok(out)
+  }
+
+  pub async fn parse_mod_folder_async(root_dir: PathBuf, ext_ctx: ExtEventSink) {
+    let map = tokio::task::spawn_blocking(|| Self::parse_mod_folder(root_dir)).await;
+
+    if let Ok(Ok(map)) = map {
+      if let Err(err) =
+        ext_ctx.submit_command(super::App::REPLACE_MODS, SingleUse::new(map), Target::Auto)
+      {
+        eprintln!("{:?}", err)
+      }
+    }
   }
 
   pub fn sorted_vals(
@@ -544,7 +535,10 @@ impl ModList {
         let name_score = best_match(&search_text, &entry.name).map(|m| m.score());
         let author_score = best_match(&search_text, &entry.author).map(|m| m.score());
 
-        id_score.max(name_score).max(author_score).ok_or_else(|| entry.name.clone())
+        id_score
+          .max(name_score)
+          .max(author_score)
+          .ok_or_else(|| entry.name.clone())
       }),
       Heading::AutoUpdateSupport => sort!(ids, |entry: &ModEntry| {
         entry

@@ -44,7 +44,8 @@ use crate::{
     controllers::{ExtensibleController, HoverController, OnEvent, OnNotif},
     mod_entry::{GameVersion, ModEntry, ModVersionMeta},
   },
-  patch::click::Click, widgets::card::{Card, CardBuilder},
+  patch::click::Click,
+  widgets::card::{Card, CardBuilder},
 };
 
 pub(crate) mod icons;
@@ -55,7 +56,9 @@ use super::{
   controllers::{
     DelayedPainter, HeightLinkerShared, HoverState, InvisibleIf, LinkedHeights, OnHover,
     SharedIdHoverState,
-  }, overlays::Popup, App
+  },
+  overlays::Popup,
+  App,
 };
 
 pub const ORANGE_KEY: Key<Color> = Key::new("util.colour.orange");
@@ -842,6 +845,10 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
 
   fn align_vertical_centre(self) -> Align<T> {
     self.align_vertical(UnitPoint::CENTER)
+  }
+
+  fn align_horizontal_centre(self) -> Align<T> {
+    self.align_horizontal(UnitPoint::CENTER)
   }
 
   fn prism<U, P: Prism<U, T>>(self, prism: P) -> PrismWrap<Self, P, T> {

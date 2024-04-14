@@ -122,12 +122,6 @@ async fn handle_path(
         && mod_metadata.save(mod_path).await.is_ok()
         && let Ok(mut mod_info) = ModEntry::from_file(mod_path, mod_metadata)
       {
-        let rewrite = || match mod_folder {
-          HybridPath::PathBuf(_) => HybridPath::PathBuf(mod_path.clone()),
-          HybridPath::Temp(temp, _file_name, _) => {
-            HybridPath::Temp(temp, _file_name, Some(mod_path.clone()))
-          }
-        };
         if let Some(id) = installed.iter().find(|existing| **existing == mod_info.id) {
           // note: this is probably the way wrong way of doing this
           // instead, just submit the new entry if it doesn't conflict with an existing path, _then_ detect the conflict
@@ -136,18 +130,21 @@ async fn handle_path(
           ext_ctx
             .submit_command(
               INSTALL,
-              ChannelMessage::Duplicate(id.clone().into(), rewrite(), mod_info),
+              ChannelMessage::Duplicate(
+                id.clone().into(),
+                mod_folder.with_path(mod_path),
+                mod_info,
+              ),
               Target::Auto,
             )
             .expect("Send query over async channel");
         } else if mods_dir.join(mod_info.id.clone()).exists() {
-          let mod_folder = rewrite();
           ext_ctx
             .submit_command(
               INSTALL,
               ChannelMessage::Duplicate(
                 mods_dir.join(mod_info.id.clone()).into(),
-                mod_folder,
+                mod_folder.with_path(mod_path),
                 mod_info,
               ),
               Target::Auto,
@@ -495,6 +492,16 @@ impl HybridPath {
       HybridPath::Temp(_, _, Some(ref path)) => path.clone(),
       HybridPath::Temp(ref arc, _, None) => arc.path().to_path_buf(),
     }
+  }
+
+  pub fn with_path(mut self, path: &PathBuf) -> Self {
+    match &mut self {
+      HybridPath::PathBuf(inner) => inner.clone_from(path),
+      HybridPath::Temp(_, _, path_opt) => {
+        path_opt.replace(path.clone());
+      }
+    };
+    self
   }
 }
 

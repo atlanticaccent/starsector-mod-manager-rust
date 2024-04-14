@@ -13,7 +13,17 @@ use webview_shared::PROJECT;
 use wry::WebView;
 
 use self::{
-  activity::Activity, controllers::{AppController, HoverController, ModListController}, installer::{HybridPath, StringOrPath}, mod_description::ModDescription, mod_entry::{ModEntry, UpdateStatus, ViewModEntry}, mod_list::ModList, mod_repo::ModRepo, overlays::Popup, settings::Settings, tools::Tools, util::{bold_text, icons::*, xxHashMap, Release, RootStack}
+  activity::Activity,
+  controllers::{AppController, HoverController, ModListController},
+  installer::{HybridPath, StringOrPath},
+  mod_description::ModDescription,
+  mod_entry::{ModEntry, UpdateStatus, ViewModEntry},
+  mod_list::ModList,
+  mod_repo::ModRepo,
+  overlays::Popup,
+  settings::Settings,
+  tools::Tools,
+  util::{bold_text, icons::*, xxHashMap, Release, RootStack},
 };
 use crate::{
   app::util::WidgetExtEx,
@@ -82,14 +92,10 @@ impl App {
   const LOG_MESSAGE: Selector<String> = Selector::new("app.mod.install.start");
   const LOG_OVERWRITE: Selector<(StringOrPath, HybridPath, ModEntry)> =
     Selector::new("app.mod.install.overwrite");
-  const CLEAR_OVERWRITE_LOG: Selector<bool> = Selector::new("app.install.clear_overwrite_log");
-  const REMOVE_OVERWRITE_LOG_ENTRY: Selector<StringOrPath> =
-    Selector::new("app.install.overwrite.decline");
   const DELETE_AND_SUMBIT: Selector<(PathBuf, ModEntry)> =
     Selector::new("app.mod.duplicate.resolve");
   const REMOVE_DUPLICATE_LOG_ENTRY: Selector<String> =
     Selector::new("app.mod.duplicate.remove_log");
-  const CLEAR_DUPLICATE_LOG: Selector = Selector::new("app.mod.duplicate.ignore_all");
   pub const OPEN_WEBVIEW: Selector<Option<String>> = Selector::new("app.webview.open");
   const CONFIRM_DELETE_MOD: Selector<ModEntry> = Selector::new("app.mod_entry.delete");
   const REMOVE_DOWNLOAD_BAR: Selector<i64> = Selector::new("app.download.bar.remove");
@@ -128,6 +134,16 @@ impl App {
       mod_repo: None,
       popup: Vector::new(),
     }
+  }
+
+  pub fn replace_mods(&mut self, mods: xxHashMap<String, ModEntry>) {
+    self.mod_list.mods.clear();
+    self.mod_list.mods.extend(
+      mods
+        .inner()
+        .into_iter()
+        .map(|(id, entry)| (id, mod_entry::ViewModEntry::from(entry))),
+    )
   }
 
   pub fn view() -> impl Widget<Self> {
@@ -207,14 +223,14 @@ impl App {
       .with_flex_child(
         Tabs::for_policy(StaticTabsForked::build(vec![
           InitialTab::new(
-            "mod_list",
+            NavLabel::Mods,
             ModList::view()
               .lens(App::mod_list)
               .on_change(ModList::on_app_data_change)
               .controller(ModListController),
           ),
           InitialTab::new(
-            "mod_detail",
+            NavLabel::ModDetails,
             Maybe::new(
               || ModDescription::view(),
               || ModDescription::empty_builder(),
@@ -234,14 +250,14 @@ impl App {
             )),
           ),
           InitialTab::new(
-            "tools",
+            NavLabel::Performance,
             Tools::view()
               .lens(Tools::settings_sync())
               .on_change(Settings::save_on_change)
               .lens(App::settings),
           ),
-          InitialTab::new("activity", Activity::view().lens(App::log)),
-          InitialTab::new("settings", Settings::view().lens(App::settings)),
+          InitialTab::new(NavLabel::Activity, Activity::view().lens(App::log)),
+          InitialTab::new(NavLabel::Settings, Settings::view().lens(App::settings)),
         ]))
         .on_command2(Nav::NAV_SELECTOR, |tabs, ctx, label, _| {
           if *label != NavLabel::ModDetails {
@@ -255,16 +271,16 @@ impl App {
 
           match label {
             NavLabel::Mods => {
-              tabs.set_tab_index(0);
+              tabs.set_tab_index_by_label(NavLabel::Mods);
               ctx.submit_command(ModList::REBUILD)
             }
             NavLabel::ModDetails => {
               ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Mods, true)));
               ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::ModDetails, true)));
-              tabs.set_tab_index(1)
+              tabs.set_tab_index_by_label(NavLabel::ModDetails)
             }
-            NavLabel::Performance => tabs.set_tab_index(2),
-            NavLabel::Settings => tabs.set_tab_index(3),
+            NavLabel::Performance => tabs.set_tab_index_by_label(NavLabel::Performance),
+            NavLabel::Settings => tabs.set_tab_index_by_label(NavLabel::Settings),
             _ => eprintln!("Failed to open an item for a nav bar control"),
           }
           true
@@ -407,9 +423,5 @@ impl App {
     self
       .log
       .push_back(format!("[{}] {}", Local::now().format("%H:%M:%S"), message))
-  }
-
-  fn push_duplicate(&mut self, duplicates: &(ViewModEntry, ViewModEntry)) {
-    self.duplicate_log.push_back(duplicates.clone())
   }
 }

@@ -70,7 +70,7 @@ impl HeightLinker {
   }
 
   fn resolved(&self) -> bool {
-    self.resolved >= self.linked
+    self.linked > 0 && self.resolved >= self.linked
   }
 
   fn reset(&mut self, ctx: &mut impl CommandCtx) {
@@ -142,7 +142,9 @@ impl<T: Data, W: Widget<T>> LinkedHeights<T, W> {
         }
       } else if cmd.is(HeightLinker::HEIGHT_LINKER_RESET_ALL) {
         self.constraint = None;
+        self.last_unconstrained = None;
         let mut linker = self.height_linker.borrow_mut();
+        linker.linked = 0;
         linker.resolved = 0;
         linker.max = f64::NEG_INFINITY;
         ctx.request_layout()

@@ -133,9 +133,9 @@ impl Delegate<App> for AppDelegate {
         ));
         if !data.settings.dirty || data.mod_list.mods.is_empty() {
           data.mod_list.mods.clear();
-          data.runtime.spawn(ModList::parse_mod_folder(
-            Some(ctx.get_external_handle()),
-            Some(new_install_dir.clone()),
+          data.runtime.spawn(ModList::parse_mod_folder_async(
+            new_install_dir.clone(),
+            ctx.get_external_handle(),
           ));
         }
         data.settings.dirty = false;
@@ -158,9 +158,9 @@ impl Delegate<App> for AppDelegate {
     } else if let Some(()) = cmd.get(App::REFRESH) {
       if let Some(install_dir) = data.settings.install_dir.as_ref() {
         // data.mod_list.mods.clear();
-        data.runtime.spawn(ModList::parse_mod_folder(
-          Some(ctx.get_external_handle()),
-          Some(install_dir.clone()),
+        data.runtime.spawn(ModList::parse_mod_folder_async(
+          install_dir.clone(),
+          ctx.get_external_handle(),
         ));
       }
 
@@ -184,84 +184,6 @@ impl Delegate<App> for AppDelegate {
       return Handled::Yes;
     } else if let Some((conflict, to_install, entry)) = cmd.get(App::LOG_OVERWRITE) {
       ctx.submit_command(Popup::QUEUE_POPUP.with(Popup::overwrite(conflict, to_install, entry)));
-
-      return Handled::Yes;
-    } else if let Some(ovewrite_all) = cmd.get(App::CLEAR_OVERWRITE_LOG) {
-      if *ovewrite_all {
-        for val in &data.overwrite_log {
-          let (conflict, to_install, entry) = val.as_ref();
-          ctx.submit_command(ModList::OVERWRITE.with((
-            match conflict {
-              StringOrPath::String(id) => data.mod_list.mods.get(id).unwrap().path.clone(),
-              StringOrPath::Path(path) => path.clone(),
-            },
-            to_install.clone(),
-            entry.clone(),
-          )))
-        }
-      }
-      data.overwrite_log.clear();
-
-      return Handled::Yes;
-    } else if let Some(overwrite_entry) = cmd.get(App::REMOVE_OVERWRITE_LOG_ENTRY) {
-      data.overwrite_log.retain(|val| val.0 != *overwrite_entry);
-      if data.overwrite_log.is_empty() {
-        if let Some(id) = self.overwrite_window.take() {
-          ctx.submit_command(commands::CLOSE_WINDOW.to(id))
-        }
-      }
-
-      return Handled::Yes;
-    } else if let Some(duplicates) = cmd.get(ModList::DUPLICATE) {
-      data.push_duplicate(duplicates);
-      self.display_if_closed(ctx, SubwindowType::Duplicate);
-
-      return Handled::Yes;
-    } else if let Some((delete_path, keep_entry)) = cmd.get(App::DELETE_AND_SUMBIT) {
-      let ext_ctx = ctx.get_external_handle();
-      let delete_path = delete_path.clone();
-      let keep_entry = keep_entry.clone();
-      data.runtime.spawn(async move {
-        if remove_dir_all(delete_path).is_ok() {
-          let remote_version = keep_entry.version_checker.clone();
-          if ext_ctx
-            .submit_command(ModEntry::REPLACE, keep_entry, Target::Auto)
-            .is_err()
-          {
-            eprintln!("Failed to submit new entry")
-          };
-          if let Some(version_meta) = remote_version {
-            util::get_master_version(
-              &reqwest::Client::builder()
-                .timeout(std::time::Duration::from_millis(500))
-                .connect_timeout(std::time::Duration::from_millis(500))
-                .build()
-                .expect("Build reqwest client"),
-              Some(ext_ctx),
-              &version_meta,
-            )
-            .await;
-          }
-        } else {
-          eprintln!("Failed to delete duplicate mod");
-        }
-      });
-
-      return Handled::Yes;
-    } else if let Some(id) = cmd.get(App::REMOVE_DUPLICATE_LOG_ENTRY) {
-      data.duplicate_log.retain(|entry| entry.0.id != *id);
-      if data.duplicate_log.is_empty() {
-        if let Some(id) = self.duplicate_window.take() {
-          ctx.submit_command(commands::CLOSE_WINDOW.to(id))
-        }
-      }
-
-      return Handled::Yes;
-    } else if let Some(()) = cmd.get(App::CLEAR_DUPLICATE_LOG) {
-      data.duplicate_log.clear();
-      if let Some(id) = self.duplicate_window.take() {
-        ctx.submit_command(commands::CLOSE_WINDOW.to(id))
-      }
 
       return Handled::Yes;
     } else if let Some(install) = cmd.get(WEBVIEW_INSTALL) {

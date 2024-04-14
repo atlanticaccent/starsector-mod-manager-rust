@@ -1,12 +1,8 @@
 use std::rc::Rc;
 
-use druid::{
-  theme,
-  widget::{LabelText, SizedBox},
-  Data, KeyOrValue, UnitPoint, Widget, WidgetExt,
-};
+use druid::{theme, widget::SizedBox, Data, KeyOrValue, UnitPoint, Widget, WidgetExt};
 
-use super::tab::{AddTab, InitialTab, TabInfo, TabsPolicy};
+use super::tab::{InitialTab, TabInfo, TabsPolicy};
 
 /// A TabsPolicy that allows the app developer to provide static tabs up front when building the
 /// widget.
@@ -31,6 +27,10 @@ impl<T> StaticTabsForked<T> {
   pub fn set_label_height(mut self, label_height: f64) -> Self {
     self.label_height = label_height;
     self
+  }
+
+  pub fn label_idx(&self, label: &str) -> usize {
+    self.tabs.iter().position(|tab| &tab.name == label).unwrap()
   }
 }
 
@@ -70,13 +70,7 @@ impl<T: Data> TabsPolicy for StaticTabsForked<T> {
     // This only allows a static tabs label to be retrieved once,
     // but as we never indicate that the tabs have changed,
     // it should only be called once per key.
-    TabInfo::new(
-      self.tabs[key]
-        .name
-        .take()
-        .expect("StaticTabs LabelText can only be retrieved once"),
-      false,
-    )
+    TabInfo::new(self.tabs[key].name.clone(), false)
   }
 
   fn tab_body(&self, key: Self::Key, _data: &T) -> Self::BodyWidget {
@@ -115,12 +109,12 @@ impl<T: Data> TabsPolicy for StaticTabsForked<T> {
   }
 }
 
-impl<T: Data> AddTab for StaticTabsForked<T> {
-  fn add_tab(
-    build: &mut Self::Build,
-    name: impl Into<LabelText<T>>,
-    child: impl Widget<T> + 'static,
-  ) {
-    build.push(InitialTab::new(name, child))
-  }
-}
+// impl<T: Data> AddTab for StaticTabsForked<T> {
+//   fn add_tab(
+//     build: &mut Self::Build,
+//     name: impl Into<String>,
+//     child: impl Widget<T> + 'static,
+//   ) {
+//     build.push(InitialTab::new(name, child))
+//   }
+// }
