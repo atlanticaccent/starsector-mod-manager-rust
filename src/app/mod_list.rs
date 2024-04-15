@@ -74,6 +74,7 @@ impl ModList {
     Selector::new("mod_list.submit_entry.duplicate");
 
   pub const REBUILD: Selector = Selector::new("mod_list.table.rebuild");
+  pub const REBUILD_NEXT_PASS: Selector = Selector::new("mod_list.table.rebuild_next_pass");
   pub const UPDATE_COLUMN_WIDTH: Selector<(usize, f64)> =
     Selector::new("mod_list.column.update_width");
   const UPDATE_TABLE_SORT: Selector = Selector::new("mod_list.table.update_sorting");

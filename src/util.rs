@@ -926,6 +926,28 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
   fn in_card_builder(self, builder: CardBuilder<T>) -> impl Widget<T> {
     builder.build(self)
   }
+
+  fn scope_with<In: Data, SWO: Widget<State<T, In>> + 'static>(
+    self,
+    state: In,
+    with: impl FnOnce(LensWrap<State<T, In>, T, state_derived_lenses::outer<T, In>, Self>) -> SWO,
+  ) -> impl Widget<T> {
+    let inner = self.lens(<State<T, In>>::outer);
+    Scope::from_lens(
+      move |outer| State {
+        outer,
+        inner: state.clone(),
+      },
+      <State<T, In>>::outer,
+      with(inner),
+    )
+  }
+}
+
+#[derive(Clone, Data, Lens)]
+pub struct State<T, U> {
+  pub outer: T,
+  pub inner: U,
 }
 
 impl<T: Data, W: Widget<T> + 'static> WidgetExtEx<T, W> for W {}

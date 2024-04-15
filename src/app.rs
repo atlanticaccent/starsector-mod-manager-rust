@@ -4,7 +4,7 @@ use chrono::Local;
 use druid::{
   im::{OrdMap, Vector},
   lens,
-  widget::{Flex, Maybe, Scope, ZStack},
+  widget::{Flex, Maybe, Scope, WidgetWrapper, ZStack},
   Data, Lens, LensExt, Selector, SingleUse, Widget, WidgetExt, WidgetId,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
@@ -201,24 +201,20 @@ impl App {
 
     Flex::row()
       .with_child(
-        Scope::from_lens(
-          |_| true,
-          lens::Unit,
-          nav_bar
-            .fix_width(175.)
-            .else_if(
-              |data, _| !data,
-              Icon::new(*LAST_PAGE)
-                .fix_size(34., 34.)
-                .controller(HoverController::default())
-                .on_click(|ctx, _, _| ctx.submit_command(App::TOGGLE_NAV_BAR))
-                .padding(6.)
-                .align_vertical(druid::UnitPoint::BOTTOM)
-                .expand_height(),
-            )
-            .on_command(App::TOGGLE_NAV_BAR, |_, _, data| *data = !*data),
-        )
-        .lens(lens::Unit),
+        nav_bar
+          .fix_width(175.)
+          .else_if(
+            |data, _| !data,
+            Icon::new(*LAST_PAGE)
+              .fix_size(34., 34.)
+              .controller(HoverController::default())
+              .on_click(|ctx, _, _| ctx.submit_command(App::TOGGLE_NAV_BAR))
+              .padding(6.)
+              .align_vertical(druid::UnitPoint::BOTTOM)
+              .expand_height(),
+          )
+          .on_command(App::TOGGLE_NAV_BAR, |_, _, data| *data = !*data)
+          .scope_independent(|| true),
       )
       .with_flex_child(
         Tabs::for_policy(StaticTabsForked::build(vec![
@@ -259,31 +255,41 @@ impl App {
           InitialTab::new(NavLabel::Activity, Activity::view().lens(App::log)),
           InitialTab::new(NavLabel::Settings, Settings::view().lens(App::settings)),
         ]))
-        .on_command2(Nav::NAV_SELECTOR, |tabs, ctx, label, _| {
-          if *label != NavLabel::ModDetails {
-            ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Mods, false)));
-            ctx.submit_command(NavBar::REMOVE_OVERRIDE.with(NavLabel::ModDetails))
-          }
-          if *label != NavLabel::StarmodderDetails {
-            ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Starmodder, false)));
-            ctx.submit_command(NavBar::REMOVE_OVERRIDE.with(NavLabel::StarmodderDetails))
-          }
+        .scope_with(false, |widget| {
+          widget.on_command2(Nav::NAV_SELECTOR, |tabs, ctx, label, state| {
+            let tabs = tabs.wrapped_mut();
+            let rebuild = &mut state.inner;
+            if *label != NavLabel::ModDetails {
+              ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Mods, false)));
+              ctx.submit_command(NavBar::REMOVE_OVERRIDE.with(NavLabel::ModDetails))
+            }
+            if *label != NavLabel::StarmodderDetails {
+              ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Starmodder, false)));
+              ctx.submit_command(NavBar::REMOVE_OVERRIDE.with(NavLabel::StarmodderDetails))
+            }
 
-          match label {
-            NavLabel::Mods => {
-              tabs.set_tab_index_by_label(NavLabel::Mods);
-              ctx.submit_command(ModList::REBUILD)
+            match label {
+              NavLabel::Mods => {
+                tabs.set_tab_index_by_label(NavLabel::Mods);
+                if *rebuild {
+                  ctx.submit_command(ModList::REBUILD);
+                  *rebuild = false;
+                }
+              }
+              NavLabel::ModDetails => {
+                ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Mods, true)));
+                ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::ModDetails, true)));
+                tabs.set_tab_index_by_label(NavLabel::ModDetails)
+              }
+              NavLabel::Performance => tabs.set_tab_index_by_label(NavLabel::Performance),
+              NavLabel::Settings => tabs.set_tab_index_by_label(NavLabel::Settings),
+              _ => eprintln!("Failed to open an item for a nav bar control"),
             }
-            NavLabel::ModDetails => {
-              ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Mods, true)));
-              ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::ModDetails, true)));
-              tabs.set_tab_index_by_label(NavLabel::ModDetails)
-            }
-            NavLabel::Performance => tabs.set_tab_index_by_label(NavLabel::Performance),
-            NavLabel::Settings => tabs.set_tab_index_by_label(NavLabel::Settings),
-            _ => eprintln!("Failed to open an item for a nav bar control"),
-          }
-          true
+            true
+          })
+          .on_command(ModList::REBUILD_NEXT_PASS, |_, _, state| {
+            state.inner = true;
+          })
         })
         .on_command(util::MASTER_VERSION_RECEIVED, |_ctx, (id, res), data| {
           let remote = res.as_ref().ok().cloned();

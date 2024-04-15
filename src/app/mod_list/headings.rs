@@ -152,7 +152,7 @@ impl Header {
         ctx.submit_command(ModList::UPDATE_COLUMN_WIDTH.with((idx + 1, *ratio)))
       }
       ctx.submit_command(crate::app::controllers::HeightLinker::HEIGHT_LINKER_RESET_ALL);
-      ctx.submit_command(ModList::REBUILD)
+      ctx.submit_command(ModList::REBUILD_NEXT_PASS)
     })
     .on_command(Header::REMOVE_HEADING, |ctx, heading, header| {
       header.headings.retain(|existing| existing != heading);
@@ -166,7 +166,7 @@ impl Header {
         ctx.submit_command(ModList::UPDATE_COLUMN_WIDTH.with((idx + 1, *ratio)))
       }
       ctx.submit_command(crate::app::controllers::HeightLinker::HEIGHT_LINKER_RESET_ALL);
-      ctx.submit_command(ModList::REBUILD)
+      ctx.submit_command(ModList::REBUILD_NEXT_PASS)
     })
   }
 }
