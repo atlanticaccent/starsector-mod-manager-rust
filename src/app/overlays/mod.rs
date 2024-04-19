@@ -56,7 +56,7 @@ impl Popup {
         scoped
           .on_command(Popup::DELAYED_POPUP, |ctx, popups, data| {
             let data = &mut data.inner;
-            data.0 = ctx.request_timer(std::time::Duration::from_millis(50));
+            data.0 = ctx.request_timer(std::time::Duration::from_nanos(1));
             data.1.clone_from(popups);
           })
           .on_event(|_, _, event, data| {
