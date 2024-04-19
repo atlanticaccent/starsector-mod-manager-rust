@@ -17,15 +17,16 @@ fn main() {
   // create the initial app state
   let mut initial_state = app::App::new(runtime.handle().clone());
 
+  let mut startup_popups = Vec::new();
   if let Some(install_dir) = initial_state.settings.install_dir.as_ref() {
     match app::mod_list::ModList::parse_mod_folder(install_dir.clone()) {
-      Ok(mods) => initial_state.mod_list.mods.extend(
-        mods
-          .inner()
-          .into_iter()
-          .map(|(id, entry)| (id, app::mod_entry::ViewModEntry::from(entry))),
-      ),
-      Err((mods, duplicates)) => todo!(),
+      Ok(mods) => initial_state.replace_mods(mods),
+      Err((mods, duplicates)) => {
+        initial_state.replace_mods(mods);
+        for dupes in duplicates {
+          startup_popups.push(app::overlays::Popup::duplicate(dupes.into()))
+        }
+      }
     }
   }
 
@@ -39,7 +40,7 @@ fn main() {
   // start the application
   AppLauncher::with_window(main_window)
     .configure_env(druid_widget_nursery::configure_env)
-    .delegate(AppDelegate::default())
+    .delegate(AppDelegate::default().with_popups(startup_popups))
     .launch(initial_state)
     .expect("Failed to launch application");
 }

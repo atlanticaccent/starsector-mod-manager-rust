@@ -294,7 +294,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
   fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
     let keys: Vec<_> = data.keys().collect();
     for (row_num, row_id) in keys.into_iter().enumerate() {
-      let columns: Vec<_> = data.columns().cloned().collect();
+      let columns: Vec<_> = data.columns().collect();
       let mut row_data = &mut data[&row_id];
       if let Some(row) = self.children.get_mut(&row_id) {
         for column in columns {
@@ -313,7 +313,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
         let mut row: TableRow<T::Row> = TableRow::new(row_data.id().clone());
         row.children = data
           .columns()
-          .map(|c| (c.clone(), WidgetPod::new(row_data.cell(c))))
+          .map(|c| (c.clone(), WidgetPod::new(row_data.cell(&c))))
           .collect();
         self.add_row(row);
       }
@@ -322,7 +322,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
 
     let keys: Vec<_> = data.keys().collect();
     for (row_num, row_id) in keys.into_iter().enumerate() {
-      let columns: Vec<_> = data.columns().cloned().collect();
+      let columns: Vec<_> = data.columns().collect();
       let row_data = &data[&row_id];
       if let Some(row) = self.children.get_mut(&row_id) {
         for column in columns {
@@ -358,7 +358,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
       }
     }
 
-    let columns: Vec<_> = data.columns().cloned().collect();
+    let columns: Vec<_> = data.columns().collect();
 
     if self.column_widths.len() != columns.len() {
       self.column_widths.resize_with(columns.len(), || {
@@ -381,7 +381,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
       } else {
         let mut row = TableRow::new(row_id.clone());
         row.children = data.columns()
-          .map(|c| (c.clone(), WidgetPod::new(row_data.cell(c))))
+          .map(|c| (c.clone(), WidgetPod::new(row_data.cell(&c))))
           .collect();
         self.add_row(row);
         ctx.children_changed();
@@ -522,7 +522,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
         if let Some(cell) = data
           .columns()
           .nth(col_num)
-          .and_then(|col| row.children.get_mut(col)) && cell.is_initialized()
+          .and_then(|col| row.children.get_mut(&col)) && cell.is_initialized()
         {
           let child_bc = BoxConstraints::new(
             Size::new(0., 0.),

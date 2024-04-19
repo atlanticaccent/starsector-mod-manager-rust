@@ -43,14 +43,17 @@ pub enum AppCommands {
 
 #[derive(Default)]
 pub struct AppDelegate {
-  pub settings_id: Option<WindowId>,
   pub root_id: Option<WindowId>,
   pub root_window: Option<WindowHandle>,
+  pub mega_file: Option<(File, PathBuf)>,
+  pub startup_popups: Vec<Popup>,
+
+  // deprecated
+  pub settings_id: Option<WindowId>,
   pub log_window: Option<WindowId>,
   pub overwrite_window: Option<WindowId>,
   pub duplicate_window: Option<WindowId>,
   pub download_window: Option<WindowId>,
-  pub mega_file: Option<(File, PathBuf)>,
 }
 
 impl Delegate<App> for AppDelegate {
@@ -501,14 +504,19 @@ impl Delegate<App> for AppDelegate {
             let release = get_latest_manager().await;
             ext_ctx.submit_command(App::UPDATE_AVAILABLE, release, Target::Auto)
           });
+
+          let mut delayed_popups = Vec::new();
           if !data
             .settings
             .install_dir
             .as_ref()
             .is_some_and(|p| p.exists())
           {
-            ctx.submit_command(Popup::OPEN_POPUP.with(Popup::SelectInstall))
+            delayed_popups.push(Popup::SelectInstall)
           }
+          delayed_popups.append(&mut self.startup_popups);
+
+          ctx.submit_command(Popup::DELAYED_POPUP.with(delayed_popups));
         }
       }
       Event::KeyDown(KeyEvent {
@@ -539,6 +547,11 @@ impl Delegate<App> for AppDelegate {
 }
 
 impl AppDelegate {
+  pub fn with_popups(mut self, popups: Vec<Popup>) -> Self {
+    self.startup_popups = popups;
+    self
+  }
+
   pub fn display_if_closed(&mut self, ctx: &mut DelegateCtx, window_type: SubwindowType) {
     let window_id = match window_type {
       SubwindowType::Log => &mut self.log_window,

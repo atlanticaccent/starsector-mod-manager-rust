@@ -4,13 +4,15 @@ use druid::{
   widget::{Flex, Label},
   Data, Key, Widget, WidgetExt,
 };
-use druid_widget_nursery::wrap::Wrap;
+use druid_widget_nursery::table::{FlexTable, TableColumnWidth, TableRow};
+use rand::Rng;
 use tap::Pipe;
 
 use crate::{
   app::{
     mod_entry::ModEntry,
-    util::{h2_fixed, LabelExt as _, WidgetExtEx as _, BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
+    mod_list::ModList,
+    util::{h2_fixed, Tap, WidgetExtEx as _, BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
     App,
   },
   widgets::card::Card,
@@ -34,44 +36,31 @@ impl Duplicate {
       .build(
         Flex::column()
           .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-          .with_flex_child(
+          .with_child(
             h2_fixed(&format!(
-              r#"Multiple mods with ID {} installed."#,
+              r#"Multiple mods with ID "{}" installed."#,
               &duplicates.front().unwrap().id
-            )),
-            druid::widget::FlexParams::new(1., druid::widget::CrossAxisAlignment::Center),
+            ))
+            .align_horizontal_centre(),
           )
           .pipe(|column| {
             let mut column = column;
 
-            for dupe in &duplicates {
-              let meta = std::fs::metadata(&dupe.path);
-              column.add_child(
-                Wrap::new()
-                  .direction(druid::widget::Axis::Horizontal)
-                  .with_child(Label::wrapped(format!("Version: {}", dupe.version)))
-                  .with_child(Label::wrapped(format!(
-                    "Path: {}",
-                    dupe.path.to_string_lossy()
-                  )))
-                  .with_child(Label::wrapped(format!(
-                    "Last modified: {}",
-                    if let Ok(Ok(time)) = meta.as_ref().map(|meta| meta.modified()) {
-                      DateTime::<Local>::from(time).format("%F:%R").to_string()
-                    } else {
-                      "Failed to retrieve last modified".to_string()
-                    }
-                  )))
-                  .with_child(Label::wrapped(format!(
-                    "Created at: {}",
-                    meta.and_then(|meta| meta.created()).map_or_else(
-                      |_| "Failed to retrieve creation time".to_string(),
-                      |time| { DateTime::<Local>::from(time).format("%F:%R").to_string() }
-                    )
-                  )))
-                  .with_child(keep_button(dupe.clone(), duplicates.clone())),
+            let mut table = FlexTable::new()
+              .with_column_width(TableColumnWidth::Flex(1.0))
+              .with_column_width(TableColumnWidth::Intrinsic);
+            for (idx, dupe) in duplicates.iter().enumerate() {
+              table.add_row(
+                TableRow::new()
+                  .with_child(dupe_row(dupe))
+                  .with_child(keep_button(
+                    dupe.clone(),
+                    duplicates.clone().tap(|v| v.remove(idx)),
+                  )),
               )
             }
+
+            column.add_child(table);
 
             column
           })
@@ -97,10 +86,57 @@ impl Duplicate {
               })
               .fix_height(42.0)
               .padding((0.0, 2.0))
-              .on_click(|ctx, _, _| ctx.submit_command(Popup::DISMISS)),
-          ),
+              .on_click({
+                let insert = duplicates[rand::thread_rng().gen_range(0..duplicates.len())].clone();
+                move |ctx, _, _| {
+                  ctx.submit_command(Popup::DISMISS);
+                  ctx.submit_command(ModList::INSERT_MOD.with(insert.clone()))
+                }
+              })
+              .align_right(),
+          )
+          .scroll()
+          .vertical(),
       )
   }
+}
+
+fn dupe_row(dupe: &ModEntry) -> impl Widget<App> {
+  let meta = std::fs::metadata(&dupe.path);
+  FlexTable::new()
+    .with_column_width((TableColumnWidth::Intrinsic, TableColumnWidth::Flex(0.1)))
+    .with_column_width(TableColumnWidth::Flex(9.9))
+    .with_row(
+      TableRow::new()
+        .with_child(Label::new("Version:"))
+        .with_child(Label::new(dupe.version.to_string())),
+    )
+    .with_row(
+      TableRow::new()
+        .with_child(Label::new("Path:"))
+        .with_child(Label::new(dupe.path.to_string_lossy().as_ref())),
+    )
+    .with_row(
+      TableRow::new()
+        .with_child(Label::new("Last modified:"))
+        .with_child(Label::new(
+          if let Ok(Ok(time)) = meta.as_ref().map(|meta| meta.modified()) {
+            DateTime::<Local>::from(time).format("%F:%R").to_string()
+          } else {
+            "Failed to retrieve last modified".to_owned()
+          },
+        )),
+    )
+    .with_row(
+      TableRow::new()
+        .with_child(Label::new("Created at:"))
+        .with_child(Label::new(
+          meta.and_then(|meta| meta.created()).map_or_else(
+            |_| "Failed to retrieve creation time".to_owned(),
+            |time| DateTime::<Local>::from(time).format("%F:%R").to_string(),
+          ),
+        )),
+    )
 }
 
 fn keep_button(keep: ModEntry, duplicates: Vector<ModEntry>) -> impl Widget<App> {
@@ -125,5 +161,14 @@ fn keep_button(keep: ModEntry, duplicates: Vector<ModEntry>) -> impl Widget<App>
     })
     .fix_height(42.0)
     .padding((0.0, 2.0))
-    .on_click(move |ctx, data: &mut App, _| {})
+    .on_click(move |ctx, _, _| {
+      let duplicates = duplicates.clone();
+      tokio::task::spawn_blocking(move || {
+        for dupe in duplicates {
+          let _ = remove_dir_all::remove_dir_all(dupe.path);
+        }
+      });
+      ctx.submit_command(Popup::DISMISS);
+      ctx.submit_command(ModList::INSERT_MOD.with(keep.clone()));
+    })
 }

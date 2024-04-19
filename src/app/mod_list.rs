@@ -1,6 +1,7 @@
 use std::{
   collections::HashMap,
   hash::Hash,
+  iter::FromIterator,
   ops::{Deref, Index, IndexMut},
   path::{Path, PathBuf},
 };
@@ -10,8 +11,8 @@ use druid::{
   im::Vector,
   theme,
   widget::{Flex, Painter},
-  Data, EventCtx, ExtEventSink, Lens, LensExt, Rect, RenderContext, Selector, SingleUse, Target,
-  Widget, WidgetExt,
+  Data, EventCtx, ExtEventSink, Lens, LensExt, Rect, RenderContext, Selector, SingleUse, Widget,
+  WidgetExt,
 };
 use druid_widget_nursery::{
   Stack, StackChildParams, StackChildPosition, WidgetExt as WidgetExtNursery,
@@ -20,6 +21,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter};
 use sublime_fuzzy::best_match;
+use webview_shared::ExtEventSinkExt;
 
 use super::{
   controllers::ExtensibleController,
@@ -78,6 +80,7 @@ impl ModList {
   pub const UPDATE_COLUMN_WIDTH: Selector<(usize, f64)> =
     Selector::new("mod_list.column.update_width");
   const UPDATE_TABLE_SORT: Selector = Selector::new("mod_list.table.update_sorting");
+  pub const INSERT_MOD: Selector<RawModEntry> = Selector::new("mod_list.mods.insert");
 
   pub fn new(headings: Vector<Heading>) -> Self {
     Self {
@@ -89,6 +92,15 @@ impl ModList {
       filter_state: Default::default(),
       install_dir_available: false,
     }
+  }
+
+  pub fn replace_mods(&mut self, mods: xxHashMap<String, RawModEntry>) {
+    *self.mods = druid::im::HashMap::from_iter(
+      mods
+        .inner()
+        .into_iter()
+        .map(|(id, entry)| (id, ModEntry::from(entry))),
+    );
   }
 
   pub fn view() -> impl Widget<Self> {
@@ -151,7 +163,7 @@ impl ModList {
                           .on_command(ModMetadata::SUBMIT_MOD_METADATA, Self::metadata_submitted)
                           .on_command(Self::FILTER_UPDATE, Self::on_filter_change)
                           .on_command(Self::FILTER_RESET, Self::on_filter_reset)
-                          .on_command(App::REPLACE_MODS, Self::replace_mods)
+                          .on_command(App::REPLACE_MODS, Self::replace_mods_command_handler)
                           .on_command(Self::REBUILD, |table, ctx, _, _| {
                             table.clear();
                             ctx.children_changed();
@@ -160,6 +172,11 @@ impl ModList {
                             ctx.request_paint();
 
                             false
+                          })
+                          .on_command(Self::INSERT_MOD, |_, ctx, entry, data| {
+                            data.mods.insert(entry.id.clone(), entry.clone().into());
+                            ctx.request_update();
+                            true
                           }),
                       )
                       .scroll()
@@ -205,20 +222,13 @@ impl ModList {
       })
   }
 
-  fn replace_mods(
+  fn replace_mods_command_handler(
     _table: &mut FlexTable<ModList>,
     ctx: &mut EventCtx,
     payload: &SingleUse<xxHashMap<String, RawModEntry>>,
     data: &mut ModList,
   ) -> bool {
-    data.mods = payload
-      .take()
-      .unwrap()
-      .inner()
-      .into_iter()
-      .map(|(k, v)| (k, ModEntry::from(v)))
-      .collect::<druid::im::HashMap<_, _>>()
-      .into();
+    data.replace_mods(payload.take().unwrap());
 
     Self::update_sorting(_table, ctx, &(), data);
     ctx.children_changed();
@@ -444,12 +454,27 @@ impl ModList {
   pub async fn parse_mod_folder_async(root_dir: PathBuf, ext_ctx: ExtEventSink) {
     let map = tokio::task::spawn_blocking(|| Self::parse_mod_folder(root_dir)).await;
 
-    if let Ok(Ok(map)) = map {
-      if let Err(err) =
-        ext_ctx.submit_command(super::App::REPLACE_MODS, SingleUse::new(map), Target::Auto)
-      {
-        eprintln!("{:?}", err)
+    let mods = match map {
+      Ok(Ok(mods)) => mods,
+      Ok(Err((mods, duplicates))) => {
+        let _ = ext_ctx.submit_command_global(
+          super::Popup::DELAYED_POPUP,
+          duplicates
+            .into_iter()
+            .map(|dupes| super::Popup::duplicate(dupes.into()))
+            .collect::<Vec<_>>(),
+        );
+
+        mods
       }
+      Err(err) => {
+        eprintln!("{} | Failed to parse mod folder async: {err}", line!());
+        return;
+      }
+    };
+    if let Err(err) = ext_ctx.submit_command_global(super::App::REPLACE_MODS, SingleUse::new(mods))
+    {
+      eprintln!("{} | {err}", line!())
     }
   }
 
@@ -586,8 +611,11 @@ impl TableData for ModList {
     .into_iter()
   }
 
-  fn columns(&self) -> impl Iterator<Item = &Self::Column> {
-    [Heading::Enabled].iter().chain(self.header.headings.iter())
+  fn columns(&self) -> impl Iterator<Item = Self::Column> {
+    [Heading::Enabled]
+      .iter()
+      .chain(self.header.headings.iter())
+      .cloned()
   }
 }
 

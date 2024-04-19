@@ -44,7 +44,7 @@ pub mod mod_entry;
 pub mod mod_list;
 mod mod_repo;
 pub mod modal;
-mod overlays;
+pub mod overlays;
 mod settings;
 mod tools;
 mod updater;
@@ -72,7 +72,7 @@ pub struct App {
   webview: Option<Rc<WebView>>,
   downloads: OrdMap<i64, (i64, String, f64)>,
   mod_repo: Option<ModRepo>,
-  popup: Vector<Popup>,
+  pub popup: Vector<Popup>,
 }
 
 impl App {
@@ -137,13 +137,7 @@ impl App {
   }
 
   pub fn replace_mods(&mut self, mods: xxHashMap<String, ModEntry>) {
-    self.mod_list.mods.clear();
-    self.mod_list.mods.extend(
-      mods
-        .inner()
-        .into_iter()
-        .map(|(id, entry)| (id, mod_entry::ViewModEntry::from(entry))),
-    )
+    self.mod_list.replace_mods(mods)
   }
 
   pub fn view() -> impl Widget<Self> {
@@ -256,40 +250,41 @@ impl App {
           InitialTab::new(NavLabel::Settings, Settings::view().lens(App::settings)),
         ]))
         .scope_with(false, |widget| {
-          widget.on_command2(Nav::NAV_SELECTOR, |tabs, ctx, label, state| {
-            let tabs = tabs.wrapped_mut();
-            let rebuild = &mut state.inner;
-            if *label != NavLabel::ModDetails {
-              ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Mods, false)));
-              ctx.submit_command(NavBar::REMOVE_OVERRIDE.with(NavLabel::ModDetails))
-            }
-            if *label != NavLabel::StarmodderDetails {
-              ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Starmodder, false)));
-              ctx.submit_command(NavBar::REMOVE_OVERRIDE.with(NavLabel::StarmodderDetails))
-            }
+          widget
+            .on_command2(Nav::NAV_SELECTOR, |tabs, ctx, label, state| {
+              let tabs = tabs.wrapped_mut();
+              let rebuild = &mut state.inner;
+              if *label != NavLabel::ModDetails {
+                ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Mods, false)));
+                ctx.submit_command(NavBar::REMOVE_OVERRIDE.with(NavLabel::ModDetails))
+              }
+              if *label != NavLabel::StarmodderDetails {
+                ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Starmodder, false)));
+                ctx.submit_command(NavBar::REMOVE_OVERRIDE.with(NavLabel::StarmodderDetails))
+              }
 
-            match label {
-              NavLabel::Mods => {
-                tabs.set_tab_index_by_label(NavLabel::Mods);
-                if *rebuild {
-                  ctx.submit_command(ModList::REBUILD);
-                  *rebuild = false;
+              match label {
+                NavLabel::Mods => {
+                  tabs.set_tab_index_by_label(NavLabel::Mods);
+                  if *rebuild {
+                    ctx.submit_command(ModList::REBUILD);
+                    *rebuild = false;
+                  }
                 }
+                NavLabel::ModDetails => {
+                  ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Mods, true)));
+                  ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::ModDetails, true)));
+                  tabs.set_tab_index_by_label(NavLabel::ModDetails)
+                }
+                NavLabel::Performance => tabs.set_tab_index_by_label(NavLabel::Performance),
+                NavLabel::Settings => tabs.set_tab_index_by_label(NavLabel::Settings),
+                _ => eprintln!("Failed to open an item for a nav bar control"),
               }
-              NavLabel::ModDetails => {
-                ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Mods, true)));
-                ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::ModDetails, true)));
-                tabs.set_tab_index_by_label(NavLabel::ModDetails)
-              }
-              NavLabel::Performance => tabs.set_tab_index_by_label(NavLabel::Performance),
-              NavLabel::Settings => tabs.set_tab_index_by_label(NavLabel::Settings),
-              _ => eprintln!("Failed to open an item for a nav bar control"),
-            }
-            true
-          })
-          .on_command(ModList::REBUILD_NEXT_PASS, |_, _, state| {
-            state.inner = true;
-          })
+              true
+            })
+            .on_command(ModList::REBUILD_NEXT_PASS, |_, _, state| {
+              state.inner = true;
+            })
         })
         .on_command(util::MASTER_VERSION_RECEIVED, |_ctx, (id, res), data| {
           let remote = res.as_ref().ok().cloned();

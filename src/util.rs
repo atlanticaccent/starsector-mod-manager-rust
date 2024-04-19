@@ -35,7 +35,6 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use reqwest::Client;
 use serde::Deserialize;
-use tap::Tap;
 use tokio::{select, sync::mpsc};
 use xxhash_rust::xxh3::Xxh3Builder;
 
@@ -278,7 +277,7 @@ pub fn bold_text<T: Data>(
     .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
     .lens(lens::Constant(RichText::new_with_attributes(
       text.into(),
-      AttributeSpans::new().tap_mut(|s| {
+      AttributeSpans::new().tap(|s| {
         s.add(0..text.len(), Attribute::Weight(weight));
         s.add(0..text.len(), Attribute::FontSize(size.into()));
         s.add(0..text.len(), Attribute::TextColor(colour.into()));
@@ -784,6 +783,9 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     ControllerHost::new(self, Click::new(f))
   }
 
+  /**
+   * Sets the event as handled if the callback returns true
+   */
   fn on_event(
     self,
     f: impl Fn(&mut W, &mut EventCtx, &Event, &mut T) -> bool + 'static,
@@ -942,12 +944,42 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
       with(inner),
     )
   }
+
+  fn scope_with_not_data<In: Clone + 'static, SWO: Widget<BlindState<T, In>> + 'static>(
+    self,
+    state: In,
+    with: impl FnOnce(
+      LensWrap<BlindState<T, In>, T, blind_state_derived_lenses::outer<T, In>, Self>,
+    ) -> SWO,
+  ) -> impl Widget<T> {
+    let inner = self.lens(<BlindState<T, In>>::outer);
+    Scope::from_lens(
+      move |outer| BlindState {
+        outer,
+        inner: state.clone(),
+      },
+      <BlindState<T, In>>::outer,
+      with(inner),
+    )
+  }
 }
 
 #[derive(Clone, Data, Lens)]
 pub struct State<T, U> {
   pub outer: T,
   pub inner: U,
+}
+
+#[derive(Clone, Lens)]
+pub struct BlindState<T, U> {
+  pub outer: T,
+  pub inner: U,
+}
+
+impl<T: Data, U: Clone + 'static> Data for BlindState<T, U> {
+  fn same(&self, other: &Self) -> bool {
+    self.outer.same(&other.outer)
+  }
 }
 
 impl<T: Data, W: Widget<T> + 'static> WidgetExtEx<T, W> for W {}
@@ -1550,5 +1582,13 @@ impl RootStack {
 
   pub fn dismiss(ctx: &mut impl CommandCtx) {
     ctx.submit_command(Self::DISMISS)
+  }
+}
+
+#[extend::ext(name = Tap)]
+pub impl<T> T {
+  fn tap<U>(mut self, func: impl FnOnce(&mut Self) -> U) -> Self {
+    func(&mut self);
+    self
   }
 }

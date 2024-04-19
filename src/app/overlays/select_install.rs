@@ -12,7 +12,6 @@ use crate::{
     util::{h2_fixed, CommandExt as _},
     App,
   },
-  nav_bar::{NavBar, NavLabel},
   widgets::card::Card,
 };
 
@@ -65,10 +64,8 @@ impl SelectInstall {
       )
       .with_flex_spacer(1.)
       .on_command(Settings::SELECTOR, |ctx, payload, _| {
-        dbg!("command listener");
         if let SettingsCommand::UpdateInstallDir(_) = payload {
           ctx.submit_command(Popup::DISMISS);
-          ctx.submit_command(NavBar::RECURSE_SET_EXPANDED.with(NavLabel::Mods))
         }
       })
   }
