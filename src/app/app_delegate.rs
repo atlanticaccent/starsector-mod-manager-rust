@@ -565,7 +565,6 @@ impl AppDelegate {
     } else {
       let modal = match window_type {
         _ => unimplemented!(),
-        SubwindowType::Duplicate => AppDelegate::build_duplicate_window().boxed(),
         SubwindowType::Download => AppDelegate::build_progress_bars().boxed(),
       };
 
@@ -578,96 +577,6 @@ impl AppDelegate {
 
       ctx.new_window(window);
     }
-  }
-
-  pub fn build_duplicate_window() -> impl Widget<App> {
-    /* ViewSwitcher::new(
-       |app: &App, _| app.duplicate_log.len(),
-       |_, app, _| {
-         Modal::new("Duplicate detected")
-           .pipe(|mut modal| {
-             for (dupe_a, dupe_b) in &app.duplicate_log {
-               modal = modal
-                 .with_content(format!(
-                   "Detected duplicate installs of mod with ID {}.",
-                   dupe_a.id
-                 ))
-                 .with_content(
-                   Flex::row()
-                     .with_flex_child(Self::make_dupe_col(dupe_a, dupe_b), 1.)
-                     .with_flex_child(Self::make_dupe_col(dupe_b, dupe_a), 1.)
-                     .boxed(),
-                 )
-                 .with_content(
-                   Flex::row()
-                     .with_flex_spacer(1.)
-                     .with_child(Button::new("Ignore").on_click({
-                       let id = dupe_a.id.clone();
-                       move |ctx, _, _| {
-                         ctx.submit_command(
-                           App::REMOVE_DUPLICATE_LOG_ENTRY
-                             .with(id.clone())
-                             .to(Target::Global),
-                         )
-                       }
-                     }))
-                     .boxed(),
-                 )
-                 .with_content(Separator::new().padding((0., 0., 0., 10.)).boxed())
-             }
-             modal
-           })
-           .with_button("Ignore All", App::CLEAR_DUPLICATE_LOG)
-           .build()
-           .boxed()
-       },
-     )
-    */
-    Label::new("foo")
-  }
-
-  pub fn make_dupe_col(dupe_a: &ViewModEntry, dupe_b: &ViewModEntry) -> Flex<App> {
-    let meta = metadata(&dupe_a.path);
-    Flex::column()
-      .with_child(Label::wrapped(format!("Version: {}", dupe_a.version)))
-      .with_child(Label::wrapped(format!(
-        "Path: {}",
-        dupe_a.path.to_string_lossy()
-      )))
-      .with_child(Label::wrapped(format!(
-        "Last modified: {}",
-        if let Ok(Ok(time)) = meta.as_ref().map(|meta| meta.modified()) {
-          DateTime::<Local>::from(time).format("%F:%R").to_string()
-        } else {
-          "Failed to retrieve last modified".to_string()
-        }
-      )))
-      .with_child(Label::wrapped(format!(
-        "Created at: {}",
-        meta.and_then(|meta| meta.created()).map_or_else(
-          |_| "Failed to retrieve creation time".to_string(),
-          |time| { DateTime::<Local>::from(time).format("%F:%R").to_string() }
-        )
-      )))
-      .with_child(Button::new("Keep").on_click({
-        let id = dupe_a.id.clone();
-        let path = dupe_b.path.clone();
-        let dupe_a = dupe_a.clone();
-        move |ctx, _, _| {
-          ctx.submit_command(
-            App::REMOVE_DUPLICATE_LOG_ENTRY
-              .with(id.clone())
-              .to(Target::Global),
-          );
-          ctx.submit_command(
-            App::DELETE_AND_SUMBIT
-              .with((path.clone(), dupe_a.clone().into()))
-              .to(Target::Global),
-          )
-        }
-      }))
-      .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-      .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
   }
 
   pub fn build_progress_bars() -> impl Widget<App> {
