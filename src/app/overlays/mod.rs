@@ -1,9 +1,7 @@
 use std::sync::Arc;
 
 use druid::{
-  im::Vector,
-  widget::{Align, SizedBox, ViewSwitcher},
-  Data, Selector, TimerToken, Widget, WidgetExt,
+  im::Vector, widget::{Align, SizedBox, ViewSwitcher}, Command, Data, Selector, TimerToken, Widget, WidgetExt
 };
 use druid_widget_nursery::{Mask, WidgetExt as _};
 
@@ -35,6 +33,7 @@ pub enum Popup {
 
 impl Popup {
   pub const DISMISS: Selector = Selector::new("app.popup.dismiss");
+  pub const DISMISS_MATCHING: Selector<Arc<dyn Fn(&Popup) -> bool>> = Selector::new("app.popup.dismiss_matching");
   pub const OPEN_POPUP: Selector<Popup> = Selector::new("app.popup.open");
   pub const QUEUE_POPUP: Selector<Popup> = Selector::new("app.popup.queue");
   pub const DELAYED_POPUP: Selector<Vec<Popup>> = Selector::new("app.popup.delayed");
@@ -42,15 +41,18 @@ impl Popup {
   pub fn overlay(widget: impl Widget<App> + 'static) -> impl Widget<App> {
     Mask::new(widget)
       .with_mask(Align::centered(Popup::view()))
-      .dynamic(|data, _| !data.popup.is_empty())
+      .dynamic(|data, _| !data.popups.is_empty())
       .on_command(Popup::OPEN_POPUP, |_, popup, data| {
-        data.popup.push_front(popup.clone())
+        data.popups.push_front(popup.clone())
       })
       .on_command(Popup::QUEUE_POPUP, |_, popup, data| {
-        data.popup.push_back(popup.clone())
+        data.popups.push_back(popup.clone())
       })
       .on_command(Popup::DISMISS, |_, _, data| {
-        data.popup.pop_front();
+        data.popups.pop_front();
+      })
+      .on_command(Popup::DISMISS_MATCHING, |_, matching, data| {
+        data.popups.retain(|popup| !matching(popup))
       })
       .scope_with_not_data((TimerToken::INVALID, Vec::new()), |scoped| {
         scoped
@@ -64,7 +66,7 @@ impl Popup {
             if let druid::Event::Timer(token) = event
               && *token == inner.0
             {
-              data.outer.popup.append(inner.1.clone().into());
+              data.outer.popups.append(inner.1.clone().into());
 
               true
             } else {
@@ -72,13 +74,20 @@ impl Popup {
             }
           })
       })
+      .on_change(|_, old, data: &mut App, _| {
+        if !old.settings.show_duplicate_warnings && !data.settings.show_duplicate_warnings {
+          data
+            .popups
+            .retain(|popup| !matches!(popup, Popup::Duplicate(_)))
+        }
+      })
   }
 
   pub fn view() -> impl Widget<App> {
     ViewSwitcher::new(
-      |data: &App, _| data.popup.clone(),
-      |data, _, _| {
-        if let Some(popup) = &data.front() {
+      |data: &App, _| data.popups.clone(),
+      |popups, _, _| {
+        if let Some(popup) = &popups.front() {
           match popup {
             Popup::ConfirmDelete(entry) => ConfirmDelete::view(entry).boxed(),
             Popup::SelectInstall => SelectInstall::view().boxed(),
@@ -103,5 +112,9 @@ impl Popup {
 
   pub fn custom(maker: impl Fn() -> Box<dyn Widget<()>> + Send + Sync + 'static) -> Popup {
     Popup::Custom(Arc::new(maker))
+  }
+
+  pub fn dismiss_matching(matching: impl Fn(&Popup) -> bool + Send + Sync + 'static) -> Command {
+    Self::DISMISS_MATCHING.with(Arc::new(matching))
   }
 }

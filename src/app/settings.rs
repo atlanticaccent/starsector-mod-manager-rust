@@ -32,11 +32,11 @@ use crate::{app::PROJECT, theme::Themes, widgets::card::Card};
 pub struct Settings {
   #[serde(skip)]
   pub dirty: bool,
-  #[data(same_fn = "PartialEq::eq")]
+  #[data(eq)]
   pub install_dir: Option<PathBuf>,
   #[serde(skip)]
   pub install_dir_buf: String,
-  #[data(same_fn = "PartialEq::eq")]
+  #[data(eq)]
   pub last_browsed: Option<PathBuf>,
   pub git_warn: bool,
   pub experimental_launch: bool,
@@ -45,16 +45,17 @@ pub struct Settings {
   pub hide_webview_on_conflict: bool,
   #[serde(default = "default_true")]
   pub open_forum_link_in_webview: bool,
-  #[serde(skip)]
-  show_column_editor: bool,
   #[serde(default = "default_headers")]
-  #[data(same_fn = "PartialEq::eq")]
+  #[data(eq)]
   pub headings: Vector<Heading>,
   pub show_auto_update_for_discrepancy: bool,
   pub theme: Themes,
   #[serde(skip)]
   pub vmparams: Option<VMParams>,
   pub vmparams_linked: bool,
+
+  #[serde(default = "default_true")]
+  pub show_duplicate_warnings: bool,
 }
 
 fn default_headers() -> Vector<Heading> {
@@ -68,6 +69,7 @@ impl Settings {
     Self {
       hide_webview_on_conflict: true,
       open_forum_link_in_webview: true,
+      show_duplicate_warnings: true,
       headings: default_headers(),
       ..Default::default()
     }
@@ -109,6 +111,9 @@ impl Settings {
         .with_child(h2_fixed("Show automatic updates even for mods that have a version discrepancy"))
         .with_child(Checkbox::from_label(Label::wrapped("Indicates a mod has an update even when the installed version is a higher/more recent version than is available on the server. (Recommended Off)")).lens(Settings::show_auto_update_for_discrepancy))
         .with_default_spacer()
+        .with_child(h2_fixed("Show a warning when more than one copy of a mod is installed:"))
+        .with_child(Checkbox::from_label(Label::wrapped("When more than one copy of a mod is installed at the same time it is completely random which version is actually loaded by the game.")).lens(Settings::show_duplicate_warnings))
+        .with_default_spacer()
         .with_child(h2_fixed("Edit columns:"))
         .with_child(Self::headings_editor())
         .with_default_spacer()
@@ -118,6 +123,8 @@ impl Settings {
         .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
         .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
         .must_fill_main_axis(true)
+        .scroll()
+        .vertical()
         .padding((12.0, 0.0))
         .expand()
         .on_change(Self::save_on_change),

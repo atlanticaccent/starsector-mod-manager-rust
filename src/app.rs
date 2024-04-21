@@ -72,7 +72,7 @@ pub struct App {
   webview: Option<Rc<WebView>>,
   downloads: OrdMap<i64, (i64, String, f64)>,
   mod_repo: Option<ModRepo>,
-  pub popup: Vector<Popup>,
+  pub popups: Vector<Popup>,
 }
 
 impl App {
@@ -115,7 +115,10 @@ impl App {
         }
         settings
       })
-      .unwrap_or_else(|_| settings::Settings::new());
+      .unwrap_or_else(|e| {
+        dbg!(e);
+        settings::Settings::new()
+      });
 
     let headings = settings.headings.clone();
 
@@ -132,7 +135,7 @@ impl App {
       webview: None,
       downloads: OrdMap::new(),
       mod_repo: None,
-      popup: Vector::new(),
+      popups: Vector::new(),
     }
   }
 

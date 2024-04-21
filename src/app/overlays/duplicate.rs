@@ -1,18 +1,21 @@
 use chrono::{DateTime, Local};
 use druid::{
   im::Vector,
-  widget::{Flex, Label},
-  Data, Key, Widget, WidgetExt,
+  widget::{Checkbox, Flex, Label},
+  Data, Key, LensExt, Widget, WidgetExt,
 };
 use druid_widget_nursery::table::{FlexTable, TableColumnWidth, TableRow};
-use rand::Rng;
 use tap::Pipe;
 
 use crate::{
   app::{
     mod_entry::ModEntry,
     mod_list::ModList,
-    util::{h2_fixed, Tap, WidgetExtEx as _, BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
+    settings::Settings,
+    util::{
+      h2_fixed, LabelExt, ShadeColor as _, Tap, WidgetExtEx as _, BLUE_KEY, ON_BLUE_KEY,
+      ON_RED_KEY, RED_KEY,
+    },
     App,
   },
   widgets::card::Card,
@@ -65,34 +68,70 @@ impl Duplicate {
             column
           })
           .with_child(
-            Card::builder()
-              .with_insets((0.0, 8.0))
-              .with_corner_radius(6.0)
-              .with_shadow_length(2.0)
-              .with_shadow_increase(2.0)
-              .with_border(2.0, Key::new("button.border"))
-              .hoverable(|| {
-                Flex::row()
-                  .with_child(Label::new("Ignore").padding((10.0, 0.0)))
-                  .align_vertical_centre()
-              })
-              .env_scope(|env, _| {
-                env.set(druid::theme::BACKGROUND_LIGHT, env.get(RED_KEY));
-                env.set(druid::theme::TEXT_COLOR, env.get(ON_RED_KEY));
-                env.set(
-                  Key::<druid::Color>::new("button.border"),
-                  env.get(ON_RED_KEY),
-                );
-              })
-              .fix_height(42.0)
-              .padding((0.0, 2.0))
-              .on_click({
-                let insert = duplicates[rand::thread_rng().gen_range(0..duplicates.len())].clone();
-                move |ctx, _, _| {
-                  ctx.submit_command(Popup::DISMISS);
-                  ctx.submit_command(ModList::INSERT_MOD.with(insert.clone()))
-                }
-              })
+            Flex::row()
+              .main_axis_alignment(druid::widget::MainAxisAlignment::End)
+              .with_child(
+                Checkbox::from_label(Label::wrapped(
+                  "Show warnings when duplicates of a mod are installed",
+                ))
+                .lens(App::settings.then(Settings::show_duplicate_warnings)),
+              )
+              .with_child(
+                Card::builder()
+                  .with_insets((0.0, 8.0))
+                  .with_corner_radius(6.0)
+                  .with_shadow_length(2.0)
+                  .with_shadow_increase(2.0)
+                  .with_border(2.0, Key::new("button.border"))
+                  .hoverable(|| {
+                    Flex::row()
+                      .with_child(Label::new("Ignore All").padding((10.0, 0.0)))
+                      .align_vertical_centre()
+                  })
+                  .env_scope(|env, _| {
+                    env.set(druid::theme::BACKGROUND_LIGHT, env.get(RED_KEY));
+                    env.set(druid::theme::TEXT_COLOR, env.get(ON_RED_KEY));
+                    env.set(
+                      Key::<druid::Color>::new("button.border"),
+                      env.get(ON_RED_KEY),
+                    );
+                  })
+                  .fix_height(42.0)
+                  .padding((0.0, 2.0))
+                  .on_click(move |ctx, _, _| {
+                    ctx.submit_command(Popup::dismiss_matching(|popup| {
+                      matches!(popup, Popup::Duplicate(_))
+                    }));
+                  }),
+              )
+              .with_child(
+                Card::builder()
+                  .with_insets((0.0, 8.0))
+                  .with_corner_radius(6.0)
+                  .with_shadow_length(2.0)
+                  .with_shadow_increase(2.0)
+                  .with_border(2.0, druid::Color::WHITE.darker())
+                  .with_background(druid::Color::BLACK.lighter().lighter())
+                  .hoverable(|| {
+                    Flex::row()
+                      .with_child(Label::new("Ignore").padding((10.0, 0.0)))
+                      .align_vertical_centre()
+                  })
+                  .env_scope(|env, _| {
+                    env.set(druid::theme::TEXT_COLOR, druid::Color::WHITE.darker())
+                  })
+                  .fix_height(42.0)
+                  .padding((0.0, 2.0))
+                  .on_click(move |ctx, data: &mut App, _| {
+                    if data.settings.show_duplicate_warnings {
+                      ctx.submit_command(Popup::DISMISS);
+                    } else {
+                      ctx.submit_command(Popup::dismiss_matching(|popup| {
+                        matches!(popup, Popup::Duplicate(_))
+                      }))
+                    }
+                  }),
+              )
               .align_right(),
           )
           .scroll()

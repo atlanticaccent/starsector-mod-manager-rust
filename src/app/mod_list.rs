@@ -17,6 +17,7 @@ use druid::{
 use druid_widget_nursery::{
   Stack, StackChildParams, StackChildPosition, WidgetExt as WidgetExtNursery,
 };
+use rand::Rng;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter};
@@ -443,7 +444,14 @@ impl ModList {
       .collect();
 
     if !duplicates.is_empty() {
-      let duplicates = duplicates.into_iter().map(|(_, bucket)| bucket).collect();
+      let duplicates = duplicates
+        .into_iter()
+        .map(|(_, bucket)| bucket)
+        .inspect(|bucket| {
+          let pick = bucket[rand::thread_rng().gen_range(0..bucket.len())].clone();
+          out.insert(pick.id.clone(), pick);
+        })
+        .collect();
 
       return Err((out, duplicates));
     }
