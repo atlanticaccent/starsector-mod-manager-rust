@@ -5,7 +5,6 @@ use druid::{
   Data, Key, LensExt, Widget, WidgetExt,
 };
 use druid_widget_nursery::table::{FlexTable, TableColumnWidth, TableRow};
-use tap::Pipe;
 
 use crate::{
   app::{

@@ -304,25 +304,14 @@ impl Delegate<App> for AppDelegate {
       }
 
       return Handled::Yes;
-    } else if let Some((source, found_paths)) = cmd.get(App::FOUND_MULTIPLE) {
-      let modal = Self::build_found_multiple(source.clone(), found_paths.clone());
-
-      let window = WindowDesc::new(modal)
-        .window_size((500., 400.))
-        .show_titlebar(false)
-        .set_level(WindowLevel::AppWindow);
-
-      ctx.new_window(window);
-
-      return Handled::Yes;
     } else if let Some((to_install, source)) =
-      cmd.get(installer::INSTALL_ALL).and_then(SingleUse::take)
+      cmd.get(installer::INSTALL_FOUND_MULTIPLE).and_then(SingleUse::take)
     {
       let ext_ctx = ctx.get_external_handle();
       let install_dir = data.settings.install_dir.as_ref().unwrap().clone();
       let ids = data.mod_list.mods.values().map(|v| v.id.clone()).collect();
       data.runtime.spawn(async move {
-        installer::Payload::Initial(to_install.into_iter().collect())
+        installer::Payload::Initial(to_install)
           .install(ext_ctx, install_dir, ids)
           .await;
 
@@ -632,93 +621,6 @@ impl AppDelegate {
     )
     .with_close()
     .build() */
-    Label::new("foo")
-  }
-
-  pub fn build_found_multiple(source: HybridPath, found_paths: Vec<PathBuf>) -> impl Widget<App> {
-    /* let title = format!(
-      "Found multiple mods in {}",
-      match source {
-        HybridPath::PathBuf(_) => "folder",
-        HybridPath::Temp(_, _, _) => "archive",
-      }
-    );
-
-    let mods = found_paths
-      .iter()
-      .filter_map(|path| ModEntry::from_file(path, ModMetadata::default()).ok())
-      .map(|entry| (true, entry))
-      .collect::<Vector<_>>();
-
-    let modal = Modal::new(&title)
-      .pipe(|mut modal| {
-        for (idx, (_, mod_)) in mods.iter().enumerate() {
-          modal = modal
-            .with_content(
-              Label::wrapped(format!("Found mod with ID: {}", mod_.id))
-                .or_empty(|(data, _): &(bool, ModEntry), _| *data)
-                .lens(lens::Index::new(idx))
-                .boxed(),
-            )
-            .with_content(
-              Flex::row()
-                .with_flex_child(
-                  Label::wrapped(format!("At path: {}", mod_.path.to_string_lossy()))
-                    .expand_width(),
-                  1.,
-                )
-                .with_child(
-                  Button2::new(Label::new("Open path").with_text_size(14.)).on_click({
-                    let path = mod_.path.clone();
-                    move |_, _, _| {
-                      let _ = opener::open(path.clone());
-                    }
-                  }),
-                )
-                .or_empty(|(data, _): &(bool, ModEntry), _| *data)
-                .lens(lens::Index::new(idx))
-                .boxed(),
-            )
-            .with_content(
-              Button2::from_label("Install")
-                .on_click({
-                  let source = source.clone();
-                  move |ctx, (show, entry): &mut (bool, ModEntry), _| {
-                    *show = false;
-
-                    let mut vec = Vector::new();
-                    vec.push_back(entry.path.clone());
-                    ctx.submit_command_global(
-                      INSTALL_ALL.with(SingleUse::new((vec, source.clone()))),
-                    )
-                  }
-                })
-                .or_empty(|(data, _): &(bool, ModEntry), _| *data)
-                .lens(lens::Index::new(idx))
-                .boxed(),
-            )
-        }
-
-        modal
-      })
-      .with_button("Install All", {
-        let source = source.clone();
-        move |ctx: &mut EventCtx, data: &mut Vector<(bool, ModEntry)>| {
-          ctx.submit_command_global(
-            INSTALL_ALL.with(SingleUse::new((
-              data
-                .iter()
-                .filter_map(|(install, entry)| install.then(|| entry.path.clone()))
-                .collect(),
-              source,
-            ))),
-          )
-        }
-      })
-      .with_close_label("Ignore All")
-      .build();
-
-    Scope::from_function(move |_| mods, DummyTransfer::default(), modal) */
     Label::new("foo")
   }
 }

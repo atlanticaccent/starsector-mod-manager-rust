@@ -1591,4 +1591,8 @@ pub impl<T> T {
     func(&mut self);
     self
   }
+
+  fn pipe<U>(self, func: impl FnOnce(Self) -> U) -> U where Self: Sized{
+    func(self)
+  }
 }

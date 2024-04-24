@@ -1,17 +1,21 @@
 use std::sync::Arc;
 
 use druid::{
-  im::Vector, widget::{Align, SizedBox, ViewSwitcher}, Command, Data, Selector, TimerToken, Widget, WidgetExt
+  im::Vector,
+  widget::{Align, SizedBox, ViewSwitcher},
+  Command, Data, Selector, TimerToken, Widget, WidgetExt,
 };
 use druid_widget_nursery::{Mask, WidgetExt as _};
 
 mod confirm_delete;
 mod duplicate;
+mod multiple;
 mod overwrite;
 mod select_install;
 
 use confirm_delete::*;
 use duplicate::*;
+use multiple::*;
 use overwrite::*;
 use select_install::*;
 
@@ -28,15 +32,18 @@ pub enum Popup {
   SelectInstall,
   Ovewrite(Overwrite),
   Duplicate(Duplicate),
+  FoundMultiple(Multiple),
   Custom(Arc<dyn Fn() -> Box<dyn Widget<()>> + Send + Sync>),
 }
 
 impl Popup {
   pub const DISMISS: Selector = Selector::new("app.popup.dismiss");
-  pub const DISMISS_MATCHING: Selector<Arc<dyn Fn(&Popup) -> bool>> = Selector::new("app.popup.dismiss_matching");
+  pub const DISMISS_MATCHING: Selector<Arc<dyn Fn(&Popup) -> bool>> =
+    Selector::new("app.popup.dismiss_matching");
   pub const OPEN_POPUP: Selector<Popup> = Selector::new("app.popup.open");
   pub const QUEUE_POPUP: Selector<Popup> = Selector::new("app.popup.queue");
   pub const DELAYED_POPUP: Selector<Vec<Popup>> = Selector::new("app.popup.delayed");
+  pub const OPEN_NEXT: Selector<Popup> = Selector::new("app.popup.open_next");
 
   pub fn overlay(widget: impl Widget<App> + 'static) -> impl Widget<App> {
     Mask::new(widget)
@@ -93,6 +100,7 @@ impl Popup {
             Popup::SelectInstall => SelectInstall::view().boxed(),
             Popup::Ovewrite(overwrite) => Overwrite::view(overwrite).boxed(),
             Popup::Duplicate(duplicate) => Duplicate::view(duplicate).boxed(),
+            Popup::FoundMultiple(multiple) => Multiple::view(multiple).boxed(),
             Popup::Custom(maker) => maker().constant(()).boxed(),
           }
         } else {
@@ -108,6 +116,10 @@ impl Popup {
 
   pub fn duplicate(duplicates: Vector<ModEntry>) -> Popup {
     Popup::Duplicate(Duplicate::new(duplicates))
+  }
+
+  pub fn found_multiple(source: HybridPath, found: Vec<ModEntry>) -> Popup {
+    Popup::FoundMultiple(Multiple::new(source, found.into()))
   }
 
   pub fn custom(maker: impl Fn() -> Box<dyn Widget<()>> + Send + Sync + 'static) -> Popup {

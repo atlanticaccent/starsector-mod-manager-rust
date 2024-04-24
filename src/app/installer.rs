@@ -1,4 +1,5 @@
 use std::{
+  borrow::Cow,
   collections::{HashMap, VecDeque},
   fs::{copy, create_dir_all},
   io::{self, Write},
@@ -9,7 +10,8 @@ use std::{
 
 use anyhow::bail;
 use chrono::Local;
-use druid::{im::Vector, ExtEventSink, Selector, SingleUse, Target};
+use druid::{Data, ExtEventSink, Selector, SingleUse, Target};
+use itertools::Itertools;
 use remove_dir_all::remove_dir_all;
 use reqwest::Url;
 use tempfile::{tempdir, TempDir};
@@ -18,10 +20,11 @@ use tokio::{
   task::{self, JoinSet},
   time::timeout,
 };
+use webview_shared::ExtEventSinkExt;
 
 use super::{
   mod_entry::{ModMetadata, UpdateStatus},
-  util::get_master_version,
+  util::{get_master_version, Tap},
 };
 use crate::app::{mod_entry::ModEntry, util::LoadBalancer};
 
@@ -36,7 +39,7 @@ pub const INSTALL: Selector<ChannelMessage> = Selector::new("install.message");
 pub const DOWNLOAD_STARTED: Selector<(i64, String)> = Selector::new("install.download.started");
 pub const DOWNLOAD_PROGRESS: Selector<Vec<(i64, String, f64)>> =
   Selector::new("install.download.progress");
-pub const INSTALL_ALL: Selector<SingleUse<(Vector<PathBuf>, HybridPath)>> =
+pub const INSTALL_FOUND_MULTIPLE: Selector<SingleUse<(Vec<PathBuf>, HybridPath)>> =
   Selector::new("install.found_multiple.install_all");
 
 impl Payload {
@@ -67,6 +70,7 @@ impl Payload {
   }
 }
 
+#[allow(irrefutable_let_patterns)]
 async fn handle_path(
   ext_ctx: ExtEventSink,
   path: PathBuf,
@@ -110,10 +114,13 @@ async fn handle_path(
   {
     Ok(mod_paths) => {
       if mod_paths.len() > 1 {
-        let _ = ext_ctx.submit_command(
-          INSTALL,
-          ChannelMessage::FoundMultiple(mod_folder, mod_paths),
-          Target::Auto,
+        let found = mod_paths
+          .into_iter()
+          .filter_map(|path| ModEntry::from_file(&path, ModMetadata::default()).ok())
+          .collect_vec();
+        let _ = ext_ctx.submit_command_global(
+          super::overlays::Popup::OPEN_POPUP,
+          super::overlays::Popup::found_multiple(mod_folder.clone(), found),
         );
 
         Ok(())
@@ -500,10 +507,10 @@ pub async fn download(
   Ok(file)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Data)]
 pub enum HybridPath {
-  PathBuf(PathBuf),
-  Temp(Arc<TempDir>, String, Option<PathBuf>),
+  PathBuf(#[data(eq)] PathBuf),
+  Temp(Arc<TempDir>, String, #[data(eq)] Option<PathBuf>),
 }
 
 impl HybridPath {
@@ -523,6 +530,13 @@ impl HybridPath {
       }
     };
     self
+  }
+
+  pub fn source(&self) -> Cow<str> {
+    match self {
+      HybridPath::PathBuf(path) => path.to_string_lossy(),
+      HybridPath::Temp(_, source, _) => source.into(),
+    }
   }
 }
 
