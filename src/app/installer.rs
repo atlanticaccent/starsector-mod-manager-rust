@@ -138,12 +138,21 @@ async fn handle_path(
               Target::Auto,
             )
             .expect("Send query over async channel");
-        } else if mods_dir.join(mod_info.id.clone()).exists() {
+        } else if let target_path = mods_dir.join(&mod_info.id)
+          && (&target_path).pipe(|p| {
+            let contents = p.read_dir().into_iter().flatten().flatten();
+            p.exists() && p.is_dir() && contents.count() > 0
+          })
+        {
+          if target_path.exists() {
+            let _ = remove_dir_all(&target_path);
+          }
+
           ext_ctx
             .submit_command(
               INSTALL,
               ChannelMessage::Duplicate(
-                mods_dir.join(mod_info.id.clone()).into(),
+                target_path.into(),
                 mod_folder.with_path(mod_path),
                 mod_info,
               ),
