@@ -240,21 +240,33 @@ impl Iterator for ModSearch {
 
   fn next(&mut self) -> Option<Self::Item> {
     while let Some(path) = self.paths.pop_front() {
-      if path.join("mod_info.json").is_file() {
-        return Some(Ok(path));
-      } else if path.is_dir() {
-        let res: std::io::Result<()> = try {
-          for entry in path.read_dir()? {
-            let entry = entry?;
-            if entry.file_type()?.is_dir() {
-              self.paths.push_back(entry.path());
-            }
-          }
-        };
+      let folders = path.read_dir().map(|iter| {
+        iter.filter_map(|entry| {
+          entry
+            .ok()
+            .filter(|entry| {
+              entry
+                .file_type()
+                .as_ref()
+                .is_ok_and(std::fs::FileType::is_dir)
+            })
+            .map(|entry| entry.path())
+        })
+      });
 
-        if let Err(err) = res {
-          return Some(Err(err));
-        }
+      let mut res = None;
+
+      match folders {
+        Ok(folders) => self.paths.extend(folders),
+        Err(err) => res = Some(Err(err)),
+      }
+
+      if path.join("mod_info.json").is_file() {
+        res = Some(Ok(path));
+      }
+
+      if res.is_some() {
+        return res;
       }
     }
 
@@ -555,21 +567,25 @@ impl From<PathBuf> for StringOrPath {
 
 #[cfg(test)]
 mod test {
-  use std::{collections::HashSet, fs};
+  use std::{collections::HashSet, fs, ops::Deref, path::Path};
 
   use self_update::TempDir;
   use tempfile::tempdir;
 
   use super::ModSearch;
 
+  fn fill_folder_with_n_mods<const N: usize>(path: impl Deref<Target = Path>) {
+    for i in 0..N {
+      fs::create_dir(path.join(format!("{}", i))).expect("Create fake mod dir");
+      fs::File::create(path.join(format!("{}", i)).join("mod_info.json"))
+        .expect("Create fake mod_info.json");
+    }
+  }
+
   fn create_folder_with_n_mods<const N: usize>() -> TempDir {
     let temp_dir = tempdir().expect("Create temp dir");
 
-    for i in 0..N {
-      fs::create_dir(temp_dir.path().join(format!("{}", i))).expect("Create fake mod dir");
-      fs::File::create(temp_dir.path().join(format!("{}", i)).join("mod_info.json"))
-        .expect("Create fake mod_info.json");
-    }
+    fill_folder_with_n_mods::<N>(temp_dir.path());
 
     temp_dir
   }
@@ -616,5 +632,37 @@ mod test {
 
     assert!(iter.next().is_none());
     assert_eq!(path_set.len(), 5)
+  }
+
+  #[test]
+  fn find_all_nested_mods() {
+    let mods_dir = TempDir::new().unwrap();
+
+    let nested = mods_dir.path().join(format!("nested_{}", 0));
+    fs::create_dir(&nested).unwrap();
+    fill_folder_with_n_mods::<2>(nested);
+    let nested = mods_dir.path().join(format!("nested_{}", 1));
+    fs::create_dir(&nested).unwrap();
+    fill_folder_with_n_mods::<2>(nested);
+
+    let mut iter = ModSearch::new(mods_dir.path());
+
+    let mut path_set = HashSet::new();
+
+    for i in 0..4 {
+      let mod_path = iter
+        .next()
+        .transpose()
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| panic!("Failed to find mod {}", i));
+
+      assert!(mod_path.starts_with(mods_dir.path()));
+
+      path_set.insert(mod_path);
+    }
+
+    assert!(iter.next().is_none());
+    assert_eq!(path_set.len(), 4)
   }
 }
