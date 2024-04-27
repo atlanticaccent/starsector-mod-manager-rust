@@ -178,6 +178,7 @@ impl FilterOptions {
       .scope_independent(|| Option::<bool>::None)
   }
 
+  #[allow(non_local_definitions)]
   fn update_options<T: Data>(mut width_linker: &mut Option<HeightLinkerShared>) -> impl Widget<T> {
     #[derive(Default, Clone, Data, Lens)]
     struct VersionCheckerFilter {
