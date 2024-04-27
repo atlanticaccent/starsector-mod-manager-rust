@@ -127,7 +127,10 @@ impl Settings {
         .vertical()
         .padding((12.0, 0.0))
         .expand()
-        .on_change(Self::save_on_change),
+        .on_change(Self::save_on_change)
+        .on_command(Header::ADD_HEADING, Self::save_on_command)
+        .on_command(Header::REMOVE_HEADING, Self::save_on_command)
+        .on_command(Header::SWAP_HEADINGS, Self::save_on_command),
     )
   }
 
@@ -472,6 +475,12 @@ impl Settings {
     data: &mut Self,
     _env: &druid::Env,
   ) {
+    if let Err(e) = data.save() {
+      eprintln!("{:?}", e)
+    }
+  }
+
+  fn save_on_command<P>(_ctx: &mut druid::EventCtx, _: &P, data: &mut Self) {
     if let Err(e) = data.save() {
       eprintln!("{:?}", e)
     }
