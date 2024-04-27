@@ -5,8 +5,8 @@ use druid::{
 };
 
 use crate::app::{
-  installer::{self, ChannelMessage},
-  mod_entry::{ModEntry, UpdateStatus},
+  installer,
+  mod_entry::ModEntry,
   mod_list::ModList,
   modal::Modal,
   util::LabelExt,
@@ -18,11 +18,11 @@ pub struct ModListController;
 impl<W: Widget<App>> Controller<App, W> for ModListController {
   fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut App, env: &Env) {
     if let Event::Command(cmd) = event {
-      if let Some((conflict, install_to, entry)) = cmd.get(ModList::OVERWRITE) {
+      if let Some((conflict, install_from, entry)) = cmd.get(ModList::OVERWRITE) {
         if let Some(install_dir) = &data.settings.install_dir {
           ctx.submit_command(App::LOG_MESSAGE.with(format!("Resuming install for {}", entry.name)));
           data.runtime.spawn(
-            installer::Payload::Resumed(entry.clone(), install_to.clone(), conflict.clone())
+            installer::Payload::Resumed(entry.clone(), install_from.clone(), conflict.clone())
               .install(
                 ctx.get_external_handle(),
                 install_dir.clone(),
@@ -31,35 +31,6 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
           );
         }
         ctx.is_handled();
-      } else if let Some(payload) = cmd.get(installer::INSTALL) {
-        match payload {
-          ChannelMessage::Success(entry) => {
-            let mut entry = entry.clone();
-            if let Some(existing) = data.mod_list.mods.get(&entry.id) {
-              entry.enabled = existing.enabled;
-              if let Some(remote_version_checker) = existing.remote_version.clone() {
-                entry.remote_version = Some(remote_version_checker.clone());
-                entry.update_status = Some(UpdateStatus::from((
-                  entry.version_checker.as_ref().unwrap(),
-                  &Some(remote_version_checker),
-                )));
-              }
-            }
-            ctx.submit_command(App::LOG_SUCCESS.with(entry.name.clone()));
-            data.mod_list.mods.insert(entry.id.clone(), entry.into());
-            ctx.request_update();
-          }
-          ChannelMessage::Duplicate(conflict, to_install, entry) => ctx.submit_command(
-            App::LOG_OVERWRITE.with((conflict.clone(), to_install.clone(), entry.clone())),
-          ),
-          ChannelMessage::FoundMultiple(source, found_paths) => {
-            ctx.submit_command(App::FOUND_MULTIPLE.with((source.clone(), found_paths.clone())));
-          }
-          ChannelMessage::Error(name, err) => {
-            ctx.submit_command(App::LOG_ERROR.with((name.clone(), err.clone())));
-            eprintln!("Failed to install {}", err);
-          }
-        }
       }
     } else if let Event::Notification(notif) = event {
       if let Some(entry) = notif.get(ModEntry::AUTO_UPDATE) {

@@ -1,14 +1,25 @@
-use std::process;
+use std::{ops::Not, process};
 
-use druid::{commands, widget::Controller, Env, Event, EventCtx, Target, Widget};
+use druid::{
+  commands, widget::Controller, Command, Env, Event, EventCtx, Selector, Target, Widget,
+};
+use itertools::Itertools;
 use self_update::version::bump_is_greater;
 use webview_shared::ExtEventSinkExt;
 
-use crate::app::{
-  modal::Modal,
-  settings::{self, Settings, SettingsCommand},
-  updater::{open_in_browser, self_update, support_self_update},
-  App, TAG,
+use crate::{
+  app::{
+    installer::{ChannelMessage, INSTALL, INSTALL_FOUND_MULTIPLE},
+    mod_entry::UpdateStatus,
+    mod_list::ModList,
+    modal::Modal,
+    overlays::Popup,
+    settings::{self, Settings, SettingsCommand},
+    updater::{open_in_browser, self_update, support_self_update},
+    App, TAG,
+  },
+  match_command,
+  nav_bar::Nav,
 };
 
 pub struct AppController;
@@ -113,6 +124,34 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
         };
       } else if cmd.is(App::ENABLE) {
         ctx.set_disabled(false)
+      } else if let Some(payload) = cmd.get(INSTALL) {
+        match payload {
+          ChannelMessage::Success(entry) => {
+            let mut entry = entry.clone();
+            if let Some(existing) = data.mod_list.mods.get(&entry.id) {
+              entry.enabled = existing.enabled;
+              if let Some(remote_version_checker) = existing.remote_version.clone() {
+                entry.remote_version = Some(remote_version_checker.clone());
+                entry.update_status = Some(UpdateStatus::from((
+                  entry.version_checker.as_ref().unwrap(),
+                  &Some(remote_version_checker),
+                )));
+              }
+            }
+            ctx.submit_command(ModList::INSERT_MOD.with(entry));
+            ctx.request_update();
+          }
+          ChannelMessage::Duplicate(conflict, to_install, entry) => ctx.submit_command(
+            App::LOG_OVERWRITE.with((conflict.clone(), to_install.clone(), entry.clone())),
+          ),
+          ChannelMessage::FoundMultiple(source, found_paths) => {
+            ctx.submit_command(App::FOUND_MULTIPLE.with((source.clone(), found_paths.clone())));
+          }
+          ChannelMessage::Error(name, err) => {
+            ctx.submit_command(App::LOG_ERROR.with((name.clone(), err.clone())));
+            eprintln!("Failed to install {}", err);
+          }
+        }
       }
     } else if let Event::MouseDown(_) = event {
       if ctx.is_disabled() {
@@ -121,5 +160,83 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
     }
 
     child.event(ctx, event, data, env)
+  }
+}
+
+pub struct MaskController {
+  delayed_commands: Vec<Command>,
+}
+
+impl MaskController {
+  pub fn new() -> Self {
+    Self {
+      delayed_commands: Vec::new(),
+    }
+  }
+
+  fn command_whitelist(cmd: &Command) -> bool {
+    const BUILTIN_TEXTBOX_CANCEL: Selector<()> =
+      Selector::new("druid.builtin.textbox-cancel-editing");
+    match_command!(cmd, true => {
+      Popup::DISMISS,
+      Popup::DISMISS_MATCHING,
+      Popup::OPEN_POPUP,
+      Popup::QUEUE_POPUP,
+      Popup::DELAYED_POPUP,
+      Popup::OPEN_NEXT,
+      INSTALL_FOUND_MULTIPLE,
+      ModList::OVERWRITE,
+      BUILTIN_TEXTBOX_CANCEL,
+      App::CONFIRM_DELETE_MOD,
+      Nav::NAV_SELECTOR,
+      Settings::SELECTOR, => false,
+    })
+  }
+}
+
+impl<W: Widget<App>> Controller<App, W> for MaskController {
+  fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut App, env: &Env) {
+    if !data.popups.is_empty()
+      && let Event::Command(cmd) = event
+      && !ctx.is_handled()
+      && Self::command_whitelist(cmd)
+    {
+      self.delayed_commands.push(dbg!(cmd).clone())
+    }
+
+    child.event(ctx, event, data, env)
+  }
+
+  fn lifecycle(
+    &mut self,
+    child: &mut W,
+    ctx: &mut druid::LifeCycleCtx,
+    event: &druid::LifeCycle,
+    data: &App,
+    env: &Env,
+  ) {
+    child.lifecycle(ctx, event, data, env)
+  }
+
+  fn update(
+    &mut self,
+    child: &mut W,
+    ctx: &mut druid::UpdateCtx,
+    old_data: &App,
+    data: &App,
+    env: &Env,
+  ) {
+    if old_data.popups.is_empty().not() && data.popups.is_empty() {
+      dbg!(old_data.mod_list.mods.keys().collect_vec());
+      dbg!(data.mod_list.mods.keys().collect_vec());
+    }
+
+    if data.popups.is_empty() && !self.delayed_commands.is_empty() {
+      for cmd in dbg!(&mut self.delayed_commands).drain(0..) {
+        ctx.submit_command(cmd)
+      }
+    }
+
+    child.update(ctx, old_data, data, env)
   }
 }

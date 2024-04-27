@@ -20,6 +20,7 @@ use druid::{
   widget::BackgroundBrush, BoxConstraints, Color, Env, Event, EventCtx, Key, KeyOrValue, LayoutCtx,
   LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget, WidgetPod,
 };
+use itertools::Itertools;
 
 use super::{
   ComplexTableColumnWidth, RowData, TableCellVerticalAlignment, TableColumnWidth, TableData,
@@ -298,7 +299,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
       let mut row_data = &mut data[&row_id];
       if let Some(row) = self.children.get_mut(&row_id) {
         for column in columns {
-          if let Some(cell) = &mut row.children.get_mut(&column) && cell.is_initialized() {
+          if let Some(cell) = &mut row.children.get_mut(&column) {
             let env = env.clone().adding(Self::ROW_IDX, row_num as u64);
             cell.event(ctx, event, &mut row_data, &env);
           }
@@ -308,25 +309,38 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
   }
 
   fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &T, env: &Env) {
+    let columns = data.columns().collect_vec();
     if let LifeCycle::WidgetAdded = event {
+      let mut changed = false;
       for row_data in data.keys().map(|k| &data[&k]) {
-        let mut row: TableRow<T::Row> = TableRow::new(row_data.id().clone());
-        row.children = data
-          .columns()
-          .map(|c| (c.clone(), WidgetPod::new(row_data.cell(&c))))
-          .collect();
-        self.add_row(row);
+        let row = if let Some(row) = self.children.get_mut(&row_data.id()) {
+          row
+        } else {
+          changed = true;
+          self.add_row(TableRow::new(row_data.id().clone()));
+          self.children.get_mut(row_data.id()).unwrap()
+        };
+
+        for column in &columns {
+          if !row.children().contains_key(column) {
+            changed = true;
+            row
+              .children()
+              .insert(column.clone(), WidgetPod::new(row_data.cell(&column)));
+          }
+        }
       }
-      ctx.children_changed();
+      if changed {
+        ctx.children_changed();
+      }
     }
 
     let keys: Vec<_> = data.keys().collect();
     for (row_num, row_id) in keys.into_iter().enumerate() {
-      let columns: Vec<_> = data.columns().collect();
       let row_data = &data[&row_id];
       if let Some(row) = self.children.get_mut(&row_id) {
-        for column in columns {
-          if let Some(cell) = row.children.get_mut(&column) {
+        for column in &columns {
+          if let Some(cell) = row.children.get_mut(column) {
             let env = env.clone().adding(Self::ROW_IDX, row_num as u64);
             cell.lifecycle(ctx, event, row_data, &env);
           }
@@ -370,17 +384,20 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
       let row_data = &data[&row_id];
       if let Some(row) = self.children.get_mut(&row_id) {
         for column in &columns {
-          if let Some(cell) = row.children.get_mut(column) && cell.is_initialized() {
+          if let Some(cell) = row.children.get_mut(column) {
             let env = env.clone().adding(Self::ROW_IDX, row_num as u64);
             cell.update(ctx, &row_data, &env)
           } else {
-            row.children.insert(column.clone(), WidgetPod::new(row_data.cell(column)));
+            row
+              .children
+              .insert(column.clone(), WidgetPod::new(row_data.cell(column)));
             ctx.children_changed()
           }
         }
       } else {
         let mut row = TableRow::new(row_id.clone());
-        row.children = data.columns()
+        row.children = data
+          .columns()
           .map(|c| (c.clone(), WidgetPod::new(row_data.cell(&c))))
           .collect();
         self.add_row(row);
@@ -437,7 +454,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
         for (row_num, row_id) in keys.into_iter().enumerate() {
           let row_data = &data[&row_id];
           let row = self.children.get_mut(&row_id).unwrap();
-          if let Some(cell) = row.children.get_mut(&column) && cell.is_initialized() {
+          if let Some(cell) = row.children.get_mut(&column) {
             let child_bc = BoxConstraints::new(
               Size::new(0., 0.),
               Size::new(std::f64::INFINITY, std::f64::INFINITY),

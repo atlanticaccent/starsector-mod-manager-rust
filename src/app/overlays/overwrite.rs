@@ -25,11 +25,11 @@ pub struct Overwrite {
 }
 
 impl Overwrite {
-  pub fn new(conflict: &StringOrPath, to_install: &HybridPath, entry: &ModEntry) -> Self {
+  pub fn new(conflict: StringOrPath, to_install: HybridPath, entry: ModEntry) -> Self {
     Self {
-      conflict: conflict.clone(),
-      to_install: to_install.clone(),
-      entry: entry.clone(),
+      conflict,
+      to_install,
+      entry,
     }
   }
 
@@ -39,6 +39,7 @@ impl Overwrite {
       to_install,
       entry,
     } = self.clone();
+
     Card::builder()
       .with_insets(Card::CARD_INSET)
       .with_background(druid::theme::BACKGROUND_LIGHT)

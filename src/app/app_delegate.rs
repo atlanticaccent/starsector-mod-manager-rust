@@ -1,19 +1,12 @@
-use std::{
-  fs::{metadata, File},
-  io::Write as _,
-  path::PathBuf,
-  rc::Rc,
-};
+use std::{fs::File, io::Write as _, path::PathBuf, rc::Rc};
 
 use base64::{decode, encode};
-use chrono::{DateTime, Local};
 use druid::{
-  commands,
-  keyboard_types::Key,
-  widget::{Button, Flex, Label},
-  AppDelegate as Delegate, Command, DelegateCtx, Env, Event, Handled, KeyEvent, LensExt as _,
-  SingleUse, Size, Target, Widget, WidgetExt as _, WindowDesc, WindowHandle, WindowId, WindowLevel,
+  commands, keyboard_types::Key, widget::Label, AppDelegate as Delegate, Command, DelegateCtx, Env,
+  Event, Handled, KeyEvent, LensExt as _, SingleUse, Size, Target, Widget, WidgetExt as _,
+  WindowDesc, WindowHandle, WindowId, WindowLevel,
 };
+use itertools::Itertools;
 use rand::random;
 use remove_dir_all::remove_dir_all;
 use reqwest::Url;
@@ -23,16 +16,13 @@ use webview_shared::{
 use webview_subsystem::init_webview;
 
 use super::{
-  installer::{self, HybridPath, StringOrPath, DOWNLOAD_PROGRESS, DOWNLOAD_STARTED},
+  installer::{self, DOWNLOAD_PROGRESS, DOWNLOAD_STARTED},
   mod_description,
-  mod_entry::{ModEntry, ViewModEntry},
   mod_list::{install::install_options::InstallOptions, ModList},
   overlays::Popup,
   settings::{self, Settings, SettingsCommand},
   tools,
-  util::{
-    self, get_latest_manager, get_starsector_version, LabelExt as _, GET_INSTALLED_STARSECTOR,
-  },
+  util::{get_latest_manager, get_starsector_version, GET_INSTALLED_STARSECTOR},
   App,
 };
 
@@ -186,7 +176,11 @@ impl Delegate<App> for AppDelegate {
       data.log_message(message);
       return Handled::Yes;
     } else if let Some((conflict, to_install, entry)) = cmd.get(App::LOG_OVERWRITE) {
-      ctx.submit_command(Popup::QUEUE_POPUP.with(Popup::overwrite(conflict, to_install, entry)));
+      ctx.submit_command(Popup::QUEUE_POPUP.with(Popup::overwrite(
+        conflict.clone(),
+        to_install.clone(),
+        entry.clone(),
+      )));
 
       return Handled::Yes;
     } else if let Some(install) = cmd.get(WEBVIEW_INSTALL) {
@@ -252,7 +246,7 @@ impl Delegate<App> for AppDelegate {
               path
             }
           };
-          installer::Payload::Initial(vec![path])
+          installer::Payload::Initial(vec![path.into()])
             .install(ext_ctx, install_dir, ids)
             .await;
         });
@@ -275,6 +269,7 @@ impl Delegate<App> for AppDelegate {
     } else if let Some(entry) = cmd.get(App::CONFIRM_DELETE_MOD) {
       if remove_dir_all(&entry.path).is_ok() {
         data.mod_list.mods.remove(&entry.id);
+        data.active = None;
       } else {
         eprintln!("Failed to delete mod")
       }
@@ -304,16 +299,22 @@ impl Delegate<App> for AppDelegate {
       }
 
       return Handled::Yes;
-    } else if let Some((to_install, source)) =
-      cmd.get(installer::INSTALL_FOUND_MULTIPLE).and_then(SingleUse::take)
+    } else if let Some((to_install, source)) = cmd
+      .get(installer::INSTALL_FOUND_MULTIPLE)
+      .and_then(SingleUse::take)
     {
       let ext_ctx = ctx.get_external_handle();
       let install_dir = data.settings.install_dir.as_ref().unwrap().clone();
       let ids = data.mod_list.mods.values().map(|v| v.id.clone()).collect();
       data.runtime.spawn(async move {
-        installer::Payload::Initial(to_install)
-          .install(ext_ctx, install_dir, ids)
-          .await;
+        installer::Payload::Initial(
+          to_install
+            .into_iter()
+            .map(|p| source.clone().with_path(&p))
+            .collect_vec(),
+        )
+        .install(ext_ctx, install_dir, ids)
+        .await;
 
         drop(source);
       });
@@ -427,11 +428,12 @@ impl Delegate<App> for AppDelegate {
             .join(", "),
         )));
         data.runtime.spawn(
-          installer::Payload::Initial(targets.iter().cloned().collect()).install(
-            ctx.get_external_handle(),
-            data.settings.install_dir.clone().unwrap(),
-            data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
-          ),
+          installer::Payload::Initial(targets.iter().map(|p| p.clone().into()).collect_vec())
+            .install(
+              ctx.get_external_handle(),
+              data.settings.install_dir.clone().unwrap(),
+              data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
+            ),
         );
       }
       return Handled::Yes;

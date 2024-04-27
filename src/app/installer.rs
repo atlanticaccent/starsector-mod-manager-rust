@@ -24,13 +24,14 @@ use webview_shared::ExtEventSinkExt;
 
 use super::{
   mod_entry::{ModMetadata, UpdateStatus},
+  overlays::Popup,
   util::{get_master_version, Tap},
 };
 use crate::app::{mod_entry::ModEntry, util::LoadBalancer};
 
 #[derive(Clone)]
 pub enum Payload {
-  Initial(Vec<PathBuf>),
+  Initial(Vec<HybridPath>),
   Resumed(ModEntry, HybridPath, PathBuf),
   Download(ModEntry),
 }
@@ -73,10 +74,11 @@ impl Payload {
 #[allow(irrefutable_let_patterns)]
 async fn handle_path(
   ext_ctx: ExtEventSink,
-  path: PathBuf,
+  source: HybridPath,
   mods_dir: Arc<PathBuf>,
   installed: Arc<Vec<String>>,
 ) -> anyhow::Result<()> {
+  let path = source.get_path_copy();
   let file_name = path
     .file_name()
     .map(|f| f.to_string_lossy().to_string())
@@ -102,16 +104,23 @@ async fn handle_path(
       }
     }
   } else {
-    HybridPath::PathBuf(path)
+    source
   };
 
   let dir = mod_folder.get_path_copy();
-  match timeout(
-    std::time::Duration::from_millis(500),
-    task::spawn_blocking(move || ModSearch::new(dir).exhaustive()),
-  )
-  .await??
-  {
+
+  let res = match &mod_folder {
+    HybridPath::PathBuf(_) | HybridPath::Temp(_, _, None) => {
+      timeout(
+        std::time::Duration::from_millis(500),
+        task::spawn_blocking(move || ModSearch::new(dir).exhaustive()),
+      )
+      .await??
+    }
+    HybridPath::Temp(_, _, Some(path)) => Ok(vec![path.clone()]),
+  };
+
+  match res {
     Ok(mod_paths) => {
       if mod_paths.len() > 1 {
         let found = mod_paths
@@ -119,8 +128,8 @@ async fn handle_path(
           .filter_map(|path| ModEntry::from_file(&path, ModMetadata::default()).ok())
           .collect_vec();
         let _ = ext_ctx.submit_command_global(
-          super::overlays::Popup::OPEN_POPUP,
-          super::overlays::Popup::found_multiple(mod_folder.clone(), found),
+          Popup::OPEN_POPUP,
+          Popup::found_multiple(mod_folder.clone(), found),
         );
 
         Ok(())
@@ -135,14 +144,13 @@ async fn handle_path(
           // that way there's less chance an existing ID gets missed due to the ID list effectively getting cached when
           // this function starts
           ext_ctx
-            .submit_command(
-              INSTALL,
-              ChannelMessage::Duplicate(
+            .submit_command_global(
+              Popup::QUEUE_POPUP,
+              Popup::overwrite(
                 id.clone().into(),
                 mod_folder.with_path(mod_path),
                 mod_info,
               ),
-              Target::Auto,
             )
             .expect("Send query over async channel");
         } else if let target_path = mods_dir.join(&mod_info.id)
@@ -156,14 +164,13 @@ async fn handle_path(
           }
 
           ext_ctx
-            .submit_command(
-              INSTALL,
-              ChannelMessage::Duplicate(
+            .submit_command_global(
+              Popup::QUEUE_POPUP,
+              Popup::overwrite(
                 target_path.into(),
-                mod_folder.with_path(mod_path),
+                dbg!(mod_folder).with_path(mod_path),
                 mod_info,
               ),
-              Target::Auto,
             )
             .expect("Send query over async channel");
         } else {
@@ -344,11 +351,12 @@ async fn handle_delete(
   new_path: HybridPath,
   old_path: PathBuf,
 ) -> anyhow::Result<()> {
-  if old_path.exists() {
+  let origin = new_path.get_path_copy();
+
+  if origin != old_path && old_path.exists() {
     remove_dir_all(&old_path)?;
   }
 
-  let origin = new_path.get_path_copy();
   move_or_copy(origin, old_path.clone()).await;
   entry.set_path(old_path);
   if let Some(version_checker) = dbg!(entry.version_checker.clone()) {
@@ -529,6 +537,7 @@ impl HybridPath {
         path_opt.replace(path.clone());
       }
     };
+
     self
   }
 
@@ -537,6 +546,12 @@ impl HybridPath {
       HybridPath::PathBuf(path) => path.to_string_lossy(),
       HybridPath::Temp(_, source, _) => source.into(),
     }
+  }
+}
+
+impl From<PathBuf> for HybridPath {
+  fn from(value: PathBuf) -> Self {
+    Self::PathBuf(value)
   }
 }
 

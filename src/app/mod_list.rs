@@ -172,11 +172,10 @@ impl ModList {
                             ctx.request_layout();
                             ctx.request_paint();
 
-                            false
+                            true
                           })
-                          .on_command(Self::INSERT_MOD, |_, ctx, entry, data| {
+                          .on_command(Self::INSERT_MOD, |_, _, entry, data| {
                             data.mods.insert(entry.id.clone(), entry.clone().into());
-                            ctx.request_update();
                             true
                           }),
                       )

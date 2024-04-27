@@ -15,7 +15,7 @@ mod on_notif;
 mod rotate;
 
 pub use anim_controller::AnimController;
-pub use app_controller::AppController;
+pub use app_controller::*;
 pub use delayed_painter::DelayedPainter;
 pub use extensible_controller::ExtensibleController;
 pub use hover_controller::*;

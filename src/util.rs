@@ -22,8 +22,8 @@ use druid::{
     LensScopeTransfer, LensWrap, Painter, RawLabel, Scope, ScopeTransfer, SizedBox, ViewSwitcher,
   },
   Color, Command, Data, Env, Event, EventCtx, ExtEventSink, FontWeight, Key, KeyOrValue, Lens,
-  LensExt as _, MouseEvent, Point, RenderContext, Selector, SingleUse, Target, UnitPoint, Widget,
-  WidgetExt, WidgetId,
+  LensExt as _, MouseEvent, Point, RenderContext, Selector, SingleUse, Target, TimerToken,
+  UnitPoint, Widget, WidgetExt, WidgetId,
 };
 use druid_widget_nursery::{
   animation::Interpolate,
@@ -944,42 +944,12 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
       with(inner),
     )
   }
-
-  fn scope_with_not_data<In: Clone + 'static, SWO: Widget<BlindState<T, In>> + 'static>(
-    self,
-    state: In,
-    with: impl FnOnce(
-      LensWrap<BlindState<T, In>, T, blind_state_derived_lenses::outer<T, In>, Self>,
-    ) -> SWO,
-  ) -> impl Widget<T> {
-    let inner = self.lens(<BlindState<T, In>>::outer);
-    Scope::from_lens(
-      move |outer| BlindState {
-        outer,
-        inner: state.clone(),
-      },
-      <BlindState<T, In>>::outer,
-      with(inner),
-    )
-  }
 }
 
 #[derive(Clone, Data, Lens)]
 pub struct State<T, U> {
   pub outer: T,
   pub inner: U,
-}
-
-#[derive(Clone, Lens)]
-pub struct BlindState<T, U> {
-  pub outer: T,
-  pub inner: U,
-}
-
-impl<T: Data, U: Clone + 'static> Data for BlindState<T, U> {
-  fn same(&self, other: &Self) -> bool {
-    self.outer.same(&other.outer)
-  }
 }
 
 impl<T: Data, W: Widget<T> + 'static> WidgetExtEx<T, W> for W {}
@@ -1592,7 +1562,73 @@ pub impl<T> T {
     self
   }
 
-  fn pipe<U>(self, func: impl FnOnce(Self) -> U) -> U where Self: Sized{
+  fn pipe<U>(self, func: impl FnOnce(Self) -> U) -> U
+  where
+    Self: Sized,
+  {
     func(self)
   }
+}
+
+#[derive(Debug, Clone)]
+pub struct DataTimer(TimerToken);
+
+impl DataTimer {
+  pub const INVALID: Self = Self(TimerToken::INVALID);
+}
+
+impl Data for DataTimer {
+  fn same(&self, other: &Self) -> bool {
+    self.0 == other.0
+  }
+}
+
+impl Deref for DataTimer {
+  type Target = TimerToken;
+
+  fn deref(&self) -> &Self::Target {
+    &self.0
+  }
+}
+
+impl From<TimerToken> for DataTimer {
+  fn from(value: TimerToken) -> Self {
+    Self(value)
+  }
+}
+
+#[macro_export]
+macro_rules! match_command {
+  ($val:expr, $default:expr => {$($($selector:ident)::* $(($bind:ident))? => $body:expr),+ $(,)? }) => {
+    match $val {
+      val => match () {
+        $(
+          () if val.is($($selector)::*) => {
+            let _selector = $($selector)::*;
+            $(let $bind = val.get_unchecked(_selector);)?
+            $body
+          }
+        )+
+        _ => {
+          $default
+        }
+      }
+    }
+  };
+  ($val:expr, $default:expr => {$($($($selector:ident)::*, )+ => $body:expr),+ $(,)? }) => {
+    match $val {
+      val => match () {
+        $(
+          $(
+            () if val.is($($selector)::*) => {
+              $body
+            }
+          )+
+        )+
+        _ => {
+          $default
+        }
+      }
+    }
+  };
 }

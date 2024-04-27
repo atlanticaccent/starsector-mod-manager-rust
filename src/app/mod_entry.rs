@@ -248,11 +248,11 @@ impl ViewModEntry {
                         UpdateStatus::Discrepancy(_) => icon_row.add_child(Icon::new(*HELP)),
                         UpdateStatus::UpToDate => icon_row.add_child(Icon::new(*VERIFIED)),
                       };
-      
+
                       for _ in 0..iter {
                         icon_row.add_child(Icon::new(*NEW_RELEASES))
                       }
-      
+
                       let tooltip = match update_status {
                         UpdateStatus::Error => "Error\nThere was an error retrieving or parsing this mod's version information.".to_string(),
                         UpdateStatus::UpToDate => update_status.to_string(),

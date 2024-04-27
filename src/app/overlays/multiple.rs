@@ -99,9 +99,9 @@ impl Multiple {
                     let mut blue = env.get(BLUE_KEY);
                     let mut on_blue = env.get(ON_BLUE_KEY);
 
-                    if !data.enabled.iter().any(|v| *v) {
+                    if data.enabled.all(false) {
                       blue = blue.darker_by(2);
-                      on_blue = on_blue.darker_by(2);
+                      on_blue = on_blue.darker_by(4);
                     }
 
                     env.set(druid::theme::BACKGROUND_LIGHT, blue);
@@ -112,22 +112,19 @@ impl Multiple {
                   .padding((0.0, 2.0))
                   .on_click({
                     let source = source.clone();
-                    move |ctx, data: &mut MultipleState, _| {
+                    move |ctx, data: &mut MultipleState, env| {
                       let installable = found
                         .iter()
                         .zip(data.enabled.iter())
                         .filter_map(|(entry, installable)| installable.then(|| entry.path.clone()))
                         .collect_vec();
-                      ctx.submit_command(Popup::DISMISS);
+                      dismiss(ctx, data, env);
                       ctx.submit_command(
                         INSTALL_FOUND_MULTIPLE.with(SingleUse::new((installable, source.clone()))),
                       );
-                      for command in data.commands.drain(0..) {
-                        ctx.submit_command(command)
-                      }
                     }
                   })
-                  .disabled_if(|data, _| !data.enabled.iter().any(|v| *v)),
+                  .disabled_if(|data, _| data.enabled.all(false)),
               )
               .with_child(
                 Card::builder()
@@ -151,12 +148,7 @@ impl Multiple {
                   })
                   .fix_height(42.0)
                   .padding((0.0, 2.0))
-                  .on_click(move |ctx, data: &mut MultipleState, _| {
-                    ctx.submit_command(Popup::DISMISS);
-                    for command in data.commands.drain(0..) {
-                      ctx.submit_command(command)
-                    }
-                  }),
+                  .on_click(dismiss),
               )
               .align_right(),
           ),
@@ -169,6 +161,13 @@ impl Multiple {
           source: source.clone(),
         }
       })
+  }
+}
+
+fn dismiss(ctx: &mut druid::EventCtx, data: &mut MultipleState, _env: &druid::Env) {
+  ctx.submit_command(Popup::DISMISS);
+  for command in data.commands.drain(0..) {
+    ctx.submit_command(command)
   }
 }
 
@@ -216,7 +215,7 @@ fn install_button(path: PathBuf, source: HybridPath, idx: usize) -> impl Widget<
 
       if !data.enabled[idx] {
         blue = blue.darker_by(2);
-        on_blue = on_blue.darker_by(2);
+        on_blue = on_blue.darker_by(4);
       }
 
       env.set(druid::theme::BACKGROUND_LIGHT, blue);
@@ -225,7 +224,7 @@ fn install_button(path: PathBuf, source: HybridPath, idx: usize) -> impl Widget<
     })
     .fix_height(42.0)
     .padding((0.0, 2.0))
-    .on_click(move |ctx, state: &mut MultipleState, _| {
+    .on_click(move |ctx, state: &mut MultipleState, env| {
       let can_install = &mut state.enabled[idx];
       if *can_install {
         ctx.clear_cursor();
@@ -237,7 +236,21 @@ fn install_button(path: PathBuf, source: HybridPath, idx: usize) -> impl Widget<
         state
           .commands
           .push(INSTALL_FOUND_MULTIPLE.with(SingleUse::new((vec![path.clone()], source.clone()))));
+        if state.enabled.all(false) {
+          dismiss(ctx, state, env)
+        }
       }
     })
     .disabled_if(move |data, _| !data.enabled[idx])
+}
+
+#[extend::ext]
+impl Vector<bool> {
+  fn any(&self, matches: bool) -> bool {
+    self.iter().any(|v| *v == matches)
+  }
+
+  fn all(&self, matches: bool) -> bool {
+    self.iter().all(|v| *v == matches)
+  }
 }
