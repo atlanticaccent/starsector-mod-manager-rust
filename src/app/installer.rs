@@ -168,7 +168,7 @@ async fn handle_path(
               Popup::QUEUE_POPUP,
               Popup::overwrite(
                 target_path.into(),
-                dbg!(mod_folder).with_path(mod_path),
+                mod_folder.with_path(mod_path),
                 mod_info,
               ),
             )
@@ -359,13 +359,13 @@ async fn handle_delete(
 
   move_or_copy(origin, old_path.clone()).await;
   entry.set_path(old_path);
-  if let Some(version_checker) = dbg!(entry.version_checker.clone()) {
+  if let Some(version_checker) = entry.version_checker.clone() {
     let client = reqwest::Client::builder()
       .timeout(std::time::Duration::from_millis(500))
       .connect_timeout(std::time::Duration::from_millis(500))
       .build()
       .expect("Build reqwest client");
-    entry.remote_version = dbg!(get_master_version(&client, None, &version_checker).await);
+    entry.remote_version = get_master_version(&client, None, &version_checker).await;
     entry.update_status = Some(UpdateStatus::from((
       &version_checker,
       &entry.remote_version,

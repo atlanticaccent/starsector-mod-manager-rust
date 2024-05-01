@@ -186,7 +186,6 @@ impl ModList {
                   )
                   .on_change(|ctx, old, data, _| {
                     if !old.header.same(&data.header) || !old.mods.same(&data.mods) {
-                      dbg!("header or modlist change");
                       ctx.request_paint();
                       ctx.request_update();
                       ctx.request_layout();
@@ -232,7 +231,6 @@ impl ModList {
 
     Self::update_sorting(_table, ctx, &(), data);
     ctx.children_changed();
-    dbg!("Finished replacing mods");
     false
   }
 
@@ -512,8 +510,6 @@ impl ModList {
     search_text: String,
     filters: Vec<Filters>,
   ) -> Vec<String> {
-    dbg!("Actually running sort");
-
     let mut ids: Vec<_> = mods
       .values()
       .filter_map(|entry| {

@@ -1,9 +1,8 @@
-use std::{ops::Not, process};
+use std::process;
 
 use druid::{
   commands, widget::Controller, Command, Env, Event, EventCtx, Selector, Target, Widget,
 };
-use itertools::Itertools;
 use self_update::version::bump_is_greater;
 use webview_shared::ExtEventSinkExt;
 
@@ -201,7 +200,7 @@ impl<W: Widget<App>> Controller<App, W> for MaskController {
       && !ctx.is_handled()
       && Self::command_whitelist(cmd)
     {
-      self.delayed_commands.push(dbg!(cmd).clone())
+      self.delayed_commands.push(cmd.clone())
     }
 
     child.event(ctx, event, data, env)
@@ -226,13 +225,8 @@ impl<W: Widget<App>> Controller<App, W> for MaskController {
     data: &App,
     env: &Env,
   ) {
-    if old_data.popups.is_empty().not() && data.popups.is_empty() {
-      dbg!(old_data.mod_list.mods.keys().collect_vec());
-      dbg!(data.mod_list.mods.keys().collect_vec());
-    }
-
     if data.popups.is_empty() && !self.delayed_commands.is_empty() {
-      for cmd in dbg!(&mut self.delayed_commands).drain(0..) {
+      for cmd in self.delayed_commands.drain(0..) {
         ctx.submit_command(cmd)
       }
     }
