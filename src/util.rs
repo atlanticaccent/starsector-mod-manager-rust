@@ -297,6 +297,15 @@ pub fn h3_fixed<T: Data>(text: &str) -> impl Widget<T> {
   bold_text(text, 18., FontWeight::MEDIUM, theme::TEXT_COLOR)
 }
 
+pub fn bolded<T: Data>(text: &str) -> impl Widget<T> {
+  bold_text(
+    text,
+    theme::TEXT_SIZE_NORMAL,
+    FontWeight::MEDIUM,
+    theme::TEXT_COLOR,
+  )
+}
+
 pub fn lensed_bold<T: Data + AsRef<str>>(
   size: impl Into<KeyOrValue<f64>>,
   weight: FontWeight,
