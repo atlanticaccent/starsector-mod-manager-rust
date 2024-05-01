@@ -20,17 +20,16 @@ use druid::{
   widget::BackgroundBrush, BoxConstraints, Color, Env, Event, EventCtx, Key, KeyOrValue, LayoutCtx,
   LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget, WidgetPod,
 };
-use itertools::Itertools;
 
 use super::{
   ComplexTableColumnWidth, RowData, TableCellVerticalAlignment, TableColumnWidth, TableData,
-  TableRow,
+  TableRowInternal,
 };
 
 #[derive(Debug)]
-struct TableBorderStyle {
-  width: KeyOrValue<f64>,
-  color: KeyOrValue<Color>,
+pub(crate) struct TableBorderStyle {
+  pub(crate) width: KeyOrValue<f64>,
+  pub(crate) color: KeyOrValue<Color>,
 }
 
 /// A container with a flexible table layout.
@@ -40,35 +39,94 @@ struct TableBorderStyle {
 ///
 /// # Examples
 /// ```
+/// # use std::ops::{Index, IndexMut};
 /// # use druid::widget::Label;
-/// # use druid::Widget;
-/// # use druid_widget_nursery::table::{TableRow, FlexTable};
-/// # fn test() -> impl Widget<()> {
+/// # use druid::{Data, lens::Constant, im::{vector, Vector}, Widget, WidgetExt};
+/// # use druid_widget_nursery::table::{FlexTable, TableData, RowData};
+///
+/// #[derive(Clone, Data)]
+/// struct Row {
+///     row: usize,
+/// };
+///
+/// impl RowData for Row {
+///     type Id = usize;
+///     type Column = usize;
+///
+///     fn id(&self) -> Self::Id {
+///         self.row
+///     }
+///
+///     fn cell(&self, column: &Self::Column) -> Box<dyn Widget<Self>> {
+///         let column = *column;
+///         Label::dynamic(move |data: &Row, _| format!("Row {} / Column {}", data.row, column)).boxed()
+///     }
+/// }
+///
+/// #[derive(Clone, Data)]
+/// struct Table {
+///     children: Vector<Row>,
+///     width: usize,
+/// }
+///
+/// impl Index<usize> for Table {
+///     type Output = Row;
+///
+///     fn index(&self, row: usize) -> &Self::Output {
+///         &self.children[row]
+///     }
+/// }
+///
+/// impl IndexMut<usize> for Table {
+///     fn index_mut(&mut self, row: usize) -> &mut Self::Output {
+///         &mut self.children[row]
+///     }
+/// }
+///
+/// impl TableData for Table {
+///     type Row = Row;
+///     type Column = usize;
+///
+///     fn keys(&self) -> impl Iterator<Item = <Self::Row as RowData>::Id> {
+///         0..self.children.len()
+///     }
+///
+///     fn columns(&self) -> impl Iterator<Item = Self::Column> {
+///         if self.children.is_empty() {
+///             0..0
+///         } else {
+///             0..self.width
+///         }
+///     }
+/// }
+///
+/// # fn test() -> impl Widget<Table> {
 /// FlexTable::new()
 ///     .inner_border(druid::theme::BORDER_LIGHT, 1.)
-///     .with_row(
-///         TableRow::new()
-///             .with_child(Label::new("Row 1 / Column 1"))
-///             .with_child(Label::new("Row 2 / Column 2"))
-///     )
-///     .with_row(
-///         TableRow::new()
-///             .with_child(Label::new("Row 1 / Column 1"))
-///             .with_child(Label::new("Row 2 / Column 2"))
-///      )
+///     .lens(Constant(Table {
+///         children: vector!(
+///             Row {
+///                 row: 1,
+///             },
+///             Row {
+///                 row: 2,
+///             }
+///         ),
+///         width: 2,
+///     }))
 /// # }
 /// ```
 pub struct FlexTable<T: TableData> {
-  default_column_width: ComplexTableColumnWidth,
-  default_vertical_alignment: TableCellVerticalAlignment,
-  column_widths: Vec<ComplexTableColumnWidth>,
-  children: HashMap<<T::Row as RowData>::Id, TableRow<T::Row>>,
-  row_border: Option<TableBorderStyle>,
-  col_border: Option<TableBorderStyle>,
-  background: Option<BackgroundBrush<T>>,
-  row_starts: Option<Vec<f64>>,
-  col_starts: Option<Vec<f64>>,
-  row_background: Option<BackgroundBrush<T>>,
+  pub(crate) default_column_width: ComplexTableColumnWidth,
+  pub(crate) default_vertical_alignment: TableCellVerticalAlignment,
+  pub(crate) column_widths: Vec<ComplexTableColumnWidth>,
+  pub(crate) children: HashMap<<T::Row as RowData>::Id, TableRowInternal<T::Row>>,
+  pub(crate) row_border: Option<TableBorderStyle>,
+  pub(crate) col_border: Option<TableBorderStyle>,
+  pub(crate) background: Option<BackgroundBrush<T>>,
+  pub(crate) row_starts: Option<Vec<f64>>,
+  pub(crate) col_starts: Option<Vec<f64>>,
+  pub(crate) row_background: Option<BackgroundBrush<T>>,
 }
 
 impl<T: TableData> Default for FlexTable<T> {
@@ -191,7 +249,7 @@ impl<T: TableData> FlexTable<T> {
   /// Examples:
   /// ```
   /// use druid_widget_nursery::table::{FlexTable, TableColumnWidth::*};
-  /// # fn test () -> FlexTable<()> {
+  /// # fn test () -> FlexTable<[(); 0]> {
   ///
   /// FlexTable::new()
   ///    .with_column_width(64.0)                     // column 1: fixed width
@@ -266,28 +324,34 @@ impl<T: TableData> FlexTable<T> {
     }
   }
 
-  /// Builder-style method to add a table row.
-  pub fn with_row(mut self, row: TableRow<T::Row>) -> Self {
-    self.add_row(row);
-    self
-  }
-
   /// Add a table row.
-  pub fn add_row(&mut self, row: TableRow<T::Row>) {
+  pub(crate) fn insert_row(&mut self, row: TableRowInternal<T::Row>) {
     self.children.insert(row.id().clone(), row);
   }
 
+  /// Return a mutable reference to column widths to allow them to modified at runtime
   pub fn get_column_widths(&mut self) -> &mut Vec<ComplexTableColumnWidth> {
     &mut self.column_widths
   }
 
-  pub fn rows(&mut self) -> impl Iterator<Item = &mut TableRow<T::Row>> {
-    self.children.values_mut()
-  }
-
+  /// Clear the table of all rows and thus cells
   pub fn clear(&mut self) {
     self.children.clear();
     self.row_starts = None;
+  }
+
+  pub fn row_count(&self) -> usize {
+    self.children.len()
+  }
+
+  pub fn is_empty(&self) -> bool {
+    self.row_count() > 0
+  }
+
+  pub fn cell_from_closure(
+    maker: impl Fn() -> Box<dyn Widget<()>> + 'static,
+  ) -> std::sync::Arc<dyn Fn() -> Box<dyn Widget<()>>> {
+    std::sync::Arc::new(maker) as std::sync::Arc<dyn Fn() -> Box<dyn Widget<()>>>
   }
 }
 
@@ -296,12 +360,12 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
     let keys: Vec<_> = data.keys().collect();
     for (row_num, row_id) in keys.into_iter().enumerate() {
       let columns: Vec<_> = data.columns().collect();
-      let mut row_data = &mut data[&row_id];
       if let Some(row) = self.children.get_mut(&row_id) {
+        let row_data = &mut data[row_id];
         for column in columns {
           if let Some(cell) = &mut row.children.get_mut(&column) {
             let env = env.clone().adding(Self::ROW_IDX, row_num as u64);
-            cell.event(ctx, event, &mut row_data, &env);
+            cell.event(ctx, event, row_data, &env);
           }
         }
       }
@@ -309,16 +373,17 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
   }
 
   fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &T, env: &Env) {
-    let columns = data.columns().collect_vec();
+    let columns: Vec<_> = data.columns().collect();
     if let LifeCycle::WidgetAdded = event {
       let mut changed = false;
-      for row_data in data.keys().map(|k| &data[&k]) {
-        let row = if let Some(row) = self.children.get_mut(&row_data.id()) {
+      for row_data in data.keys().map(|k| &data[k]) {
+        let row_id = row_data.id();
+        let row = if let Some(row) = self.children.get_mut(&row_id) {
           row
         } else {
           changed = true;
-          self.add_row(TableRow::new(row_data.id().clone()));
-          self.children.get_mut(row_data.id()).unwrap()
+          self.insert_row(TableRowInternal::new(row_data.id().clone()));
+          self.children.get_mut(&row_id).unwrap()
         };
 
         for column in &columns {
@@ -326,7 +391,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
             changed = true;
             row
               .children()
-              .insert(column.clone(), WidgetPod::new(row_data.cell(&column)));
+              .insert(column.clone(), WidgetPod::new(row_data.cell(column)));
           }
         }
       }
@@ -337,8 +402,8 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
 
     let keys: Vec<_> = data.keys().collect();
     for (row_num, row_id) in keys.into_iter().enumerate() {
-      let row_data = &data[&row_id];
       if let Some(row) = self.children.get_mut(&row_id) {
+        let row_data = &data[row_id];
         for column in &columns {
           if let Some(cell) = row.children.get_mut(column) {
             let env = env.clone().adding(Self::ROW_IDX, row_num as u64);
@@ -381,12 +446,12 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
     }
 
     for (row_num, row_id) in data.keys().enumerate() {
-      let row_data = &data[&row_id];
       if let Some(row) = self.children.get_mut(&row_id) {
+        let row_data = &data[row_id];
         for column in &columns {
           if let Some(cell) = row.children.get_mut(column) {
             let env = env.clone().adding(Self::ROW_IDX, row_num as u64);
-            cell.update(ctx, &row_data, &env)
+            cell.update(ctx, row_data, &env)
           } else {
             row
               .children
@@ -395,12 +460,13 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
           }
         }
       } else {
-        let mut row = TableRow::new(row_id.clone());
+        let mut row = TableRowInternal::new(row_id.clone());
+        let row_data = &data[row_id];
         row.children = data
           .columns()
           .map(|c| (c.clone(), WidgetPod::new(row_data.cell(&c))))
           .collect();
-        self.add_row(row);
+        self.insert_row(row);
         ctx.children_changed();
       }
     }
@@ -452,8 +518,8 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
         let mut found_size = false;
         let keys: Vec<_> = data.keys().collect();
         for (row_num, row_id) in keys.into_iter().enumerate() {
-          let row_data = &data[&row_id];
           let row = self.children.get_mut(&row_id).unwrap();
+          let row_data = &data[row_id];
           if let Some(cell) = row.children.get_mut(&column) {
             let child_bc = BoxConstraints::new(
               Size::new(0., 0.),
@@ -461,7 +527,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
             );
 
             let env = env.clone().adding(Self::ROW_IDX, row_num as u64);
-            let size = cell.layout(ctx, &child_bc, &row_data, &env);
+            let size = cell.layout(ctx, &child_bc, row_data, &env);
             if size.width.is_finite() {
               row_width = row_width.max(size.width);
               found_size = true;
@@ -504,24 +570,25 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
         table_height += row_border_width;
       }
 
-      let row_data = &data[&row_id];
+      let columns: Vec<_> = data.columns().collect();
       let row = self.children.get_mut(&row_id).unwrap();
-      for (col_num, column) in data.columns().enumerate() {
+      let row_data = &data[row_id];
+      for (col_num, column) in columns.iter().enumerate() {
         let child_bc = BoxConstraints::new(
           Size::new(0., 0.),
           Size::new(col_widths[col_num], std::f64::INFINITY),
         );
 
-        if let Some(cell) = row.children.get_mut(&column) && cell.is_initialized() {
+        if let Some(cell) = row.children.get_mut(column) {
           let env = env.clone().adding(Self::ROW_IDX, row_num as u64);
-          let size = cell.layout(ctx, &child_bc, &row_data, &env);
-  
+          let size = cell.layout(ctx, &child_bc, row_data, &env);
+
           if size.height.is_finite() {
             found_height = true;
             row_height = row_height.max(size.height);
             let baseline_offset = cell.baseline_offset();
             let above_baseline = size.height - baseline_offset;
-  
+
             max_above_baseline = max_above_baseline.max(above_baseline);
             max_below_baseline = max_below_baseline.max(baseline_offset);
           } else {
@@ -539,13 +606,13 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
         if let Some(cell) = data
           .columns()
           .nth(col_num)
-          .and_then(|col| row.children.get_mut(&col)) && cell.is_initialized()
+          .and_then(|col| row.children.get_mut(&col))
         {
           let child_bc = BoxConstraints::new(
             Size::new(0., 0.),
             Size::new(col_widths[col_num], row_height),
           );
-          let size = cell.layout(ctx, &child_bc, &row_data, env);
+          let size = cell.layout(ctx, &child_bc, row_data, env);
 
           let baseline_offset = cell.baseline_offset();
           let above_baseline = size.height - baseline_offset;
@@ -561,22 +628,22 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
         .max(max_above_baseline + max_below_baseline);
 
       let mut row_width = 0f64;
-      for (col_num, column) in data.columns().enumerate() {
+      for (col_num, column) in columns.iter().enumerate() {
         let vertical_alignment = row
           .vertical_alignment
           .unwrap_or(self.default_vertical_alignment);
-        if let Some(cell) = row.children().get_mut(&column) && cell.is_initialized() {
+        if let Some(cell) = row.children().get_mut(column) {
           if col_num > 0 {
             row_width += col_border_width;
           }
           let size = cell.layout_rect().size();
-  
+
           let dh = match vertical_alignment {
             TableCellVerticalAlignment::Baseline => {
               let baseline_offset = cell.baseline_offset();
-  
+
               let above_baseline = size.height - baseline_offset;
-  
+
               max_above_baseline - above_baseline
             }
             TableCellVerticalAlignment::Top => 0f64,
@@ -585,12 +652,12 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
             TableCellVerticalAlignment::Fill => {
               if size.height < real_height {
                 let child_bc = BoxConstraints::tight(Size::new(size.width, real_height));
-                let _size = cell.layout(ctx, &child_bc, &row_data, env);
+                let _size = cell.layout(ctx, &child_bc, row_data, env);
               }
               0f64
             }
           };
-  
+
           let child_pos = Point::new(row_width, table_height + dh);
           cell.set_origin(ctx, child_pos);
           row_width += col_widths[col_num];
@@ -675,11 +742,12 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
         }
       }
 
+      let columns: Vec<_> = data.columns().collect();
       let row = self.children.get_mut(&row_id).unwrap();
-      let row_data = &data[&row_id];
-      let column_count = data.columns().count() as u64;
-      for (col_num, column) in data.columns().enumerate() {
-        if let Some(cell) = row.children.get_mut(&column) && cell.is_initialized() {
+      let row_data = &data[row_id];
+      let column_count = columns.len() as u64;
+      for (col_num, column) in columns.iter().enumerate() {
+        if let Some(cell) = row.children.get_mut(column) {
           if col_num > 0 && col_border_width > 0.0 {
             if let Some(ref col_starts) = self.col_starts {
               let col_start = col_starts[col_num] - half_col_border_width;
@@ -689,12 +757,13 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
               ctx.stroke(line, &col_border_color, col_border_width);
             }
           }
-  
-          let env = env.clone()
+
+          let env = env
+            .clone()
             .adding(Self::ROW_IDX, row_num as u64)
             .adding(Self::COL_IDX, col_num as u64)
             .adding(Self::TOTAL_COLUMNS, column_count);
-          cell.paint(ctx, &row_data, &env);
+          cell.paint(ctx, row_data, &env);
         }
       }
     }

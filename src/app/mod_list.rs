@@ -255,7 +255,7 @@ impl ModList {
     payload: &(usize, f64),
     _data: &mut ModList,
   ) -> bool {
-    if table.rows().count() > 0 {
+    if !table.is_empty() {
       let column_count = table.column_count();
       let widths = table.get_column_widths();
       if widths.len() < column_count {

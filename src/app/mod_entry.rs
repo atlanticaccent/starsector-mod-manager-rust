@@ -441,8 +441,8 @@ impl RowData for ViewModEntry {
   type Id = String;
   type Column = super::mod_list::headings::Heading;
 
-  fn id(&self) -> &String {
-    &self.id
+  fn id(&self) -> String {
+    self.id.clone()
   }
 
   fn cell(&self, column: &Self::Column) -> Box<dyn Widget<ViewModEntry>> {

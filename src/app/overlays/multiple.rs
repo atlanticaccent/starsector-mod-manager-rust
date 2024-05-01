@@ -5,10 +5,7 @@ use druid::{
   widget::{Flex, Label},
   Command, Data, Key, Lens, SingleUse, Widget, WidgetExt as _,
 };
-use druid_widget_nursery::{
-  table::{FlexTable, TableColumnWidth, TableRow},
-  wrap::Wrap,
-};
+use druid_widget_nursery::wrap::Wrap;
 use itertools::Itertools;
 use tap::Pipe as _;
 
@@ -16,9 +13,13 @@ use crate::{
   app::{
     installer::{HybridPath, INSTALL_FOUND_MULTIPLE},
     mod_entry::ModEntry,
-    util::{h2_fixed, ShadeColor, WidgetExtEx as _, BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
+    util::{
+      bolded, h2_fixed, hoverable_text, ShadeColor, WidgetExtEx as _, BLUE_KEY, ON_BLUE_KEY,
+      ON_RED_KEY, RED_KEY,
+    },
     App,
   },
+  patch::table::{FixedFlexTable, TableColumnWidth, TableRow},
   widgets::card::Card,
 };
 
@@ -66,7 +67,7 @@ impl Multiple {
           .pipe(|column| {
             let mut column = column;
 
-            let mut table = FlexTable::new()
+            let mut table = FixedFlexTable::new()
               .with_column_width(TableColumnWidth::Flex(1.0))
               .with_column_width(TableColumnWidth::Intrinsic);
             for (idx, found) in found.iter().enumerate() {
@@ -171,29 +172,51 @@ fn dismiss(ctx: &mut druid::EventCtx, data: &mut MultipleState, _env: &druid::En
   }
 }
 
+#[allow(irrefutable_let_patterns)]
 fn row<T: Data>(entry: &ModEntry) -> impl Widget<T> {
-  FlexTable::new()
-    .with_column_width((TableColumnWidth::Intrinsic, TableColumnWidth::Flex(0.1)))
-    .with_column_width(TableColumnWidth::Flex(9.9))
+  let path = entry.path.clone();
+  FixedFlexTable::new()
+    .with_column_width((TableColumnWidth::Intrinsic, TableColumnWidth::Flex(0.5)))
+    .with_column_width(TableColumnWidth::Flex(9.5))
     .with_row(
       TableRow::new()
-        .with_child(Label::new("Name:"))
+        .with_child(bolded("Name:").align_right())
         .with_child(Label::new(entry.name.clone())),
     )
     .with_row(
       TableRow::new()
-        .with_child(Label::new("ID:"))
+        .with_child(bolded("ID:").align_right())
         .with_child(Label::new(entry.id.clone())),
     )
     .with_row(
       TableRow::new()
-        .with_child(Label::new("Version:"))
-        .with_child(Label::new(entry.version.to_string())),
+        .with_child(bolded("Version:").align_right())
+        .with_child(Label::new(
+          if let val = entry.version.to_string()
+            && !val.is_empty()
+          {
+            val
+          } else {
+            "Version not specified".to_owned()
+          },
+        )),
     )
     .with_row(
       TableRow::new()
-        .with_child(Label::new("Path:"))
-        .with_child(Label::new(entry.path.to_string_lossy().as_ref())),
+        .with_child(bolded("Path:").align_right())
+        .with_child(
+          hoverable_text(None)
+            .constant(entry.path.to_string_lossy().to_string())
+            .on_click(move |ctx, _, _| {
+              let _ = opener::open(path.clone());
+              ctx.set_active(false);
+              ctx.clear_cursor();
+              if ctx.is_focused() {
+                ctx.resign_focus()
+              }
+              ctx.request_update();
+            }),
+        ),
     )
 }
 

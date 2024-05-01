@@ -27,6 +27,9 @@ pub use table_data::*;
 mod flex_table;
 pub use flex_table::*;
 
+mod fixed;
+pub use fixed::*;
+
 /// The vertical alignment of the table cell.
 ///
 /// If a widget is smaller than the table cell, this determines
@@ -50,24 +53,28 @@ pub enum TableCellVerticalAlignment {
   Middle,
 }
 
+pub type TableChildren<T> = HashMap<<T as RowData>::Column, WidgetPod<T, Box<dyn Widget<T>>>>;
+
 /// A table row is a horizontal group of widgets.
 ///
 /// All rows in a table must have the same number of children.
-pub struct TableRow<T: RowData> {
+pub(crate) struct TableRowInternal<T: RowData> {
   id: T::Id,
   min_height: Option<f64>,
   vertical_alignment: Option<TableCellVerticalAlignment>,
-  children: HashMap<T::Column, WidgetPod<T, Box<dyn Widget<T>>>>,
-  visible: bool,
+  children: TableChildren<T>,
 }
 
-impl<T: RowData> Default for TableRow<T> where T::Id: Default {
+impl<T: RowData> Default for TableRowInternal<T>
+where
+  T::Id: Default,
+{
   fn default() -> Self {
     Self::new(T::Id::default())
   }
 }
 
-impl<T: RowData> TableRow<T> {
+impl<T: RowData> TableRowInternal<T> {
   /// Create a new, empty table
   pub fn new(id: T::Id) -> Self {
     Self {
@@ -75,56 +82,14 @@ impl<T: RowData> TableRow<T> {
       min_height: None,
       children: HashMap::new(),
       vertical_alignment: None,
-      visible: true,
     }
   }
 
-  /// Builder-style method for specifying the table row minimum height.
-  pub fn min_height(mut self, min_height: f64) -> Self {
-    self.min_height = Some(min_height);
-    self
-  }
-
-  /// Set the table row minimun height.
-  pub fn set_min_height(&mut self, min_height: f64) {
-    self.min_height = Some(min_height);
-  }
-
-  /// Builder-style method for specifying the childrens' [`TableCellVerticalAlignment`].
-  pub fn vertical_alignment(mut self, align: TableCellVerticalAlignment) -> Self {
-    self.vertical_alignment = Some(align);
-    self
-  }
-
-  /// Set the childrens' [`TableCellVerticalAlignment`].
-  pub fn set_vertical_alignment(&mut self, align: TableCellVerticalAlignment) {
-    self.vertical_alignment = Some(align);
-  }
-
-  /// Builder-style variant of [`Self::add_child`].
-  // pub fn with_child(mut self, child: impl Widget<T> + 'static) -> Self {
-  //   self.add_child(child);
-  //   self
-  // }
-
-  /// Add a child widget (table cell).
-  ///
-  /// See also [`Self::with_child`].
-  // pub fn add_child(&mut self, child: impl Widget<T> + 'static) {
-  //   let child: Box<dyn Widget<T>> = Box::new(child);
-  //   let child = WidgetPod::new(child);
-  //   self.children.insert(chi, v);
-  // }
-
-  pub fn children(&mut self) -> &mut HashMap<T::Column, WidgetPod<T, Box<dyn Widget<T>>>> {
+  pub fn children(&mut self) -> &mut TableChildren<T> {
     &mut self.children
   }
 
   pub fn id(&self) -> &T::Id {
     &self.id
-  }
-
-  pub fn visible(&mut self) -> &mut bool {
-    &mut self.visible
   }
 }
