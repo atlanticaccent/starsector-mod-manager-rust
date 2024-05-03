@@ -11,12 +11,14 @@ mod confirm_delete;
 mod duplicate;
 mod multiple;
 mod overwrite;
+mod remote_update;
 mod select_install;
 
 use confirm_delete::*;
 use duplicate::*;
 use multiple::*;
 use overwrite::*;
+use remote_update::*;
 use select_install::*;
 
 use super::{
