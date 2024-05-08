@@ -345,7 +345,7 @@ impl<T: TableData> FlexTable<T> {
   }
 
   pub fn is_empty(&self) -> bool {
-    self.row_count() > 0
+    self.row_count() == 0
   }
 
   pub fn cell_from_closure(
