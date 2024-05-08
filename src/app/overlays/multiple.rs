@@ -45,8 +45,8 @@ impl Multiple {
     Self { source, found }
   }
 
-  pub fn view(multiple: &Self) -> impl Widget<App> {
-    let Self { source, found } = multiple.clone();
+  pub fn view(&self) -> impl Widget<App> {
+    let Self { source, found } = self.clone();
     let len = found.len();
 
     Card::builder()
