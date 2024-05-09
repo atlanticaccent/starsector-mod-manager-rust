@@ -8,7 +8,10 @@ mod test {
 
   use starsector_mod_manager::app::{
     mod_entry::{ModEntry, ViewModEntry},
-    mod_list::{headings::{Header, Heading}, ModList},
+    mod_list::{
+      headings::{Header, Heading},
+      ModList,
+    },
     util::xxHashMap,
   };
 
@@ -28,12 +31,7 @@ mod test {
       let mut header: Header = Default::default();
       header.sort_by.0 = Heading::Score;
 
-      ModList::sorted_vals_inner(
-        mods.clone(),
-        header,
-        5.fake(),
-        Default::default(),
-      )
+      ModList::sorted_vals_inner(mods.clone(), header, 5.fake(), Default::default())
     })
   }
 }

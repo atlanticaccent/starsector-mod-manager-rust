@@ -173,7 +173,8 @@ impl VMParams {
       )
       .expand_width()
       .on_command(Self::TOGGLE_UNIT_DROP, |ctx, payload, vmparams| {
-        let min_heap_exceeds_max_heap = dbg!(vmparams.heap_init.as_bytes()) > dbg!(vmparams.heap_max.as_bytes());
+        let min_heap_exceeds_max_heap =
+          dbg!(vmparams.heap_init.as_bytes()) > dbg!(vmparams.heap_max.as_bytes());
         if vmparams.linked && !*payload || min_heap_exceeds_max_heap {
           vmparams.heap_max = vmparams.heap_init.clone();
           ctx.request_update();

@@ -5,12 +5,7 @@ use druid::{
 };
 
 use crate::app::{
-  installer,
-  mod_entry::ModEntry,
-  mod_list::ModList,
-  modal::Modal,
-  util::LabelExt,
-  App,
+  installer, mod_entry::ModEntry, mod_list::ModList, modal::Modal, util::LabelExt, App,
 };
 
 pub struct ModListController;

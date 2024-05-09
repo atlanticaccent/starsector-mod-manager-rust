@@ -183,7 +183,9 @@ impl<T: Data, W: Widget<T>> LinkedHeights<T, W> {
       if linker.max > unconstrained_value {
         self.constraint = Some(linker.max);
         let child_bc = match self.axis {
-          Axis::Horizontal => BoxConstraints::tight(Size::new(linker.max, unconstrained_size.height)),
+          Axis::Horizontal => {
+            BoxConstraints::tight(Size::new(linker.max, unconstrained_size.height))
+          }
           Axis::Vertical => BoxConstraints::tight(Size::new(unconstrained_size.width, linker.max)),
         };
         size = Some(self.widget.layout(ctx, &child_bc, data, env));
