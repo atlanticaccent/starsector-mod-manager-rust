@@ -1,12 +1,15 @@
 use std::{
-  fmt::Display, fs::File, hash::Hash, io::{BufRead, BufReader, Read}, path::{Path, PathBuf}
+  fmt::Display,
+  fs::File,
+  hash::Hash,
+  io::{BufRead, BufReader, Read},
+  path::{Path, PathBuf},
 };
 
 use chrono::{DateTime, Local, Utc};
 use druid::{
   kurbo::Line,
-  lens,
-  theme,
+  lens, theme,
   widget::{Button, Checkbox, Either, Flex, Label, Painter, ViewSwitcher},
   Color, Data, ExtEventSink, KeyOrValue, Lens, RenderContext as _, Selector, Widget, WidgetExt,
 };
@@ -18,12 +21,21 @@ use serde_aux::prelude::*;
 use tap::Tap;
 
 use super::{
-  app_delegate::AppCommands, controllers::{HeightLinker, HeightLinkerShared, SharedIdHoverState}, mod_description::ModDescription, mod_list::{headings::Heading, ModList}, util::{
-    self, icons::*, LensExtExt, WidgetExtEx as _, WithHoverIdState as _, WithHoverState, BLUE_KEY, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ON_RED_KEY, ON_YELLOW_KEY, ORANGE_KEY, RED_KEY, YELLOW_KEY
-  }, App
+  app_delegate::AppCommands,
+  controllers::{HeightLinker, HeightLinkerShared, SharedIdHoverState},
+  mod_description::ModDescription,
+  mod_list::{headings::Heading, ModList},
+  util::{
+    self, icons::*, LensExtExt, WidgetExtEx as _, WithHoverIdState as _, WithHoverState, BLUE_KEY,
+    GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ON_RED_KEY, ON_YELLOW_KEY, ORANGE_KEY,
+    RED_KEY, YELLOW_KEY,
+  },
+  App,
 };
 use crate::{
-  app::util::{default_true, parse_game_version, LabelExt}, nav_bar::{Nav, NavLabel}, patch::table::{FlexTable, RowData}
+  app::util::{default_true, parse_game_version, LabelExt},
+  nav_bar::{Nav, NavLabel},
+  patch::table::{FlexTable, RowData},
 };
 
 pub type GameVersion = (
@@ -63,19 +75,45 @@ pub struct ModEntry<T = ()> {
   pub manager_metadata: ModMetadata,
   #[serde(skip)]
   #[data(ignore)]
-  view_state: T,
+  pub view_state: T,
 }
 
-pub type ViewState = (HeightLinkerShared, SharedIdHoverState);
+#[derive(Clone, Data, Lens)]
+pub struct ViewState {
+  height_linker: HeightLinkerShared,
+  hover_state: SharedIdHoverState,
+  pub updating: bool,
+}
+
+impl ViewState {
+  fn new() -> Self {
+    Self {
+      height_linker: HeightLinker::new_shared(),
+      hover_state: Default::default(),
+      updating: false,
+    }
+  }
+}
+
 pub type ViewModEntry = ModEntry<ViewState>;
 
 impl<T> ModEntry<T> {
   pub fn fractal_link(&self) -> Option<String> {
-    self.version_checker.as_ref().map(|v| &v.fractal_id).and_then(|s| (!s.is_empty()).then(|| format!("{}{}", ModDescription::FRACTAL_URL, s.clone())))
+    self
+      .version_checker
+      .as_ref()
+      .map(|v| &v.fractal_id)
+      .and_then(|s| {
+        (!s.is_empty()).then(|| format!("{}{}", ModDescription::FRACTAL_URL, s.clone()))
+      })
   }
 
   pub fn nexus_link(&self) -> Option<String> {
-    self.version_checker.as_ref().map(|v| &v.nexus_id).and_then(|s| (!s.is_empty()).then(|| format!("{}{}", ModDescription::NEXUS_URL, s.clone())))
+    self
+      .version_checker
+      .as_ref()
+      .map(|v| &v.nexus_id)
+      .and_then(|s| (!s.is_empty()).then(|| format!("{}{}", ModDescription::NEXUS_URL, s.clone())))
   }
 }
 
@@ -162,43 +200,46 @@ impl ViewModEntry {
       return None;
     }
 
-    let painter = || Painter::new(move |ctx, data: &(ViewModEntry, SharedIdHoverState), env| {
-      if data.1.1.get() {
-        let rect = ctx.size().to_rect().inset(-0.5);
-        ctx.stroke(
-          Line::new((rect.x0, rect.y0), (rect.x1, rect.y0)),
-          &env.get(theme::BORDER_DARK),
-          1.0,
-        );
-        ctx.stroke(
-          Line::new((rect.x0, rect.y1), (rect.x1, rect.y1)),
-          &env.get(theme::BORDER_DARK),
-          1.0,
-        );
-        let column = env.get(FlexTable::<ModList>::COL_IDX);
-        let total_columns = env.get(FlexTable::<ModList>::TOTAL_COLUMNS);
-        if column == 0 {
+    let painter = || {
+      Painter::new(move |ctx, data: &(ViewModEntry, SharedIdHoverState), env| {
+        if data.1 .1.get() {
+          let rect = ctx.size().to_rect().inset(-0.5);
           ctx.stroke(
-            Line::new((rect.x0, rect.y0), (rect.x0, rect.y1)),
+            Line::new((rect.x0, rect.y0), (rect.x1, rect.y0)),
             &env.get(theme::BORDER_DARK),
             1.0,
           );
-        }
-        if column == total_columns - 1 {
           ctx.stroke(
-            Line::new((rect.x1, rect.y0), (rect.x1, rect.y1)),
+            Line::new((rect.x0, rect.y1), (rect.x1, rect.y1)),
             &env.get(theme::BORDER_DARK),
             1.0,
           );
+          let column = env.get(FlexTable::<ModList>::COL_IDX);
+          let total_columns = env.get(FlexTable::<ModList>::TOTAL_COLUMNS);
+          if column == 0 {
+            ctx.stroke(
+              Line::new((rect.x0, rect.y0), (rect.x0, rect.y1)),
+              &env.get(theme::BORDER_DARK),
+              1.0,
+            );
+          }
+          if column == total_columns - 1 {
+            ctx.stroke(
+              Line::new((rect.x1, rect.y0), (rect.x1, rect.y1)),
+              &env.get(theme::BORDER_DARK),
+              1.0,
+            );
+          }
         }
-      }
-    });
+      })
+    };
 
     let cell = if heading == Heading::Enabled {
       Checkbox::new("")
         .center()
         .padding(5.)
-        .lens(ViewModEntry::enabled).boxed()
+        .lens(ViewModEntry::enabled)
+        .boxed()
     } else {
       match heading {
         header @ Heading::ID | header @ Heading::Name | header @ Heading::Author => {
@@ -239,7 +280,7 @@ impl ViewModEntry {
                     .tap_mut(|row| {
                       let mut icon_row = Flex::row();
                       let mut iter = 0;
-      
+
                       match update_status {
                         UpdateStatus::Major(_) => iter = 3,
                         UpdateStatus::Minor(_) => iter = 2,
@@ -328,18 +369,33 @@ impl ViewModEntry {
       .boxed()
     };
 
-    Some(cell
-    .lens(lens!((ViewModEntry, SharedIdHoverState), 0))
-    .padding(2.0)
-    .background(painter())
-    .with_shared_id_hover_state(self.view_state.1.clone())
-    .link_height_with(&mut Some(self.view_state.0.clone())))
+    Some(
+      cell
+        .lens(lens!((ViewModEntry, SharedIdHoverState), 0))
+        .padding(2.0)
+        .background(painter())
+        .with_shared_id_hover_state(self.view_state.hover_state.clone())
+        .link_height_with(&mut Some(self.view_state.height_linker.clone())),
+    )
   }
 }
 
 impl<T> PartialEq for ModEntry<T> {
   fn eq(&self, other: &Self) -> bool {
-    self.id == other.id && self.name == other.name && self.author == other.author && self.version == other.version && self.description == other.description && self.raw_game_version == other.raw_game_version && self.game_version == other.game_version && self.enabled == other.enabled && self.version_checker == other.version_checker && self.remote_version == other.remote_version && self.update_status == other.update_status && self.path == other.path && self.display == other.display && self.manager_metadata == other.manager_metadata
+    self.id == other.id
+      && self.name == other.name
+      && self.author == other.author
+      && self.version == other.version
+      && self.description == other.description
+      && self.raw_game_version == other.raw_game_version
+      && self.game_version == other.game_version
+      && self.enabled == other.enabled
+      && self.version_checker == other.version_checker
+      && self.remote_version == other.remote_version
+      && self.update_status == other.update_status
+      && self.path == other.path
+      && self.display == other.display
+      && self.manager_metadata == other.manager_metadata
   }
 }
 
@@ -380,7 +436,7 @@ impl From<ModEntry> for ViewModEntry {
       path,
       display,
       manager_metadata,
-      view_state: (HeightLinker::new_shared(), SharedIdHoverState::default()),
+      view_state: ViewState::new(),
     }
   }
 }

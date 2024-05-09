@@ -1,15 +1,20 @@
 use druid::{
-  widget::{Flex, Label},
+  widget::{Either, Flex, Label},
   Data, Key, Widget, WidgetExt,
 };
+use druid_widget_nursery::material_icons::Icon;
 
 use crate::{
   app::{
-    installer::{HybridPath, StringOrPath},
-    mod_entry::ModEntry,
-    util::{h2_fixed, WidgetExtEx as _, BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
-    App,
+    installer,
+    mod_entry::{ModVersionMeta, VersionUnion},
+    util::{
+      h2_fixed, DataTimer, WidgetExtEx as _, WithHoverState, BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY,
+      RED_KEY,
+    },
+    App, CONTENT_COPY, DONE_ALL,
   },
+  patch::table::{FixedFlexTable, TableColumnWidth, TableRow},
   widgets::card::Card,
 };
 
@@ -17,24 +22,37 @@ use super::Popup;
 
 #[derive(Clone, Data)]
 pub struct RemoteUpdate {
-  remote_version
+  mod_id: String,
+  mod_name: String,
+  local_version: VersionUnion,
+  remote_version: ModVersionMeta,
 }
 
 impl RemoteUpdate {
-  pub fn new(conflict: StringOrPath, to_install: HybridPath, entry: ModEntry) -> Self {
+  pub fn new(
+    mod_id: String,
+    mod_name: String,
+    local_version: VersionUnion,
+    remote_version: ModVersionMeta,
+  ) -> Self {
     Self {
-      conflict,
-      to_install,
-      entry,
+      mod_id,
+      mod_name,
+      local_version,
+      remote_version,
     }
   }
 
   pub fn view(&self) -> impl Widget<App> {
     let Self {
-      conflict,
-      to_install,
-      entry,
-    } = self.clone();
+      mod_id,
+      mod_name,
+      local_version,
+      remote_version,
+    } = self;
+    let mod_id = mod_id.clone();
+    let remote_version = remote_version.clone();
+    let direct_download_url = remote_version.direct_download_url.clone().unwrap();
 
     Card::builder()
       .with_insets(Card::CARD_INSET)
@@ -42,20 +60,54 @@ impl RemoteUpdate {
       .build(
         Flex::column()
           .with_child(h2_fixed(&format!(
-            r#"Are you sure you want to ovewrite "{}"?"#,
-            entry.name
+            r#"Would you like to update {mod_name} to the latest version?"#
           )))
-          .with_child(Label::new(match &conflict {
-            StringOrPath::String(id) => {
-              format!("A mod with ID {} alread exists.", id)
-            }
-            StringOrPath::Path(path) => format!(
-              "Found a folder at the path {} when trying to install {}.",
-              path.to_string_lossy(),
-              entry.id
-            ),
-          }))
-          .with_child(Label::new("This action is permanent and cannot be undone."))
+          .with_child(Label::new("The new version will be downloaded from:"))
+          .with_child(
+            Flex::row()
+              .with_child(Label::new(direct_download_url.clone()))
+              .with_child(
+                Either::new(
+                  |data: &DataTimer, _| data.same(&DataTimer::INVALID),
+                  Icon::new(*CONTENT_COPY),
+                  Icon::new(*DONE_ALL),
+                )
+                .fix_width(24.)
+                .on_click(move |ctx, data, _| {
+                  let mut clipboard = druid::Application::global().clipboard();
+                  clipboard.put_string(direct_download_url.clone());
+                  if data.same(&DataTimer::INVALID) {
+                    *data = ctx.request_timer(std::time::Duration::from_secs(2)).into();
+                  }
+                })
+                .on_event(|_, _, event, data| {
+                  if let druid::Event::Timer(token) = event {
+                    if data == token {
+                      *data = DataTimer::INVALID
+                    }
+                  }
+                  false
+                })
+                .scope_independent(|| DataTimer::INVALID)
+                .with_hover_state(false),
+              ),
+          )
+          .with_default_spacer()
+          .with_child(
+            FixedFlexTable::new()
+              .default_column_width(TableColumnWidth::Intrinsic)
+              .with_row(
+                TableRow::new()
+                  .with_child(Label::new("The current version is:").align_left())
+                  .with_child(Label::new(local_version.to_string()).align_left()),
+              )
+              .with_row(
+                TableRow::new()
+                  .with_child(Label::new("The new version will be:").align_left())
+                  .with_child(Label::new(remote_version.version.to_string()).align_left()),
+              ),
+          )
+          .with_default_spacer()
           .with_child(
             Flex::row()
               .with_child(
@@ -67,7 +119,7 @@ impl RemoteUpdate {
                   .with_border(2.0, Key::new("button.border"))
                   .hoverable(|| {
                     Flex::row()
-                      .with_child(Label::new("Overwrite").padding((10.0, 0.0)))
+                      .with_child(Label::new("Install").padding((10.0, 0.0)))
                       .align_vertical_centre()
                   })
                   .env_scope(|env, _| {
@@ -82,16 +134,20 @@ impl RemoteUpdate {
                   .padding((0.0, 2.0))
                   .on_click(move |ctx, data: &mut App, _| {
                     ctx.submit_command(Popup::DISMISS);
-                    ctx.submit_command(crate::app::mod_list::ModList::OVERWRITE.with((
-                      match &conflict {
-                        StringOrPath::String(id) => {
-                          data.mod_list.mods.get(id).unwrap().path.clone()
-                        }
-                        StringOrPath::Path(path) => path.clone(),
-                      },
-                      to_install.clone(),
-                      entry.clone(),
-                    )));
+                    let old = data.mod_list.mods.get_mut(&mod_id).unwrap();
+                    old.view_state.updating = true;
+                    data.runtime.spawn(
+                      installer::Payload::Download {
+                        mod_id: mod_id.clone(),
+                        old_path: old.path.clone(),
+                        remote_version: remote_version.clone(),
+                      }
+                      .install(
+                        ctx.get_external_handle(),
+                        data.settings.install_dir.clone().unwrap(),
+                        data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
+                      ),
+                    );
                   }),
               )
               .with_child(

@@ -1582,6 +1582,12 @@ pub impl<T> T {
 #[derive(Debug, Clone)]
 pub struct DataTimer(TimerToken);
 
+impl PartialEq<TimerToken> for DataTimer {
+  fn eq(&self, other: &TimerToken) -> bool {
+    &self.0 == other
+  }
+}
+
 impl DataTimer {
   pub const INVALID: Self = Self(TimerToken::INVALID);
 }

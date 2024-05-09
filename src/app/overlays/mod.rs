@@ -36,6 +36,7 @@ pub enum Popup {
   Ovewrite(Overwrite),
   Duplicate(Duplicate),
   FoundMultiple(Multiple),
+  RemoteUpdate(RemoteUpdate),
   Custom(Arc<dyn Fn() -> Box<dyn Widget<()>> + Send + Sync>),
 }
 
@@ -102,9 +103,10 @@ impl Popup {
           match popup {
             Popup::ConfirmDelete(entry) => ConfirmDelete::view(entry).boxed(),
             Popup::SelectInstall => SelectInstall::view().boxed(),
-            Popup::Ovewrite(overwrite) => Overwrite::view(overwrite).boxed(),
-            Popup::Duplicate(duplicate) => Duplicate::view(duplicate).boxed(),
-            Popup::FoundMultiple(multiple) => Multiple::view(multiple).boxed(),
+            Popup::Ovewrite(overwrite) => overwrite.view().boxed(),
+            Popup::Duplicate(duplicate) => duplicate.view().boxed(),
+            Popup::FoundMultiple(multiple) => multiple.view().boxed(),
+            Popup::RemoteUpdate(remote_update) => remote_update.view().boxed(),
             Popup::Custom(maker) => maker().constant(()).boxed(),
           }
         } else {
@@ -124,6 +126,15 @@ impl Popup {
 
   pub fn found_multiple(source: HybridPath, found: Vec<ModEntry>) -> Popup {
     Popup::FoundMultiple(Multiple::new(source, found.into()))
+  }
+
+  pub fn remote_update<T>(mod_entry: &ModEntry<T>) -> Popup {
+    Popup::RemoteUpdate(RemoteUpdate::new(
+      mod_entry.id.clone(),
+      mod_entry.name.clone(),
+      mod_entry.version.clone(),
+      mod_entry.remote_version.clone().unwrap(),
+    ))
   }
 
   pub fn custom(maker: impl Fn() -> Box<dyn Widget<()>> + Send + Sync + 'static) -> Popup {

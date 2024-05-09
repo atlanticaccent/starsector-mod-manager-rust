@@ -2,9 +2,8 @@ use std::{fs::File, io::Write as _, path::PathBuf, rc::Rc};
 
 use base64::{decode, encode};
 use druid::{
-  commands, keyboard_types::Key, widget::Label, AppDelegate as Delegate, Command, DelegateCtx, Env,
-  Event, Handled, KeyEvent, LensExt as _, SingleUse, Size, Target, Widget, WidgetExt as _,
-  WindowDesc, WindowHandle, WindowId, WindowLevel,
+  commands, keyboard_types::Key, AppDelegate as Delegate, Command, DelegateCtx, Env, Event,
+  Handled, KeyEvent, LensExt as _, SingleUse, Size, Target, WindowHandle, WindowId,
 };
 use itertools::Itertools;
 use rand::random;
@@ -37,13 +36,6 @@ pub struct AppDelegate {
   pub root_window: Option<WindowHandle>,
   pub mega_file: Option<(File, PathBuf)>,
   pub startup_popups: Vec<Popup>,
-
-  // deprecated
-  pub settings_id: Option<WindowId>,
-  pub log_window: Option<WindowId>,
-  pub overwrite_window: Option<WindowId>,
-  pub duplicate_window: Option<WindowId>,
-  pub download_window: Option<WindowId>,
 }
 
 impl Delegate<App> for AppDelegate {
@@ -141,13 +133,6 @@ impl Delegate<App> for AppDelegate {
       return Handled::No;
     } else if let Some(entry) = cmd.get(ModList::AUTO_UPDATE) {
       ctx.submit_command(App::LOG_MESSAGE.with(format!("Begin auto-update of {}", entry.name)));
-      data
-        .runtime
-        .spawn(installer::Payload::Download(entry.into()).install(
-          ctx.get_external_handle(),
-          data.settings.install_dir.clone().unwrap(),
-          data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
-        ));
     } else if let Some(()) = cmd.get(App::REFRESH) {
       if let Some(install_dir) = data.settings.install_dir.as_ref() {
         // data.mod_list.mods.clear();
@@ -278,25 +263,15 @@ impl Delegate<App> for AppDelegate {
         .downloads
         .insert(*timestamp, (*timestamp, url.clone(), 0.0));
 
-      self.display_if_closed(ctx, SubwindowType::Download);
-
       return Handled::Yes;
     } else if let Some(updates) = cmd.get(DOWNLOAD_PROGRESS) {
       for update in updates {
         data.downloads.insert(update.0, update.clone());
       }
 
-      self.display_if_closed(ctx, SubwindowType::Download);
-
       return Handled::Yes;
     } else if let Some(timestamp) = cmd.get(App::REMOVE_DOWNLOAD_BAR) {
       data.downloads.remove(timestamp);
-
-      if data.downloads.is_empty() {
-        if let Some(id) = self.download_window.take() {
-          ctx.submit_command(commands::CLOSE_WINDOW.to(id))
-        }
-      }
 
       return Handled::Yes;
     } else if let Some((to_install, source)) = cmd
@@ -445,17 +420,6 @@ impl Delegate<App> for AppDelegate {
   #[allow(unused_variables)]
   fn window_removed(&mut self, id: WindowId, data: &mut App, _env: &Env, ctx: &mut DelegateCtx) {
     match Some(id) {
-      a if a == self.settings_id => self.settings_id = None,
-      a if a == self.log_window => self.log_window = None,
-      a if a == self.overwrite_window => {
-        data.overwrite_log.clear();
-        self.overwrite_window = None;
-      }
-      a if a == self.duplicate_window => self.duplicate_window = None,
-      a if a == self.download_window => {
-        data.downloads.clear();
-        self.download_window = None;
-      }
       a if a == self.root_id => {
         println!("quitting");
         if let Some(child) = &data.webview {
@@ -541,89 +505,6 @@ impl AppDelegate {
   pub fn with_popups(mut self, popups: Vec<Popup>) -> Self {
     self.startup_popups = popups;
     self
-  }
-
-  pub fn display_if_closed(&mut self, ctx: &mut DelegateCtx, window_type: SubwindowType) {
-    let window_id = match window_type {
-      SubwindowType::Log => &mut self.log_window,
-      SubwindowType::Overwrite => &mut self.overwrite_window,
-      SubwindowType::Duplicate => &mut self.duplicate_window,
-      SubwindowType::Download => &mut self.download_window,
-    };
-
-    if let Some(id) = window_id {
-      ctx.submit_command(commands::SHOW_WINDOW.to(*id))
-    } else {
-      let modal = match window_type {
-        _ => unimplemented!(),
-        SubwindowType::Download => AppDelegate::build_progress_bars().boxed(),
-      };
-
-      let window = WindowDesc::new(modal)
-        .window_size((500., 400.))
-        .show_titlebar(false)
-        .set_level(WindowLevel::AppWindow);
-
-      window_id.replace(window.id);
-
-      ctx.new_window(window);
-    }
-  }
-
-  pub fn build_progress_bars() -> impl Widget<App> {
-    /* Modal::new("Downloads")
-    .with_content(
-      List::new(|| {
-        Flex::column()
-          .with_child(Label::wrapped_lens(lens!((i64, String, f64), 1)))
-          .with_child(
-            Label::wrapped_func(|data, _| {
-              let start_time = Local.timestamp_opt(*data, 0).unwrap().format("%I:%M%p");
-
-              format!("Started at: {}", start_time)
-            })
-            .lens(lens!((i64, String, f64), 0)),
-          )
-          .with_child(
-            Flex::row()
-              .with_flex_child(
-                ProgressBar::new()
-                  .with_corner_radius(0.0)
-                  .with_bar_brush(druid::Color::GREEN.into())
-                  .expand_width()
-                  .lens(lens!((i64, String, f64), 2)),
-                1.,
-              )
-              .with_child(
-                Either::new(
-                  |fraction, _| *fraction < 1.0,
-                  Spinner::new(),
-                  Icon::new(*VERIFIED),
-                )
-                .lens(lens!((i64, String, f64), 2)),
-              )
-              .with_child(
-                Either::new(
-                  |fraction, _| *fraction < 1.0,
-                  Icon::new(*CLOSE).with_color(druid::Color::GRAY),
-                  Icon::new(*CLOSE),
-                )
-                .lens(lens!((i64, String, f64), 2))
-                .controller(HoverController::default())
-                .on_click(|ctx, data, _| {
-                  ctx.submit_command(App::REMOVE_DOWNLOAD_BAR.with(data.0))
-                })
-                .disabled_if(|data, _| data.2 < 1.0),
-              ),
-          )
-          .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-      })
-      .lens(App::downloads)
-      .boxed(),
-    )
-    .with_close()
-    .build() */
-    Label::new("foo")
   }
 }
 

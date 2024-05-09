@@ -23,7 +23,7 @@ use tokio::{
 use webview_shared::ExtEventSinkExt;
 
 use super::{
-  mod_entry::{ModMetadata, UpdateStatus},
+  mod_entry::{ModMetadata, ModVersionMeta, UpdateStatus},
   overlays::Popup,
   util::{get_master_version, Tap},
 };
@@ -33,7 +33,11 @@ use crate::app::{mod_entry::ModEntry, util::LoadBalancer};
 pub enum Payload {
   Initial(Vec<HybridPath>),
   Resumed(ModEntry, HybridPath, PathBuf),
-  Download(ModEntry),
+  Download {
+    mod_id: String,
+    remote_version: ModVersionMeta,
+    old_path: PathBuf,
+  },
 }
 
 pub const INSTALL: Selector<ChannelMessage> = Selector::new("install.message");
@@ -63,8 +67,12 @@ impl Payload {
       Payload::Resumed(entry, path, existing) => {
         handles.spawn(async move { handle_delete(ext_ctx.clone(), entry, path, existing).await });
       }
-      Payload::Download(entry) => {
-        handles.spawn(handle_auto(ext_ctx, entry));
+      Payload::Download {
+        mod_id,
+        remote_version,
+        old_path,
+      } => {
+        handles.spawn(handle_auto(ext_ctx, mod_id, remote_version, old_path));
       }
     }
     while handles.join_next().await.is_some() {}
@@ -146,11 +154,7 @@ async fn handle_path(
           ext_ctx
             .submit_command_global(
               Popup::QUEUE_POPUP,
-              Popup::overwrite(
-                id.clone().into(),
-                mod_folder.with_path(mod_path),
-                mod_info,
-              ),
+              Popup::overwrite(id.clone().into(), mod_folder.with_path(mod_path), mod_info),
             )
             .expect("Send query over async channel");
         } else if let target_path = mods_dir.join(&mod_info.id)
@@ -166,11 +170,7 @@ async fn handle_path(
           ext_ctx
             .submit_command_global(
               Popup::QUEUE_POPUP,
-              Popup::overwrite(
-                target_path.into(),
-                mod_folder.with_path(mod_path),
-                mod_info,
-              ),
+              Popup::overwrite(target_path.into(), mod_folder.with_path(mod_path), mod_info),
             )
             .expect("Send query over async channel");
         } else {
@@ -379,15 +379,14 @@ async fn handle_delete(
   Ok(())
 }
 
-async fn handle_auto(ext_ctx: ExtEventSink, entry: ModEntry) -> anyhow::Result<()> {
-  let url = entry
-    .remote_version
-    .as_ref()
-    .unwrap()
-    .direct_download_url
-    .as_ref()
-    .unwrap();
-  let target_version = &entry.remote_version.as_ref().unwrap().version;
+async fn handle_auto(
+  ext_ctx: ExtEventSink,
+  mod_id: String,
+  remote_version: ModVersionMeta,
+  old_path: PathBuf,
+) -> anyhow::Result<()> {
+  let url = remote_version.direct_download_url.as_ref().unwrap();
+  let target_version = &remote_version.version;
   match download(url.clone(), ext_ctx.clone()).await {
     Ok(file) => {
       let path = file.path().to_path_buf();
@@ -417,13 +416,13 @@ async fn handle_auto(ext_ctx: ExtEventSink, entry: ModEntry) -> anyhow::Result<(
                 )
                 .expect("Send error over async channel");
             } else {
-              handle_delete(ext_ctx, mod_info, hybrid, entry.path.clone()).await?;
+              handle_delete(ext_ctx, mod_info, hybrid, old_path).await?;
             }
           } else {
             ext_ctx
               .submit_command(
                 INSTALL,
-                ChannelMessage::Error(entry.id.clone(), "Some kind of unpack error".to_string()),
+                ChannelMessage::Error(mod_id.clone(), "Some kind of unpack error".to_string()),
                 Target::Auto,
               )
               .expect("Send error over async channel");
@@ -434,7 +433,7 @@ async fn handle_auto(ext_ctx: ExtEventSink, entry: ModEntry) -> anyhow::Result<(
           ext_ctx
             .submit_command(
               INSTALL,
-              ChannelMessage::Error(entry.id.clone(), err.to_string()),
+              ChannelMessage::Error(mod_id.clone(), err.to_string()),
               Target::Auto,
             )
             .expect("Send error over async channel");
@@ -445,7 +444,7 @@ async fn handle_auto(ext_ctx: ExtEventSink, entry: ModEntry) -> anyhow::Result<(
       ext_ctx
         .submit_command(
           INSTALL,
-          ChannelMessage::Error(entry.id.clone(), err.to_string()),
+          ChannelMessage::Error(mod_id.clone(), err.to_string()),
           Target::Auto,
         )
         .expect("Send error over async channel");

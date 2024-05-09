@@ -3,11 +3,14 @@ use proc_macros::icon;
 mod icons {
   pub use druid_widget_nursery::material_icons::normal::{
     action::{
-      DELETE, EXTENSION, HELP, INSTALL_DESKTOP, OPEN_IN_BROWSER as OPEN_BROWSER, SEARCH, SETTINGS,
-      VERIFIED,
+      DELETE, DONE_ALL, EXTENSION, HELP, INSTALL_DESKTOP, OPEN_IN_BROWSER as OPEN_BROWSER, SEARCH,
+      SETTINGS, VERIFIED,
     },
     av::{NEW_RELEASES, PLAY_ARROW},
-    content::{ADD_BOX, ADD_CIRCLE, ADD_CIRCLE_OUTLINE, CLEAR, DESELECT, INVENTORY_2, LINK, LINK_OFF, REPORT},
+    content::{
+      ADD_BOX, ADD_CIRCLE, ADD_CIRCLE_OUTLINE, CLEAR, CONTENT_COPY, DESELECT, INVENTORY_2, LINK,
+      LINK_OFF, REPORT,
+    },
     file::FOLDER,
     image::{NAVIGATE_NEXT, TUNE},
     navigation::{
@@ -71,4 +74,6 @@ icons! {
   icons::REFRESH,
   icons::LINK,
   icons::LINK_OFF,
+  icons::CONTENT_COPY,
+  icons::DONE_ALL,
 }
