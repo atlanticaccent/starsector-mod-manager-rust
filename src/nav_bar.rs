@@ -2,16 +2,19 @@ use std::{fmt::Display, sync::Arc};
 
 use druid::{
   im::Vector,
+  text::RichTextBuilder,
   theme,
-  widget::{Container, Either, Flex, Scope, SizedBox},
+  widget::{Container, Either, Flex, Label, Scope, SizedBox},
   Color, Command, Data, Lens, Selector, Widget, WidgetExt as _,
 };
-use druid_widget_nursery::WidgetExt as _;
+use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
 
 use crate::{
   app::{
     controllers::HoverController,
-    util::{hoverable_text_opts, Compute, DummyTransfer, WidgetExtEx as _},
+    util::{
+      hoverable_text_opts, Compute, DummyTransfer, ShadeColor, WidgetExtEx as _, HOURGLASS_TOP,
+    },
   },
   patch::tree::{Tree, TreeNode},
 };
@@ -64,7 +67,27 @@ impl NavBar {
                       NavBar::RECURSE_SET_EXPANDED.with(data.linked.unwrap_or(data.label)),
                     );
                   }
-                }),
+                })
+                .else_if(
+                  |data, _| data.label == NavLabel::Profiles,
+                  Flex::row()
+                    .with_child(Label::raw().with_text_size(20.).lens(Compute::new(
+                      |data: &Nav| {
+                        let mut builder = RichTextBuilder::new();
+                        builder.push(&data.label.to_string()).strikethrough(true);
+
+                        builder.build()
+                      },
+                    )))
+                    .with_child(Icon::new(*HOURGLASS_TOP).with_color(druid::theme::DISABLED_TEXT_COLOR))
+                    .env_scope(|env, _| {
+                      env.set(
+                        druid::theme::DISABLED_TEXT_COLOR,
+                        env.get(druid::theme::DISABLED_TEXT_COLOR).darker_by(6),
+                      )
+                    })
+                    .disabled(),
+                ),
             )
             .cross_axis_alignment(druid::widget::CrossAxisAlignment::Center)
             .padding((4., 6.))
