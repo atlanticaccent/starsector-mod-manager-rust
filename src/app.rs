@@ -10,10 +10,10 @@ use druid::{
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
 use tokio::runtime::Handle;
 use webview_shared::PROJECT;
-use wry::WebView;
 
 use self::{
   activity::Activity,
+  browser::Browser,
   controllers::{AppController, HoverController, ModListController},
   installer::{HybridPath, StringOrPath},
   mod_description::ModDescription,
@@ -37,6 +37,7 @@ use crate::{
 
 mod activity;
 pub mod app_delegate;
+mod browser;
 pub mod controllers;
 pub mod installer;
 mod mod_description;
@@ -68,8 +69,7 @@ pub struct App {
   log: Vector<String>,
   overwrite_log: Vector<Rc<(StringOrPath, HybridPath, ModEntry)>>,
   duplicate_log: Vector<(ViewModEntry, ViewModEntry)>,
-  #[data(ignore)]
-  webview: Option<Rc<WebView>>,
+  browser: Browser,
   downloads: OrdMap<i64, (i64, String, f64)>,
   mod_repo: Option<ModRepo>,
   pub popups: Vector<Popup>,
@@ -92,8 +92,6 @@ impl App {
   const LOG_MESSAGE: Selector<String> = Selector::new("app.mod.install.start");
   const LOG_OVERWRITE: Selector<(StringOrPath, HybridPath, ModEntry)> =
     Selector::new("app.mod.install.overwrite");
-  const DELETE_AND_SUMBIT: Selector<(PathBuf, ModEntry)> =
-    Selector::new("app.mod.duplicate.resolve");
   const REMOVE_DUPLICATE_LOG_ENTRY: Selector<String> =
     Selector::new("app.mod.duplicate.remove_log");
   pub const OPEN_WEBVIEW: Selector<Option<String>> = Selector::new("app.webview.open");
@@ -132,7 +130,7 @@ impl App {
       log: Vector::new(),
       overwrite_log: Vector::new(),
       duplicate_log: Vector::new(),
-      webview: None,
+      browser: Default::default(),
       downloads: OrdMap::new(),
       mod_repo: None,
       popups: Vector::new(),
@@ -174,9 +172,6 @@ impl App {
               ])
               .linked_to(NavLabel::Starmodder)
               .is_always_open(),
-            Nav::separator(),
-            Nav::new(NavLabel::Activity),
-            Nav::new(NavLabel::Downloads),
             Nav::separator(),
             Nav::new(NavLabel::Settings),
           ]),
@@ -249,6 +244,7 @@ impl App {
               .on_change(Settings::save_on_change)
               .lens(App::settings),
           ),
+          InitialTab::new(NavLabel::WebBrowser, Browser::view().lens(App::browser)),
           InitialTab::new(NavLabel::Activity, Activity::view().lens(App::log)),
           InitialTab::new(NavLabel::Settings, Settings::view().lens(App::settings)),
         ]))
@@ -279,8 +275,9 @@ impl App {
                   ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::ModDetails, true)));
                   tabs.set_tab_index_by_label(NavLabel::ModDetails)
                 }
-                NavLabel::Performance => tabs.set_tab_index_by_label(NavLabel::Performance),
-                NavLabel::Settings => tabs.set_tab_index_by_label(NavLabel::Settings),
+                label @ (NavLabel::WebBrowser | NavLabel::Performance | NavLabel::Settings) => {
+                  tabs.set_tab_index_by_label(label)
+                }
                 _ => eprintln!("Failed to open an item for a nav bar control"),
               }
               true

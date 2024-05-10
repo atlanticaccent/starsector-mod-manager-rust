@@ -25,7 +25,7 @@ pub fn init_webview(
     .with_initialization_script(init_script)
     .with_ipc_handler({
       let ext_ctx = ext_ctx.clone();
-      move |string| match dbg!(string.as_str()) {
+      move |string| match string.as_str() {
         _ if string.starts_with("data:") => {
           let _ = ext_ctx.submit_command_global(WEBVIEW_EVENT, UserEvent::BlobChunk(Some(string)));
         }

@@ -1,18 +1,14 @@
-use std::{fs::File, io::Write as _, path::PathBuf, rc::Rc};
+use std::{fs::File, path::PathBuf};
 
-use base64::{decode, encode};
 use druid::{
   commands, keyboard_types::Key, AppDelegate as Delegate, Command, DelegateCtx, Env, Event,
-  Handled, KeyEvent, LensExt as _, SingleUse, Size, Target, WindowHandle, WindowId,
+  Handled, KeyEvent, LensExt as _, SingleUse, Target, WindowHandle, WindowId,
 };
 use itertools::Itertools;
 use rand::random;
 use remove_dir_all::remove_dir_all;
 use reqwest::Url;
-use webview_shared::{
-  InstallType, UserEvent, PROJECT, WEBVIEW_EVENT, WEBVIEW_INSTALL, WEBVIEW_OFFSET,
-};
-use webview_subsystem::init_webview;
+use webview_shared::{InstallType, PROJECT, WEBVIEW_INSTALL};
 
 use super::{
   installer::{self, DOWNLOAD_PROGRESS, DOWNLOAD_STARTED},
@@ -240,11 +236,8 @@ impl Delegate<App> for AppDelegate {
     } else if let Some(url) = cmd.get(App::OPEN_WEBVIEW)
       && let Some(window) = self.root_window.as_ref()
     {
-      ctx.submit_command(App::DISABLE);
-      let webview =
-        init_webview(url.clone(), window, ctx.get_external_handle()).expect("Initialize webview");
-
-      data.webview = Some(Rc::new(webview))
+      // TODO
+      let Todo = 0;
     } else if let Some(url) = cmd.get(mod_description::OPEN_IN_BROWSER) {
       if data.settings.open_forum_link_in_webview {
         ctx.submit_command(App::OPEN_WEBVIEW.with(Some(url.clone())));
@@ -295,98 +288,6 @@ impl Delegate<App> for AppDelegate {
       });
 
       return Handled::Yes;
-    } else if let Some(user_event) = cmd.get(WEBVIEW_EVENT)
-      && let Some(webview) = &data.webview
-    {
-      match user_event {
-        UserEvent::Navigation(uri) => {
-          println!("Navigation: {}", uri);
-          if uri.starts_with("https://www.mediafire.com/file") {
-            let _ = webview.evaluate_script(r#"window.alert("You appear to be on a Mediafire site.\nIn order to correctly trigger a Mediafire download, attempt to open the dowload link in a new window.\nThis can be done through the right click context menu, or using a platform shortcut.")"#);
-          }
-        }
-        UserEvent::AskDownload(uri) => {
-          #[cfg(not(target_os = "macos"))]
-              let _ = webview.evaluate_script(&format!(r"
-          let res = window.confirm('Detected an attempted download.\nDo you want to try and install a mod using this download?')
-          window.ipc.postMessage(`confirm_download:${{res}},uri:{}`)
-          ", encode(uri)));
-          #[cfg(target_os = "macos")]
-              let _ = webview.evaluate_script(&format!(r"
-          let dialog = new Dialog();
-          let res = dialog.confirm('Detected an attempted download.\nDo you want to try and install a mod using this download?', {{}})
-            .then(res => window.ipc.postMessage(`confirm_download:${{res}},uri:{}`))
-          ", encode(uri)));
-        }
-        UserEvent::Download(uri) => {
-          let _ = webview.evaluate_script("location.reload();");
-          ctx.submit_command(WEBVIEW_INSTALL.with(InstallType::Uri(uri.clone())))
-        }
-        UserEvent::CancelDownload => {}
-        UserEvent::NewWindow(uri) => {
-          webview
-            .evaluate_script(&format!("window.location.assign('{}')", uri))
-            .expect("Navigate webview");
-        }
-        UserEvent::BlobReceived(uri) => {
-          let path = PROJECT.cache_dir().join(format!("{}", random::<u16>()));
-          self.mega_file = Some((File::create(&path).expect("Create file"), path));
-          webview
-            .evaluate_script(&format!(
-              r#"
-          (() => {{
-            /**
-            * @type Blob
-            */
-            let blob = URL.getObjectURLDict()['{}']
-              || Object.values(URL.getObjectURLDict())[0]
-
-            var increment = 1024;
-            var index = 0;
-            var reader = new FileReader();
-            let func = function() {{
-              let res = reader.result;
-              window.ipc.postMessage(`${{res}}`);
-              index += increment;
-              if (index < blob.size) {{
-                let slice = blob.slice(index, index + increment);
-                reader = new FileReader();
-                reader.onloadend = func;
-                reader.readAsDataURL(slice);
-              }} else {{
-                window.ipc.postMessage('#EOF');
-              }}
-            }};
-            reader.onloadend = func;
-            reader.readAsDataURL(blob.slice(index, increment))
-          }})();
-          "#,
-              uri
-            ))
-            .expect("Eval script");
-        }
-        UserEvent::BlobChunk(chunk) => {
-          if let Some((file, path)) = self.mega_file.as_mut() {
-            match chunk {
-              Some(chunk) => {
-                let split = chunk.split(',').nth(1);
-                println!("{:?}", chunk.split(',').next());
-                if let Some(split) = split {
-                  if let Ok(decoded) = decode(split) {
-                    if file.write(&decoded).is_err() {
-                      eprintln!("Failed to write bytes to temp file")
-                    }
-                  }
-                }
-              }
-              None => {
-                ctx.submit_command(WEBVIEW_INSTALL.with(InstallType::Path(path.clone())));
-                self.mega_file = None;
-              }
-            }
-          }
-        }
-      }
     }
     if let Some(Some(targets)) = cmd.get(App::OPEN_FILE) {
       if !targets.is_empty() {
@@ -422,8 +323,8 @@ impl Delegate<App> for AppDelegate {
     match Some(id) {
       a if a == self.root_id => {
         println!("quitting");
-        if let Some(child) = &data.webview {
-          data.webview = None;
+        if let Some(child) = &data.browser.inner {
+          data.browser.inner = None;
         }
         let _ = std::fs::remove_dir_all(PROJECT.cache_dir());
         #[cfg(not(target_os = "macos"))]
@@ -478,18 +379,6 @@ impl Delegate<App> for AppDelegate {
         key: Key::Escape, ..
       }) => {
         ctx.submit_command(App::DUMB_UNIVERSAL_ESCAPE);
-      }
-      Event::WindowSize(Size { width, height }) => {
-        if Some(window_id) == self.root_id
-          && let Some(webview) = &data.webview
-        {
-          webview.set_bounds(wry::Rect {
-            x: 0,
-            y: WEBVIEW_OFFSET.into(),
-            width: width as u32,
-            height: height as u32,
-          })
-        }
       }
       Event::MouseDown(ref mouse) => {
         ctx.submit_command(InstallOptions::DISMISS.with(mouse.window_pos))

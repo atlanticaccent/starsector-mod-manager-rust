@@ -7,17 +7,20 @@ mod icons {
       SETTINGS, VERIFIED,
     },
     av::{NEW_RELEASES, PLAY_ARROW},
+    communication::HOURGLASS_TOP,
     content::{
       ADD_BOX, ADD_CIRCLE, ADD_CIRCLE_OUTLINE, CLEAR, CONTENT_COPY, DESELECT, INVENTORY_2, LINK,
       LINK_OFF, REPORT,
     },
     file::FOLDER,
     image::{NAVIGATE_NEXT, TUNE},
+    maps::HANDYMAN,
     navigation::{
       ARROW_DROP_DOWN, ARROW_DROP_UP, ARROW_LEFT, ARROW_RIGHT, CANCEL, CHEVRON_LEFT, CLOSE,
       FIRST_PAGE, LAST_PAGE, REFRESH, UNFOLD_MORE,
     },
     notification::{SYNC, SYSTEM_UPDATE},
+    social::CONSTRUCTION,
     toggle::{
       CHECK_BOX_OUTLINE_BLANK, INDETERMINATE_CHECK_BOX, RADIO_BUTTON_CHECKED,
       RADIO_BUTTON_UNCHECKED, TOGGLE_ON,
@@ -76,4 +79,7 @@ icons! {
   icons::LINK_OFF,
   icons::CONTENT_COPY,
   icons::DONE_ALL,
+  icons::CONSTRUCTION,
+  icons::HANDYMAN,
+  icons::HOURGLASS_TOP,
 }
