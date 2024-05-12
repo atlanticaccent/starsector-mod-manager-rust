@@ -42,7 +42,7 @@ pub(crate) struct TableBorderStyle {
 /// # use std::ops::{Index, IndexMut};
 /// # use druid::widget::Label;
 /// # use druid::{Data, lens::Constant, im::{vector, Vector}, Widget, WidgetExt};
-/// # use druid_widget_nursery::table::{FlexTable, TableData, RowData};
+/// # use starsector_mod_manager::patch::table::{FlexTable, TableData, RowData};
 ///
 /// #[derive(Clone, Data)]
 /// struct Row {
