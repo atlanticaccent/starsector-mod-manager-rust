@@ -24,6 +24,7 @@ use super::util::WidgetExtEx;
 #[derive(Data, Clone, Lens, Default)]
 pub struct Browser {
   pub inner: Option<BrowserInner>,
+  url: Option<String>,
 }
 
 #[derive(Data, Clone, Lens)]
@@ -34,6 +35,12 @@ pub struct BrowserInner {
 }
 
 impl Browser {
+  pub const WEBVIEW_NAVIGATE: Selector<String> = Selector::new("browser.webview.navigate");
+
+  pub fn init(&self) -> bool {
+    self.inner.is_some()
+  }
+
   pub fn view() -> impl Widget<Browser> {
     const INIT_WEBVIEW: Selector = Selector::new("browser.webview.init");
 
@@ -72,6 +79,13 @@ impl Browser {
                   .set_visible(*payload == NavLabel::WebBrowser);
                 true
               })
+              .on_command(super::App::OPEN_WEBVIEW, |_, _, payload, browser| {
+                if let Some(url) = payload {
+                  browser.webview.load_url(url)
+                }
+                browser.webview.set_visible(true);
+                false
+              })
               .on_command(WEBVIEW_EVENT, Browser::handle_webview_events),
           ),
         )
@@ -83,7 +97,7 @@ impl Browser {
       }
     })
     .on_command2(INIT_WEBVIEW, |_, ctx, _, data| {
-      if let Ok(webview) = init_webview(None, ctx.window(), ctx.get_external_handle()) {
+      if let Ok(webview) = init_webview(data.url.clone(), ctx.window(), ctx.get_external_handle()) {
         webview.set_visible(false);
         data.inner = Some(BrowserInner {
           webview: Rc::new(webview),
@@ -92,6 +106,11 @@ impl Browser {
       }
       ctx.request_update();
       false
+    })
+    .on_command2(super::App::OPEN_WEBVIEW, |_, ctx, payload, data| {
+      ctx.submit_command(Nav::NAV_SELECTOR.with(NavLabel::WebBrowser));
+      data.url = payload.clone();
+      true
     })
     .expand()
   }
@@ -128,9 +147,7 @@ impl Browser {
       }
       UserEvent::CancelDownload => {}
       UserEvent::NewWindow(uri) => {
-        webview
-          .evaluate_script(&format!("window.location.assign('{}')", uri))
-          .expect("Navigate webview");
+        webview.load_url(uri);
       }
       UserEvent::BlobReceived(uri) => {
         *mega_file = Some(Default::default());
