@@ -79,7 +79,7 @@ path = "./webview-subsystem-shared"
 path = "./proc-macros"
 
 [package.metadata.bundle]
-name = "Starsector Mod Manager"
+name = "MOSS"
 id = "org.laird.starsector_mod_manager"
 osx_minimum_system_version = "10.10"
 
