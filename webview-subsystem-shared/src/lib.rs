@@ -30,6 +30,7 @@ pub enum UserEvent {
   CancelDownload,
   BlobReceived(String),
   BlobChunk(Option<String>),
+  PageLoaded,
 }
 
 lazy_static! {

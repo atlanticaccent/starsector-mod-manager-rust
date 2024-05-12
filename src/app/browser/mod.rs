@@ -53,37 +53,44 @@ impl Browser {
           Label::new("boo").expand().controller(
             ExtensibleController::new()
               .on_lifecycle(|_, ctx, event, browser: &BrowserInner, _| {
-                if let druid::LifeCycle::ViewContextChanged(context) = event {
-                  let size = ctx.size();
-                  let origin = context.window_origin;
-                  browser.webview.set_bounds(wry::Rect {
-                    x: origin.x as i32,
-                    y: origin.y as i32 - 7,
-                    width: size.width as u32,
-                    height: size.height as u32 + 14,
-                  });
-                  browser.webview.set_visible(true)
+                let (origin, size) = if let druid::LifeCycle::ViewContextChanged(context) = event {
+                  let _ = browser
+                    .webview
+                    .set_visible(true)
+                    .inspect_err(|e| eprintln!("{e}"));
+                  (context.window_origin, ctx.size())
                 } else if let druid::LifeCycle::Size(size) = event {
-                  let origin = ctx.window_origin();
-                  browser.webview.set_bounds(wry::Rect {
-                    x: origin.x as i32,
-                    y: origin.y as i32 - 7,
-                    width: size.width as u32,
-                    height: size.height as u32 + 14,
-                  });
-                }
+                  (ctx.window_origin(), size.clone())
+                } else {
+                  return;
+                };
+
+                let _ = browser
+                  .webview
+                  .set_bounds(wry::Rect {
+                    position: wry::dpi::Position::Logical((origin.x, origin.y - 7.).into()),
+                    size: wry::dpi::Size::Logical((size.width, size.height + 14.).into()),
+                  })
+                  .inspect_err(|e| eprintln!("{e}"));
               })
               .on_command(Nav::NAV_SELECTOR, |_, _, payload, browser| {
-                browser
+                let _ = browser
                   .webview
-                  .set_visible(*payload == NavLabel::WebBrowser);
+                  .set_visible(*payload == NavLabel::WebBrowser)
+                  .inspect_err(|e| eprintln!("{e}"));
                 true
               })
               .on_command(super::App::OPEN_WEBVIEW, |_, _, payload, browser| {
                 if let Some(url) = payload {
-                  browser.webview.load_url(url)
+                  let _ = browser
+                    .webview
+                    .load_url(url)
+                    .inspect_err(|e| eprintln!("{e}"));
                 }
-                browser.webview.set_visible(true);
+                let _ = browser
+                  .webview
+                  .set_visible(true)
+                  .inspect_err(|e| eprintln!("{e}"));
                 false
               })
               .on_command(WEBVIEW_EVENT, Browser::handle_webview_events),
@@ -98,7 +105,7 @@ impl Browser {
     })
     .on_command2(INIT_WEBVIEW, |_, ctx, _, data| {
       if let Ok(webview) = init_webview(data.url.clone(), ctx.window(), ctx.get_external_handle()) {
-        webview.set_visible(false);
+        let _ = webview.set_visible(false).inspect_err(|e| eprintln!("{e}"));
         data.inner = Some(BrowserInner {
           webview: Rc::new(webview),
           mega_file: None,
@@ -147,7 +154,7 @@ impl Browser {
       }
       UserEvent::CancelDownload => {}
       UserEvent::NewWindow(uri) => {
-        webview.load_url(uri);
+        let _ = webview.load_url(uri).inspect_err(|e| eprintln!("{e}"));
       }
       UserEvent::BlobReceived(uri) => {
         *mega_file = Some(Default::default());
@@ -212,6 +219,16 @@ impl Browser {
             }
           }
         }
+      }
+      UserEvent::PageLoaded => {
+        webview.screenshot(|res| {
+          let image = res.expect("No image?");
+          let mut file =
+            std::fs::File::create("baaaaar.png").expect("Couldn't create the dang file");
+          file
+            .write(image.as_slice())
+            .expect("Couldn't write the dang file");
+        }).expect("Take screenshot");
       }
     }
 

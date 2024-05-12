@@ -102,8 +102,8 @@ members = [
 ]
 
 [workspace.dependencies]
-wry = { git = "https://github.com/tauri-apps/wry.git", rev = "a9ad1c5c6a85001aac8de64ebb0395e8d647598a" }
-druid = { git = "https://github.com/atlanticaccent/druid", default-features = false, branch = "update-gtk" }
+wry = { git = "https://github.com/atlanticaccent/wry.git", branch = "screenshot-v2" }
+druid = { git = "https://github.com/atlanticaccent/druid", default-features = false, features = ["raw-win-handle"], rev = "4c3ed9adc5d1ec7c7ebdd2c8a577086e570f5648" }
 druid-widget-nursery = { git = "https://github.com/atlanticaccent/druid-widget-nursery", default-features = false }
 tokio = { version = "1.6.0" }
 infer = "0.3.4"
@@ -152,3 +152,4 @@ comemo = "0.4.0"
 fake = { version = "2.9.2", features = ["derive", "chrono", "chrono-tz"] }
 extend = "1.2.0"
 itertools = "0.12.1"
+# raw_window_handle = "0.6"

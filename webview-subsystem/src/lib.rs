@@ -1,7 +1,7 @@
 use base64::decode;
 use druid::{ExtEventSink, WindowHandle};
 use url::Url;
-use webview_shared::{ExtEventSinkExt, UserEvent, FRACTAL_INDEX, WEBVIEW_EVENT, WEBVIEW_OFFSET};
+use webview_shared::{ExtEventSinkExt, UserEvent, FRACTAL_INDEX, WEBVIEW_EVENT};
 use wry::{WebContext, WebView, WebViewBuilder};
 
 pub fn init_webview(
@@ -15,17 +15,13 @@ pub fn init_webview(
   let init_script = include_str!("init.js");
 
   let webview = WebViewBuilder::new_as_child(window)
-    .with_bounds(wry::Rect {
-      x: 0,
-      y: WEBVIEW_OFFSET.into(),
-      width: window.get_size().width as u32,
-      height: (window.get_size().height as u32).saturating_sub(WEBVIEW_OFFSET as u32),
-    })
-    .with_url(url.as_deref().unwrap_or(FRACTAL_INDEX))?
+    .with_url(url.as_deref().unwrap_or(FRACTAL_INDEX))
     .with_initialization_script(init_script)
     .with_ipc_handler({
       let ext_ctx = ext_ctx.clone();
-      move |string| match string.as_str() {
+      move |req| {
+        let string = req.into_body();
+        match string.as_str() {
         _ if string.starts_with("data:") => {
           let _ = ext_ctx.submit_command_global(WEBVIEW_EVENT, UserEvent::BlobChunk(Some(string)));
         }
@@ -56,7 +52,7 @@ pub fn init_webview(
         }
         _ => {}
       }
-    })
+    }})
     .with_navigation_handler({
       let ext_ctx = ext_ctx.clone();
       move |uri: String| {
@@ -90,7 +86,7 @@ pub fn init_webview(
       }
     })
     .with_download_started_handler({
-      let ext_ctx = ext_ctx;
+      let ext_ctx = ext_ctx.clone();
       move |uri, _| {
         if uri.starts_with("blob:https://mega.nz") {
           let _ = ext_ctx.submit_command_global(WEBVIEW_EVENT, UserEvent::BlobReceived(uri));
@@ -104,6 +100,11 @@ pub fn init_webview(
         false
       }
     })
+    .with_on_page_load_handler({
+      let ext_ctx = ext_ctx.clone();
+      move |_, _| {
+        ext_ctx.submit_command_global(WEBVIEW_EVENT, UserEvent::PageLoaded);
+    }})
     .build()?;
 
   #[cfg(debug_assertions)]
