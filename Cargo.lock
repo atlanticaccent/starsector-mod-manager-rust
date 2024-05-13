@@ -2342,6 +2342,65 @@ dependencies = [
 ]
 
 [[package]]
+name = "moss"
+version = "0.7.2"
+dependencies = [
+ "anyhow",
+ "base64 0.13.1",
+ "bincode",
+ "chrono",
+ "clap",
+ "classfile-parser",
+ "comemo",
+ "compress-tools",
+ "const_format",
+ "deunicode",
+ "directories",
+ "druid",
+ "druid-widget-nursery",
+ "extend",
+ "fake",
+ "flate2",
+ "handwritten-json",
+ "indexmap 1.9.3",
+ "infer",
+ "internment",
+ "interprocess",
+ "itertools",
+ "json5",
+ "json_comments",
+ "junction",
+ "lazy_static",
+ "native-dialog",
+ "opener",
+ "proc-macros",
+ "rand 0.8.5",
+ "rayon",
+ "regex",
+ "remove_dir_all",
+ "reqwest",
+ "rfd",
+ "self_update",
+ "serde",
+ "serde-aux",
+ "serde_json",
+ "strum",
+ "strum_macros",
+ "sublime_fuzzy",
+ "tap",
+ "tar",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "unrar",
+ "webview-shared",
+ "webview-subsystem",
+ "wry",
+ "xxhash-rust",
+ "zip",
+]
+
+[[package]]
 name = "nanorand"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3860,65 +3919,6 @@ name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
-
-[[package]]
-name = "starsector_mod_manager"
-version = "0.7.2"
-dependencies = [
- "anyhow",
- "base64 0.13.1",
- "bincode",
- "chrono",
- "clap",
- "classfile-parser",
- "comemo",
- "compress-tools",
- "const_format",
- "deunicode",
- "directories",
- "druid",
- "druid-widget-nursery",
- "extend",
- "fake",
- "flate2",
- "handwritten-json",
- "indexmap 1.9.3",
- "infer",
- "internment",
- "interprocess",
- "itertools",
- "json5",
- "json_comments",
- "junction",
- "lazy_static",
- "native-dialog",
- "opener",
- "proc-macros",
- "rand 0.8.5",
- "rayon",
- "regex",
- "remove_dir_all",
- "reqwest",
- "rfd",
- "self_update",
- "serde",
- "serde-aux",
- "serde_json",
- "strum",
- "strum_macros",
- "sublime_fuzzy",
- "tap",
- "tar",
- "tempfile",
- "thiserror",
- "tokio",
- "unrar",
- "webview-shared",
- "webview-subsystem",
- "wry",
- "xxhash-rust",
- "zip",
-]
 
 [[package]]
 name = "static_assertions"

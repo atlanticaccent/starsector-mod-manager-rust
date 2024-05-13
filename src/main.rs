@@ -2,7 +2,7 @@
 
 use const_format::concatcp;
 use druid::{AppLauncher, WindowDesc};
-use starsector_mod_manager::app::{self, app_delegate::AppDelegate};
+use moss::app::{self, app_delegate::AppDelegate};
 use tokio::runtime::Builder;
 use webview_shared::PROJECT;
 

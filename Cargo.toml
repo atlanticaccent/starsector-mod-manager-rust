@@ -1,7 +1,7 @@
 cargo-features = ["codegen-backend"]
 
 [package]
-name = "starsector_mod_manager"
+name = "moss"
 version = "0.7.2"
 authors = ["ikl"]
 edition = "2018"
