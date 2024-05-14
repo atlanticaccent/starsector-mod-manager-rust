@@ -2,7 +2,7 @@ use std::{cell::RefCell, io::Write, rc::Rc};
 
 use base64::{decode, encode};
 use druid::{
-  widget::{Label, Maybe},
+  widget::{Flex, Label, Maybe},
   Data, Lens, Selector, Widget, WidgetExt,
 };
 use druid_widget_nursery::WidgetExt as _;
@@ -19,7 +19,10 @@ use crate::{
   widgets::card::Card,
 };
 
-use super::util::WidgetExtEx;
+use super::{
+  overlays::Popup,
+  util::{PrintAndPanic, WidgetExtEx},
+};
 
 #[derive(Data, Clone, Lens, Default)]
 pub struct Browser {
@@ -36,6 +39,7 @@ pub struct BrowserInner {
 
 impl Browser {
   pub const WEBVIEW_NAVIGATE: Selector<String> = Selector::new("browser.webview.navigate");
+  pub const WEBVIEW_HIDE: Selector = Selector::new("browser.webview.hide");
 
   pub fn init(&self) -> bool {
     self.inner.is_some()
@@ -92,6 +96,10 @@ impl Browser {
                   .set_visible(true)
                   .inspect_err(|e| eprintln!("{e}"));
                 false
+              })
+              .on_command(Browser::WEBVIEW_HIDE, |_, _, _, data| {
+                data.webview.set_visible(false);
+                true
               })
               .on_command(WEBVIEW_EVENT, Browser::handle_webview_events),
           ),
@@ -221,14 +229,37 @@ impl Browser {
         }
       }
       UserEvent::PageLoaded => {
-        webview.screenshot(|res| {
-          let image = res.expect("No image?");
-          let mut file =
-            std::fs::File::create("baaaaar.png").expect("Couldn't create the dang file");
-          file
-            .write(image.as_slice())
-            .expect("Couldn't write the dang file");
-        }).expect("Take screenshot");
+        let ext_ctx = ctx.get_external_handle();
+        webview
+          .screenshot(move |res| {
+            let func = || -> anyhow::Result<()> {
+              let image = res?;
+              let mut file = std::fs::File::create("baaaaar.png")?;
+              file.write(image.as_slice())?;
+
+              Ok(())
+            };
+            if let Err(e) = func() {
+              ext_ctx
+                .submit_command_global(Browser::WEBVIEW_HIDE, ())
+                .inspanic("hide webview");
+              ext_ctx
+                .submit_command_global(
+                  Popup::OPEN_POPUP,
+                  Popup::custom(move || {
+                    Flex::column()
+                      .with_child(Label::new(format!("Failed to save screenshot {e:?}")))
+                      .on_command(super::App::DUMB_UNIVERSAL_ESCAPE, |ctx, _, _| {
+                        ctx.submit_command(Popup::DISMISS)
+                      })
+                      .in_card()
+                      .boxed()
+                  }),
+                )
+                .inspanic("send popup");
+            }
+          })
+          .inspanic("take webview screenshot");
       }
     }
 
