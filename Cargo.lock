@@ -902,7 +902,7 @@ checksum = "f25c0e292a7ca6d6498557ff1df68f32c99850012b6ea401cf8daf771f22ff53"
 [[package]]
 name = "druid"
 version = "0.8.3"
-source = "git+https://github.com/atlanticaccent/druid?rev=4c3ed9adc5d1ec7c7ebdd2c8a577086e570f5648#4c3ed9adc5d1ec7c7ebdd2c8a577086e570f5648"
+source = "git+https://github.com/atlanticaccent/druid?branch=update-raw-win-handle#b45220b9fbc4a47c7d9217b01790739337680bbb"
 dependencies = [
  "console_error_panic_hook",
  "druid-derive",
@@ -924,7 +924,7 @@ dependencies = [
 [[package]]
 name = "druid-derive"
 version = "0.5.1"
-source = "git+https://github.com/atlanticaccent/druid?rev=4c3ed9adc5d1ec7c7ebdd2c8a577086e570f5648#4c3ed9adc5d1ec7c7ebdd2c8a577086e570f5648"
+source = "git+https://github.com/atlanticaccent/druid?branch=update-raw-win-handle#b45220b9fbc4a47c7d9217b01790739337680bbb"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -934,7 +934,7 @@ dependencies = [
 [[package]]
 name = "druid-material-icons"
 version = "0.2.0"
-source = "git+https://github.com/atlanticaccent/druid-material-icons#7862a5607434836e60568284f963657e3823a48b"
+source = "git+https://github.com/atlanticaccent/druid-material-icons#e2f958711f771c128aad5f9a93ef6851df330759"
 dependencies = [
  "druid",
  "kurbo",
@@ -943,7 +943,7 @@ dependencies = [
 [[package]]
 name = "druid-shell"
 version = "0.8.3"
-source = "git+https://github.com/atlanticaccent/druid?rev=4c3ed9adc5d1ec7c7ebdd2c8a577086e570f5648#4c3ed9adc5d1ec7c7ebdd2c8a577086e570f5648"
+source = "git+https://github.com/atlanticaccent/druid?branch=update-raw-win-handle#b45220b9fbc4a47c7d9217b01790739337680bbb"
 dependencies = [
  "anyhow",
  "bitflags 1.3.2",
@@ -976,7 +976,7 @@ dependencies = [
 [[package]]
 name = "druid-widget-nursery"
 version = "0.1.0"
-source = "git+https://github.com/atlanticaccent/druid-widget-nursery#0926a4caf3ffdf69a726e38da77153565747c6ca"
+source = "git+https://github.com/atlanticaccent/druid-widget-nursery#f621ddd01f1108ee1562b71b41fab3542575b2e4"
 dependencies = [
  "druid",
  "druid-material-icons",
@@ -994,7 +994,7 @@ dependencies = [
 [[package]]
 name = "druid-widget-nursery-derive"
 version = "0.1.0"
-source = "git+https://github.com/atlanticaccent/druid-widget-nursery#0926a4caf3ffdf69a726e38da77153565747c6ca"
+source = "git+https://github.com/atlanticaccent/druid-widget-nursery#f621ddd01f1108ee1562b71b41fab3542575b2e4"
 dependencies = [
  "proc-macro2",
  "quote",

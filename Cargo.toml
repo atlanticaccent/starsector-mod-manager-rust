@@ -103,7 +103,7 @@ members = [
 
 [workspace.dependencies]
 wry = { git = "https://github.com/atlanticaccent/wry.git", branch = "screenshot-v2" }
-druid = { git = "https://github.com/atlanticaccent/druid", default-features = false, features = ["raw-win-handle"], rev = "4c3ed9adc5d1ec7c7ebdd2c8a577086e570f5648" }
+druid = { git = "https://github.com/atlanticaccent/druid", default-features = false, features = ["raw-win-handle"], branch = "update-raw-win-handle" }
 druid-widget-nursery = { git = "https://github.com/atlanticaccent/druid-widget-nursery", default-features = false }
 tokio = { version = "1.6.0" }
 infer = "0.3.4"
