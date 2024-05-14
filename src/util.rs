@@ -71,11 +71,18 @@ pub const ON_YELLOW_KEY: Key<Color> = Key::new("util.colour.on_yellow");
 pub const ON_BLUE_KEY: Key<Color> = Key::new("util.colour.on_blue");
 pub const ON_ORANGE_KEY: Key<Color> = Key::new("util.colour.on_orange");
 
-#[derive(Debug, Clone)]
+#[derive(Debug, thiserror::Error)]
 pub enum LoadError {
+  #[error("No such file")]
   NoSuchFile,
+  #[error("File read error")]
   ReadError,
+  #[error("File format error")]
   FormatError,
+  #[error("Archive error")]
+  ZipError(#[from] zip::result::ZipError),
+  #[error("IO error")]
+  IoError(#[from] std::io::Error),
 }
 
 #[derive(Debug, Clone)]
@@ -353,7 +360,8 @@ pub async fn get_starsector_version(ext_ctx: ExtEventSink, install_dir: PathBuf)
   let obf_jar = install_dir.join("Contents/Resources/Java/starfarer_obf.jar");
 
   let mut res = task::spawn_blocking(move || {
-    let mut zip = zip::ZipArchive::new(std::fs::File::open(obf_jar).unwrap()).unwrap();
+    let file = std::fs::File::open(obf_jar)?;
+    let mut zip = zip::ZipArchive::new(file)?;
 
     // println!("{:?}", zip.file_names().collect::<Vec<&str>>());
 
