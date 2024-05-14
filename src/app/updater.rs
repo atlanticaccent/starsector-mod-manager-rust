@@ -17,21 +17,21 @@ pub fn self_update() -> Result<(), SelfUpdateError> {
     .current_version(cargo_crate_version!())
     .target({
       #[cfg(target_os = "windows")]
-      let bin = "starsector_mod_manager.exe";
+      let bin = "moss.exe";
       #[cfg(all(target_os = "linux", target_feature = "crt-static"))]
-      let bin = "starsector_mod_manager_linux_dynamic";
+      let bin = "moss_linux_dynamic";
       #[cfg(all(target_os = "linux", not(target_feature = "crt-static")))]
-      let bin = "starsector_mod_manager_linux_static";
+      let bin = "moss_linux_static";
 
       bin
     })
     .bin_name({
       #[cfg(target_os = "windows")]
-      let bin = "tmp_starsector_mod_manager.exe";
+      let bin = "tmp_moss.exe";
       #[cfg(all(target_os = "linux", target_feature = "crt-static"))]
-      let bin = "tmp_starsector_mod_manager_linux_dynamic";
+      let bin = "tmp_moss_linux_dynamic";
       #[cfg(all(target_os = "linux", not(target_feature = "crt-static")))]
-      let bin = "tmp_starsector_mod_manager_linux_static";
+      let bin = "tmp_moss_linux_static";
 
       bin
     })

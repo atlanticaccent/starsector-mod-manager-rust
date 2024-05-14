@@ -6,7 +6,7 @@ mod test {
   use fake::{Fake, Faker};
   use test::Bencher;
 
-  use starsector_mod_manager::app::{
+  use moss::app::{
     mod_entry::{ModEntry, ViewModEntry},
     mod_list::{
       headings::{Header, Heading},

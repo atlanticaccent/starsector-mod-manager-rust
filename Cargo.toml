@@ -80,7 +80,7 @@ path = "./proc-macros"
 
 [package.metadata.bundle]
 name = "MOSS"
-id = "org.laird.starsector_mod_manager"
+id = "org.laird.moss"
 osx_minimum_system_version = "10.10"
 
 [package.metadata.vcpkg]
