@@ -826,11 +826,11 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
   }
 
   /**
-   Execute closure when command is received, with mutable access to the child
-   widget.
-   * Must return bool indicating if the event should be propgated to the
-   child - true to propagate, false to not.
-   */
+  Execute closure when command is received, with mutable access to the child
+  widget.
+  * Must return bool indicating if the event should be propgated to the
+  child - true to propagate, false to not.
+  */
   fn on_command2<CT: 'static>(
     self,
     selector: Selector<CT>,
@@ -1660,4 +1660,11 @@ macro_rules! match_command {
       }
     }
   };
+}
+
+#[extend::ext(name = PrintAndPanic)]
+pub impl<T, E: Debug> Result<T, E> {
+  fn inspanic(self, msg: &str) {
+    self.inspect_err(|e| eprintln!("{e:?}")).expect(msg);
+  }
 }
