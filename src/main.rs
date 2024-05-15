@@ -19,12 +19,16 @@ fn main() {
 
   let mut startup_popups = Vec::new();
   if let Some(install_dir) = initial_state.settings.install_dir.as_ref() {
-    match app::mod_list::ModList::parse_mod_folder(install_dir.clone()) {
-      Ok(mods) => initial_state.replace_mods(mods),
-      Err((mods, duplicates)) => {
-        initial_state.replace_mods(mods);
-        for dupes in duplicates {
-          startup_popups.push(app::overlays::Popup::duplicate(dupes.into()))
+    if !install_dir.exists() {
+      initial_state.settings.install_dir = None;
+    } else {
+      match app::mod_list::ModList::parse_mod_folder(install_dir.clone()) {
+        Ok(mods) => initial_state.replace_mods(mods),
+        Err((mods, duplicates)) => {
+          initial_state.replace_mods(mods);
+          for dupes in duplicates {
+            startup_popups.push(app::overlays::Popup::duplicate(dupes.into()))
+          }
         }
       }
     }

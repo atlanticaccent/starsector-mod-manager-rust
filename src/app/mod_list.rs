@@ -364,7 +364,11 @@ impl ModList {
       vec![]
     };
 
-    let dir_iter = std::fs::read_dir(mod_dir).expect("Get mods dir iter");
+    let dir_iter = if let Ok(iter) = std::fs::read_dir(mod_dir) {
+      iter
+    } else {
+      return Ok(Default::default());
+    };
     let enabled_mods_iter = enabled_mods.par_iter();
 
     let client = reqwest::Client::builder()
