@@ -42,20 +42,19 @@ jobs:
         with:
           command: test
           args: --release --all --all-features --no-fail-fast -- --nocapture
-      - name: Install cargo-bundle
-        run: (cargo install cargo-bundle || true)
+      - name: Install cargo-packager
+        run: (cargo install cargo-packager || true)
       - name: Emit target macOS version env variable
         run: echo MACOSX_DEPLOYMENT_TARGET=10.10 >> $GITHUB_ENV
-      - name: Run cargo-bundle
-        run: cargo bundle --release
-      - name: Run make_portable.sh
-        run: ./scripts/make_portable.sh target/release/bundle/osx/MOSS.app/Contents/MacOS/moss ../Resources
-        shell: bash
-      - name: Move app bundle
-        run: mv target/release/bundle/osx/MOSS.app target/release/MOSS.app
+      - name: Run cargo-packager
+        run: cargo packager --release --formats app
+      - name: Run bundle-dylibs.sh
+        run: ./scripts/bundle-dylibs.sh target/release/moss.app
+      - name: Re-sign libs
+        run: codesign --force -s - target/release/moss.app/Contents/Frameworks/*
       - uses: actions/upload-artifact@v2
         with:
           name: macos
           path: |
             target/release/moss
-            target/release/MOSS.app
+            target/release/moss.app
