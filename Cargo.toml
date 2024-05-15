@@ -92,6 +92,9 @@ dependencies = ["libarchive:x64-windows-static"]
 name = "MOSS"
 identifier = "org.laird.moss"
 before-packaging-command = "cargo build --release"
+icons = [
+  "icons/*.png"
+]
 
 [package.metadata.packager.appimage]
 bins = ["/usr/bin/xdg-open"]
