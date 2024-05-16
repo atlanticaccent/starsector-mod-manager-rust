@@ -2,8 +2,7 @@ use std::{cell::RefCell, io::Write, rc::Rc};
 
 use base64::{decode, encode};
 use druid::{
-  widget::{Flex, Label, Maybe},
-  Data, Lens, Selector, Widget, WidgetExt,
+  widget::{Flex, Label, Maybe}, Data, HasWindowHandle, Lens, Selector, Widget, WidgetExt
 };
 use druid_widget_nursery::WidgetExt as _;
 use rand::random;
@@ -112,6 +111,7 @@ impl Browser {
       }
     })
     .on_command2(INIT_WEBVIEW, |_, ctx, _, data| {
+      eprintln!("{:?}", ctx.window().window_handle().unwrap().as_raw());
       match init_webview(data.url.clone(), ctx.window(), ctx.get_external_handle()) {
         Ok(webview) => {
           webview.set_visible(false).inspanic("Set webview visible");
