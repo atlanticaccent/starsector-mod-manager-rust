@@ -14,7 +14,7 @@ name = "moss"
 path = "src/main.rs"
 
 [dependencies]
-druid = { workspace = true, default-features = true, features = ["im", "serde", "raw-win-handle"] }
+druid = { workspace = true, default-features = true, features = ["gtk-x11", "gtk-wayland", "im", "serde", "raw-win-handle"] }
 druid-widget-nursery = { workspace = true, default-features = false, features = ["material-icons", "async", "hot-reload", "derive"] }
 infer = { workspace = true }
 tokio = { workspace = true, features = ["fs", "io-util", "rt-multi-thread", "process", "macros"] }
