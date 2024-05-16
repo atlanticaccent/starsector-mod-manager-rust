@@ -112,12 +112,15 @@ impl Browser {
       }
     })
     .on_command2(INIT_WEBVIEW, |_, ctx, _, data| {
-      if let Ok(webview) = init_webview(data.url.clone(), ctx.window(), ctx.get_external_handle()) {
-        let _ = webview.set_visible(false).inspect_err(|e| eprintln!("{e}"));
-        data.inner = Some(BrowserInner {
-          webview: Rc::new(webview),
-          mega_file: None,
-        });
+      match init_webview(data.url.clone(), ctx.window(), ctx.get_external_handle()) {
+        Ok(webview) => {
+          webview.set_visible(false).inspanic("Set webview visible");
+          data.inner = Some(BrowserInner {
+            webview: Rc::new(webview),
+            mega_file: None,
+          });
+        }
+        Err(err) => eprintln!("{err:?}"),
       }
       ctx.request_update();
       false
