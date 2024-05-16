@@ -353,9 +353,8 @@ impl ModList {
     let mod_dir = root_dir.join("mods");
     let enabled_mods_filename = mod_dir.join("enabled_mods.json");
 
-    let enabled_mods = if !enabled_mods_filename.exists() {
-      vec![]
-    } else if let Ok(enabled_mods_text) = std::fs::read_to_string(enabled_mods_filename)
+    let enabled_mods = if enabled_mods_filename.exists()
+      && let Ok(enabled_mods_text) = std::fs::read_to_string(enabled_mods_filename)
       && let Ok(EnabledMods { enabled_mods }) =
         serde_json::from_str::<EnabledMods>(&enabled_mods_text)
     {
