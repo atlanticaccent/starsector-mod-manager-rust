@@ -28,7 +28,7 @@ use druid::{
 use druid_widget_nursery::{
   animation::Interpolate,
   prism::{Closures, Prism, PrismWrap},
-  CommandCtx, Stack, StackChildParams, StackChildPosition, WidgetExt as _,
+  CommandCtx, Mask, Stack, StackChildParams, StackChildPosition, WidgetExt as _,
 };
 use json_comments::strip_comments;
 use lazy_static::lazy_static;
@@ -967,6 +967,10 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
       with(inner),
     )
   }
+
+  fn mask_default(self) -> Mask<T> {
+    Mask::new(self).show_mask(true)
+  }
 }
 
 #[derive(Clone, Data, Lens)]
@@ -1348,24 +1352,6 @@ impl<T, DBG: Fn(&T) + 'static> Lens<T, T> for Dbg<DBG> {
     f(data)
   }
 }
-
-// impl<'a, U: 'a, T> Lens<T, IterSwap<'a, U>> for IterLens
-// where
-//   for<'b> &'b T: IntoIterator<Item = &'a U>,
-//   for<'b> <&'b T as IntoIterator>::IntoIter: 'a,
-//   for<'b> &'b mut T: IntoIterator<Item = &'a mut U>,
-//   for<'b> <&'b mut T as IntoIterator>::IntoIter: 'a,
-// {
-//   fn with<V, F: FnOnce(&IterSwap<'a, U>) -> V>(&self, data: &T, f: F) -> V {
-//     let iter = data.into_iter();
-//     let iter_swap = IterSwap::Iter(Box::new(iter));
-//     f(&iter_swap)
-//   }
-
-//   fn with_mut<V, F: FnOnce(&mut IterSwap<'a, U>) -> V>(&self, data: &mut T, f: F) -> V {
-//     todo!()
-//   }
-// }
 
 pub trait PrismExt<A, B>: Prism<A, B> {
   fn then_some<Other, C>(self, right: Other) -> ThenSome<Self, Other, B>

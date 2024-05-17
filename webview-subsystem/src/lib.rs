@@ -1,12 +1,20 @@
 use base64::decode;
 use druid::{ExtEventSink, WindowHandle};
 use url::Url;
-use webview_shared::{ExtEventSinkExt, UserEvent, FRACTAL_INDEX, WEBVIEW_EVENT};
+use webview_shared::{ExtEventSinkExt, WebviewEvent, FRACTAL_INDEX, WEBVIEW_EVENT};
 use wry::{WebContext, WebView, WebViewBuilder};
+
+pub fn init_webview_with_handle(
+  url: Option<String>,
+  parent: &WindowHandle,
+  ext_ctx: ExtEventSink,
+) -> wry::Result<WebView> {
+  init_webview(url, WebViewBuilder::new_as_child(parent), ext_ctx)
+}
 
 pub fn init_webview(
   url: Option<String>,
-  window: &WindowHandle,
+  builder: WebViewBuilder,
   ext_ctx: ExtEventSink,
 ) -> wry::Result<WebView> {
   let mut webcontext = WebContext::default();
@@ -14,7 +22,7 @@ pub fn init_webview(
 
   let init_script = include_str!("init.js");
 
-  let webview = WebViewBuilder::new_as_child(window)
+  let webview = builder
     .with_url(url.as_deref().unwrap_or(FRACTAL_INDEX))
     .with_bounds(wry::Rect {
       position: wry::dpi::Position::Logical((0., 0.).into()),
@@ -28,10 +36,10 @@ pub fn init_webview(
         match string.as_str() {
           _ if string.starts_with("data:") => {
             let _ =
-              ext_ctx.submit_command_global(WEBVIEW_EVENT, UserEvent::BlobChunk(Some(string)));
+              ext_ctx.submit_command_global(WEBVIEW_EVENT, WebviewEvent::BlobChunk(Some(string)));
           }
           "#EOF" => {
-            let _ = ext_ctx.submit_command_global(WEBVIEW_EVENT, UserEvent::BlobChunk(None));
+            let _ = ext_ctx.submit_command_global(WEBVIEW_EVENT, WebviewEvent::BlobChunk(None));
           }
           _ if string.starts_with("confirm_download") => {
             let mut parts = string.split(',');
@@ -50,9 +58,9 @@ pub fn init_webview(
                 .expect("split ipc");
               let decoded = decode(base).expect("decode uri");
               let uri = String::from_utf8(decoded).expect("decode");
-              let _ = ext_ctx.submit_command_global(WEBVIEW_EVENT, UserEvent::Download(uri));
+              let _ = ext_ctx.submit_command_global(WEBVIEW_EVENT, WebviewEvent::Download(uri));
             } else {
-              let _ = ext_ctx.submit_command_global(WEBVIEW_EVENT, UserEvent::CancelDownload);
+              let _ = ext_ctx.submit_command_global(WEBVIEW_EVENT, WebviewEvent::CancelDownload);
             }
           }
           _ => {}
@@ -71,13 +79,13 @@ pub fn init_webview(
             && url.query().map_or(false, |q| q.contains("export=download"))
           {
             let _ = ext_ctx
-              .submit_command_global(WEBVIEW_EVENT, UserEvent::AskDownload(uri + "&confirm=t"));
+              .submit_command_global(WEBVIEW_EVENT, WebviewEvent::AskDownload(uri + "&confirm=t"));
             return false;
           }
         }
 
         ext_ctx
-          .submit_command_global(WEBVIEW_EVENT, UserEvent::Navigation(uri))
+          .submit_command_global(WEBVIEW_EVENT, WebviewEvent::Navigation(uri))
           .is_ok()
       }
     })
@@ -85,7 +93,7 @@ pub fn init_webview(
       let ext_ctx = ext_ctx.clone();
       move |uri: String| {
         ext_ctx
-          .submit_command_global(WEBVIEW_EVENT, UserEvent::NewWindow(uri))
+          .submit_command_global(WEBVIEW_EVENT, WebviewEvent::NewWindow(uri))
           .expect("Send event");
 
         false
@@ -95,12 +103,12 @@ pub fn init_webview(
       let ext_ctx = ext_ctx.clone();
       move |uri, _| {
         if uri.starts_with("blob:https://mega.nz") {
-          let _ = ext_ctx.submit_command_global(WEBVIEW_EVENT, UserEvent::BlobReceived(uri));
+          let _ = ext_ctx.submit_command_global(WEBVIEW_EVENT, WebviewEvent::BlobReceived(uri));
           return false;
         }
 
         ext_ctx
-          .submit_command_global(WEBVIEW_EVENT, UserEvent::AskDownload(uri))
+          .submit_command_global(WEBVIEW_EVENT, WebviewEvent::AskDownload(uri))
           .expect("Send event");
 
         false
@@ -109,7 +117,7 @@ pub fn init_webview(
     .with_on_page_load_handler({
       let ext_ctx = ext_ctx.clone();
       move |_, _| {
-        ext_ctx.submit_command_global(WEBVIEW_EVENT, UserEvent::PageLoaded);
+        ext_ctx.submit_command_global(WEBVIEW_EVENT, WebviewEvent::PageLoaded);
       }
     })
     .build()?;

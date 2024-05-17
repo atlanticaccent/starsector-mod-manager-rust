@@ -248,6 +248,7 @@ impl App {
           InitialTab::new(NavLabel::Activity, Activity::view().lens(App::log)),
           InitialTab::new(NavLabel::Settings, Settings::view().lens(App::settings)),
         ]))
+        .with_transition(crate::patch::tabs::tab::TabsTransition::Instant)
         .scope_with(false, |widget| {
           widget
             .on_command2(Nav::NAV_SELECTOR, |tabs, ctx, label, state| {
