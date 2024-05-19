@@ -117,7 +117,9 @@ pub fn init_webview(
     .with_on_page_load_handler({
       let ext_ctx = ext_ctx.clone();
       move |_, _| {
-        ext_ctx.submit_command_global(WEBVIEW_EVENT, WebviewEvent::PageLoaded);
+        ext_ctx
+          .submit_command_global(WEBVIEW_EVENT, WebviewEvent::PageLoaded)
+          .expect("Send event");
       }
     })
     .build()?;

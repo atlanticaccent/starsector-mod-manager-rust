@@ -1,12 +1,11 @@
-use std::{cell::RefCell, io::Write, iter::FromIterator, rc::Rc};
+use std::{cell::RefCell, io::Write, ops::Deref, rc::Rc};
 
 use base64::{decode, encode};
 use druid::{
-  im::Vector,
-  widget::{Image, Maybe, Painter, SizedBox, ViewSwitcher},
-  Data, ExtEventSink, HasWindowHandle, ImageBuf, Lens, Selector, SingleUse, Widget, WidgetExt,
+  widget::{Flex, Maybe, Painter, SizedBox},
+  Data, ExtEventSink, ImageBuf, Lens, Selector, SingleUse, Widget, WidgetExt,
 };
-use druid_widget_nursery::WidgetExt as _;
+use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
 use gtk::glib::translate::{FromGlibPtrFull, ToGlibPtr};
 use rand::random;
 use webview_shared::{
@@ -16,12 +15,18 @@ use webview_subsystem::init_webview;
 use wry::{WebView, WebViewBuilder, WebViewBuilderExtUnix};
 
 use crate::{
-  app::controllers::ExtensibleController,
+  app::{
+    browser::button::{button, button_text},
+    controllers::ExtensibleController,
+    ARROW_LEFT, ARROW_RIGHT,
+  },
   nav_bar::{Nav, NavLabel},
   widgets::card::Card,
 };
 
 use super::util::WidgetExtEx;
+
+mod button;
 
 #[derive(Data, Clone, Lens, Default)]
 pub struct Browser {
@@ -33,10 +38,14 @@ pub struct Browser {
 pub struct BrowserInner {
   pub webview: Rc<WebView>,
   visible: Rc<RefCell<bool>>,
-  #[data(eq)]
-  image: Option<Vec<u8>>,
+  #[data(ignore)]
+  image: Option<Rc<ImageBuf>>,
   #[data(ignore)]
   mega_file: Option<Rc<RefCell<Vec<u8>>>>,
+  #[data(ignore)]
+  ext_ctx: ExtEventSink,
+  #[data(ignore)]
+  screenshot_in_progress: Rc<RefCell<bool>>,
 }
 
 impl Browser {
@@ -53,156 +62,179 @@ impl Browser {
   pub fn view() -> impl Widget<Browser> {
     const INIT_WEBVIEW: Selector = Selector::new("browser.webview.init");
 
-    Maybe::or_empty(|| {
-      Card::builder()
-        .with_insets((0.0, 14.0))
-        .with_corner_radius(4.0)
-        .with_shadow_length(8.0)
-        .build(
-          ViewSwitcher::new(
-            |data: &BrowserInner, _| Vector::from_iter(data.image.iter().flatten().cloned()),
-            |_, data, _| {
-              Image::new(
-                data
-                  .image
-                  .as_deref()
-                  .and_then(|image| ImageBuf::from_data(image).ok())
-                  .unwrap_or_default(),
-              )
-              .fill_mode(druid::widget::FillStrat::Fill)
-              .boxed()
-            },
-          )
-          .expand()
-          .foreground(Painter::new(|ctx, browser: &BrowserInner, _| {
-            if !ctx.size().is_empty() && browser.is_visible() {
-              browser.set_bounds(ctx.window_origin(), ctx.size())
-            }
-          })),
-        )
-        .mask_default()
-        .controller(
-          ExtensibleController::new()
-            .on_lifecycle(|_, ctx, event, browser: &BrowserInner, _| {
-              let (origin, size) = if let druid::LifeCycle::ViewContextChanged(context) = event {
-                (context.window_origin, ctx.size())
-              } else if let druid::LifeCycle::Size(size) = event {
-                (ctx.window_origin(), size.clone())
-              } else {
-                return;
-              };
+    Flex::column()
+      .with_child(
+        Flex::row()
+          .with_child(button(|_| Icon::new(*ARROW_LEFT).boxed()).padding((0.0, 5.0)))
+          .with_child(button(|_| Icon::new(*ARROW_RIGHT).boxed()).padding((0.0, 5.0)))
+          .with_child(button(|_| button_text("Bookmarks").valign_centre()).padding((0.0, 5.0)))
+          .expand_width(),
+      )
+      .with_flex_child(
+        Maybe::or_empty(|| {
+          Card::builder()
+            .with_insets((0.0, 14.0))
+            .with_corner_radius(4.0)
+            .with_shadow_length(8.0)
+            .build(SizedBox::empty().expand().foreground(Painter::new(
+              move |ctx, browser: &BrowserInner, _| {
+                if !ctx.size().is_empty() && browser.is_visible() {
+                  browser.set_bounds(ctx.window_origin(), ctx.size());
+                }
+              },
+            )))
+            .foreground(Painter::new(move |ctx, browser: &BrowserInner, _| {
+              if let Some(image) = &browser.image {
+                let image = image.deref().clone();
+                let region = ctx.size().to_rect().with_origin((7., 7.));
+                let region = region.with_size((region.width() - 14., region.height() - 14.));
+                ctx.with_save(|ctx| {
+                  use druid::RenderContext;
 
-              browser.set_visible(true);
-              browser.set_bounds(origin, size);
-            })
-            .on_command(Nav::NAV_SELECTOR, |_, _, payload, browser| {
-              browser.set_visible(*payload == NavLabel::WebBrowser);
-              true
-            })
-            .on_command(super::App::OPEN_WEBVIEW, |_, _, payload, browser| {
-              if let Some(url) = payload {
-                let _ = browser
-                  .webview
-                  .load_url(url)
-                  .inspect_err(|e| eprintln!("{e}"));
+                  let image = image.to_image(ctx.render_ctx);
+                  ctx.clip(region);
+                  ctx.draw_image(
+                    &image,
+                    region,
+                    druid::piet::InterpolationMode::NearestNeighbor,
+                  );
+                });
               }
-              browser.set_visible(true);
-              false
-            })
-            .on_command(Browser::WEBVIEW_HIDE, |_, _, _, data| {
-              data.set_visible(false);
-              true
-            })
-            .on_command(Browser::WEBVIEW_SHOW, |_, _, _, data| {
-              data.set_visible(true);
-              true
-            })
-            .on_command(Browser::WEBVIEW_SCREENSHOT_DATA, |w, ctx, payload, data| {
-              let image = payload.take().unwrap();
-              data.image = Some(image);
+            }))
+            .controller(
+              ExtensibleController::new()
+                .on_lifecycle(|_, ctx, event, browser: &BrowserInner, _| {
+                  if matches!(
+                    event,
+                    druid::LifeCycle::ViewContextChanged(_) | druid::LifeCycle::Size(_)
+                  ) && !ctx.size().is_empty()
+                  {
+                    browser.set_visible(true);
+                    ctx.request_layout();
+                    ctx.request_paint();
+                    browser.screenshot(ctx.get_external_handle());
+                  }
+                })
+                .on_command(Nav::NAV_SELECTOR, |_, _, payload, browser| {
+                  browser.set_visible(*payload == NavLabel::WebBrowser);
+                  true
+                })
+                .on_command(super::App::OPEN_WEBVIEW, |_, _, payload, browser| {
+                  if let Some(url) = payload {
+                    let _ = browser
+                      .webview
+                      .load_url(url)
+                      .inspect_err(|e| eprintln!("{e}"));
+                  }
+                  browser.set_visible(true);
+                  false
+                })
+                .on_command(Browser::WEBVIEW_HIDE, |_, _, _, data| {
+                  data.set_visible(false);
+                  true
+                })
+                .on_command(Browser::WEBVIEW_SHOW, |_, _, _, data| {
+                  data.set_visible(true);
+                  true
+                })
+                .on_command(Browser::WEBVIEW_SCREENSHOT_DATA, |_, ctx, payload, data| {
+                  let image = payload.take().unwrap();
+                  *data.screenshow_wip() = false;
+                  if let Ok(image) = ImageBuf::from_data(&image) {
+                    if image.size() + druid::Size::from((14., 14.)) == ctx.size() {
+                      data.image = Some(Rc::new(image));
+                    } else if data.is_visible() {
+                      data.screenshot(ctx.get_external_handle())
+                    }
+                  }
 
-              ctx.request_paint();
-              true
-            })
-            .on_command(WEBVIEW_EVENT, Browser::handle_webview_events),
-        )
-    })
-    .lens(Browser::inner)
-    .on_command(Nav::NAV_SELECTOR, |ctx, payload, data| {
-      if *payload == NavLabel::WebBrowser && data.inner.is_none() {
-        ctx.submit_command(INIT_WEBVIEW)
-      }
-    })
-    .on_command2(INIT_WEBVIEW, |_, ctx, _, data| {
-      #[cfg(target_os = "linux")]
-      let res = {
-        use gtk::prelude::*;
-
-        let window = ctx.window().get_gtk_application_window();
-        let bin: &gtk::Bin = window.upcast_ref();
-        let child = bin.child().unwrap();
-        let vbox: &gtk::Box = child.downcast_ref().unwrap();
-
-        eprintln!("{}", vbox.type_());
-        eprintln!("{:?}", vbox.children());
-
-        let child_ref: *const _ = child.to_glib_full();
-        let container: &gtk::Container = window.upcast_ref();
-
-        container.remove(&child);
-
-        let overlay = gtk::Overlay::new();
-        overlay.add(&child);
-        unsafe {
-          drop(gtk::glib::object::ObjectRef::from_glib_full(
-            child_ref as *mut _,
-          ))
-        };
-
-        let fixed = gtk::Fixed::new();
-        overlay.add_overlay(&fixed);
-        overlay.set_overlay_pass_through(&fixed, true);
-        fixed.show_all();
-
-        overlay.show_all();
-
-        container.add(&overlay);
-
-        let builder = WebViewBuilder::new_gtk(&fixed);
-
-        init_webview(data.url.clone(), builder, ctx.get_external_handle())
-      };
-      #[cfg(not(target_os = "linux"))]
-      let res = webview_subsystem::init_webview_with_handle(
-        data.url.clone(),
-        ctx.window(),
-        ctx.get_external_handle(),
-      );
-
-      match res {
-        Ok(webview) => {
-          let inner = BrowserInner {
-            webview: Rc::new(webview),
-            visible: Default::default(),
-            image: None,
-            mega_file: None,
-          };
-          inner.set_visible(true);
-          data.inner = Some(inner);
-          ctx.submit_command(Browser::WEBVIEW_SHOW)
+                  ctx.request_update();
+                  ctx.request_paint();
+                  true
+                })
+                .on_command(WEBVIEW_EVENT, Browser::handle_webview_events),
+            )
+        })
+        .lens(Browser::inner),
+        1.,
+      )
+      .on_command(Nav::NAV_SELECTOR, |ctx, payload, data| {
+        if *payload == NavLabel::WebBrowser && data.inner.is_none() {
+          ctx.submit_command(INIT_WEBVIEW)
         }
-        Err(err) => eprintln!("webview build error: {err:?}"),
-      }
-      ctx.request_update();
-      ctx.request_layout();
-      false
-    })
-    .on_command2(super::App::OPEN_WEBVIEW, |_, ctx, payload, data| {
-      ctx.submit_command(Nav::NAV_SELECTOR.with(NavLabel::WebBrowser));
-      data.url = payload.clone();
-      true
-    })
-    .expand()
+      })
+      .on_command2(INIT_WEBVIEW, |_, ctx, _, data| {
+        #[cfg(target_os = "linux")]
+        let res = {
+          use gtk::prelude::*;
+
+          let window = ctx.window().get_gtk_application_window();
+          let bin: &gtk::Bin = window.upcast_ref();
+          let child = bin.child().unwrap();
+          let vbox: &gtk::Box = child.downcast_ref().unwrap();
+
+          eprintln!("{}", vbox.type_());
+          eprintln!("{:?}", vbox.children());
+
+          let child_ref: *const _ = child.to_glib_full();
+          let container: &gtk::Container = window.upcast_ref();
+
+          container.remove(&child);
+
+          let overlay = gtk::Overlay::new();
+          overlay.add(&child);
+          unsafe {
+            drop(gtk::glib::object::ObjectRef::from_glib_full(
+              child_ref as *mut _,
+            ))
+          };
+
+          let fixed = gtk::Fixed::new();
+          overlay.add_overlay(&fixed);
+          overlay.set_overlay_pass_through(&fixed, true);
+          fixed.show_all();
+
+          overlay.show_all();
+
+          container.add(&overlay);
+
+          let builder = WebViewBuilder::new_gtk(&fixed);
+
+          init_webview(data.url.clone(), builder, ctx.get_external_handle())
+        };
+        #[cfg(not(target_os = "linux"))]
+        let res = webview_subsystem::init_webview_with_handle(
+          data.url.clone(),
+          ctx.window(),
+          ctx.get_external_handle(),
+        );
+
+        match res {
+          Ok(webview) => {
+            let inner = BrowserInner {
+              webview: Rc::new(webview),
+              visible: Default::default(),
+              image: None,
+              mega_file: None,
+              ext_ctx: ctx.get_external_handle(),
+              screenshot_in_progress: Default::default(),
+            };
+            inner.set_visible(true);
+            data.inner = Some(inner);
+            ctx.submit_command(Browser::WEBVIEW_SHOW)
+          }
+          Err(err) => eprintln!("webview build error: {err:?}"),
+        }
+        ctx.request_update();
+        ctx.request_layout();
+        false
+      })
+      .on_command2(super::App::OPEN_WEBVIEW, |_, ctx, payload, data| {
+        ctx.submit_command(Nav::NAV_SELECTOR.with(NavLabel::WebBrowser));
+        data.url = payload.clone();
+        true
+      })
+      .expand()
   }
 
   fn handle_webview_events(
@@ -335,21 +367,31 @@ impl BrowserInner {
       .inspect_err(|e| eprintln!("{e}"));
   }
 
-  fn screenshot(&mut self, ext_ctx: ExtEventSink) {
-    let _ = self
-      .webview
-      .screenshot(move |res| {
-        let func = || -> anyhow::Result<()> {
-          let image = res?;
-          let _ =
-            ext_ctx.submit_command_global(Browser::WEBVIEW_SCREENSHOT_DATA, SingleUse::new(image));
+  fn screenshot(&self, ext_ctx: ExtEventSink) {
+    if !*self.screenshow_wip() {
+      if self
+        .webview
+        .screenshot(move |res| {
+          let func = || -> anyhow::Result<()> {
+            let image = res?;
+            let _ = ext_ctx
+              .submit_command_global(Browser::WEBVIEW_SCREENSHOT_DATA, SingleUse::new(image));
 
-          Ok(())
-        };
-        if let Err(e) = func() {
-          eprintln!("{e:?}")
-        }
-      })
-      .inspect_err(|e| eprintln!("{e:?}"));
+            Ok(())
+          };
+          if let Err(e) = func() {
+            eprintln!("{e:?}")
+          }
+        })
+        .inspect_err(|e| eprintln!("{e:?}"))
+        .is_ok()
+      {
+        *self.screenshow_wip() = true;
+      }
+    }
+  }
+
+  fn screenshow_wip(&self) -> std::cell::RefMut<bool> {
+    self.screenshot_in_progress.borrow_mut()
   }
 }
