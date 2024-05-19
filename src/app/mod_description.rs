@@ -55,7 +55,7 @@ impl ModDescription {
                     .padding((8.0, 0.0, 0.0, 0.0)),
                 )
                 .with_aligned_child(Icon::new(*CHEVRON_LEFT), UnitPoint::LEFT)
-                .align_vertical_centre()
+                .valign_centre()
                 .expand_height()
               },
               (0.0, 14.0),
@@ -74,7 +74,7 @@ impl ModDescription {
                   .lens(
                     ModEntry::name.then(Compute::new(|t| format!("Mods  /  {}  /  Details", t))),
                   )
-                  .align_vertical_centre()
+                  .valign_centre()
                   .align_left(),
               )
               .fix_height(52.0)
@@ -96,7 +96,7 @@ impl ModDescription {
             || {
               title_text()
                 .lens(Constant("Open in file manager...".to_owned()))
-                .align_vertical_centre()
+                .valign_centre()
                 .expand_height()
             },
             (0.0, 14.0),
@@ -154,7 +154,7 @@ impl ModDescription {
                           .align_horizontal(UnitPoint::CENTER)
                           .fix_width(80.0),
                       )
-                      .align_vertical_centre()
+                      .valign_centre()
                   })
                   .env_scope(|env, data| {
                     if *data {
@@ -189,7 +189,7 @@ impl ModDescription {
                     Flex::row()
                       .with_child(Icon::new(*SYSTEM_UPDATE).padding((5.0, 0.0, -5.0, 0.0)))
                       .with_child(Label::new("Install Latest Update").padding((10.0, 0.0)))
-                      .align_vertical_centre()
+                      .valign_centre()
                   })
                   .env_scope(|env, _| {
                     env.set(druid::theme::BACKGROUND_LIGHT, env.get(BLUE_KEY));
@@ -230,7 +230,7 @@ impl ModDescription {
                     Flex::row()
                       .with_child(Icon::new(*DELETE).padding((5.0, 0.0, -5.0, 0.0)))
                       .with_child(Label::new("Uninstall").padding((10.0, 0.0)))
-                      .align_vertical_centre()
+                      .valign_centre()
                   })
                   .env_scope(|env, _| {
                     env.set(druid::theme::TEXT_COLOR, druid::Color::WHITE.darker())

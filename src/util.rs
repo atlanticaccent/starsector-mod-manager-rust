@@ -868,11 +868,11 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     DelayedPainter::new(self, z_index)
   }
 
-  fn align_vertical_centre(self) -> Align<T> {
+  fn valign_centre(self) -> Align<T> {
     self.align_vertical(UnitPoint::CENTER)
   }
 
-  fn align_horizontal_centre(self) -> Align<T> {
+  fn halign_centre(self) -> Align<T> {
     self.align_horizontal(UnitPoint::CENTER)
   }
 

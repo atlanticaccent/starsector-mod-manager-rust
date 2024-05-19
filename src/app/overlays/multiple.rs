@@ -94,7 +94,7 @@ impl Multiple {
                   .hoverable(|| {
                     Flex::row()
                       .with_child(Label::new("Install All").padding((10.0, 0.0)))
-                      .align_vertical_centre()
+                      .valign_centre()
                   })
                   .env_scope(|env, data: &MultipleState| {
                     let mut blue = env.get(BLUE_KEY);
@@ -137,7 +137,7 @@ impl Multiple {
                   .hoverable(|| {
                     Flex::row()
                       .with_child(Label::new("Close").padding((10.0, 0.0)))
-                      .align_vertical_centre()
+                      .valign_centre()
                   })
                   .env_scope(|env, _| {
                     env.set(druid::theme::BACKGROUND_LIGHT, env.get(RED_KEY));
@@ -230,7 +230,7 @@ fn install_button(path: PathBuf, source: HybridPath, idx: usize) -> impl Widget<
     .hoverable(|| {
       Flex::row()
         .with_child(Label::new("Install").padding((10.0, 0.0)))
-        .align_vertical_centre()
+        .valign_centre()
     })
     .env_scope(move |env, data: &MultipleState| {
       let mut blue = env.get(BLUE_KEY);

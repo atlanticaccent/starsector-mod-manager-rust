@@ -120,7 +120,7 @@ impl RemoteUpdate {
                   .hoverable(|| {
                     Flex::row()
                       .with_child(Label::new("Install").padding((10.0, 0.0)))
-                      .align_vertical_centre()
+                      .valign_centre()
                   })
                   .env_scope(|env, _| {
                     env.set(druid::theme::BACKGROUND_LIGHT, env.get(BLUE_KEY));
@@ -160,7 +160,7 @@ impl RemoteUpdate {
                   .hoverable(|| {
                     Flex::row()
                       .with_child(Label::new("Cancel").padding((10.0, 0.0)))
-                      .align_vertical_centre()
+                      .valign_centre()
                   })
                   .env_scope(|env, _| {
                     env.set(druid::theme::BACKGROUND_LIGHT, env.get(RED_KEY));

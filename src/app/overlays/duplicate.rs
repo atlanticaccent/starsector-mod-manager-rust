@@ -43,7 +43,7 @@ impl Duplicate {
               r#"Multiple mods with ID "{}" installed."#,
               &duplicates.front().unwrap().id
             ))
-            .align_horizontal_centre(),
+            .halign_centre(),
           )
           .pipe(|column| {
             let mut column = column;
@@ -85,7 +85,7 @@ impl Duplicate {
                   .hoverable(|| {
                     Flex::row()
                       .with_child(Label::new("Ignore All").padding((10.0, 0.0)))
-                      .align_vertical_centre()
+                      .valign_centre()
                   })
                   .env_scope(|env, _| {
                     env.set(druid::theme::BACKGROUND_LIGHT, env.get(RED_KEY));
@@ -114,7 +114,7 @@ impl Duplicate {
                   .hoverable(|| {
                     Flex::row()
                       .with_child(Label::new("Ignore").padding((10.0, 0.0)))
-                      .align_vertical_centre()
+                      .valign_centre()
                   })
                   .env_scope(|env, _| {
                     env.set(druid::theme::TEXT_COLOR, druid::Color::WHITE.darker())
@@ -187,7 +187,7 @@ fn keep_button(keep: ModEntry, duplicates: Vector<ModEntry>) -> impl Widget<App>
     .hoverable(|| {
       Flex::row()
         .with_child(Label::new("Keep").padding((10.0, 0.0)))
-        .align_vertical_centre()
+        .valign_centre()
     })
     .env_scope(|env, _| {
       env.set(druid::theme::BACKGROUND_LIGHT, env.get(BLUE_KEY));
