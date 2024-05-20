@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! A widget that can switch between one of many views, hiding the inactive ones.
+//! A widget that can switch between one of many views, hiding the inactive
+//! ones.
 
 use std::{collections::HashMap, fmt::Debug, hash::Hash, marker::PhantomData};
 
@@ -54,7 +55,8 @@ impl<Input> TabInfo<Input> {
   }
 }
 
-/// A policy that determines how a Tabs instance derives its tabs from its app data.
+/// A policy that determines how a Tabs instance derives its tabs from its app
+/// data.
 pub trait TabsPolicy: Data {
   /// The identity of a tab.
   type Key: Hash + Eq + Clone;
@@ -73,10 +75,11 @@ pub trait TabsPolicy: Data {
   type LabelWidget: Widget<Self::Input>;
 
   /// The information required to build up this policy.
-  /// This is to support policies where at least some tabs are provided up front during widget
-  /// construction. If the Build type implements the AddTab trait, the add_tab and with_tab
-  /// methods will be available on the Tabs instance to allow the
-  /// It can be filled in with () by implementations that do not require it.
+  /// This is to support policies where at least some tabs are provided up front
+  /// during widget construction. If the Build type implements the AddTab
+  /// trait, the add_tab and with_tab methods will be available on the Tabs
+  /// instance to allow the It can be filled in with () by implementations
+  /// that do not require it.
   type Build;
 
   /// Examining the input data, has the set of tabs present changed?
@@ -86,14 +89,16 @@ pub trait TabsPolicy: Data {
   /// From the input data, return the new set of tabs
   fn tabs(&self, data: &Self::Input) -> Vec<Self::Key>;
 
-  /// For this tab key, return the relevant tab information that will drive label construction
+  /// For this tab key, return the relevant tab information that will drive
+  /// label construction
   fn tab_info(&self, key: Self::Key, data: &Self::Input) -> TabInfo<Self::Input>;
 
   /// For this tab key, return the body widget
   fn tab_body(&self, key: Self::Key, data: &Self::Input) -> Self::BodyWidget;
 
   /// Label widget for the tab.
-  /// Usually implemented with a call to default_make_label ( can't default here because Self::LabelWidget isn't determined)
+  /// Usually implemented with a call to default_make_label ( can't default here
+  /// because Self::LabelWidget isn't determined)
   fn tab_label(
     &self,
     key: Self::Key,
@@ -107,12 +112,14 @@ pub trait TabsPolicy: Data {
 
   #[allow(unused_variables)]
   /// Construct an instance of this TabsFromData from its Build type.
-  /// The main use case for this is StaticTabs, where the tabs are provided by the app developer up front.
+  /// The main use case for this is StaticTabs, where the tabs are provided by
+  /// the app developer up front.
   fn build(build: Self::Build) -> Self {
     panic!("TabsPolicy::Build called on a policy that does not support incremental building")
   }
 
-  /// A default implementation for make label, if you do not wish to construct a custom widget.
+  /// A default implementation for make label, if you do not wish to construct a
+  /// custom widget.
   fn default_make_label(info: TabInfo<Self::Input>) -> Label<Self::Input> {
     Label::new(info.name).with_text_color(theme::FOREGROUND_LIGHT)
   }
@@ -123,8 +130,8 @@ pub trait TabsPolicy: Data {
 }
 
 /// AddTabs is an extension to TabsPolicy.
-/// If a policy implements AddTab, then the add_tab and with_tab methods will be available on
-/// the Tabs instance.
+/// If a policy implements AddTab, then the add_tab and with_tab methods will be
+/// available on the Tabs instance.
 pub trait AddTab: TabsPolicy {
   /// Add a tab to the build type.
   fn add_tab(
@@ -135,8 +142,8 @@ pub trait AddTab: TabsPolicy {
 }
 
 /// This is the current state of the tabs widget as a whole.
-/// This expands the input data to include a policy that determines how tabs are derived,
-/// and the index of the currently selected tab
+/// This expands the input data to include a policy that determines how tabs are
+/// derived, and the index of the currently selected tab
 #[derive(Clone, Lens, Data)]
 pub struct TabsState<TP: TabsPolicy> {
   inner: TP::Input,
@@ -155,7 +162,8 @@ impl<TP: TabsPolicy> TabsState<TP> {
   }
 }
 
-/// This widget is the tab bar. It contains widgets that when pressed switch the active tab.
+/// This widget is the tab bar. It contains widgets that when pressed switch the
+/// active tab.
 struct TabBar<TP: TabsPolicy> {
   axis: Axis,
   edge: TabsEdge,
@@ -336,8 +344,8 @@ impl<TP: TabsPolicy> Widget<TabsState<TP>> for TabBar<TP> {
       minor = minor.max(self.axis.minor(size));
     }
     let wanted = self.axis.pack(major.max(self.axis.major(bc.max())), minor);
-    let size = bc.constrain(wanted);
-    size
+
+    bc.constrain(wanted)
   }
 
   fn paint(&mut self, ctx: &mut PaintCtx, data: &TabsState<TP>, env: &Env) {
@@ -445,8 +453,8 @@ fn ensure_for_tabs<Content, TP: TabsPolicy + ?Sized>(
   existing_idx
 }
 
-/// This widget is the tabs body. It shows the active tab, keeps other tabs hidden, and can
-/// animate transitions between them.
+/// This widget is the tabs body. It shows the active tab, keeps other tabs
+/// hidden, and can animate transitions between them.
 struct TabsBody<TP: TabsPolicy> {
   children: Vec<(TP::Key, TabBodyPod<TP>)>,
   axis: Axis,
@@ -507,7 +515,8 @@ impl<TP: TabsPolicy> Widget<TabsState<TP>> for TabsBody<TP> {
     }
 
     if let (Some(t_state), Event::AnimFrame(interval)) = (&mut self.transition_state, event) {
-      // We can get a high interval on the first frame due to other widgets or old animations.
+      // We can get a high interval on the first frame due to other widgets or old
+      // animations.
       let interval = if t_state.current_time == 0 {
         1
       } else {
@@ -656,12 +665,14 @@ impl<TP: TabsPolicy> ScopePolicy for TabsScopePolicy<TP> {
   }
 }
 
-/// Determines whether the tabs will have a transition animation when a new tab is selected.
+/// Determines whether the tabs will have a transition animation when a new tab
+/// is selected.
 #[derive(Data, Copy, Clone, Debug, PartialOrd, PartialEq, Eq)]
 pub enum TabsTransition {
   /// Change tabs instantly with no animation
   Instant,
-  /// Slide tabs across in the appropriate direction. The argument is the duration in nanoseconds
+  /// Slide tabs across in the appropriate direction. The argument is the
+  /// duration in nanoseconds
   Slide(Nanos),
 }
 
@@ -731,10 +742,11 @@ enum TabsContent<TP: TabsPolicy> {
 
 /// A tabs widget.
 ///
-/// The tabs can be provided up front, using Tabs::new() and add_tab()/with_tab().
+/// The tabs can be provided up front, using Tabs::new() and
+/// add_tab()/with_tab().
 ///
-/// Or, the tabs can be derived from the input data by implementing TabsPolicy, and providing it to
-/// Tabs::from_policy()
+/// Or, the tabs can be derived from the input data by implementing TabsPolicy,
+/// and providing it to Tabs::from_policy()
 ///
 /// ```
 /// use druid::widget::{Tabs, Label, WidgetExt};
@@ -750,9 +762,7 @@ enum TabsContent<TP: TabsPolicy> {
 ///     .with_tab("Proxy", Label::new("Proxy settings"))
 ///     .lens(AppState::name);
 ///
-///
 /// ```
-///
 pub struct Tabs<TP: TabsPolicy> {
   axis: Axis,
   edge: TabsEdge,
@@ -776,9 +786,9 @@ impl<TP: TabsPolicy> Tabs<TP> {
     Self::of_content(TabsContent::Complete { tabs, index: 0 })
   }
 
-  // This could be public if there is a case for custom policies that support static tabs - ie the AddTab method.
-  // It seems very likely that the whole way we do dynamic vs static will change before that
-  // becomes an issue.
+  // This could be public if there is a case for custom policies that support
+  // static tabs - ie the AddTab method. It seems very likely that the whole way
+  // we do dynamic vs static will change before that becomes an issue.
   fn building(tabs_from_data: TP::Build) -> Self
   where
     TP: AddTab,
@@ -821,7 +831,8 @@ impl<TP: TabsPolicy> Tabs<TP> {
     self
   }
 
-  /// A builder-style method to specify the (zero-based) index of the selected tab.
+  /// A builder-style method to specify the (zero-based) index of the selected
+  /// tab.
   pub fn with_tab_index(mut self, idx: TabIndex) -> Self {
     self.set_tab_index(idx);
     self
@@ -838,7 +849,6 @@ impl<TP: TabsPolicy> Tabs<TP> {
   {
     if let TabsContent::Building { tabs, .. } = &mut self.content {
       TP::add_tab(tabs, name, child)
-    } else {
     }
   }
 

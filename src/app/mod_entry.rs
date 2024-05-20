@@ -246,16 +246,11 @@ impl ViewModEntry {
           let label = Label::wrapped_func(|text: &String, _| text.to_string());
           match header {
             Heading::ID => label.lens(ViewModEntry::id).padding(5.).expand_width(),
-            Heading::Name => label
-              .lens(ViewModEntry::name)
-              .padding(5.)
-              .expand_width(),
-            Heading::Author => label
-              .lens(ViewModEntry::author)
-              .padding(5.)
-              .expand_width(),
+            Heading::Name => label.lens(ViewModEntry::name).padding(5.).expand_width(),
+            Heading::Author => label.lens(ViewModEntry::author).padding(5.).expand_width(),
             _ => unreachable!(),
-          }.boxed()
+          }
+          .boxed()
         }
         Heading::GameVersion => Label::wrapped_func(|version: &GameVersion, _| {
           util::get_quoted_version(version).unwrap_or_default()
@@ -264,7 +259,8 @@ impl ViewModEntry {
         .padding(5.)
         .expand_width()
         .boxed(),
-        Heading::Version => Either::new(|data: &(Option<UpdateStatus>, VersionUnion), _| data.0.is_some(),
+        Heading::Version => Either::new(
+          |data: &(Option<UpdateStatus>, VersionUnion), _| data.0.is_some(),
           ViewSwitcher::new(
             |data: &(Option<UpdateStatus>, VersionUnion), _| data.clone(),
             |(update_status, version_union), _, env| {
@@ -273,9 +269,7 @@ impl ViewModEntry {
                 let color = update_status.as_text_colour();
                 Box::new(
                   Flex::row()
-                    .with_child(
-                      Label::new(version_union.to_string()),
-                    )
+                    .with_child(Label::new(version_union.to_string()))
                     .with_flex_spacer(1.)
                     .tap_mut(|row| {
                       let mut icon_row = Flex::row();
@@ -295,75 +289,102 @@ impl ViewModEntry {
                       }
 
                       let tooltip = match update_status {
-                        UpdateStatus::Error => "Error\nThere was an error retrieving or parsing this mod's version information.".to_string(),
+                        UpdateStatus::Error => "Error\nThere was an error retrieving or parsing \
+                                                this mod's version information."
+                          .to_string(),
                         UpdateStatus::UpToDate => update_status.to_string(),
                         UpdateStatus::Discrepancy(_) => "\
-                          Discrepancy\n\
-                          The installed version of this mod is higher than the version available from the server.\n\
-                          This usually means the mod author has forgotten to update their remote version file and is not a cause for alarm.\
-                        ".to_string(),
-                        _ => update_status.to_string()
+                          Discrepancy\nThe installed version of this mod is higher than the \
+                                                         version available from the server.\nThis \
+                                                         usually means the mod author has \
+                                                         forgotten to update their remote version \
+                                                         file and is not a cause for alarm."
+                          .to_string(),
+                        _ => update_status.to_string(),
                       };
                       let text_color = color.clone();
-                      let background_color =
-                        <KeyOrValue<Color>>::from(update_status).resolve(env);
+                      let background_color = <KeyOrValue<Color>>::from(update_status).resolve(env);
                       row.add_child(
-                        icon_row.stack_tooltip(tooltip)
+                        icon_row
+                          .stack_tooltip(tooltip)
                           .with_text_attribute(druid::text::Attribute::TextColor(text_color))
                           .with_background_color(background_color)
                           .with_offset((10.0, 10.0))
                           .lens(lens!(((Option<UpdateStatus>, VersionUnion), bool), 0))
-                          .with_hover_state(false)
+                          .with_hover_state(false),
                       )
                     }),
                 )
               } else {
-                Label::dynamic(|data: &(Option<UpdateStatus>, VersionUnion), _| data.1.to_string()).boxed()
+                Label::dynamic(|data: &(Option<UpdateStatus>, VersionUnion), _| data.1.to_string())
+                  .boxed()
               }
             },
           ),
-          Label::dynamic(|data: &(Option<UpdateStatus>, VersionUnion), _| data.1.to_string())
+          Label::dynamic(|data: &(Option<UpdateStatus>, VersionUnion), _| data.1.to_string()),
         )
-        .lens(lens::Identity.compute(|entry: &ViewModEntry| (entry.update_status.clone(), entry.version.clone())))
+        .lens(
+          lens::Identity
+            .compute(|entry: &ViewModEntry| (entry.update_status.clone(), entry.version.clone())),
+        )
         .padding(5.)
         .expand_width()
         .boxed(),
         Heading::AutoUpdateSupport => Either::new(
-          |entry: &ViewModEntry, _| entry.remote_version
-            .as_ref()
-            .and_then(|r| r.direct_download_url.as_ref())
-            .is_some(),
+          |entry: &ViewModEntry, _| {
+            entry
+              .remote_version
+              .as_ref()
+              .and_then(|r| r.direct_download_url.as_ref())
+              .is_some()
+          },
           Either::new(
-            |entry: &ViewModEntry, _| entry.update_status.as_ref().is_some_and(|status| status != &UpdateStatus::Error),
+            |entry: &ViewModEntry, _| {
+              entry
+                .update_status
+                .as_ref()
+                .is_some_and(|status| status != &UpdateStatus::Error)
+            },
             Either::new(
-              |entry: &ViewModEntry, _| entry.update_status.as_ref().is_some_and(|status| !matches!(status, &UpdateStatus::UpToDate | &UpdateStatus::Discrepancy(_))),
+              |entry: &ViewModEntry, _| {
+                entry.update_status.as_ref().is_some_and(|status| {
+                  !matches!(
+                    status,
+                    &UpdateStatus::UpToDate | &UpdateStatus::Discrepancy(_)
+                  )
+                })
+              },
               Button::from_label(Label::wrapped("Update available!")).on_click(
                 |ctx: &mut druid::EventCtx, data: &mut ViewModEntry, _| {
                   ctx.submit_notification(ModEntry::AUTO_UPDATE.with(data.clone().into()))
                 },
               ),
-              Label::wrapped("No update available")),
-            Label::wrapped("Unsupported")),
+              Label::wrapped("No update available"),
+            ),
+            Label::wrapped("Unsupported"),
+          ),
           Label::wrapped("Unsupported"),
         )
         .padding(5.)
         .expand_width()
         .boxed(),
-        Heading::InstallDate => Label::wrapped_func(|data: &ModMetadata, _| if let Some(date) = data.install_date {
-            DateTime::<Local>::from(date).format("%v %I:%M%p").to_string()
+        Heading::InstallDate => Label::wrapped_func(|data: &ModMetadata, _| {
+          if let Some(date) = data.install_date {
+            DateTime::<Local>::from(date)
+              .format("%v %I:%M%p")
+              .to_string()
           } else {
             String::from("Unknown")
-          })
-          .lens(ViewModEntry::manager_metadata)
-          .padding(5.)
-          .expand_width()
-          .boxed(),
+          }
+        })
+        .lens(ViewModEntry::manager_metadata)
+        .padding(5.)
+        .expand_width()
+        .boxed(),
         Heading::Enabled | Heading::Score => unreachable!(),
       }
       .on_click(|ctx, data, _| {
-        ctx.submit_command(
-          App::SELECTOR.with(AppCommands::UpdateModDescription(data.id.clone())),
-        );
+        ctx.submit_command(App::SELECTOR.with(AppCommands::UpdateModDescription(data.id.clone())));
         ctx.submit_command(Nav::NAV_SELECTOR.with(NavLabel::ModDetails));
       })
       .boxed()

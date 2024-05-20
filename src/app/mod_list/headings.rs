@@ -157,7 +157,7 @@ impl Header {
     .on_command(Header::REMOVE_HEADING, |ctx, heading, header| {
       header.headings.retain(|existing| existing != heading);
       if header.sort_by.0 == *heading
-        && let Some(new_sort) = header.headings.iter().filter(|h| h.visible()).next()
+        && let Some(new_sort) = header.headings.iter().find(|h| h.visible())
       {
         header.sort_by.0 = *new_sort
       }

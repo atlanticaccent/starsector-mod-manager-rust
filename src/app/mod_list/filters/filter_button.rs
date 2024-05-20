@@ -4,6 +4,7 @@ use druid::{
 };
 use druid_widget_nursery::{material_icons::Icon, Stack, StackChildPosition};
 
+use super::{FilterState, FILTER_POSITION};
 use crate::{
   app::{
     mod_list::ModList,
@@ -12,8 +13,6 @@ use crate::{
   },
   widgets::card::Card,
 };
-
-use super::{FilterState, FILTER_POSITION};
 
 pub struct FilterButton;
 
@@ -54,7 +53,7 @@ impl FilterButton {
         Card::builder()
           .with_insets((0.0, 14.0))
           .with_shadow_length(4.0)
-          .hoverable(|| FilterButton::reset())
+          .hoverable(FilterButton::reset)
           .fix_height(46.0)
           .on_click(|ctx, _, _| ctx.submit_command(ModList::FILTER_RESET))
           .else_if(
@@ -69,7 +68,7 @@ impl FilterButton {
       .with_positioned_child(
         Card::builder()
           .with_insets((0.0, 14.0))
-          .hoverable(|| FilterButton::button())
+          .hoverable(FilterButton::button)
           .on_click(|ctx, data, _| {
             ctx.submit_command(FILTER_POSITION.with(ctx.window_origin()));
             *data = true;

@@ -220,7 +220,8 @@ impl<T: Data> FixedFlexTable<T> {
     }
   }
 
-  /// Return a mutable reference to column widths to allow them to modified at runtime
+  /// Return a mutable reference to column widths to allow them to modified at
+  /// runtime
   pub fn get_column_widths(&mut self) -> &mut Vec<ComplexTableColumnWidth> {
     &mut self.table.column_widths
   }
@@ -329,7 +330,8 @@ impl<T: Data> TableRow<T> {
     self.min_height = Some(min_height);
   }
 
-  /// Builder-style method for specifying the childrens' [`TableCellVerticalAlignment`].
+  /// Builder-style method for specifying the childrens'
+  /// [`TableCellVerticalAlignment`].
   pub fn vertical_alignment(mut self, align: TableCellVerticalAlignment) -> Self {
     self.vertical_alignment = Some(align);
     self

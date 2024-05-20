@@ -90,7 +90,8 @@ pub trait TreeNode
 where
   Self: Data + std::fmt::Debug,
 {
-  /// Returns how many children are below this node. It could be zero if this is a leaf.
+  /// Returns how many children are below this node. It could be zero if this is
+  /// a leaf.
   fn children_count(&self) -> usize;
 
   /// Returns a reference to the node's child at the given index
@@ -134,8 +135,8 @@ where
   fn rm_child(&mut self, index: usize) {}
 }
 
-// Wrapper widget that reacts to clicks by sending a TREE_ACTIVATE_NODE command to
-// its inner user-defined widget.
+// Wrapper widget that reacts to clicks by sending a TREE_ACTIVATE_NODE command
+// to its inner user-defined widget.
 // TODO: Try use a Controller instead of a plain widget.
 struct Opener<T>
 where
@@ -440,8 +441,8 @@ impl<T: TreeNode, L: Lens<T, bool> + Clone> Widget<T> for TreeNodeWidget<T, L> {
     }
 
     if data.is_branch() {
-      // send the event to the opener if the widget is visible or the event also targets
-      // hidden widgets.
+      // send the event to the opener if the widget is visible or the event also
+      // targets hidden widgets.
       let before = self.expand_lens.get(data);
       if chrooted.is_none() | event.should_propagate_to_hidden() {
         self.opener.event(ctx, event, data, env);
@@ -449,8 +450,8 @@ impl<T: TreeNode, L: Lens<T, bool> + Clone> Widget<T> for TreeNodeWidget<T, L> {
       let expanded = self.expand_lens.get(data);
 
       if expanded != before {
-        // The opener widget has decided to change the expanded/collapsed state of the node,
-        // handle it by expanding/collapsing children nodes as required.
+        // The opener widget has decided to change the expanded/collapsed state of the
+        // node, handle it by expanding/collapsing children nodes as required.
 
         let cmd: Selector;
         if expanded {
@@ -522,8 +523,8 @@ impl<T: TreeNode, L: Lens<T, bool> + Clone> Widget<T> for TreeNodeWidget<T, L> {
     if self.update_children(data) {
       if self.expand_lens.get(data) {
         for child_widget_node in self.children.iter_mut() {
-          // TODO: this is not true except for the new child. `update_children` should tell
-          // which child was added/removed...
+          // TODO: this is not true except for the new child. `update_children` should
+          // tell which child was added/removed...
           ctx.submit_command(TREE_CHILD_SHOW.to(child_widget_node.id()))
         }
       }
@@ -540,7 +541,8 @@ impl<T: TreeNode, L: Lens<T, bool> + Clone> Widget<T> for TreeNodeWidget<T, L> {
 
   // TODO: the height calculation ignores the inner widget height. issue #61
   fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {
-    // if we're in the chroot path, just compute and return the chroot child's layout
+    // if we're in the chroot path, just compute and return the chroot child's
+    // layout
     if let Some(idx) = data.get_chroot() {
       let chroot = &mut self.children[idx];
       let data = data.get_child(idx);

@@ -5,6 +5,7 @@ use druid::{
 };
 use druid_widget_nursery::WidgetExt;
 
+use super::Popup;
 use crate::{
   app::{
     controllers::HoverController,
@@ -14,8 +15,6 @@ use crate::{
   },
   widgets::card::Card,
 };
-
-use super::Popup;
 
 pub struct SelectInstall;
 

@@ -4,6 +4,7 @@ use druid::{
 };
 use druid_widget_nursery::material_icons::Icon;
 
+use super::Popup;
 use crate::{
   app::{
     installer,
@@ -17,8 +18,6 @@ use crate::{
   patch::table::{FixedFlexTable, TableColumnWidth, TableRow},
   widgets::card::Card,
 };
-
-use super::Popup;
 
 #[derive(Clone, Data)]
 pub struct RemoteUpdate {

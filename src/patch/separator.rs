@@ -14,9 +14,7 @@
 
 //! A separator widget.
 
-use druid::widget::prelude::*;
-use druid::{kurbo::Line, piet::StrokeStyle};
-use druid::{theme, Color, KeyOrValue};
+use druid::{kurbo::Line, piet::StrokeStyle, theme, widget::prelude::*, Color, KeyOrValue};
 
 /// A separator widget.
 pub struct Separator {

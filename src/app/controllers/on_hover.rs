@@ -15,10 +15,8 @@ impl<T, W: Widget<T>> OnHover<T, W> {
 
 impl<T: Data, W: Widget<T>> Controller<T, W> for OnHover<T, W> {
   fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
-    if ctx.is_hot() {
-      if (self.handler)(child, ctx, data) {
-        ctx.set_handled();
-      }
+    if ctx.is_hot() && (self.handler)(child, ctx, data) {
+      ctx.set_handled();
     }
     child.event(ctx, event, data, env);
   }

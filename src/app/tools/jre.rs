@@ -26,6 +26,7 @@ use tempfile::TempDir;
 use tokio::runtime::Handle;
 use webview_shared::ExtEventSinkExt;
 
+use super::{tool_card, vmparams::VMParams};
 use crate::{
   app::{
     controllers::AnimController,
@@ -34,8 +35,6 @@ use crate::{
   },
   widgets::card::Card,
 };
-
-use super::{tool_card, vmparams::VMParams};
 
 #[derive(Clone, Data, Lens)]
 pub struct Swapper {
@@ -53,10 +52,8 @@ impl Swapper {
         .with_child(h2_fixed("Java Runtime Swapper"))
         .with_child(Label::wrapped(
           "\
-            Starsector uses Java 7 by default. \
-            Replacing it with the newer Java 8 usually improves long term \
-            performance, memory usage and reliability.\
-          ",
+            Starsector uses Java 7 by default. Replacing it with the newer Java 8 usually improves \
+           long term performance, memory usage and reliability.",
         ))
         .with_default_spacer()
         .with_child(
@@ -727,7 +724,8 @@ mod test {
 
   // #[test]
   // fn revert_when_original_present_and_managed() {
-  //   let (test_dir, project_data) = base_test(Flavour::Coretto, true, None, None, true, false);
+  //   let (test_dir, project_data) = base_test(Flavour::Coretto, true, None,
+  // None, true, false);
 
   //   let runtime = tokio::runtime::Builder::new_current_thread()
   //     .enable_all()
@@ -780,10 +778,10 @@ mod test {
 
   //   let project_test_dir = TempDir::new().expect("Create project test dir");
 
-  //   std::fs::create_dir_all(project_test_dir.path().join(format!("jre_{}", flavour)))
-  //     .expect("Created mock cached JRE");
-  //   std::fs::create_dir_all(project_test_dir.path().join(format!("jre_{}/bin", flavour)))
-  //     .expect("Created mock cached JRE");
+  //   std::fs::create_dir_all(project_test_dir.path().join(format!("jre_{}",
+  // flavour)))     .expect("Created mock cached JRE");
+  //   std::fs::create_dir_all(project_test_dir.path().join(format!("jre_{}/bin",
+  // flavour)))     .expect("Created mock cached JRE");
   //   std::fs::OpenOptions::new()
   //     .create_new(true)
   //     .write(true)
@@ -815,10 +813,10 @@ mod test {
   //   assert!(jre_path.join(".moss").exists());
 
   //   let dot_moss_string =
-  //     std::fs::read_to_string(jre_path.join(".moss")).expect("Read moss dotfile");
-  //   let installed_flavour =
-  //     serde_json::from_str::<Flavour>(&dot_moss_string).expect("Deserialise installed flavour");
-  //   assert!(installed_flavour == flavour)
+  //     std::fs::read_to_string(jre_path.join(".moss")).expect("Read moss
+  // dotfile");   let installed_flavour =
+  //     serde_json::from_str::<Flavour>(&dot_moss_string).expect("Deserialise
+  // installed flavour");   assert!(installed_flavour == flavour)
   // }
 
   // #[test]
@@ -827,9 +825,11 @@ mod test {
 
   //   let project_test_dir = TempDir::new().expect("Create project test dir");
 
-  //   let (_, project_test_dir) = base_test(flavour, true, None, Some(project_test_dir), true, false);
+  //   let (_, project_test_dir) = base_test(flavour, true, None,
+  // Some(project_test_dir), true, false);
 
-  //   let (_, project_test_dir) = base_test(flavour, true, None, Some(project_test_dir), true, false);
+  //   let (_, project_test_dir) = base_test(flavour, true, None,
+  // Some(project_test_dir), true, false);
 
   //   assert!(project_test_dir
   //     .path()

@@ -107,23 +107,57 @@ impl Settings {
         )
         .with_default_spacer()
         .with_child(h2_fixed("Warn when overwriting '.git' folders:"))
-        .with_child(Checkbox::from_label(Label::wrapped("Aimed at developers. If a mod folder is an active Git project this option will warn you if it would be overwritten or deleted")).lens(Settings::git_warn))
+        .with_child(
+          Checkbox::from_label(Label::wrapped(
+            "Aimed at developers. If a mod folder is an active Git project this option will warn \
+             you if it would be overwritten or deleted",
+          ))
+          .lens(Settings::git_warn),
+        )
         .with_default_spacer()
         .with_child(h2_fixed("Use in-app browser to open links:"))
-        .with_child(Checkbox::from_label(Label::wrapped("Uses an embedded browser when enabled. If disabled links will open in your system default web browser.")).lens(Settings::open_forum_link_in_webview))
+        .with_child(
+          Checkbox::from_label(Label::wrapped(
+            "Uses an embedded browser when enabled. If disabled links will open in your system \
+             default web browser.",
+          ))
+          .lens(Settings::open_forum_link_in_webview),
+        )
         .with_default_spacer()
-        .with_child(h2_fixed("Show automatic updates even for mods that have a version discrepancy"))
-        .with_child(Checkbox::from_label(Label::wrapped("Indicates a mod has an update even when the installed version is a higher/more recent version than is available on the server. (Recommended Off)")).lens(Settings::show_auto_update_for_discrepancy))
+        .with_child(h2_fixed(
+          "Show automatic updates even for mods that have a version discrepancy",
+        ))
+        .with_child(
+          Checkbox::from_label(Label::wrapped(
+            "Indicates a mod has an update even when the installed version is a higher/more \
+             recent version than is available on the server. (Recommended Off)",
+          ))
+          .lens(Settings::show_auto_update_for_discrepancy),
+        )
         .with_default_spacer()
-        .with_child(h2_fixed("Show a warning when more than one copy of a mod is installed:"))
-        .with_child(Checkbox::from_label(Label::wrapped("When more than one copy of a mod is installed at the same time it is completely random which version is actually loaded by the game.")).lens(Settings::show_duplicate_warnings))
+        .with_child(h2_fixed(
+          "Show a warning when more than one copy of a mod is installed:",
+        ))
+        .with_child(
+          Checkbox::from_label(Label::wrapped(
+            "When more than one copy of a mod is installed at the same time it is completely \
+             random which version is actually loaded by the game.",
+          ))
+          .lens(Settings::show_duplicate_warnings),
+        )
         .with_default_spacer()
         .with_child(h2_fixed("Edit columns:"))
         .with_child(Self::headings_editor())
         .with_default_spacer()
-        .with_child(hoverable_text(Some(druid::Color::BLACK)).constant("Open config.json".to_owned()).on_click(|_, _, _| {
-          let _ = opener::open(Settings::path(false));
-        }).align_right().expand_width())
+        .with_child(
+          hoverable_text(Some(druid::Color::BLACK))
+            .constant("Open config.json".to_owned())
+            .on_click(|_, _, _| {
+              let _ = opener::open(Settings::path(false));
+            })
+            .align_right()
+            .expand_width(),
+        )
         .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
         .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
         .must_fill_main_axis(true)

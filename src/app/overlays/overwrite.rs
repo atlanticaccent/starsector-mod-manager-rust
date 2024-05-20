@@ -3,6 +3,7 @@ use druid::{
   Data, Key, Widget, WidgetExt,
 };
 
+use super::Popup;
 use crate::{
   app::{
     installer::{HybridPath, StringOrPath},
@@ -12,8 +13,6 @@ use crate::{
   },
   widgets::card::Card,
 };
-
-use super::Popup;
 
 #[derive(Clone, Data)]
 pub struct Overwrite {

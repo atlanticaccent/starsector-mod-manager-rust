@@ -4,8 +4,6 @@
 mod test {
   extern crate test;
   use fake::{Fake, Faker};
-  use test::Bencher;
-
   use moss::app::{
     mod_entry::{ModEntry, ViewModEntry},
     mod_list::{
@@ -14,6 +12,7 @@ mod test {
     },
     util::xxHashMap,
   };
+  use test::Bencher;
 
   #[bench]
   fn benchmark_sort(b: &mut Bencher) {

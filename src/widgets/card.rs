@@ -83,7 +83,7 @@ impl Card {
     on_hover: Option<BackgroundBrush<T>>,
   ) -> impl Widget<T> {
     let mut insets: Insets = padding.into();
-    let mut paint_insets = insets.clone();
+    let mut paint_insets = insets;
 
     if paint_insets.x0 <= 0.0 {
       paint_insets.x0 = insets.y0.max(insets.y1);
@@ -131,8 +131,8 @@ impl Card {
       if let Some(background) = ctx
         .is_hot()
         .then_some(())
-        .and_then(|_| on_hover.as_mut())
-        .or_else(|| background.as_mut())
+        .and(on_hover.as_mut())
+        .or(background.as_mut())
       {
         ctx.with_save(|ctx| {
           ctx.clip(rounded_rect);
@@ -347,27 +347,26 @@ impl<T: Data> CardBuilder<T> {
   }
 
   pub fn convert<U: Data>(&self) -> CardBuilder<U> {
-    let clone_brush = |brush: Option<&BackgroundBrush<T>>| match brush {
-      Some(brush) => Some(match brush {
-        BackgroundBrush::Color(inner) => BackgroundBrush::Color(inner.clone()),
+    let clone_brush = |brush: Option<&BackgroundBrush<T>>| {
+      brush.map(|brush| match brush {
+        BackgroundBrush::Color(inner) => BackgroundBrush::Color(*inner),
         BackgroundBrush::ColorKey(inner) => BackgroundBrush::ColorKey(inner.clone()),
         BackgroundBrush::Linear(inner) => BackgroundBrush::Linear(inner.clone()),
         BackgroundBrush::Radial(inner) => BackgroundBrush::Radial(inner.clone()),
         BackgroundBrush::Fixed(inner) => BackgroundBrush::Fixed(inner.clone()),
         BackgroundBrush::Painter(_) => unimplemented!(),
         _ => todo!(),
-      }),
-      None => None,
+      })
     };
 
     CardBuilder {
-      insets: self.insets.clone(),
-      corner_radius: self.corner_radius.clone(),
-      shadow_length: self.shadow_length.clone(),
+      insets: self.insets,
+      corner_radius: self.corner_radius,
+      shadow_length: self.shadow_length,
       border: self.border.clone(),
       background: clone_brush(self.background.as_ref()),
       on_hover: clone_brush(self.on_hover.as_ref()),
-      shadow_increase: self.shadow_increase.clone(),
+      shadow_increase: self.shadow_increase,
     }
   }
 }

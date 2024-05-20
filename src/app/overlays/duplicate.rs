@@ -6,6 +6,7 @@ use druid::{
 };
 use druid_widget_nursery::table::{FlexTable, TableColumnWidth, TableRow};
 
+use super::Popup;
 use crate::{
   app::{
     mod_entry::ModEntry,
@@ -19,8 +20,6 @@ use crate::{
   },
   widgets::card::Card,
 };
-
-use super::Popup;
 
 #[derive(Clone, Data)]
 pub struct Duplicate(Vector<ModEntry>);

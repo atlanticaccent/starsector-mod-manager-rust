@@ -74,7 +74,7 @@ impl NavBar {
                     .with_child(Label::raw().with_text_size(20.).lens(Compute::new(
                       |data: &Nav| {
                         let mut builder = RichTextBuilder::new();
-                        builder.push(&data.label.to_string()).strikethrough(true);
+                        builder.push(data.label.as_ref()).strikethrough(true);
 
                         builder.build()
                       },
@@ -109,7 +109,7 @@ impl NavBar {
       },
       Compute::new(|data: &Nav| data.override_.unwrap_or(data.expanded || data.always_open)),
     )
-    .with_opener(|| SizedBox::empty())
+    .with_opener(SizedBox::empty)
     .with_opener_dimensions((0., 0.))
     .with_max_label_height(26.)
     .with_indent(|data: &Nav| if data.depth > 1 { 16. } else { 0. })
@@ -286,8 +286,9 @@ impl TreeNode for Nav {
   }
 
   fn for_child_mut(&mut self, index: usize, mut cb: impl FnMut(&mut Self, usize)) {
-    // Apply the closure to a clone of the child and update the `self.children` vector
-    // with the clone iff it's changed to avoid unnecessary calls to `update(...)`
+    // Apply the closure to a clone of the child and update the `self.children`
+    // vector with the clone iff it's changed to avoid unnecessary calls to
+    // `update(...)`
 
     // TODO: there must be a more idiomatic way to do this
     let orig = &self.children[index];

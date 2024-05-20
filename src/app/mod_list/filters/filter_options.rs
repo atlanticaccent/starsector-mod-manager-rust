@@ -5,6 +5,7 @@ use druid::{
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
 
+use super::{filter_button::FilterButton, FilterState};
 use crate::{
   app::{
     controllers::{HeightLinker, HeightLinkerShared},
@@ -18,8 +19,6 @@ use crate::{
   },
   widgets::card::Card,
 };
-
-use super::{filter_button::FilterButton, FilterState};
 
 pub struct FilterOptions;
 
@@ -119,29 +118,27 @@ impl FilterOptions {
       .link_height_with(width_linker)
   }
 
-  fn status_options<T: Data>(mut width_linker: &mut Option<HeightLinkerShared>) -> impl Widget<T> {
+  fn status_options<T: Data>(width_linker: &mut Option<HeightLinkerShared>) -> impl Widget<T> {
     Card::builder()
       .with_insets((0.0, 10.0))
       .build(
         Flex::column()
           .with_child(
-            Self::option("Status", &mut width_linker, |_: &Option<bool>, _: &Env| {
+            Self::option("Status", width_linker, |_: &Option<bool>, _: &Env| {
               DESELECT.with_color(druid::Color::GRAY)
             })
             .disabled_if(|_, _| true),
           )
           .with_child(
             SizedBox::empty()
-              .link_height_with(&mut width_linker)
+              .link_height_with(width_linker)
               .border(druid::Color::BLACK, 0.5)
               .padding((0.0, 2.0)),
           )
           .with_child(
-            Self::option(
-              "Enabled",
-              &mut width_linker,
-              |data: &Option<bool>, _: &Env| data.is_some_and(|data| data),
-            )
+            Self::option("Enabled", width_linker, |data: &Option<bool>, _: &Env| {
+              data.is_some_and(|data| data)
+            })
             .on_click(|_, data, _| {
               if *data == Some(true) {
                 *data = None
@@ -151,11 +148,9 @@ impl FilterOptions {
             }),
           )
           .with_child(
-            Self::option(
-              "Disabled",
-              &mut width_linker,
-              |data: &Option<bool>, _: &Env| data.is_some_and(|data| !data),
-            )
+            Self::option("Disabled", width_linker, |data: &Option<bool>, _: &Env| {
+              data.is_some_and(|data| !data)
+            })
             .on_click(|_, data, _| {
               if *data == Some(false) {
                 *data = None
@@ -179,7 +174,7 @@ impl FilterOptions {
   }
 
   #[allow(non_local_definitions)]
-  fn update_options<T: Data>(mut width_linker: &mut Option<HeightLinkerShared>) -> impl Widget<T> {
+  fn update_options<T: Data>(width_linker: &mut Option<HeightLinkerShared>) -> impl Widget<T> {
     #[derive(Default, Clone, Data, Lens)]
     struct VersionCheckerFilter {
       none: bool,
@@ -241,7 +236,7 @@ impl FilterOptions {
           .with_child(
             Self::option(
               "Version Checker",
-              &mut width_linker,
+              width_linker,
               |d: &VersionCheckerFilter, _: &Env| match (d.all(), d.any()) {
                 (true, _) => FILLED_CHECKBOX,
                 (false, true) => INDETERMINATE_CHECK_BOX,
@@ -281,49 +276,49 @@ impl FilterOptions {
           )
           .with_child(
             SizedBox::empty()
-              .link_height_with(&mut width_linker)
+              .link_height_with(width_linker)
               .border(druid::Color::BLACK, 0.5)
               .padding((0.0, 2.0)),
           )
           .with_child(version_filter_option(
             "No Update Available",
-            &mut width_linker,
+            width_linker,
             VersionCheckerFilter::none,
             Filters::UpToDate,
           ))
           .with_child(version_filter_option(
             "Major Update Available",
-            &mut width_linker,
+            width_linker,
             VersionCheckerFilter::major,
             Filters::Major,
           ))
           .with_child(version_filter_option(
             "Minor Update Available",
-            &mut width_linker,
+            width_linker,
             VersionCheckerFilter::minor,
             Filters::Minor,
           ))
           .with_child(version_filter_option(
             "Patch Update Available",
-            &mut width_linker,
+            width_linker,
             VersionCheckerFilter::patch,
             Filters::Patch,
           ))
           .with_child(version_filter_option(
             "Unimplemented",
-            &mut width_linker,
+            width_linker,
             VersionCheckerFilter::unimplemented,
             Filters::Unimplemented,
           ))
           .with_child(version_filter_option(
             "Error",
-            &mut width_linker,
+            width_linker,
             VersionCheckerFilter::error,
             Filters::Error,
           ))
           .with_child(version_filter_option(
             "Local Exceeds Remote",
-            &mut width_linker,
+            width_linker,
             VersionCheckerFilter::local_exceeds,
             Filters::Discrepancy,
           ))
@@ -332,11 +327,11 @@ impl FilterOptions {
       .on_command(ModList::FILTER_RESET, |_, _, data| {
         *data = VersionCheckerFilter::default()
       })
-      .scope_independent(|| VersionCheckerFilter::default())
+      .scope_independent(VersionCheckerFilter::default)
   }
 
   fn update_from_server_options<T: Data>(
-    mut width_linker: &mut Option<HeightLinkerShared>,
+    width_linker: &mut Option<HeightLinkerShared>,
   ) -> impl Widget<T> {
     Card::builder()
       .with_insets((0.0, 10.0))
@@ -345,23 +340,21 @@ impl FilterOptions {
           .with_child(
             Self::option(
               "Update From Server",
-              &mut width_linker,
+              width_linker,
               |_: &Option<bool>, _: &Env| DESELECT.with_color(druid::Color::GRAY),
             )
             .disabled_if(|_, _| true),
           )
           .with_child(
             SizedBox::empty()
-              .link_height_with(&mut width_linker)
+              .link_height_with(width_linker)
               .border(druid::Color::BLACK, 0.5)
               .padding((0.0, 2.0)),
           )
           .with_child(
-            Self::option(
-              "Supported",
-              &mut width_linker,
-              |data: &Option<bool>, _: &Env| data.is_some_and(|data| data),
-            )
+            Self::option("Supported", width_linker, |data: &Option<bool>, _: &Env| {
+              data.is_some_and(|data| data)
+            })
             .on_click(|_, data, _| {
               if *data == Some(true) {
                 *data = None
@@ -373,7 +366,7 @@ impl FilterOptions {
           .with_child(
             Self::option(
               "Unsupported",
-              &mut width_linker,
+              width_linker,
               |data: &Option<bool>, _: &Env| data.is_some_and(|data| !data),
             )
             .on_click(|_, data, _| {

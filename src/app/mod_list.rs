@@ -121,10 +121,10 @@ impl ModList {
               .with_child(FilterButton::view().lens(Self::filter_state))
               .with_child(
                 Search::view()
-                  .scope(|curr| Search::new(curr), Search::buffer)
+                  .scope(Search::new, Search::buffer)
                   .lens(Self::search_text)
                   .on_change(|ctx, old, data, _| {
-                    if !old.same(&data) {
+                    if !old.same(data) {
                       if data.search_text.is_empty() {
                         data.header.sort_by = (Heading::Name, true)
                       } else {
@@ -529,7 +529,7 @@ impl ModList {
         } else {
           true
         };
-        let filters = filters.iter().all(|f| f.as_fn()(&entry));
+        let filters = filters.iter().all(|f| f.as_fn()(entry));
 
         (search && filters).then(|| entry.id.clone())
       })

@@ -73,7 +73,10 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
           } else {
             Modal::new("Error")
               .with_content("Failed to update Mod Manager.")
-              .with_content("It is recommended that you restart and check that the Manager has not been corrupted.")
+              .with_content(
+                "It is recommended that you restart and check that the Manager has not been \
+                 corrupted.",
+              )
               .with_close()
           };
 
@@ -164,6 +167,12 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
 
 pub struct MaskController {
   delayed_commands: Vec<Command>,
+}
+
+impl Default for MaskController {
+  fn default() -> Self {
+    Self::new()
+  }
 }
 
 impl MaskController {

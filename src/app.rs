@@ -220,11 +220,7 @@ impl App {
           ),
           InitialTab::new(
             NavLabel::ModDetails,
-            Maybe::new(
-              || ModDescription::view(),
-              || ModDescription::empty_builder(),
-            )
-            .lens(lens::Map::new(
+            Maybe::new(ModDescription::view, ModDescription::empty_builder).lens(lens::Map::new(
               |app: &App| {
                 app
                   .active

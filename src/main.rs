@@ -2,7 +2,10 @@
 
 use const_format::concatcp;
 use druid::{AppLauncher, WindowDesc};
-use moss::app::{self, app_delegate::AppDelegate};
+use moss::app::{
+  app_delegate::AppDelegate,
+  self,
+};
 use tokio::runtime::Builder;
 use webview_shared::PROJECT;
 

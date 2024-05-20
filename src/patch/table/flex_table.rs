@@ -329,7 +329,8 @@ impl<T: TableData> FlexTable<T> {
     self.children.insert(row.id().clone(), row);
   }
 
-  /// Return a mutable reference to column widths to allow them to modified at runtime
+  /// Return a mutable reference to column widths to allow them to modified at
+  /// runtime
   pub fn get_column_widths(&mut self) -> &mut Vec<ComplexTableColumnWidth> {
     &mut self.column_widths
   }

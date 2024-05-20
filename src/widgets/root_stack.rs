@@ -1,34 +1,15 @@
-use druid::lens;
-use druid::Data;
-use druid::Lens;
-use druid::WidgetExt as _;
-use druid_widget_nursery::CommandCtx;
-
-use druid_widget_nursery::StackChildParams;
-
-use druid::widget::SizedBox;
-
-use druid::widget::ViewSwitcher;
-
-use druid_widget_nursery::Stack;
-
-use druid::Point;
-
-use druid::SingleUse;
-
-use druid::Selector;
-
-use druid_widget_nursery::StackChildPosition;
-
-use druid::EventCtx;
-
-use druid::Widget;
-use druid_widget_nursery::WidgetExt as _;
-
 use std::rc::Rc;
 
-use crate::app::util::WidgetExtEx as _;
-use crate::app::App;
+use druid::{
+  lens,
+  widget::{SizedBox, ViewSwitcher},
+  Data, EventCtx, Lens, Point, Selector, SingleUse, Widget, WidgetExt as _,
+};
+use druid_widget_nursery::{
+  CommandCtx, Stack, StackChildParams, StackChildPosition, WidgetExt as _,
+};
+
+use crate::app::{util::WidgetExtEx as _, App};
 
 #[derive(Clone, Data, Lens)]
 pub struct RootStack {

@@ -14,6 +14,7 @@ use webview_shared::{
 use webview_subsystem::init_webview;
 use wry::{WebView, WebViewBuilder, WebViewBuilderExtUnix};
 
+use super::util::WidgetExtEx;
 use crate::{
   app::{
     browser::button::{button, button_text},
@@ -23,8 +24,6 @@ use crate::{
   nav_bar::{Nav, NavLabel},
   widgets::card::Card,
 };
-
-use super::util::WidgetExtEx;
 
 mod button;
 
@@ -392,8 +391,8 @@ impl BrowserInner {
   }
 
   fn screenshot(&self, ext_ctx: ExtEventSink) {
-    if !*self.screenshow_wip() {
-      if self
+    if !*self.screenshow_wip()
+      && self
         .webview
         .screenshot(move |res| {
           let func = || -> anyhow::Result<()> {
@@ -409,9 +408,8 @@ impl BrowserInner {
         })
         .inspect_err(|e| eprintln!("{e:?}"))
         .is_ok()
-      {
-        *self.screenshow_wip() = true;
-      }
+    {
+      *self.screenshow_wip() = true;
     }
   }
 

@@ -6,14 +6,12 @@ use druid::{
 };
 use druid_widget_nursery::{FutureWidget, WidgetExt as _};
 
-use crate::widgets::card::{Card, CardBuilder};
-
 use self::{jre::Swapper, vmparams::VMParams};
-
 use super::{
   settings::Settings,
   util::{LensExtExt, WidgetExtEx},
 };
+use crate::widgets::card::{Card, CardBuilder};
 
 pub mod jre;
 pub mod vmparams;
@@ -55,7 +53,7 @@ impl Tools {
   }
 
   fn vmparams_wrapped() -> impl Widget<Self> {
-    Maybe::or_empty(|| VMParams::view())
+    Maybe::or_empty(VMParams::view)
       .lens(Tools::vmparams)
       .on_command(VMParams::SAVE_VMPARAMS, |_, _, data| {
         eprintln!("saving vmparams");

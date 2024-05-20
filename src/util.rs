@@ -725,8 +725,8 @@ impl<X: Data, Y: Data> ScopeTransfer for DummyTransfer<X, Y> {
 impl<X, Y> Default for DummyTransfer<X, Y> {
   fn default() -> Self {
     Self {
-      phantom_x: PhantomData::default(),
-      phantom_y: PhantomData::default(),
+      phantom_x: PhantomData,
+      phantom_y: PhantomData,
     }
   }
 }
@@ -1391,7 +1391,7 @@ where
   U: Prism<B, C>,
 {
   fn get(&self, data: &A) -> Option<C> {
-    self.left.get(data).map(|b| self.right.get(&b)).flatten()
+    self.left.get(data).and_then(|b| self.right.get(&b))
   }
 
   fn put(&self, data: &mut A, inner: C) {
@@ -1412,13 +1412,13 @@ impl IsSome {
 }
 
 pub fn option_ptr_cmp<T>(this: &Option<Rc<T>>, other: &Option<Rc<T>>) -> bool {
-  return if let Some(this) = this
+  if let Some(this) = this
     && let Some(other) = other
   {
     Rc::ptr_eq(this, other)
   } else {
     false
-  };
+  }
 }
 
 pub trait ShadeColor {

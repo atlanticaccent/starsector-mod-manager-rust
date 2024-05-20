@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! A widget which splits an area in two, with a settable ratio, and optional draggable resizing.
+//! A widget which splits an area in two, with a settable ratio, and optional
+//! draggable resizing.
 
 use druid::{
   kurbo::Line,
@@ -23,7 +24,8 @@ use druid::{
 
 pub const DRAGGED: Selector<f64> = Selector::new("druid.fork.split.update_split.drag");
 
-/// A container containing two other widgets, splitting the area either horizontally or vertically.
+/// A container containing two other widgets, splitting the area either
+/// horizontally or vertically.
 pub struct Split<T> {
   split_axis: Axis,
   split_point_chosen: f64,
@@ -62,19 +64,20 @@ impl<T> Split<T> {
     }
   }
 
-  /// Create a new split panel, with the horizontal axis split in two by a vertical bar.
-  /// The children are laid out left and right.
+  /// Create a new split panel, with the horizontal axis split in two by a
+  /// vertical bar. The children are laid out left and right.
   pub fn columns(child1: impl Widget<T> + 'static, child2: impl Widget<T> + 'static) -> Self {
     Self::new(Axis::Horizontal, child1, child2)
   }
 
-  /// Create a new split panel, with the vertical axis split in two by a horizontal bar.
-  /// The children are laid out up and down.
+  /// Create a new split panel, with the vertical axis split in two by a
+  /// horizontal bar. The children are laid out up and down.
   pub fn rows(child1: impl Widget<T> + 'static, child2: impl Widget<T> + 'static) -> Self {
     Self::new(Axis::Vertical, child1, child2)
   }
 
-  /// Builder-style method to set the split point as a fraction of the split axis.
+  /// Builder-style method to set the split point as a fraction of the split
+  /// axis.
   ///
   /// The value must be between `0.0` and `1.0`, inclusive.
   /// The default split point is `0.5`.
@@ -87,7 +90,8 @@ impl<T> Split<T> {
     self
   }
 
-  /// Builder-style method to set the minimum size for both sides of the split axis.
+  /// Builder-style method to set the minimum size for both sides of the split
+  /// axis.
   ///
   /// The value must be greater than or equal to `0.0`.
   /// The value will be rounded up to the nearest integer.
@@ -113,7 +117,8 @@ impl<T> Split<T> {
   ///
   /// The minimum splitter bar area defines the minimum size of the area
   /// where mouse hit detection is done for the splitter bar.
-  /// The final area is either this or the splitter bar size, whichever is greater.
+  /// The final area is either this or the splitter bar size, whichever is
+  /// greater.
   ///
   /// This can be useful when you want to use a very narrow visual splitter bar,
   /// but don't want to sacrifice user experience by making it hard to click on.
@@ -127,15 +132,18 @@ impl<T> Split<T> {
     self
   }
 
-  /// Builder-style method to set whether the split point can be changed by dragging.
+  /// Builder-style method to set whether the split point can be changed by
+  /// dragging.
   pub fn draggable(mut self, draggable: bool) -> Self {
     self.draggable = draggable;
     self
   }
 
-  /// Builder-style method to set whether the splitter bar is drawn as a solid rectangle.
+  /// Builder-style method to set whether the splitter bar is drawn as a solid
+  /// rectangle.
   ///
-  /// If this is `false` (the default), the bar will be drawn as two parallel lines.
+  /// If this is `false` (the default), the bar will be drawn as two parallel
+  /// lines.
   pub fn solid_bar(mut self, solid: bool) -> Self {
     self.solid = solid;
     self
@@ -173,7 +181,8 @@ impl<T> Split<T> {
     }
   }
 
-  /// Returns true if the provided mouse position is inside the splitter bar area.
+  /// Returns true if the provided mouse position is inside the splitter bar
+  /// area.
   fn bar_hit_test(&self, size: Size, mouse_pos: Point) -> bool {
     let (edge1, edge2) = self.bar_edges(size);
     match self.split_axis {

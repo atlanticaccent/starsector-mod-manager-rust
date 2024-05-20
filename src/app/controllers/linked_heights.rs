@@ -31,6 +31,12 @@ enum HeightLinkerCmd {
   ResetHeight,
 }
 
+impl Default for HeightLinker {
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
 impl HeightLinker {
   const HEIGHT_LINKER_CMD: Selector<(WidgetId, HeightLinkerCmd)> =
     Selector::new("height_linker.command");

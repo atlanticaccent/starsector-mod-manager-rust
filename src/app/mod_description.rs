@@ -6,11 +6,6 @@ use druid::{
 };
 use druid_widget_nursery::{material_icons::Icon, Mask};
 
-use crate::{
-  nav_bar::{Nav, NavLabel},
-  widgets::card::Card,
-};
-
 use super::{
   controllers::Rotated,
   mod_entry::{ModMetadata, UpdateStatus},
@@ -21,6 +16,10 @@ use super::{
     ON_RED_KEY, RED_KEY, SYSTEM_UPDATE, TOGGLE_ON,
   },
   ViewModEntry as ModEntry,
+};
+use crate::{
+  nav_bar::{Nav, NavLabel},
+  widgets::card::Card,
 };
 
 pub const OPEN_IN_BROWSER: Selector<String> =

@@ -3,6 +3,7 @@ use druid::{
   Data, Key, Widget, WidgetExt,
 };
 
+use super::Popup;
 use crate::{
   app::{
     mod_entry::ModEntry,
@@ -12,8 +13,6 @@ use crate::{
   nav_bar::Nav,
   widgets::card::Card,
 };
-
-use super::Popup;
 
 pub struct ConfirmDelete;
 

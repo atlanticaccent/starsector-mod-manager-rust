@@ -16,6 +16,7 @@ use druid_widget_nursery::{material_icons::Icon, wrap::Wrap, WidgetExt};
 use regex::{Captures, Regex, RegexBuilder};
 use strum_macros::EnumIter;
 
+use super::tool_card;
 use crate::{
   app::{
     util::{h2_fixed, LoadError, SaveError, ShadeColor, WidgetExtEx, WithHoverState as _},
@@ -23,8 +24,6 @@ use crate::{
   },
   widgets::{card::Card, root_stack::RootStack},
 };
-
-use super::tool_card;
 
 #[derive(Debug, Clone, Data, Lens)]
 pub struct VMParams<T: VMParamsPath = VMParamsPathDefault> {
@@ -332,7 +331,7 @@ impl druid::text::Formatter<u32> for ValueFormatter {
     _sel: &druid::text::Selection,
   ) -> druid::text::Validation {
     match input.parse::<u32>() {
-      Err(err) if input.len() != 0 => druid::text::Validation::failure(err),
+      Err(err) if !input.is_empty() => druid::text::Validation::failure(err),
       _ => druid::text::Validation::success(),
     }
   }
@@ -453,7 +452,7 @@ impl<T: VMParamsPath> VMParams<T> {
         thread_stack_size,
         verify_none: true,
         linked: false,
-        _phantom: PhantomData::default(),
+        _phantom: PhantomData,
       })
     } else {
       Err(LoadError::FormatError)
@@ -559,9 +558,7 @@ impl<T: VMParamsPath> VMParams<T> {
 
     if count > 0
       && let Some(ch) = iter.next()
-      && vec!['k', 'm', 'g']
-        .iter()
-        .any(|t| t.eq_ignore_ascii_case(&ch))
+      && ['k', 'm', 'g'].iter().any(|t| t.eq_ignore_ascii_case(&ch))
       && let Some(' ') | None = iter.peek()
     {
       Ok(())
@@ -627,7 +624,7 @@ mod test {
         thread_stack_size: vmparams.thread_stack_size,
         verify_none,
         linked: vmparams.linked,
-        _phantom: PhantomData::default(),
+        _phantom: PhantomData,
       };
 
       let res = edited_vmparams.save(PathBuf::from("/"));

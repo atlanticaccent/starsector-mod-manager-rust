@@ -4,8 +4,8 @@ use druid::{theme, widget::SizedBox, Data, KeyOrValue, UnitPoint, Widget, Widget
 
 use super::tab::{InitialTab, TabInfo, TabsPolicy};
 
-/// A TabsPolicy that allows the app developer to provide static tabs up front when building the
-/// widget.
+/// A TabsPolicy that allows the app developer to provide static tabs up front
+/// when building the widget.
 #[derive(Clone)]
 pub struct StaticTabsForked<T> {
   // This needs be able to avoid cloning the widgets we are given -

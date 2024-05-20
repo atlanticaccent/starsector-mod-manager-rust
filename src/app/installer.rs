@@ -108,7 +108,7 @@ async fn handle_path(
           )
           .expect("Send error over async channel");
 
-        return Err(err.into());
+        return Err(err);
       }
     }
   } else {
@@ -141,15 +141,16 @@ async fn handle_path(
         );
 
         Ok(())
-      } else if let Some(mod_path) = mod_paths.get(0)
+      } else if let Some(mod_path) = mod_paths.first()
         && let mod_metadata = ModMetadata::new()
         && mod_metadata.save(mod_path).await.is_ok()
         && let Ok(mut mod_info) = ModEntry::from_file(mod_path, mod_metadata)
       {
         if let Some(id) = installed.iter().find(|existing| **existing == mod_info.id) {
           // note: this is probably the way wrong way of doing this
-          // instead, just submit the new entry if it doesn't conflict with an existing path, _then_ detect the conflict
-          // that way there's less chance an existing ID gets missed due to the ID list effectively getting cached when
+          // instead, just submit the new entry if it doesn't conflict with an existing
+          // path, _then_ detect the conflict that way there's less chance an
+          // existing ID gets missed due to the ID list effectively getting cached when
           // this function starts
           ext_ctx
             .submit_command_global(
@@ -219,7 +220,7 @@ async fn handle_path(
         )
         .expect("Send error over async channel");
 
-      return Err(err.into());
+      Err(err.into())
     }
   }
 }

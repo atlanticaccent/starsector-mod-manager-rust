@@ -17,6 +17,12 @@ pub struct ExtensibleController<T, W> {
   on_lifecycle: Vec<OnLifecycle<T, W>>,
 }
 
+impl<T, W: Widget<T>> Default for ExtensibleController<T, W> {
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
 impl<T, W: Widget<T>> ExtensibleController<T, W> {
   pub fn new() -> Self {
     Self {

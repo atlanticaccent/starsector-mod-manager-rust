@@ -1,9 +1,11 @@
-use druid::Event::{MouseDown, MouseMove, MouseUp, Wheel};
-use druid::{
-  Affine, BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent,
-  PaintCtx, RenderContext, Size, UpdateCtx, Vec2, Widget,
-};
 use std::f64::consts::PI;
+
+use druid::{
+  Affine, BoxConstraints, Env, Event,
+  Event::{MouseDown, MouseMove, MouseUp, Wheel},
+  EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, RenderContext, Size,
+  UpdateCtx, Vec2, Widget,
+};
 
 pub struct Rotated<W> {
   child: W,

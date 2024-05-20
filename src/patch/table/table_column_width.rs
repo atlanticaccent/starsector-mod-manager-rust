@@ -77,9 +77,12 @@ impl From<f64> for TableColumnWidth {
 ///
 /// - f64 => Simple(Fixed(f64))
 /// - `Into<TableColumnWidth>` => Simple(TableColumnWidth))
-/// - `(Into<TableColumnWidth>`, `Range<f64>`) => Limited with min/max from range
-/// - `(Into<TableColumnWidth>`, `Into<TableColumnWidth>`) => Limited with minimun
-/// - `(Into<TableColumnWidth>`, `Into<TableColumnWidth>`, `Into<TableColumnWidth>`) => Limited with min/max
+/// - `(Into<TableColumnWidth>`, `Range<f64>`) => Limited with min/max from
+///   range
+/// - `(Into<TableColumnWidth>`, `Into<TableColumnWidth>`) => Limited with
+///   minimun
+/// - `(Into<TableColumnWidth>`, `Into<TableColumnWidth>`,
+///   `Into<TableColumnWidth>`) => Limited with min/max
 ///
 /// Examples:
 /// ```

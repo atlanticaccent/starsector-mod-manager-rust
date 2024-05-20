@@ -9,6 +9,7 @@ use druid_widget_nursery::wrap::Wrap;
 use itertools::Itertools;
 use tap::Pipe as _;
 
+use super::Popup;
 use crate::{
   app::{
     installer::{HybridPath, INSTALL_FOUND_MULTIPLE},
@@ -22,8 +23,6 @@ use crate::{
   patch::table::{FixedFlexTable, TableColumnWidth, TableRow},
   widgets::card::Card,
 };
-
-use super::Popup;
 
 #[derive(Debug, Clone, Data)]
 pub struct Multiple {
@@ -117,7 +116,8 @@ impl Multiple {
                       let installable = found
                         .iter()
                         .zip(data.enabled.iter())
-                        .filter_map(|(entry, installable)| installable.then(|| entry.path.clone()))
+                        .filter(|&(_, installable)| *installable)
+                        .map(|(entry, _)| entry.path.clone())
                         .collect_vec();
                       dismiss(ctx, data, env);
                       ctx.submit_command(
