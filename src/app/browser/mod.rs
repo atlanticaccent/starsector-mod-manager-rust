@@ -18,7 +18,7 @@ use crate::{
   app::{
     browser::button::{button, button_text},
     controllers::ExtensibleController,
-    ARROW_LEFT, ARROW_RIGHT,
+    ARROW_LEFT, ARROW_RIGHT, BOOKMARK, BOOKMARK_BORDER,
   },
   nav_bar::{Nav, NavLabel},
   widgets::card::Card,
@@ -62,16 +62,39 @@ impl Browser {
   pub fn view() -> impl Widget<Browser> {
     const INIT_WEBVIEW: Selector = Selector::new("browser.webview.init");
 
-    Flex::column()
-      .with_child(
-        Flex::row()
-          .with_child(button(|_| Icon::new(*ARROW_LEFT).boxed()).padding((0.0, 5.0)))
-          .with_child(button(|_| Icon::new(*ARROW_RIGHT).boxed()).padding((0.0, 5.0)))
-          .with_child(button(|_| button_text("Bookmarks").valign_centre()).padding((0.0, 5.0)))
-          .expand_width(),
-      )
-      .with_flex_child(
-        Maybe::or_empty(|| {
+    Maybe::or_empty(|| {
+      Flex::column()
+        .with_child(
+          Flex::row()
+            .with_child(
+              button(|_| Icon::new(*ARROW_LEFT).padding(-5.).boxed())
+                .on_click(|_, browser: &mut BrowserInner, _| {
+                  let _ = browser.webview.evaluate_script("window.history.back()");
+                })
+                .padding((0.0, 5.0)),
+            )
+            .with_child(
+              button(|_| Icon::new(*ARROW_RIGHT).padding(-5.).boxed())
+                .on_click(|_, browser: &mut BrowserInner, _| {
+                  let _ = browser.webview.evaluate_script("window.history.forward()");
+                })
+                .padding((0.0, 5.0)),
+            )
+            .with_child(
+              button(|hovered| {
+                Flex::row()
+                  .cross_axis_alignment(druid::widget::CrossAxisAlignment::Center)
+                  .main_axis_alignment(druid::widget::MainAxisAlignment::Center)
+                  .with_child(button_text("Bookmarks"))
+                  .with_child(Icon::new(*if hovered { BOOKMARK } else { BOOKMARK_BORDER }))
+                  .valign_centre()
+              })
+              .fix_width(175.)
+              .padding((0.0, 5.0)),
+            )
+            .expand_width(),
+        )
+        .with_flex_child(
           Card::builder()
             .with_insets((0.0, 14.0))
             .with_corner_radius(4.0)
@@ -101,6 +124,7 @@ impl Browser {
                 });
               }
             }))
+            .mask_default()
             .controller(
               ExtensibleController::new()
                 .on_lifecycle(|_, ctx, event, browser: &BrowserInner, _| {
@@ -153,88 +177,88 @@ impl Browser {
                   true
                 })
                 .on_command(WEBVIEW_EVENT, Browser::handle_webview_events),
-            )
-        })
-        .lens(Browser::inner),
-        1.,
-      )
-      .on_command(Nav::NAV_SELECTOR, |ctx, payload, data| {
-        if *payload == NavLabel::WebBrowser && data.inner.is_none() {
-          ctx.submit_command(INIT_WEBVIEW)
-        }
-      })
-      .on_command2(INIT_WEBVIEW, |_, ctx, _, data| {
-        #[cfg(target_os = "linux")]
-        let res = {
-          use gtk::prelude::*;
+            ),
+          1.,
+        )
+    })
+    .lens(Browser::inner)
+    .on_command(Nav::NAV_SELECTOR, |ctx, payload, data| {
+      if *payload == NavLabel::WebBrowser && data.inner.is_none() {
+        ctx.submit_command(INIT_WEBVIEW)
+      }
+    })
+    .on_command2(INIT_WEBVIEW, |_, ctx, _, data| {
+      #[cfg(target_os = "linux")]
+      let res = {
+        use gtk::prelude::*;
 
-          let window = ctx.window().get_gtk_application_window();
-          let bin: &gtk::Bin = window.upcast_ref();
-          let child = bin.child().unwrap();
-          let vbox: &gtk::Box = child.downcast_ref().unwrap();
+        let window = ctx.window().get_gtk_application_window();
+        let bin: &gtk::Bin = window.upcast_ref();
+        let child = bin.child().unwrap();
+        let vbox: &gtk::Box = child.downcast_ref().unwrap();
 
-          eprintln!("{}", vbox.type_());
-          eprintln!("{:?}", vbox.children());
+        eprintln!("{}", vbox.type_());
+        eprintln!("{:?}", vbox.children());
 
-          let child_ref: *const _ = child.to_glib_full();
-          let container: &gtk::Container = window.upcast_ref();
+        let child_ref: *const _ = child.to_glib_full();
+        let container: &gtk::Container = window.upcast_ref();
 
-          container.remove(&child);
+        container.remove(&child);
 
-          let overlay = gtk::Overlay::new();
-          overlay.add(&child);
-          unsafe {
-            drop(gtk::glib::object::ObjectRef::from_glib_full(
-              child_ref as *mut _,
-            ))
-          };
-
-          let fixed = gtk::Fixed::new();
-          overlay.add_overlay(&fixed);
-          overlay.set_overlay_pass_through(&fixed, true);
-          fixed.show_all();
-
-          overlay.show_all();
-
-          container.add(&overlay);
-
-          let builder = WebViewBuilder::new_gtk(&fixed);
-
-          init_webview(data.url.clone(), builder, ctx.get_external_handle())
+        let overlay = gtk::Overlay::new();
+        overlay.add(&child);
+        unsafe {
+          drop(gtk::glib::object::ObjectRef::from_glib_full(
+            child_ref as *mut _,
+          ))
         };
-        #[cfg(not(target_os = "linux"))]
-        let res = webview_subsystem::init_webview_with_handle(
-          data.url.clone(),
-          ctx.window(),
-          ctx.get_external_handle(),
-        );
 
-        match res {
-          Ok(webview) => {
-            let inner = BrowserInner {
-              webview: Rc::new(webview),
-              visible: Default::default(),
-              image: None,
-              mega_file: None,
-              ext_ctx: ctx.get_external_handle(),
-              screenshot_in_progress: Default::default(),
-            };
-            inner.set_visible(true);
-            data.inner = Some(inner);
-            ctx.submit_command(Browser::WEBVIEW_SHOW)
-          }
-          Err(err) => eprintln!("webview build error: {err:?}"),
+        let fixed = gtk::Fixed::new();
+        overlay.add_overlay(&fixed);
+        overlay.set_overlay_pass_through(&fixed, true);
+        fixed.show_all();
+
+        overlay.show_all();
+
+        container.add(&overlay);
+
+        let builder = WebViewBuilder::new_gtk(&fixed);
+
+        init_webview(data.url.clone(), builder, ctx.get_external_handle())
+      };
+      #[cfg(not(target_os = "linux"))]
+      let res = webview_subsystem::init_webview_with_handle(
+        data.url.clone(),
+        ctx.window(),
+        ctx.get_external_handle(),
+      );
+
+      match res {
+        Ok(webview) => {
+          let inner = BrowserInner {
+            webview: Rc::new(webview),
+            visible: Default::default(),
+            image: None,
+            mega_file: None,
+            ext_ctx: ctx.get_external_handle(),
+            screenshot_in_progress: Default::default(),
+          };
+          inner.set_visible(true);
+          data.inner = Some(inner);
+          ctx.submit_command(Browser::WEBVIEW_SHOW)
         }
-        ctx.request_update();
-        ctx.request_layout();
-        false
-      })
-      .on_command2(super::App::OPEN_WEBVIEW, |_, ctx, payload, data| {
-        ctx.submit_command(Nav::NAV_SELECTOR.with(NavLabel::WebBrowser));
-        data.url = payload.clone();
-        true
-      })
-      .expand()
+        Err(err) => eprintln!("webview build error: {err:?}"),
+      }
+      ctx.request_update();
+      ctx.request_layout();
+      false
+    })
+    .on_command2(super::App::OPEN_WEBVIEW, |_, ctx, payload, data| {
+      ctx.submit_command(Nav::NAV_SELECTOR.with(NavLabel::WebBrowser));
+      data.url = payload.clone();
+      true
+    })
+    .expand()
   }
 
   fn handle_webview_events(

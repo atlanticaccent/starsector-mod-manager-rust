@@ -27,5 +27,5 @@ pub fn button<T: Data, W: Widget<T> + 'static>(inner: impl Fn(bool) -> W) -> imp
     )
     .on_click(|_, data, _| data.1 = true)
     .scope(|data| (data, false), druid::lens!((T, bool), 0))
-    .fix_size(175., 52.)
+    .fix_height(52.)
 }
