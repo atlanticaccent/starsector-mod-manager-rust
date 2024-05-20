@@ -233,11 +233,6 @@ impl Delegate<App> for AppDelegate {
         });
       });
       return Handled::Yes;
-    } else if let Some(url) = cmd.get(App::OPEN_WEBVIEW)
-      && let Some(window) = self.root_window.as_ref()
-    {
-      // TODO
-      let Todo = 0;
     } else if let Some(url) = cmd.get(mod_description::OPEN_IN_BROWSER) {
       if data.settings.open_forum_link_in_webview {
         ctx.submit_command(App::OPEN_WEBVIEW.with(Some(url.clone())));
