@@ -18,12 +18,10 @@ use strum_macros::EnumIter;
 
 use crate::{
   app::{
-    util::{
-      h2_fixed, LoadError, RootStack, SaveError, ShadeColor, WidgetExtEx, WithHoverState as _,
-    },
+    util::{h2_fixed, LoadError, SaveError, ShadeColor, WidgetExtEx, WithHoverState as _},
     ARROW_DROP_DOWN, ARROW_LEFT, LINK, LINK_OFF,
   },
-  widgets::card::Card,
+  widgets::{card::Card, root_stack::RootStack},
 };
 
 use super::tool_card;

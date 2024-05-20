@@ -3,8 +3,8 @@ use proc_macros::icon;
 mod icons {
   pub use druid_widget_nursery::material_icons::normal::{
     action::{
-      DELETE, DONE_ALL, EXTENSION, HELP, INSTALL_DESKTOP, OPEN_IN_BROWSER as OPEN_BROWSER, SEARCH,
-      SETTINGS, VERIFIED,
+      BOOKMARK, BOOKMARK_BORDER, DELETE, DONE_ALL, EXTENSION, HELP, INSTALL_DESKTOP,
+      OPEN_IN_BROWSER as OPEN_BROWSER, SEARCH, SETTINGS, VERIFIED,
     },
     av::{NEW_RELEASES, PLAY_ARROW},
     communication::HOURGLASS_TOP,
@@ -82,4 +82,6 @@ icons! {
   icons::CONSTRUCTION,
   icons::HANDYMAN,
   icons::HOURGLASS_TOP,
+  icons::BOOKMARK,
+  icons::BOOKMARK_BORDER,
 }

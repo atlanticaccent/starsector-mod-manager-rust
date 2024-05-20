@@ -22,11 +22,15 @@ use super::{
   tools::vmparams::VMParams,
   util::{
     button_painter, default_true, h2_fixed, hoverable_text, icons::*, make_column_pair,
-    make_flex_pair, CommandExt, LabelExt, LoadError, RootStack, SaveError, ShadeColor, WidgetExtEx,
+    make_flex_pair, CommandExt, LabelExt, LoadError, SaveError, ShadeColor, WidgetExtEx,
     WithHoverState,
   },
 };
-use crate::{app::PROJECT, theme::Themes, widgets::card::Card};
+use crate::{
+  app::PROJECT,
+  theme::Themes,
+  widgets::{card::Card, root_stack::RootStack},
+};
 
 #[derive(Clone, Data, Lens, Serialize, Deserialize, Default, Debug)]
 pub struct Settings {

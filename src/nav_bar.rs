@@ -79,7 +79,9 @@ impl NavBar {
                         builder.build()
                       },
                     )))
-                    .with_child(Icon::new(*HOURGLASS_TOP).with_color(druid::theme::DISABLED_TEXT_COLOR))
+                    .with_child(
+                      Icon::new(*HOURGLASS_TOP).with_color(druid::theme::DISABLED_TEXT_COLOR),
+                    )
                     .env_scope(|env, _| {
                       env.set(
                         druid::theme::DISABLED_TEXT_COLOR,

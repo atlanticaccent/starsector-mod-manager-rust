@@ -23,7 +23,7 @@ use self::{
   overlays::Popup,
   settings::Settings,
   tools::Tools,
-  util::{bold_text, icons::*, xxHashMap, Release, RootStack},
+  util::{bold_text, icons::*, xxHashMap, Release},
 };
 use crate::{
   app::util::WidgetExtEx,
@@ -33,6 +33,7 @@ use crate::{
     tabs_policy::StaticTabsForked,
   },
   theme::{Theme, CHANGE_THEME},
+  widgets::root_stack::RootStack,
 };
 
 mod activity;
