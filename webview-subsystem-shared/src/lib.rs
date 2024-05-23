@@ -31,6 +31,7 @@ pub enum WebviewEvent {
   BlobReceived(String),
   BlobChunk(Option<String>),
   PageLoaded,
+  ShowConfirmPopup(String),
 }
 
 lazy_static! {

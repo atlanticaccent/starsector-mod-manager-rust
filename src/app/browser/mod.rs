@@ -19,7 +19,7 @@ use crate::{
   app::{
     browser::button::{button, button_text},
     controllers::ExtensibleController,
-    ARROW_LEFT, ARROW_RIGHT, BOOKMARK, BOOKMARK_BORDER,
+    ARROW_LEFT, ARROW_RIGHT, BOOKMARK, BOOKMARK_BORDER, REFRESH,
   },
   nav_bar::{Nav, NavLabel},
   widgets::card::Card,
@@ -68,14 +68,21 @@ impl Browser {
             .with_child(
               button(|_| Icon::new(*ARROW_LEFT).padding(-5.).boxed())
                 .on_click(|_, browser: &mut BrowserInner, _| {
-                  let _ = browser.webview.evaluate_script("window.history.back()");
+                  let _ = browser.webview.evaluate_script("history.back()");
                 })
                 .padding((0.0, 5.0)),
             )
             .with_child(
               button(|_| Icon::new(*ARROW_RIGHT).padding(-5.).boxed())
                 .on_click(|_, browser: &mut BrowserInner, _| {
-                  let _ = browser.webview.evaluate_script("window.history.forward()");
+                  let _ = browser.webview.evaluate_script("history.forward()");
+                })
+                .padding((0.0, 5.0)),
+            )
+            .with_child(
+              button(|_| Icon::new(*REFRESH).padding(-2.5).boxed())
+                .on_click(|_, browser: &mut BrowserInner, _| {
+                  let _ = browser.webview.evaluate_script("location.reload()");
                 })
                 .padding((0.0, 5.0)),
             )
@@ -363,6 +370,9 @@ impl Browser {
       }
       WebviewEvent::PageLoaded => {
         inner.screenshot(ctx.get_external_handle());
+      },
+      WebviewEvent::ShowConfirmPopup(url) => {
+        
       }
     }
 

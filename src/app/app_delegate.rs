@@ -20,6 +20,7 @@ use super::{
   util::{get_latest_manager, get_starsector_version, GET_INSTALLED_STARSECTOR},
   App,
 };
+use crate::nav_bar::Nav;
 
 pub enum AppCommands {
   UpdateModDescription(String),
@@ -235,6 +236,7 @@ impl Delegate<App> for AppDelegate {
       return Handled::Yes;
     } else if let Some(url) = cmd.get(mod_description::OPEN_IN_BROWSER) {
       if data.settings.open_forum_link_in_webview {
+        ctx.submit_command(Nav::NAV_SELECTOR.with(crate::nav_bar::NavLabel::WebBrowser));
         ctx.submit_command(App::OPEN_WEBVIEW.with(Some(url.clone())));
       } else {
         let _ = opener::open(url);
