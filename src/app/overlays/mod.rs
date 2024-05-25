@@ -7,6 +7,7 @@ use druid::{
 };
 use druid_widget_nursery::{Mask, WidgetExt as _};
 
+mod browser_install;
 mod confirm_delete;
 mod duplicate;
 mod multiple;
@@ -14,6 +15,7 @@ mod overwrite;
 mod remote_update;
 mod select_install;
 
+use browser_install::*;
 use confirm_delete::*;
 use duplicate::*;
 use multiple::*;
@@ -37,6 +39,7 @@ pub enum Popup {
   Duplicate(Duplicate),
   FoundMultiple(Multiple),
   RemoteUpdate(RemoteUpdate),
+  BrowserInstall(BrowserInstall),
   Custom(Arc<dyn Fn() -> Box<dyn Widget<()>> + Send + Sync>),
 }
 
@@ -107,6 +110,7 @@ impl Popup {
             Popup::Duplicate(duplicate) => duplicate.view().boxed(),
             Popup::FoundMultiple(multiple) => multiple.view().boxed(),
             Popup::RemoteUpdate(remote_update) => remote_update.view().boxed(),
+            Popup::BrowserInstall(browser_install) => browser_install.view().boxed(),
             Popup::Custom(maker) => maker().constant(()).boxed(),
           }
         } else {
