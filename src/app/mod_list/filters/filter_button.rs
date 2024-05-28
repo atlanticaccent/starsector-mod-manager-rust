@@ -34,11 +34,11 @@ impl FilterButton {
     inner.padding((8.0, 0.0))
   }
 
-  fn button<T: Data>() -> impl Widget<T> {
+  fn button<T: Data>(_hovered: bool) -> impl Widget<T> {
     Self::button_styling(Self::inner())
   }
 
-  fn reset<T: Data>() -> impl Widget<T> {
+  fn reset<T: Data>(_hovered: bool) -> impl Widget<T> {
     Self::button_styling(Icon::new(*CLEAR).padding((-4.0, -4.0))).padding((
       0.0,
       0.0,

@@ -140,7 +140,7 @@ impl ModDescription {
                   .with_shadow_length(2.0)
                   .with_shadow_increase(2.0)
                   .with_border(2.0, Key::new("enabled_card.border"))
-                  .hoverable(|| {
+                  .hoverable(|_| {
                     Flex::row()
                       .with_child(
                         Rotated::new(Icon::new(*TOGGLE_ON), 3)
@@ -184,7 +184,7 @@ impl ModDescription {
                   .with_shadow_length(2.0)
                   .with_shadow_increase(2.0)
                   .with_border(2.0, Key::<druid::Color>::new("enabled_card.border"))
-                  .hoverable(|| {
+                  .hoverable(|_| {
                     Flex::row()
                       .with_child(Icon::new(*SYSTEM_UPDATE).padding((5.0, 0.0, -5.0, 0.0)))
                       .with_child(Label::new("Install Latest Update").padding((10.0, 0.0)))
@@ -225,7 +225,7 @@ impl ModDescription {
                   .with_shadow_increase(2.0)
                   .with_border(2.0, druid::Color::WHITE.darker())
                   .with_background(druid::Color::BLACK.lighter().lighter())
-                  .hoverable(|| {
+                  .hoverable(|_| {
                     Flex::row()
                       .with_child(Icon::new(*DELETE).padding((5.0, 0.0, -5.0, 0.0)))
                       .with_child(Label::new("Uninstall").padding((10.0, 0.0)))

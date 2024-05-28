@@ -66,7 +66,7 @@ impl VMParams {
                       .with_shadow_length(0.0)
                       .with_border(1.0, druid::Color::BLACK)
                       .with_background(druid::Color::GRAY.lighter_by(9))
-                      .hoverable(|| {
+                      .hoverable(|_| {
                         Flex::row()
                           .with_child(
                             Label::dynamic(|unit: &Unit, _| format!("{}b", unit))
@@ -131,7 +131,7 @@ impl VMParams {
                       .with_shadow_length(0.0)
                       .with_border(1.0, druid::Color::BLACK)
                       .with_background(druid::Color::GRAY.lighter_by(9))
-                      .hoverable(|| {
+                      .hoverable(|_| {
                         Flex::row()
                           .with_child(
                             Label::dynamic(|unit: &Unit, _| format!("{}b", unit))
@@ -206,7 +206,7 @@ impl VMParams {
             .with_shadow_length(0.0)
             .with_border(1.0, druid::Color::BLACK)
             .with_background(druid::Color::WHITE.darker_by(1))
-            .hoverable(|| {
+            .hoverable(|_| {
               Flex::column()
                 .with_child(
                   Card::builder()

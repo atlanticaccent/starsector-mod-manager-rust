@@ -117,7 +117,7 @@ impl Swapper {
           builder
             .convert()
             .with_background(druid::Color::GRAY.lighter_by(3))
-            .hoverable(|| {
+            .hoverable(|_| {
               Label::new("Downloaded")
                 .with_text_color(druid::Color::BLACK)
                 .env_scope(|env, _| {
@@ -139,7 +139,7 @@ impl Swapper {
             builder
               .clone()
               .with_background(druid::Color::from_hex_str("#31efb8").unwrap())
-              .hoverable(|| {
+              .hoverable(|_| {
                 Label::new("Download")
                   .env_scope(|env, _| {
                     env.set(
@@ -153,7 +153,7 @@ impl Swapper {
               }),
             builder
               .with_background(druid::Color::from_hex_str("#31efb8").unwrap())
-              .hoverable(move || {
+              .hoverable(move |_| {
                 Label::dynamic(|data: &f64, _| {
                   format!("Downloading{}", ".".repeat(data.floor() as usize))
                 })

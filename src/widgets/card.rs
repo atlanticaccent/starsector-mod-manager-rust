@@ -330,8 +330,8 @@ impl<T: Data> CardBuilder<T> {
     )
   }
 
-  pub fn hoverable<W: Widget<T> + 'static>(self, widget_builder: impl Fn() -> W) -> impl Widget<T> {
-    self.hoverable_distinct(|| widget_builder(), || widget_builder())
+  pub fn hoverable<W: Widget<T> + 'static>(self, widget_builder: impl Fn(bool) -> W) -> impl Widget<T> {
+    self.hoverable_distinct(|| widget_builder(false), || widget_builder(true))
   }
 
   pub fn hoverable_distinct<W1: Widget<T> + 'static, W2: Widget<T> + 'static, F, FH>(

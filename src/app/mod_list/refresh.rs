@@ -12,7 +12,7 @@ impl Refresh {
   pub fn view<T: Data>() -> impl Widget<T> {
     Card::builder()
       .with_insets((0.0, 14.0))
-      .hoverable(|| {
+      .hoverable(|_| {
         Flex::row()
           .with_child(bold_text(
             "Refresh",

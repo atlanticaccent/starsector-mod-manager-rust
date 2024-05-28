@@ -81,7 +81,7 @@ impl Duplicate {
                   .with_shadow_length(2.0)
                   .with_shadow_increase(2.0)
                   .with_border(2.0, Key::new("button.border"))
-                  .hoverable(|| {
+                  .hoverable(|_| {
                     Flex::row()
                       .with_child(Label::new("Ignore All").padding((10.0, 0.0)))
                       .valign_centre()
@@ -110,7 +110,7 @@ impl Duplicate {
                   .with_shadow_increase(2.0)
                   .with_border(2.0, druid::Color::WHITE.darker())
                   .with_background(druid::Color::BLACK.lighter().lighter())
-                  .hoverable(|| {
+                  .hoverable(|_| {
                     Flex::row()
                       .with_child(Label::new("Ignore").padding((10.0, 0.0)))
                       .valign_centre()
@@ -183,7 +183,7 @@ fn keep_button(keep: ModEntry, duplicates: Vector<ModEntry>) -> impl Widget<App>
     .with_shadow_length(2.0)
     .with_shadow_increase(2.0)
     .with_border(2.0, Key::new("button.border"))
-    .hoverable(|| {
+    .hoverable(|_| {
       Flex::row()
         .with_child(Label::new("Keep").padding((10.0, 0.0)))
         .valign_centre()

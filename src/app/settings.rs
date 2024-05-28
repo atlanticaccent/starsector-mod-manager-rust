@@ -371,7 +371,7 @@ impl Settings {
         .with_shadow_length(6.0)
         .with_shadow_increase(2.0)
         .with_background(druid::Color::WHITE.darker())
-        .hoverable(move || {
+        .hoverable(move |_| {
           let mut column = Flex::column()
             .with_child(
               Card::builder()

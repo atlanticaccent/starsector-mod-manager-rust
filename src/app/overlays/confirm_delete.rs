@@ -38,7 +38,7 @@ impl ConfirmDelete {
                   .with_shadow_length(2.0)
                   .with_shadow_increase(2.0)
                   .with_border(2.0, Key::new("button.border"))
-                  .hoverable(|| {
+                  .hoverable(|_| {
                     Flex::row()
                       .with_child(Label::new("Continue").padding((10.0, 0.0)))
                       .valign_centre()
@@ -66,7 +66,7 @@ impl ConfirmDelete {
                   .with_shadow_length(2.0)
                   .with_shadow_increase(2.0)
                   .with_border(2.0, Key::new("button.border"))
-                  .hoverable(|| {
+                  .hoverable(|_| {
                     Flex::row()
                       .with_child(Label::new("Cancel").padding((10.0, 0.0)))
                       .valign_centre()
