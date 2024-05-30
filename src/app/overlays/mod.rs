@@ -51,6 +51,7 @@ impl Popup {
   pub const QUEUE_POPUP: Selector<Popup> = Selector::new("app.popup.queue");
   pub const DELAYED_POPUP: Selector<Vec<Popup>> = Selector::new("app.popup.delayed");
   pub const OPEN_NEXT: Selector<Popup> = Selector::new("app.popup.open_next");
+  pub const IS_EMPTY: Selector = Selector::new("app.popup.empty");
 
   pub fn overlay(widget: impl Widget<App> + 'static) -> impl Widget<App> {
     Mask::new(widget)
@@ -66,7 +67,7 @@ impl Popup {
         data.popups.pop_front();
       })
       .on_command(Popup::DISMISS_MATCHING, |_, matching, data| {
-        data.popups.retain(|popup| !matching(popup))
+        data.popups.retain(|popup| !matching(popup));
       })
       .scope_with((DataTimer::INVALID, Vector::new()), |scoped| {
         scoped
@@ -139,6 +140,10 @@ impl Popup {
       mod_entry.version.clone(),
       mod_entry.remote_version.clone().unwrap(),
     ))
+  }
+
+  pub fn browser_install(url: String) -> Popup {
+    Popup::BrowserInstall(BrowserInstall::new(url))
   }
 
   pub fn custom(maker: impl Fn() -> Box<dyn Widget<()>> + Send + Sync + 'static) -> Popup {

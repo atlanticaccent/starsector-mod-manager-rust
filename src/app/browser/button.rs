@@ -18,7 +18,9 @@ pub fn button_styling<T: Data>(inner: impl Widget<T> + 'static) -> impl Widget<T
   inner.padding((8.0, 0.0))
 }
 
-pub fn button<T: Data, W: Widget<T> + 'static>(inner: impl Fn(bool) -> W) -> impl Widget<T> {
+pub fn button_unconstrained<T: Data, W: Widget<T> + 'static>(
+  inner: impl Fn(bool) -> W,
+) -> impl Widget<T> {
   Card::builder()
     .with_insets((0.0, 14.0))
     .hoverable_distinct(
@@ -27,5 +29,10 @@ pub fn button<T: Data, W: Widget<T> + 'static>(inner: impl Fn(bool) -> W) -> imp
     )
     .on_click(|_, data, _| data.1 = true)
     .scope(|data| (data, false), druid::lens!((T, bool), 0))
-    .fix_height(52.)
+}
+
+pub fn button<T: Data, W: Widget<T> + 'static>(
+  inner: impl Fn(bool) -> W + 'static,
+) -> impl Widget<T> {
+  button_unconstrained(inner).fix_height(52.)
 }

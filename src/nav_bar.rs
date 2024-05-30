@@ -140,7 +140,7 @@ pub struct Nav {
   pub override_: Option<bool>,
 }
 
-#[derive(strum_macros::Display, strum_macros::AsRefStr, Clone, Copy, PartialEq, Debug)]
+#[derive(strum_macros::Display, strum_macros::AsRefStr, Clone, Copy, PartialEq, Debug, Data)]
 #[strum(serialize_all = "title_case")]
 pub enum NavLabel {
   Root,

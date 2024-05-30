@@ -5,9 +5,6 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[lib]
-crate-type = ["rlib"]
-
 [dependencies]
 druid = { workspace = true, default-features = false }
 wry = { workspace = true }
@@ -21,6 +18,10 @@ const_format = "0.2.22"
 directories = "3.0"
 url = "2.2.2"
 tap = "1.0.1"
+regex = { workspace = true }
+reqwest = { workspace = true }
+mime = "0.3.17"
+mime_guess = "2.0.4"
 
 [dependencies.webview-shared]
 path = "../webview-subsystem-shared"

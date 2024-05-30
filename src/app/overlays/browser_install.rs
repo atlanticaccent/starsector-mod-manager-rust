@@ -6,6 +6,7 @@ use druid::{
 use super::Popup;
 use crate::{
   app::{
+    browser::Browser,
     util::{h2_fixed, LabelExt, WidgetExtEx as _, BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
     App,
   },
@@ -32,7 +33,7 @@ impl BrowserInstall {
           .with_child(h2_fixed("Are you trying to install a mod?"))
           .with_default_spacer()
           .with_child(Label::wrapped("Mod will be installed from this url:"))
-          .with_child(Label::new(url.as_str()))
+          .with_child(Label::wrapped(url.as_str()))
           .with_default_spacer()
           .with_child(
             Flex::row()
@@ -60,6 +61,9 @@ impl BrowserInstall {
                   .padding((0.0, 2.0))
                   .on_click(move |ctx, data: &mut App, _| {
                     ctx.submit_command(Popup::DISMISS);
+                    if data.current_tab == crate::nav_bar::NavLabel::WebBrowser {
+                      ctx.submit_command(Browser::WEBVIEW_SHOW)
+                    }
                   }),
               )
               .with_child(
@@ -84,7 +88,12 @@ impl BrowserInstall {
                   })
                   .fix_height(42.0)
                   .padding((0.0, 2.0))
-                  .on_click(|ctx, _, _| ctx.submit_command(Popup::DISMISS)),
+                  .on_click(|ctx, data: &mut App, _| {
+                    ctx.submit_command(Popup::DISMISS);
+                    if data.current_tab == crate::nav_bar::NavLabel::WebBrowser {
+                      ctx.submit_command(Browser::WEBVIEW_SHOW)
+                    }
+                  }),
               ),
           ),
       )

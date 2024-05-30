@@ -74,6 +74,7 @@ pub struct App {
   downloads: OrdMap<i64, (i64, String, f64)>,
   mod_repo: Option<ModRepo>,
   pub popups: Vector<Popup>,
+  pub current_tab: NavLabel,
 }
 
 impl App {
@@ -135,6 +136,7 @@ impl App {
       downloads: OrdMap::new(),
       mod_repo: None,
       popups: Vector::new(),
+      current_tab: NavLabel::Mods,
     }
   }
 
@@ -251,6 +253,7 @@ impl App {
             .on_command2(Nav::NAV_SELECTOR, |tabs, ctx, label, state| {
               let tabs = tabs.wrapped_mut();
               let rebuild = &mut state.inner;
+              state.outer.current_tab = label.clone();
               if *label != NavLabel::ModDetails {
                 ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Mods, false)));
                 ctx.submit_command(NavBar::REMOVE_OVERRIDE.with(NavLabel::ModDetails))

@@ -234,9 +234,14 @@ impl<W: Widget<App>> Controller<App, W> for MaskController {
     data: &App,
     env: &Env,
   ) {
-    if data.popups.is_empty() && !self.delayed_commands.is_empty() {
-      for cmd in self.delayed_commands.drain(0..) {
-        ctx.submit_command(cmd)
+    if data.popups.is_empty() {
+      if !self.delayed_commands.is_empty() {
+        for cmd in self.delayed_commands.drain(0..) {
+          ctx.submit_command(cmd)
+        }
+      }
+      if !old_data.popups.is_empty() {
+        ctx.submit_command(Popup::IS_EMPTY)
       }
     }
 
