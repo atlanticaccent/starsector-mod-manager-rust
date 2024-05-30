@@ -9,16 +9,17 @@ use std::{
 use chrono::{DateTime, Local, Utc};
 use druid::{
   kurbo::Line,
-  lens, theme,
+  lens,
+  text::RichTextBuilder,
+  theme,
   widget::{Button, Checkbox, Either, Flex, Label, Painter, ViewSwitcher},
   Color, Data, ExtEventSink, KeyOrValue, Lens, RenderContext as _, Selector, Widget, WidgetExt,
 };
-use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
+use druid_widget_nursery::{material_icons::Icon, stack_tooltip::StackTooltip};
 use fake::Dummy;
 use json_comments::strip_comments;
 use serde::{Deserialize, Serialize};
 use serde_aux::prelude::*;
-use tap::Tap;
 
 use super::{
   app_delegate::AppCommands,
@@ -26,9 +27,9 @@ use super::{
   mod_description::ModDescription,
   mod_list::{headings::Heading, ModList},
   util::{
-    self, icons::*, LensExtExt, WidgetExtEx as _, WithHoverIdState as _, WithHoverState, BLUE_KEY,
-    GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ON_RED_KEY, ON_YELLOW_KEY, ORANGE_KEY,
-    RED_KEY, YELLOW_KEY,
+    self, icons::*, LensExtExt, Tap, WidgetExtEx as _, WithHoverIdState as _, WithHoverState,
+    BLUE_KEY, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ON_RED_KEY, ON_YELLOW_KEY,
+    ORANGE_KEY, RED_KEY, YELLOW_KEY,
   },
   App,
 };
@@ -271,7 +272,7 @@ impl ViewModEntry {
                   Flex::row()
                     .with_child(Label::new(version_union.to_string()))
                     .with_flex_spacer(1.)
-                    .tap_mut(|row| {
+                    .tap(|row| {
                       let mut icon_row = Flex::row();
                       let mut iter = 0;
 
@@ -305,13 +306,18 @@ impl ViewModEntry {
                       let text_color = color.clone();
                       let background_color = <KeyOrValue<Color>>::from(update_status).resolve(env);
                       row.add_child(
-                        icon_row
-                          .stack_tooltip(tooltip)
-                          .with_text_attribute(druid::text::Attribute::TextColor(text_color))
-                          .with_background_color(background_color)
-                          .with_offset((10.0, 10.0))
-                          .lens(lens!(((Option<UpdateStatus>, VersionUnion), bool), 0))
-                          .with_hover_state(false),
+                        StackTooltip::new(
+                          icon_row,
+                          RichTextBuilder::new()
+                            .tap(|builder| {
+                              builder.push(&tooltip).text_color(text_color);
+                            })
+                            .build(),
+                        )
+                        .with_background_color(background_color)
+                        .with_offset((10.0, 10.0))
+                        .lens(lens!(((Option<UpdateStatus>, VersionUnion), bool), 0))
+                        .with_hover_state(false),
                       )
                     }),
                 )
