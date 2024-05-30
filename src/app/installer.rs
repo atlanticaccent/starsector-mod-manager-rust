@@ -79,7 +79,6 @@ impl Payload {
   }
 }
 
-#[allow(irrefutable_let_patterns)]
 async fn handle_path(
   ext_ctx: ExtEventSink,
   source: HybridPath,
@@ -158,12 +157,10 @@ async fn handle_path(
               Popup::overwrite(id.clone().into(), mod_folder.with_path(mod_path), mod_info),
             )
             .expect("Send query over async channel");
-        } else if let target_path = mods_dir.join(&mod_info.id)
-          && (&target_path).pipe(|p| {
-            let contents = p.read_dir().into_iter().flatten().flatten();
-            p.exists() && p.is_dir() && contents.count() > 0
-          })
-        {
+        } else if let Some(target_path) = mods_dir.join(&mod_info.id).pipe(|p| {
+          let contents = p.read_dir().into_iter().flatten().flatten();
+          (p.exists() && p.is_dir() && contents.count() > 0).then_some(p)
+        }) {
           if target_path.exists() {
             let _ = remove_dir_all(&target_path);
           }
