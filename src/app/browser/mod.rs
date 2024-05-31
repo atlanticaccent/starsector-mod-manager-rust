@@ -2,7 +2,7 @@ use std::{cell::RefCell, io::Write, ops::Deref, rc::Rc};
 
 use base64::decode;
 use druid::{
-  widget::{Flex , Maybe, Painter, SizedBox},
+  widget::{Flex, Maybe, Painter, SizedBox},
   Data, ExtEventSink, ImageBuf, Lens, Selector, SingleUse, Widget, WidgetExt,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
@@ -82,7 +82,7 @@ impl Browser {
             move |ctx, browser: &BrowserInner, _| {
               if let Some(incoming_image) = &browser.image {
                 let image = incoming_image.deref().to_image(ctx.render_ctx);
-                saved_image = Some((image, (incoming_image.width(), incoming_image.height())))
+                saved_image = Some((image, incoming_image.size()))
               }
 
               if let Some((image, size)) = saved_image.as_ref() {
@@ -91,12 +91,11 @@ impl Browser {
                 ctx.with_save(|ctx| {
                   use druid::RenderContext;
 
-                  let target_rect =
-                    druid::Rect::from_center_size(region.center(), (size.0 as f64, size.1 as f64));
+                  let target_rect = druid::Rect::from_center_size(region.center(), *size);
 
                   ctx.clip(region);
                   ctx.draw_image(
-                    &image,
+                    image,
                     target_rect,
                     druid::piet::InterpolationMode::NearestNeighbor,
                   );
@@ -172,14 +171,14 @@ impl Browser {
                 }
                 true
               })
-              .on_command(Browser::WEBVIEW_SCREENSHOT_DATA, |_, ctx, payload, data| {
+              .on_command(Browser::WEBVIEW_SCREENSHOT_DATA, |_, ctx, payload, browser| {
                 let image = payload.take().unwrap();
-                *data.screenshow_wip() = false;
+                *browser.screenshow_wip() = false;
                 if let Ok(image) = ImageBuf::from_data(&image) {
-                  if image.size() + druid::Size::from((14., 14.)) == ctx.size() {
-                    data.image = Some(Rc::new(image));
-                  } else if data.is_visible() {
-                    data.screenshot(ctx.get_external_handle())
+                  if (image.size() + (14., 14.).into()).aspect_ratio() == ctx.size().aspect_ratio() {
+                    browser.image = Some(Rc::new(image));
+                  } else if browser.is_visible() {
+                    browser.screenshot(ctx.get_external_handle())
                   }
                 }
                 ctx.request_update();
