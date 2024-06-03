@@ -2,9 +2,9 @@ use std::{path::PathBuf, rc::Rc};
 
 use chrono::Local;
 use druid::{
-  im::{OrdMap, Vector},
+  im::{vector, OrdMap, Vector},
   lens,
-  widget::{Flex, Maybe, Scope, WidgetWrapper, ZStack},
+  widget::{Flex, Label, Maybe, Painter, Scope, WidgetWrapper, ZStack},
   Data, Lens, LensExt, Selector, SingleUse, Widget, WidgetExt, WidgetId,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
@@ -33,7 +33,7 @@ use crate::{
     tabs_policy::StaticTabsForked,
   },
   theme::{Theme, CHANGE_THEME},
-  widgets::root_stack::RootStack,
+  widgets::{root_stack::RootStack, wrapped_table::WrappedTable},
 };
 
 mod activity;
@@ -213,13 +213,13 @@ impl App {
       )
       .with_flex_child(
         Tabs::for_policy(StaticTabsForked::build(vec![
-          InitialTab::new(
-            NavLabel::Mods,
-            ModList::view()
-              .lens(App::mod_list)
-              .on_change(ModList::on_app_data_change)
-              .controller(ModListController),
-          ),
+          // InitialTab::new(
+          //   NavLabel::Mods,
+          //   ModList::view()
+          //     .lens(App::mod_list)
+          //     .on_change(ModList::on_app_data_change)
+          //     .controller(ModListController),
+          // ),
           InitialTab::new(
             NavLabel::ModDetails,
             Maybe::new(ModDescription::view, ModDescription::empty_builder).lens(lens::Map::new(
@@ -242,6 +242,18 @@ impl App {
               .lens(Tools::settings_sync())
               .on_change(Settings::save_on_change)
               .lens(App::settings),
+          ),
+          InitialTab::new(
+            NavLabel::Starmodder,
+            WrappedTable::<Vector<String>, _>::new(100.0, |map_id| {
+              Label::dynamic(move |data: &Vector<String>, env| data[map_id(env)].to_owned())
+            })
+            .lens(druid::lens::Constant(vector![
+              "Foo".to_owned(),
+              "Bar".to_owned()
+            ]))
+            .expand()
+            .debug_paint_layout(),
           ),
           InitialTab::new(NavLabel::WebBrowser, Browser::view().lens(App::browser)),
           InitialTab::new(NavLabel::Activity, Activity::view().lens(App::log)),
@@ -276,9 +288,10 @@ impl App {
                   ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::ModDetails, true)));
                   tabs.set_tab_index_by_label(NavLabel::ModDetails)
                 }
-                label @ (NavLabel::WebBrowser | NavLabel::Performance | NavLabel::Settings) => {
-                  tabs.set_tab_index_by_label(label)
-                }
+                label @ (NavLabel::Performance
+                | NavLabel::Starmodder
+                | NavLabel::WebBrowser
+                | NavLabel::Settings) => tabs.set_tab_index_by_label(label),
                 _ => eprintln!("Failed to open an item for a nav bar control"),
               }
               true

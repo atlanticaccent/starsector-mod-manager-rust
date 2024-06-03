@@ -13,7 +13,7 @@ use druid::{
 
 pub trait RowData: Data {
   type Id: Hash + Eq + Clone + Debug;
-  type Column: Hash + Eq;
+  type Column: Hash + Eq + Debug;
 
   fn id(&self) -> Self::Id;
 
@@ -43,7 +43,7 @@ pub trait TableData:
   + IndexMut<<Self::Row as RowData>::Id, Output = Self::Row>
 {
   type Row: RowData<Column = Self::Column>;
-  type Column: Hash + Eq + Clone;
+  type Column: Hash + Eq + Clone + Debug;
 
   fn keys(&self) -> impl Iterator<Item = <Self::Row as RowData>::Id>;
 

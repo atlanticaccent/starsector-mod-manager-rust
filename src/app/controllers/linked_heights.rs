@@ -84,6 +84,10 @@ impl HeightLinker {
     self.max = f64::NEG_INFINITY;
     ctx.submit_command(Self::HEIGHT_LINKER_CMD.with((self.id, HeightLinkerCmd::ResetHeight)))
   }
+
+  pub fn set_id(&mut self, id: WidgetId) {
+    self.id = id
+  }
 }
 
 #[derive(Widget)]

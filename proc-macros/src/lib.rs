@@ -16,18 +16,18 @@ pub fn impl_widget(input: TokenStream) -> TokenStream {
 
   let data_bound: TypeParam = parse_quote!(T: Clone + druid::Data);
   let widget_bound: TypeParam = parse_quote!(W: Widget<T>);
-  generics
+  if let Some(data) = generics
     .type_params_mut()
     .find(|param| param.ident.to_string() == "T")
-    .unwrap()
-    .bounds
-    .extend(data_bound.bounds);
-  generics
+  {
+    data.bounds.extend(data_bound.bounds);
+  }
+  if let Some(widget) = generics
     .type_params_mut()
     .find(|param| param.ident.to_string() == "W")
-    .unwrap()
-    .bounds
-    .extend(widget_bound.bounds);
+  {
+    widget.bounds.extend(widget_bound.bounds)
+  }
   let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
   let mut event = None;
