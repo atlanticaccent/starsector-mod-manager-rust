@@ -38,7 +38,6 @@ regex = { workspace = true }
 lazy_static = { workspace = true }
 strum = { workspace = true }
 strum_macros = { workspace = true }
-tap = { workspace = true }
 rayon = { workspace = true }
 self_update = { workspace = true, default-features = false, features = ["rustls"] }
 indexmap = { workspace = true }
@@ -151,7 +150,6 @@ regex = "1.5"
 lazy_static = "1.4"
 strum = "0.23"
 strum_macros = "0.23"
-tap = "1.0.1"
 rayon = "1.5"
 self_update = { version = "0.29.0", default-features = false }
 indexmap = "1.8.0"

@@ -8,9 +8,9 @@ use druid::{
 };
 use druid_widget_nursery::{AnyCtx, RequestCtx, Stack, StackChildPosition};
 use indexmap::IndexMap;
-use tap::Tap;
 
 use super::util::{h3_fixed, DragWindowController, LabelExt, WidgetExtEx};
+use crate::app::util::Tap as _;
 
 pub struct Modal<'a, T: Data> {
   title: String,
@@ -133,7 +133,7 @@ impl<'a, T: Data> Modal<'a, T> {
         Stack::new()
           .with_child(
             Flex::column()
-              .tap_mut(|flex| {
+              .tap(|flex| {
                 for content in self.contents.drain(..) {
                   flex.add_child(match content {
                     StringOrWidget::Str(str) => Label::wrapped(str).boxed(),
@@ -172,7 +172,7 @@ impl<'a, T: Data> Modal<'a, T> {
       .with_child(
         Flex::row()
           .with_flex_spacer(1.)
-          .tap_mut(|flex| {
+          .tap(|flex| {
             for (label, commands) in self.buttons.drain(..) {
               flex.add_child(Button::new(label).on_click({
                 move |ctx, data, _| {

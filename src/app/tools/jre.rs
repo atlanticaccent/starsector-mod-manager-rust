@@ -20,7 +20,6 @@ use rand::random;
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::Display;
-use tap::Pipe;
 use tar::Archive;
 use tempfile::TempDir;
 use tokio::runtime::Handle;
@@ -31,7 +30,7 @@ use crate::{
   app::{
     controllers::AnimController,
     overlays::Popup,
-    util::{h2_fixed, LabelExt, ShadeColor, WidgetExtEx},
+    util::{h2_fixed, LabelExt, ShadeColor, Tap as _, WidgetExtEx},
   },
   widgets::card::Card,
 };

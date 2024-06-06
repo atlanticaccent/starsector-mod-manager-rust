@@ -17,7 +17,6 @@ base64 = "0.13.0"
 const_format = "0.2.22"
 directories = "3.0"
 url = "2.2.2"
-tap = "1.0.1"
 regex = { workspace = true }
 reqwest = { workspace = true }
 mime = "0.3.17"

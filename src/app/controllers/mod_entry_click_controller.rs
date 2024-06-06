@@ -1,9 +1,9 @@
 use druid::{widget::Controller, Event, EventCtx, Menu, MenuItem, Widget};
-use tap::Pipe;
 
 use crate::app::{
   mod_description::{ModDescription, OPEN_IN_BROWSER},
   mod_entry::ModEntry,
+  util::Tap as _,
   App,
 };
 

@@ -7,7 +7,6 @@ use druid::{
 };
 use druid_widget_nursery::wrap::Wrap;
 use itertools::Itertools;
-use tap::Pipe as _;
 
 use super::Popup;
 use crate::{
@@ -15,8 +14,8 @@ use crate::{
     installer::{HybridPath, INSTALL_FOUND_MULTIPLE},
     mod_entry::ModEntry,
     util::{
-      bolded, h2_fixed, hoverable_text, ShadeColor, WidgetExtEx as _, BLUE_KEY, ON_BLUE_KEY,
-      ON_RED_KEY, RED_KEY,
+      bolded, h2_fixed, hoverable_text, ShadeColor, Tap as _, WidgetExtEx as _, BLUE_KEY,
+      ON_BLUE_KEY, ON_RED_KEY, RED_KEY,
     },
     App,
   },

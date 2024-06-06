@@ -16,13 +16,14 @@ use serde::Deserialize;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use sublime_fuzzy::best_match;
-use tap::{Pipe, Tap};
 
 use super::{
   controllers::HoverController,
   mod_description::OPEN_IN_BROWSER,
   modal::Modal,
-  util::{default_true, hoverable_text, icons::*, Button2, CommandExt, LabelExt, WidgetExtEx},
+  util::{
+    default_true, hoverable_text, icons::*, Button2, CommandExt, LabelExt, Tap as _, WidgetExtEx,
+  },
   App,
 };
 
@@ -176,9 +177,7 @@ impl ModRepo {
         ))
         .on_command(ModRepo::OPEN_IN_DISCORD, |ctx, _, data| {
           if let Some(uri) = ModRepo::modal.get(data) {
-            let discord_uri = uri
-              .clone()
-              .tap_mut(|uri| uri.replace_range(0..5, "discord"));
+            let discord_uri = uri.clone().tap(|uri| uri.replace_range(0..5, "discord"));
 
             if opener::open(discord_uri).is_err() {
               ctx.submit_command_global(OPEN_IN_BROWSER.with(uri))

@@ -14,7 +14,6 @@ use druid_widget_nursery::{material_icons::Icon, wrap::Wrap, WidgetExt as _};
 use extend::ext;
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
-use tap::Tap;
 
 use super::{
   controllers::HoverController,
@@ -27,7 +26,7 @@ use super::{
   },
 };
 use crate::{
-  app::PROJECT,
+  app::{util::Tap as _, PROJECT},
   theme::Themes,
   widgets::{card::Card, root_stack::RootStack},
 };
@@ -182,7 +181,7 @@ impl Settings {
         Wrap::new()
           .direction(Axis::Horizontal)
           .alignment(druid_widget_nursery::wrap::WrapAlignment::Start)
-          .tap_mut(|row| {
+          .tap(|row| {
             let mut height_linker = None;
             for (idx, heading) in headings.iter().cloned().enumerate() {
               row.add_child(

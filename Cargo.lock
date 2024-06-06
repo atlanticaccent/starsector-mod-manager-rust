@@ -2433,7 +2433,6 @@ dependencies = [
  "strum",
  "strum_macros",
  "sublime_fuzzy",
- "tap",
  "tar",
  "tempfile",
  "thiserror",
@@ -4117,12 +4116,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tap"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
-
-[[package]]
 name = "tar"
 version = "0.4.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4843,7 +4836,6 @@ dependencies = [
  "regex",
  "reqwest",
  "serde",
- "tap",
  "tokio",
  "url",
  "webview-shared",
