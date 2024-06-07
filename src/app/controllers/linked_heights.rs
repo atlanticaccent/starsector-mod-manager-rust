@@ -12,7 +12,7 @@ pub struct HeightLinker {
   pub linked: usize,
   pub resolved: usize,
   pub max: f64,
-  id: WidgetId,
+  pub id: WidgetId,
   pub axis: Axis,
 }
 
@@ -172,11 +172,19 @@ impl<T: Data, W: Widget<T>> LinkedHeights<T, W> {
   ) -> druid::widget::prelude::Size {
     let unconstrained_size = self.widget.layout(ctx, bc, data, env);
 
-    let unconstrained_value = match self.axis {
+    let mut unconstrained_value = match self.axis {
       Axis::Horizontal => unconstrained_size.width,
       Axis::Vertical => unconstrained_size.height,
     };
 
+    if unconstrained_value.is_infinite() {
+      unconstrained_value = self
+        .widget
+        .widget_mut()
+        .compute_max_intrinsic(self.axis, ctx, bc, data, env)
+    }
+
+    let mut linker = self.height_linker.borrow_mut();
     if self.last_unconstrained == Some(unconstrained_value)
       && let Some(constraint) = self.constraint
     {
@@ -187,7 +195,6 @@ impl<T: Data, W: Widget<T>> LinkedHeights<T, W> {
       return self.widget.layout(ctx, &child_bc, data, env);
     } else if unconstrained_value.is_finite() {
       self.last_unconstrained = Some(unconstrained_value);
-      let mut linker = self.height_linker.borrow_mut();
 
       let mut size = None;
       if linker.max > unconstrained_value {
@@ -211,6 +218,16 @@ impl<T: Data, W: Widget<T>> LinkedHeights<T, W> {
     }
 
     unconstrained_size
+  }
+
+  pub fn set_height_linker_inner(&mut self, linker: HeightLinkerShared) {
+    linker.borrow_mut().linked += 1;
+    self.height_linker = linker;
+  }
+
+  pub fn reset_local_state(&mut self) {
+    self.constraint = None;
+    self.last_unconstrained = None;
   }
 }
 

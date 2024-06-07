@@ -381,20 +381,18 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
     let columns: Vec<_> = data.columns().collect();
     if let LifeCycle::WidgetAdded = event {
       let mut changed = false;
-      for (row_num, row_data) in data.keys().map(|k| &data[k]).enumerate() {
+      for row_data in data.keys().map(|k| &data[k]) {
         let row_id = row_data.id();
         let row = if let Some(row) = self.children.get_mut(&row_id) {
           row
         } else {
           changed = true;
-          eprintln!("inserting new row at {row_num}");
           self.insert_row(TableRowInternal::new(row_data.id().clone()));
           self.children.get_mut(&row_id).unwrap()
         };
 
-        for (idx, column) in columns.iter().enumerate() {
+        for column in columns.iter() {
           if !row.children().contains_key(column) {
-            eprintln!("adding cell at row:{row_num} col:{idx}");
             changed = true;
             row
               .children()
@@ -467,7 +465,6 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
               .adding(Self::COL_IDX, idx as u64);
             cell.update(ctx, row_data, &env)
           } else {
-            eprintln!("adding cell to existing row:{row_num} at col:{idx}");
             row
               .children
               .insert(column.clone(), WidgetPod::new(row_data.cell(column)));
@@ -475,16 +472,11 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
           }
         }
       } else {
-        eprintln!("adding new row at {row_num}");
         let mut row = TableRowInternal::new(row_id.clone());
         let row_data = &data[row_id];
         row.children = data
           .columns()
-          .enumerate()
-          .map(|(idx, c)| {
-            eprintln!("adding cell to new row at:{row_num} col:{idx}");
-            (c.clone(), WidgetPod::new(row_data.cell(&c)))
-          })
+          .map(|c| (c.clone(), WidgetPod::new(row_data.cell(&c))))
           .collect();
         self.insert_row(row);
         ctx.children_changed();
@@ -493,7 +485,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
   }
 
   fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {
-    let column_count = self.column_count();
+    let mut column_count = self.column_count();
     if column_count == 0 {
       return Size::ZERO;
     }
@@ -504,6 +496,9 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
       self
         .column_widths
         .resize(column_count, self.default_column_width);
+    }
+    if self.column_widths.len() > column_count {
+      column_count = self.column_widths.len()
     }
 
     let mut column_widths = self.column_widths.clone();
@@ -548,7 +543,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
 
             let env = env
               .clone()
-              .adding(Self::ROW_IDX, dbg!(row_num) as u64)
+              .adding(Self::ROW_IDX, row_num as u64)
               .adding(Self::COL_IDX, col_num as u64);
             let size = cell.layout(ctx, &child_bc, row_data, &env);
             if size.width.is_finite() {
@@ -640,7 +635,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
           );
           let env = env
             .clone()
-            .adding(Self::ROW_IDX, dbg!(row_num) as u64)
+            .adding(Self::ROW_IDX, row_num as u64)
             .adding(Self::COL_IDX, col_num as u64);
           let size = cell.layout(ctx, &child_bc, row_data, &env);
 
@@ -752,7 +747,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
     for (row_num, row_id) in keys.into_iter().enumerate() {
       if let Some(ref row_starts) = self.row_starts {
         if row_num > 0 && row_border_width > 0.0 {
-          let row_start = row_starts[dbg!(row_num)] - half_row_border_width;
+          let row_start = row_starts[row_num] - half_row_border_width;
           let start = Point::new(0.0, row_start);
           let end = Point::new(size.width, row_start);
           let line = Line::new(start, end);
@@ -766,7 +761,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
           let row_rect = row_size.to_rect().with_origin((0.0, row_starts[row_num]));
           ctx.with_save(|ctx| {
             ctx.clip(row_rect);
-            let env = env.clone().adding(Self::ROW_IDX, dbg!(row_num) as u64);
+            let env = env.clone().adding(Self::ROW_IDX, row_num as u64);
             row_painter.paint(ctx, data, &env);
           })
         }

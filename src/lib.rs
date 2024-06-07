@@ -13,7 +13,6 @@
 #![feature(lazy_cell)]
 #![feature(test)]
 #![feature(const_collections_with_hasher)]
-#![feature(trait_alias)]
 #![allow(clippy::new_ret_no_self)]
 #![allow(clippy::type_complexity)]
 

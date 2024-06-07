@@ -19,7 +19,7 @@ use druid::{
   theme,
   widget::{
     Align, Axis, Controller, ControllerHost, DefaultScopePolicy, Either, Flex, Label, LabelText,
-    LensScopeTransfer, LensWrap, Painter, RawLabel, Scope, ScopeTransfer, SizedBox,
+    LensScopeTransfer, LensWrap, Painter, RawLabel, Scope, ScopeTransfer, SizedBox, WidgetWrapper,
   },
   Color, Command, Data, Env, Event, EventCtx, ExtEventSink, FontWeight, Key, KeyOrValue, Lens,
   LensExt as _, MouseEvent, Point, RenderContext, Selector, Target, TimerToken, UnitPoint, Widget,
@@ -53,8 +53,8 @@ pub use icons::*;
 
 use super::{
   controllers::{
-    DelayedPainter, HeightLinkerShared, HoverState, InvisibleIf, LinkedHeights, OnHover,
-    SharedIdHoverState,
+    next_id, ConstraintId, DelayedPainter, HeightLinkerShared, HoverState, InvisibleIf,
+    LayoutRepeater, LinkedHeights, OnHover, SharedConstraint, SharedIdHoverState,
   },
   overlays::Popup,
 };
@@ -835,7 +835,33 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     selector: Selector<CT>,
     handler: impl Fn(&mut W, &mut EventCtx, &CT, &mut T) -> bool + 'static,
   ) -> ControllerHost<Self, super::controllers::OnCmd<CT, T, W>> {
-    ControllerHost::new(self, super::controllers::OnCmd::new(selector, handler))
+    ControllerHost::new(
+      self,
+      super::controllers::OnCmd::new(
+        selector,
+        super::controllers::CommandFn::Plain(Box::new(handler)),
+      ),
+    )
+  }
+
+  /**
+  Execute closure when command is received, with mutable access to the child
+  widget.
+  * Must return bool indicating if the event should be propgated to the
+  child - true to propagate, false to not.
+  */
+  fn on_command3<CT: 'static>(
+    self,
+    selector: Selector<CT>,
+    handler: impl Fn(&mut W, &mut EventCtx, &CT, &mut T, &Env) -> bool + 'static,
+  ) -> ControllerHost<Self, super::controllers::OnCmd<CT, T, W>> {
+    ControllerHost::new(
+      self,
+      super::controllers::OnCmd::new(
+        selector,
+        super::controllers::CommandFn::WithEnv(Box::new(handler)),
+      ),
+    )
   }
 
   fn link_height_with(
@@ -969,6 +995,18 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
 
   fn mask_default(self) -> Mask<T> {
     Mask::new(self).show_mask(true)
+  }
+
+  fn shared_constraint(
+    self,
+    id: impl Into<ConstraintId<T>>,
+    axis: Axis,
+  ) -> SharedConstraint<T, Self> {
+    SharedConstraint::new(self, id, axis)
+  }
+
+  fn in_layout_repeater(self) -> LayoutRepeater<T, Self> {
+    LayoutRepeater::new(next_id(), self)
   }
 }
 
@@ -1563,5 +1601,27 @@ macro_rules! match_command {
 pub impl<T, E: Debug> Result<T, E> {
   fn inspanic(self, msg: &str) {
     self.inspect_err(|e| eprintln!("{e:?}")).expect(msg);
+  }
+}
+
+pub trait RecursiveWrap<T, W, WW> {
+  type Wrapped;
+
+  fn recursive_wrap(&self) -> &Self::Wrapped;
+  fn recursive_wrap_mut(&mut self) -> &mut Self::Wrapped;
+}
+
+impl<T, W: WidgetWrapper, WW: WidgetWrapper<Wrapped = W>> RecursiveWrap<T, W, WW> for WW
+where
+  for<'a> W: 'a,
+{
+  type Wrapped = W::Wrapped;
+
+  fn recursive_wrap(&self) -> &Self::Wrapped {
+    self.wrapped().wrapped()
+  }
+
+  fn recursive_wrap_mut(&mut self) -> &mut Self::Wrapped {
+    self.wrapped_mut().wrapped_mut()
   }
 }
