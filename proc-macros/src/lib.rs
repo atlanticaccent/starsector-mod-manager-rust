@@ -15,7 +15,7 @@ pub fn impl_widget(input: TokenStream) -> TokenStream {
   } = parse_macro_input!(input);
 
   let data_bound: TypeParam = parse_quote!(T: Clone + druid::Data);
-  let widget_bound: TypeParam = parse_quote!(W: Widget<T>);
+  let widget_bound: TypeParam = parse_quote!(W: druid::Widget<T>);
   if let Some(data) = generics
     .type_params_mut()
     .find(|param| param.ident.to_string() == "T")
