@@ -3,7 +3,9 @@ use std::{
   rc::Rc,
 };
 
-use druid::{lens, Data, Key, Lens, Selector, Widget, WidgetExt, WidgetId, WidgetPod};
+use druid::{
+  lens, widget::WidgetWrapper, Data, Key, Lens, Selector, Widget, WidgetExt, WidgetId,
+};
 
 use super::ecs::EcsWidget;
 use crate::{
@@ -27,10 +29,8 @@ where
   for<'a> &'a T: IntoIterator,
   for<'a> <&'a T as IntoIterator>::IntoIter: ExactSizeIterator,
 {
-  table: WidgetPod<
-    TableDataImpl<T, W>,
-    LayoutRepeater<TableDataImpl<T, W>, FlexTable<TableDataImpl<T, W>>>,
-  >,
+  id: WidgetId,
+  table: LayoutRepeater<TableDataImpl<T, W>, FlexTable<TableDataImpl<T, W>>>,
   min_width: f64,
   columns: usize,
   constructor: Rc<dyn CellConstructor<W>>,
@@ -46,11 +46,10 @@ where
 
   pub fn new(min_width: f64, constructor: impl CellConstructor<W> + 'static) -> Self {
     Self {
-      table: WidgetPod::new(
-        FlexTable::new()
-          .default_column_width((TableColumnWidth::Flex(1.0), min_width))
-          .in_layout_repeater(),
-      ),
+      id: WidgetId::next(),
+      table: FlexTable::new()
+        .default_column_width((TableColumnWidth::Flex(1.0), min_width))
+        .in_layout_repeater(),
       min_width,
       columns: 0,
       constructor: Rc::new(constructor),
@@ -86,7 +85,7 @@ where
 
     if let druid::Event::Command(cmd) = event
       && let Some(id) = cmd.get(Self::UPDATE_AND_LAYOUT)
-      && *id == self.table.id()
+      && *id == self.id
     {
       ctx.request_update();
     }
@@ -116,9 +115,10 @@ where
       .lifecycle(ctx, event, &self.data_wrapper(data), env)
   }
 
-  fn update(&mut self, ctx: &mut druid::UpdateCtx, _old_data: &T, data: &T, env: &druid::Env) {
+  fn update(&mut self, ctx: &mut druid::UpdateCtx, old_data: &T, data: &T, env: &druid::Env) {
+    let old_wrapper = self.data_wrapper(old_data);
     let wrapper = self.data_wrapper(data);
-    self.table.update(ctx, &wrapper, env);
+    self.table.update(ctx, &old_wrapper, &wrapper, env);
     if self.skip_paint {
       self.skip_paint = false;
       ctx.request_layout()
@@ -143,10 +143,14 @@ where
     wrapper.width = columns;
     let height = wrapper.height();
 
+    let table = WidgetWrapper::wrapped_mut(&mut self.table);
+    let max_width = (bc.max().width - 10.0) / columns as f64;
+    table.set_column_widths(&vec![max_width.into(); columns]);
+
     if height != old_height || self.columns != old_columns || self.skip_paint {
-      ctx.submit_command(Self::UPDATE_AND_LAYOUT.with(self.table.id()));
+      ctx.submit_command(Self::UPDATE_AND_LAYOUT.with(self.id));
       self.skip_paint = true;
-      self.table.layout_rect().size()
+      bc.max()
     } else {
       self.table.layout(ctx, bc, &wrapper, env)
     }
@@ -212,6 +216,7 @@ where
           .expand_width()
           .lens(lens!((usize, T), 1))
           .env_scope(|env, (col_num, _)| env.set(COL_NUM, *col_num as u64))
+          .border(druid::Color::TRANSPARENT, 1.0)
       },
     )
     .lens(druid::lens::Map::new(
