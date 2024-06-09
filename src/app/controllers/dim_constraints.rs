@@ -1,6 +1,9 @@
 use std::{cell::RefCell, collections::BTreeMap};
 
-use druid::{widget::Axis, BoxConstraints, Data, Env, Key, LayoutCtx, Size, Widget, WidgetPod};
+use druid::{
+  widget::{Axis, WidgetWrapper},
+  widget_wrapper_pod_body, BoxConstraints, Data, Env, Key, LayoutCtx, Size, Widget, WidgetPod,
+};
 use proc_macros::Widget;
 
 type ConstraintMap = BTreeMap<(u64, u64), SharedConstraintState>;
@@ -78,6 +81,10 @@ impl<T: Data, W: Widget<T>> LayoutRepeater<T, W> {
       }
     });
   }
+}
+
+impl<T: Data, W: Widget<T>> WidgetWrapper for LayoutRepeater<T, W> {
+  widget_wrapper_pod_body!(W, child);
 }
 
 pub fn next_id() -> u64 {
