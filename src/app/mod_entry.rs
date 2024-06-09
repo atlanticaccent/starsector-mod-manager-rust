@@ -23,7 +23,7 @@ use serde_aux::prelude::*;
 
 use super::{
   app_delegate::AppCommands,
-  controllers::{HeightLinker, HeightLinkerShared, SharedIdHoverState},
+  controllers::{next_id, SharedIdHoverState},
   mod_description::ModDescription,
   mod_list::{headings::Heading, ModList},
   util::{
@@ -81,17 +81,17 @@ pub struct ModEntry<T = ()> {
 
 #[derive(Clone, Data, Lens)]
 pub struct ViewState {
-  height_linker: HeightLinkerShared,
   hover_state: SharedIdHoverState,
   pub updating: bool,
+  id: u64,
 }
 
 impl ViewState {
   fn new() -> Self {
     Self {
-      height_linker: HeightLinker::new_shared(),
       hover_state: Default::default(),
       updating: false,
+      id: next_id(),
     }
   }
 }
@@ -402,7 +402,7 @@ impl ViewModEntry {
         .padding(2.0)
         .background(painter())
         .with_shared_id_hover_state(self.view_state.hover_state.clone())
-        .link_height_with(&mut Some(self.view_state.height_linker.clone())),
+        .shared_constraint(self.view_state.id, druid::widget::Axis::Vertical),
     )
   }
 }

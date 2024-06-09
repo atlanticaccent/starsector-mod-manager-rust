@@ -179,6 +179,7 @@ impl ModList {
                             true
                           }),
                       )
+                      .in_layout_repeater()
                       .scroll()
                       .vertical()
                       .expand_width(),
