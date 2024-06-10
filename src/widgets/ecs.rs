@@ -165,17 +165,6 @@ impl<T: Data, W: Widget<T> + 'static> Widget<T> for EcsWidget<T, W> {
   }
 
   fn paint(&mut self, ctx: &mut druid::PaintCtx, data: &T, env: &Env) {
-    let key = self.key.resolve(data, env);
-    let data = data.clone();
-    let env = env.clone();
-    ctx.paint_with_z_index(1_000_000, move |ctx| {
-      Self::apply_inner(
-        key,
-        || unimplemented!(),
-        &data,
-        &env,
-        |widget, data, env| widget.paint(ctx, data, env),
-      )
-    });
+    self.apply(data, env, |widget, data, env| widget.paint(ctx, data, env))
   }
 }
