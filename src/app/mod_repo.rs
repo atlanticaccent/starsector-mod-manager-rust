@@ -45,6 +45,11 @@ pub struct ModRepo {
   #[serde(skip)]
   #[serde(default = "ModRepo::default_sorting")]
   sort_by: Metadata,
+  #[serde(skip)]
+  #[serde(default = "ModRepo::default_page_size")]
+  page_size: Option<usize>,
+  #[serde(skip)]
+  page_number: usize,
 }
 
 impl ModRepo {
@@ -76,20 +81,21 @@ impl ModRepo {
   pub fn view() -> impl Widget<ModRepo> {
     Flex::column()
       .with_child(Self::controls())
-      .with_child(
-        WrappedTable::<Vector<ModRepoItem>, _>::new(250.0, |id, _| {
+      .with_flex_child(
+        WrappedTable::<Vector<ModRepoItem>, _>::new(250.0, |data, id, _| {
           Card::new(Label::wrapped_func(|data: &ModRepoItem, _| {
             data.name.to_owned()
           }))
           .lens(Index::new(id))
           // TODO: paginate
         })
-        .expand_height()
         .scroll()
         .vertical()
+        .expand_width()
         .lens(ModRepo::items),
+        1.0,
       )
-      .expand()
+      .expand_width()
   }
 
   pub fn controls() -> impl Widget<ModRepo> {
@@ -194,6 +200,10 @@ impl ModRepo {
 
   fn default_sorting() -> Metadata {
     Metadata::Name
+  }
+
+  fn default_page_size() -> Option<usize> {
+    Some(50)
   }
 }
 
