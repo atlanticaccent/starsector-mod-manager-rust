@@ -4,12 +4,13 @@ use chrono::{DateTime, Local, Utc};
 use deunicode::deunicode;
 use druid::{
   im::{HashMap, Vector},
-  lens, theme,
-  widget::{Either, Flex, Label, Maybe, Painter, SizedBox, TextBox, ViewSwitcher},
+  lens::{self, Index},
+  theme,
+  widget::{Either, Flex, Label, Maybe, Painter, SizedBox, Spinner, TextBox, ViewSwitcher},
   Data, Lens, LensExt, Menu, MenuItem, RenderContext, Selector, Widget, WidgetExt,
 };
 use druid_widget_nursery::{
-  material_icons::Icon, wrap::Wrap, Separator, WidgetExt as WidgetExtNursery,
+  material_icons::Icon, wrap::Wrap, FutureWidget, Separator, WidgetExt as WidgetExtNursery,
 };
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use serde::Deserialize;
@@ -26,6 +27,7 @@ use super::{
   },
   App,
 };
+use crate::widgets::{card::Card, wrapped_table::WrappedTable};
 
 #[derive(Deserialize, Data, Clone, Lens, Debug)]
 pub struct ModRepo {
@@ -55,204 +57,115 @@ impl ModRepo {
   const UPDATE_FILTERS: Selector<Filter> = Selector::new("mod_repo.filter.update");
   const UPDATE_SORTING: Selector<Metadata> = Selector::new("mod_repo.sorting.update");
 
-  const CARD_MAX_WIDTH: f64 = 475.0;
+  pub fn wrapper() -> impl Widget<App> {
+    FutureWidget::new(
+      |_, _| Self::get_mod_repo(),
+      Spinner::new().valign_centre().halign_centre(),
+      |mod_repo, app: &mut Option<ModRepo>, _| {
+        *app = mod_repo.ok();
+
+        Maybe::new(Self::view, || {
+          Label::new("Could not load Starmodder catalogue")
+        })
+        .boxed()
+      },
+    )
+    .lens(App::mod_repo)
+  }
 
   pub fn view() -> impl Widget<ModRepo> {
-    Modal::new("Mod Repo")
-      .with_content(
-        Flex::row()
-          .with_child(
-            Button2::from_label("Filters").on_click2(|ctx, mouse, _, _| {
-              let lens = App::mod_repo.map(
-                |data| data.clone().unwrap(),
-                |orig, new| {
-                  orig.replace(new);
-                },
-              );
-
-              let menu = Menu::<App>::empty().pipe(|mut menu| {
-                for source in [
-                  ModSource::Index,
-                  ModSource::ModdingSubforum,
-                  ModSource::Discord,
-                  ModSource::NexusMods,
-                ] {
-                  menu = menu.entry(
-                    MenuItem::new(source.to_string())
-                      .selected_if(move |data: &ModRepo, _| data.filters.contains(&source))
-                      .on_activate(move |ctx, _, _| {
-                        ctx.submit_command(Self::UPDATE_FILTERS.with(Filter::Source(source)))
-                      })
-                      .lens(lens.clone()),
-                  )
-                }
-
-                menu
-              });
-
-              ctx.show_context_menu(menu, ctx.to_window(mouse.pos))
-            }),
-          )
-          .with_default_spacer()
-          .with_child(
-            Button2::from_label("Sort by").on_click2(|ctx, mouse, _, _| {
-              let lens = App::mod_repo.map(
-                |data| data.clone().unwrap(),
-                |orig, new| {
-                  orig.replace(new);
-                },
-              );
-
-              let menu = Menu::<App>::empty().pipe(|mut menu| {
-                for meta in Metadata::iter().filter(|m| m != &Metadata::Score) {
-                  menu = menu.entry(
-                    MenuItem::new(meta.to_string())
-                      .selected_if(move |data: &ModRepo, _| data.sort_by == meta)
-                      .on_activate(move |ctx, _, _| {
-                        ctx.submit_command(ModRepo::UPDATE_SORTING.with(meta))
-                      })
-                      .lens(lens.clone()),
-                  )
-                }
-
-                menu
-              });
-
-              ctx.show_context_menu(menu, ctx.to_window(mouse.pos))
-            }),
-          )
-          .with_default_spacer()
-          .with_child(Label::new("Search:").with_text_size(18.))
-          .with_default_spacer()
-          .with_child(
-            TextBox::new()
-              .on_change(|ctx, _: &String, data, _| {
-                ctx.submit_command(ModRepo::UPDATE_FILTERS.with(Filter::Search(data.clone())))
-              })
-              .lens(ModRepo::search),
-          )
-          .main_axis_alignment(druid::widget::MainAxisAlignment::End)
-          .expand_width()
-          .boxed(),
+    Flex::column()
+      .with_child(Self::controls())
+      .with_child(
+        WrappedTable::<Vector<ModRepoItem>, _>::new(250.0, |id, _| {
+          Card::new(Label::wrapped_func(|data: &ModRepoItem, _| {
+            data.name.to_owned()
+          }))
+          .lens(Index::new(id))
+          // TODO: paginate
+        })
+        .expand_height()
+        .scroll()
+        .vertical()
+        .lens(ModRepo::items),
       )
-      .with_content(
-        ViewSwitcher::new(
-          |data: &(Vector<ModRepoItem>, Vector<ModSource>, Metadata), _| {
-            (data.0.len(), data.1.clone(), data.2)
-          },
-          |_, (items, _, _): &(Vector<ModRepoItem>, Vector<ModSource>, Metadata), _| {
-            let mut wrap = Wrap::new()
-              .direction(druid::widget::Axis::Horizontal)
-              .alignment(druid_widget_nursery::wrap::WrapAlignment::SpaceAround)
-              .run_alignment(druid_widget_nursery::wrap::WrapAlignment::SpaceAround)
-              .cross_alignment(druid_widget_nursery::wrap::WrapCrossAlignment::Center);
+      .expand()
+  }
 
-            for (idx, item) in items.iter().enumerate() {
-              if item.display {
-                wrap.add_child(
-                  ModRepoItem::view()
-                    .lens(
-                      lens!((Vector<ModRepoItem>, Vector<ModSource>, Metadata), 0)
-                        .then(lens::Index::new(idx)),
-                    )
-                    .fix_width(Self::CARD_MAX_WIDTH)
-                    .boxed(),
-                )
-              }
-            }
+  pub fn controls() -> impl Widget<ModRepo> {
+    Flex::row()
+      .with_child(
+        Button2::from_label("Filters").on_click2(|ctx, mouse, _, _| {
+          let lens = App::mod_repo.map(
+            |data| data.clone().unwrap(),
+            |orig, new| {
+              orig.replace(new);
+            },
+          );
 
-            wrap
-              .align_horizontal(druid::UnitPoint::CENTER)
-              .expand_width()
-              .boxed()
-          },
-        )
-        .lens(lens::Map::new(
-          |data: &ModRepo| (data.items.clone(), data.filters.clone(), data.sort_by),
-          |orig, data| {
-            orig.items = data.0;
-            orig.filters = data.1;
-            orig.sort_by = data.2;
-          },
-        ))
-        .on_command(ModRepo::OPEN_IN_DISCORD, |ctx, _, data| {
-          if let Some(uri) = ModRepo::modal.get(data) {
-            let discord_uri = uri.clone().tap(|uri| uri.replace_range(0..5, "discord"));
-
-            if opener::open(discord_uri).is_err() {
-              ctx.submit_command_global(OPEN_IN_BROWSER.with(uri))
-            }
-          }
-        })
-        .on_command(ModRepo::CLEAR_MODAL, |_, _, data| {
-          data.modal = None;
-        })
-        .on_notification(ModRepo::OPEN_CONFIRM, |_, payload, data| {
-          data.modal.replace(payload.clone());
-        })
-        .on_command(ModRepo::UPDATE_FILTERS, |ctx, payload, data| {
-          match payload {
-            Filter::Source(source) => {
-              if data.filters.contains(source) {
-                data.filters.retain(|val| val != source)
-              } else {
-                data.filters.push_back(*source)
-              }
-            }
-            Filter::Search(search) => {
-              if search.is_empty() {
-                ctx.submit_command(ModRepo::UPDATE_SORTING.with(Metadata::Name))
-              } else {
-                ctx.submit_command(ModRepo::UPDATE_SORTING.with(Metadata::Score))
-              }
-            }
-          }
-
-          let filters = &data.filters;
-          let search = &data.search;
-          data.items.iter_mut().par_bridge().for_each(|item| {
-            if let Filter::Search(search) = payload {
-              if !search.is_empty() {
-                let name_score = best_match(search, &item.name).map(|m| m.score());
-                let description_score = item
-                  .description
-                  .as_ref()
-                  .and_then(|description| best_match(search, description).map(|m| m.score()));
-                let author_score = item
-                  .authors
-                  .as_ref()
-                  .and_then(|authors| {
-                    authors
-                      .iter()
-                      .map(|author| best_match(search, author).map(|m| m.score()))
-                      .max()
+          let menu = Menu::<App>::empty().pipe(|mut menu| {
+            for source in [
+              ModSource::Index,
+              ModSource::ModdingSubforum,
+              ModSource::Discord,
+              ModSource::NexusMods,
+            ] {
+              menu = menu.entry(
+                MenuItem::new(source.to_string())
+                  .selected_if(move |data: &ModRepo, _| data.filters.contains(&source))
+                  .on_activate(move |ctx, _, _| {
+                    ctx.submit_command(Self::UPDATE_FILTERS.with(Filter::Source(source)))
                   })
-                  .flatten();
+                  .lens(lens.clone()),
+              )
+            }
 
-                item.score = name_score.max(description_score).max(author_score)
-              }
-            };
+            menu
+          });
 
-            item.display = (search.is_empty() || item.score.is_some())
-              && (filters.is_empty()
-                || filters.iter().all(|filter| {
-                  item
-                    .sources
-                    .as_ref()
-                    .is_some_and(|source| source.contains(filter))
-                }))
-          })
-        })
-        .on_command(ModRepo::UPDATE_SORTING, |_, sorting, data| {
-          data.sort_by = *sorting;
-          data.items.sort_by(|a, b| sorting.comparator(a, b));
-        })
-        .boxed(),
+          ctx.show_context_menu(menu, ctx.to_window(mouse.pos))
+        }),
       )
-      .with_close()
-      .build()
-      .on_command(OPEN_IN_BROWSER, |ctx, _, _| ctx.set_disabled(true))
-      .on_command(App::ENABLE, |ctx, _, _| ctx.set_disabled(false))
+      .with_default_spacer()
+      .with_child(
+        Button2::from_label("Sort by").on_click2(|ctx, mouse, _, _| {
+          let lens = App::mod_repo.map(
+            |data| data.clone().unwrap(),
+            |orig, new| {
+              orig.replace(new);
+            },
+          );
+
+          let menu = Menu::<App>::empty().pipe(|mut menu| {
+            for meta in Metadata::iter().filter(|m| m != &Metadata::Score) {
+              menu = menu.entry(
+                MenuItem::new(meta.to_string())
+                  .selected_if(move |data: &ModRepo, _| data.sort_by == meta)
+                  .on_activate(move |ctx, _, _| {
+                    ctx.submit_command(ModRepo::UPDATE_SORTING.with(meta))
+                  })
+                  .lens(lens.clone()),
+              )
+            }
+
+            menu
+          });
+
+          ctx.show_context_menu(menu, ctx.to_window(mouse.pos))
+        }),
+      )
+      .with_default_spacer()
+      .with_child(Label::new("Search:").with_text_size(18.))
+      .with_default_spacer()
+      .with_child(
+        TextBox::new()
+          .on_change(|ctx, _: &String, data, _| {
+            ctx.submit_command(ModRepo::UPDATE_FILTERS.with(Filter::Search(data.clone())))
+          })
+          .lens(ModRepo::search),
+      )
+      .main_axis_alignment(druid::widget::MainAxisAlignment::End)
+      .expand_width()
   }
 
   pub async fn get_mod_repo() -> anyhow::Result<Self> {

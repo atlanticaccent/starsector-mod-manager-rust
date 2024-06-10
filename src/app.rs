@@ -2,14 +2,13 @@ use std::{path::PathBuf, rc::Rc};
 
 use chrono::Local;
 use druid::{
-  im::{vector, OrdMap, Vector},
+  im::{OrdMap, Vector},
   lens,
-  widget::{Flex, Label, Maybe, Scope, WidgetWrapper, ZStack},
+  widget::{Flex, Maybe, Scope, WidgetWrapper, ZStack},
   Data, Lens, LensExt, Selector, SingleUse, Widget, WidgetExt, WidgetId,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
 use tokio::runtime::Handle;
-use util::LabelExt;
 use webview_shared::PROJECT;
 
 use self::{
@@ -34,7 +33,7 @@ use crate::{
     tabs_policy::StaticTabsForked,
   },
   theme::{Theme, CHANGE_THEME},
-  widgets::{root_stack::RootStack, wrapped_table::WrappedTable},
+  widgets::root_stack::RootStack,
 };
 
 mod activity;
@@ -244,28 +243,7 @@ impl App {
               .on_change(Settings::save_on_change)
               .lens(App::settings),
           ),
-          InitialTab::new(
-            NavLabel::Starmodder,
-            WrappedTable::<Vector<String>, _>::new(400.0, |_, map_id| {
-              Label::wrapped_func(move |data: &Vector<String>, env| data[map_id(env)].to_owned())
-              .in_card()
-              .expand_width()
-            })
-            .lens(druid::lens::Constant(vector![
-              "Foo".to_owned(),
-              "Bar".to_owned(),
-              "Baz".to_owned(),
-              r#"Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
-
-              Section 1.10.32 of "de Finibus Bonorum et Malorum", written by Cicero in 45 BC
-
-              "Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur?"#.to_owned(),
-              "Chick".to_owned(),
-              "Chalk".to_owned(),
-              "Chock".to_owned(),
-            ]))
-            .expand(),
-          ),
+          InitialTab::new(NavLabel::Starmodder, ModRepo::wrapper()),
           InitialTab::new(NavLabel::WebBrowser, Browser::view().lens(App::browser)),
           InitialTab::new(NavLabel::Activity, Activity::view().lens(App::log)),
           InitialTab::new(NavLabel::Settings, Settings::view().lens(App::settings)),

@@ -1,11 +1,10 @@
 use std::{
+  cell::Cell,
   ops::{Index, IndexMut},
   rc::Rc,
 };
 
-use druid::{
-  lens, widget::WidgetWrapper, Data, Key, Lens, Selector, Widget, WidgetExt, WidgetId,
-};
+use druid::{lens, widget::WidgetWrapper, Data, Key, Lens, Selector, Widget, WidgetExt, WidgetId};
 
 use super::ecs::EcsWidget;
 use crate::{
@@ -20,9 +19,9 @@ pub trait CellConstructor<W>: Fn(usize, fn(&druid::Env) -> usize) -> W {}
 
 impl<W, F: Fn(usize, fn(&druid::Env) -> usize) -> W> CellConstructor<W> for F {}
 
-pub trait IndexableData: Data + Index<usize> {}
+pub trait IndexableData: Data + Index<usize> + IndexMut<usize> {}
 
-impl<T: Data + Index<usize>> IndexableData for T {}
+impl<T: Data + Index<usize> + IndexMut<usize>> IndexableData for T {}
 
 pub struct WrappedTable<T: IndexableData, W: Widget<T> + 'static>
 where
@@ -63,6 +62,7 @@ where
       data: RowDataImpl {
         data: data.clone(),
         width: self.columns,
+        row: 0.into(),
         constructor: self.constructor.clone(),
       },
     }
@@ -167,6 +167,7 @@ where
 struct RowDataImpl<T, W> {
   data: T,
   width: usize,
+  row: Cell<usize>,
   constructor: Rc<dyn CellConstructor<W>>,
 }
 
@@ -175,6 +176,7 @@ impl<T: Clone, W> Clone for RowDataImpl<T, W> {
     Self {
       data: self.data.clone(),
       width: self.width,
+      row: self.row.clone(),
       constructor: self.constructor.clone(),
     }
   }
@@ -195,12 +197,12 @@ where
   type Column = usize;
 
   fn id(&self) -> Self::Id {
-    0
+    self.row.get()
   }
 
   fn cell(&self, column: &Self::Column) -> Box<dyn Widget<Self>> {
-    let column = *column;
     let constructor = self.constructor.clone();
+    let id = get_id_raw(self.width as u64, self.id() as u64, *column as u64);
 
     EcsWidget::new(
       |(col_num, data): &(usize, T), env: &druid::Env| {
@@ -208,7 +210,7 @@ where
         (data.into_iter().len() > id).then_some(id)
       },
       move || {
-        constructor(column, get_id)
+        constructor(id, get_id)
           .shared_constraint(
             |_: &_, env: &druid::Env| env.get(FlexTable::<[(); 0]>::ROW_IDX),
             druid::widget::Axis::Vertical,
@@ -216,7 +218,6 @@ where
           .expand_width()
           .lens(lens!((usize, T), 1))
           .env_scope(|env, (col_num, _)| env.set(COL_NUM, *col_num as u64))
-          .border(druid::Color::TRANSPARENT, 1.0)
       },
     )
     .lens(druid::lens::Map::new(
@@ -259,7 +260,8 @@ where
 {
   type Output = RowDataImpl<T, W>;
 
-  fn index(&self, _: usize) -> &Self::Output {
+  fn index(&self, row: usize) -> &Self::Output {
+    self.data.row.set(row);
     &self.data
   }
 }
@@ -269,7 +271,8 @@ where
   for<'a> &'a T: IntoIterator,
   for<'a> <&'a T as IntoIterator>::IntoIter: ExactSizeIterator,
 {
-  fn index_mut(&mut self, _: usize) -> &mut Self::Output {
+  fn index_mut(&mut self, row: usize) -> &mut Self::Output {
+    self.data.row.set(row);
     &mut self.data
   }
 }
@@ -321,6 +324,10 @@ fn get_id(env: &druid::Env) -> usize {
 fn get_id_inner(width: u64, env: &druid::Env) -> usize {
   ((env.get(FlexTable::<[(); 0]>::ROW_IDX) * width) + env.get(FlexTable::<[(); 0]>::COL_IDX))
     as usize
+}
+
+fn get_id_raw(width: u64, row: u64, col: u64) -> usize {
+  (width * row + col) as usize
 }
 
 const HEIGHT_LINKER_SYNC: Selector<(usize, HeightLinkerShared)> =
