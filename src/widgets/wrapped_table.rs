@@ -15,9 +15,9 @@ use crate::{
   patch::table::{FlexTable, RowData, TableColumnWidth, TableData},
 };
 
-pub trait CellConstructor<W>: Fn(usize, fn(&druid::Env) -> usize) -> W {}
+pub trait CellConstructor<T, W>: Fn(&T, usize, fn(&druid::Env) -> usize) -> W {}
 
-impl<W, F: Fn(usize, fn(&druid::Env) -> usize) -> W> CellConstructor<W> for F {}
+impl<T, W, F: Fn(&T, usize, fn(&druid::Env) -> usize) -> W> CellConstructor<T, W> for F {}
 
 pub trait IndexableData: Data + Index<usize> + IndexMut<usize> {}
 
@@ -32,7 +32,7 @@ where
   table: LayoutRepeater<TableDataImpl<T, W>, FlexTable<TableDataImpl<T, W>>>,
   min_width: f64,
   columns: usize,
-  constructor: Rc<dyn CellConstructor<W>>,
+  constructor: Rc<dyn CellConstructor<T, W>>,
   skip_paint: bool,
 }
 
@@ -43,7 +43,7 @@ where
 {
   const UPDATE_AND_LAYOUT: Selector<WidgetId> = Selector::new("wrapped_table.update_and_layout");
 
-  pub fn new(min_width: f64, constructor: impl CellConstructor<W> + 'static) -> Self {
+  pub fn new(min_width: f64, constructor: impl CellConstructor<T, W> + 'static) -> Self {
     Self {
       id: WidgetId::next(),
       table: FlexTable::new()
@@ -168,7 +168,7 @@ struct RowDataImpl<T, W> {
   data: T,
   width: usize,
   row: Cell<usize>,
-  constructor: Rc<dyn CellConstructor<W>>,
+  constructor: Rc<dyn CellConstructor<T, W>>,
 }
 
 impl<T: Clone, W> Clone for RowDataImpl<T, W> {
@@ -203,6 +203,7 @@ where
   fn cell(&self, column: &Self::Column) -> Box<dyn Widget<Self>> {
     let constructor = self.constructor.clone();
     let id = get_id_raw(self.width as u64, self.id() as u64, *column as u64);
+    let data = self.data.clone();
 
     EcsWidget::new(
       |(col_num, data): &(usize, T), env: &druid::Env| {
@@ -210,7 +211,7 @@ where
         (data.into_iter().len() > id).then_some(id)
       },
       move || {
-        constructor(id, get_id)
+        constructor(&data, id, get_id)
           .shared_constraint(
             |_: &_, env: &druid::Env| env.get(FlexTable::<[(); 0]>::ROW_IDX),
             druid::widget::Axis::Vertical,
