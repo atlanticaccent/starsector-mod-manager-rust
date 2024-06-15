@@ -6,7 +6,7 @@ use std::{
   hash::Hash,
   io::Read,
   marker::PhantomData,
-  ops::{Deref, DerefMut},
+  ops::{Deref, DerefMut, Index, IndexMut},
   path::PathBuf,
   rc::Rc,
   sync::{Arc, Mutex, Weak},
@@ -1277,6 +1277,20 @@ impl<K: Clone + Hash + Eq, V: Clone> Deref for xxHashMap<K, V> {
 impl<K: Clone + Hash + Eq, V: Clone> DerefMut for xxHashMap<K, V> {
   fn deref_mut(&mut self) -> &mut Self::Target {
     &mut self.0
+  }
+}
+
+impl<KB: Hash + Eq + ?Sized, K: Clone + Hash + Eq + Borrow<KB>, V: Clone> Index<&KB> for xxHashMap<K, V> {
+  type Output = V;
+
+  fn index(&self, index: &KB) -> &Self::Output {
+    self.deref().index(index)
+  }
+}
+
+impl<KB: Hash + Eq + ?Sized, K: Clone + Hash + Eq + Borrow<KB>, V: Clone> IndexMut<&KB> for xxHashMap<K, V> {
+  fn index_mut(&mut self, index: &KB) -> &mut Self::Output {
+    self.deref_mut().index_mut(index)
   }
 }
 
