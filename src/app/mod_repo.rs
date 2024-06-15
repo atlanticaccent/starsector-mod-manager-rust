@@ -12,6 +12,7 @@ use druid::{
 use druid_widget_nursery::{
   material_icons::Icon, wrap::Wrap, FutureWidget, Separator, WidgetExt as WidgetExtNursery,
 };
+use internment::Intern;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use serde::Deserialize;
 use strum::IntoEnumIterator;
@@ -23,15 +24,20 @@ use super::{
   mod_description::OPEN_IN_BROWSER,
   modal::Modal,
   util::{
-    default_true, hoverable_text, icons::*, Button2, CommandExt, LabelExt, Tap as _, WidgetExtEx,
+    default_true, hoverable_text, icons::*, xxHashMap, Button2, CommandExt, LabelExt, Tap as _,
+    WidgetExtEx,
   },
   App,
 };
-use crate::widgets::{card::Card, wrapped_table::WrappedTable};
+use crate::widgets::{
+  card::Card,
+  card_button::CardButton,
+  wrapped_table::{WrapData, WrappedTable},
+};
 
 #[derive(Deserialize, Data, Clone, Lens, Debug)]
 pub struct ModRepo {
-  #[data(same_fn = "PartialEq::eq")]
+  #[serde(deserialize_with = "ModRepo::deserialize_items")]
   items: Vector<ModRepoItem>,
   #[data(same_fn = "PartialEq::eq")]
   #[serde(alias = "lastUpdated")]
@@ -82,24 +88,22 @@ impl ModRepo {
     Flex::column()
       .with_child(Self::controls())
       .with_flex_child(
-        WrappedTable::<Vector<ModRepoItem>, _>::new(250.0, |data, id, _| {
-          Card::new(Label::wrapped_func(|data: &ModRepoItem, _| {
-            data.name.to_owned()
-          }))
-          .lens(Index::new(id))
-          // TODO: paginate
+        WrappedTable::new(450.0, |_, id, _| {
+          Card::new(ModRepoItem::view()).lens(ModRepo::items.index(id))
         })
         .scroll()
         .vertical()
-        .expand_width()
-        .lens(ModRepo::items),
+        .expand_width(),
         1.0,
       )
       .expand_width()
   }
 
   pub fn controls() -> impl Widget<ModRepo> {
+    const BUTTON_WIDTH: f64 = 250.0;
+
     Flex::row()
+      .with_child(CardButton::button(|_| Label::new("Filters")).fix_width(BUTTON_WIDTH))
       .with_child(
         Button2::from_label("Filters").on_click2(|ctx, mouse, _, _| {
           let lens = App::mod_repo.map(
@@ -175,23 +179,13 @@ impl ModRepo {
   }
 
   pub async fn get_mod_repo() -> anyhow::Result<Self> {
-    let mut repo = reqwest::get(Self::REPO_URL)
+    reqwest::get(Self::REPO_URL)
       .await?
       .json::<ModRepo>()
-      .await?;
+      .await
+      .map_err(Into::into)
 
-    repo.items.iter_mut().for_each(|item| {
-      item.summary = item.summary.as_ref().map(|summary| deunicode(summary));
-      item.description = item
-        .description
-        .as_ref()
-        .map(|description| deunicode(description));
-      item.name = deunicode(&item.name);
-    });
-
-    repo.items.sort_by(|a, b| Metadata::Name.comparator(a, b));
-
-    Ok(repo)
+    // repo.items.sort_by(|a, b| Metadata::Name.comparator(a, b));
   }
 
   pub fn modal_open(&self) -> bool {
@@ -204,6 +198,66 @@ impl ModRepo {
 
   fn default_page_size() -> Option<usize> {
     Some(50)
+  }
+
+  fn deserialize_items<'de, D>(d: D) -> Result<Vector<ModRepoItem>, D::Error>
+  where
+    D: serde::Deserializer<'de>,
+  {
+    struct ItemVisitor;
+
+    impl<'de> serde::de::Visitor<'de> for ItemVisitor {
+      type Value = Vector<ModRepoItem>;
+
+      fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "a sequence of items")
+      }
+
+      fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+      where
+        A: serde::de::SeqAccess<'de>,
+      {
+        let mut list = Vector::new();
+
+        while let Some(mut item) = seq.next_element::<ModRepoItem>()? {
+          item.summary = item.summary.as_ref().map(|summary| deunicode(summary));
+          item.description = item
+            .description
+            .as_ref()
+            .map(|description| deunicode(description));
+          item.name = deunicode(&item.name);
+
+          list.push_back(item);
+        }
+
+        Ok(list)
+      }
+    }
+
+    d.deserialize_seq(ItemVisitor)
+  }
+}
+
+impl WrapData for ModRepo {
+  type Id<'a> = usize;
+  type OwnedId = usize;
+  type Value = ModRepoItem;
+
+  fn ids<'a>(&'a self) -> impl Iterator<Item = usize> {
+    self
+      .items
+      .ids()
+      .skip(self.page_number * self.page_size.unwrap_or_default())
+      .take(self.page_size.unwrap_or(usize::MAX))
+  }
+
+  fn len(&self) -> usize {
+    let prefix = self.page_number * self.page_size.unwrap_or_default();
+    if self.items.len() >= prefix + self.page_size.unwrap_or_default() {
+      self.page_size.unwrap_or(self.items.len())
+    } else {
+      self.items.len() - prefix
+    }
   }
 }
 
