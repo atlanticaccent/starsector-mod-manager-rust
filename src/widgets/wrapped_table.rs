@@ -1,49 +1,82 @@
 use std::{
   cell::Cell,
-  ops::{Index, IndexMut},
+  fmt::Display,
+  hash::Hash,
+  ops::{Deref, Index, IndexMut},
   rc::Rc,
 };
 
-use druid::{lens, widget::WidgetWrapper, Data, Key, Lens, Selector, Widget, WidgetExt, WidgetId};
+use druid::{
+  im::Vector, widget::WidgetWrapper, Data, Key, Lens, Selector, Widget, WidgetExt, WidgetId,
+};
 
 use super::ecs::EcsWidget;
 use crate::{
   app::{
-    controllers::{HeightLinkerShared, LayoutRepeater, LinkedHeights},
-    util::WidgetExtEx,
+    controllers::LayoutRepeater,
+    util::{xxHashMap, WidgetExtEx},
   },
   patch::table::{FlexTable, RowData, TableColumnWidth, TableData},
 };
 
-pub trait CellConstructor<T, W>: Fn(&T, usize, fn(&druid::Env) -> usize) -> W {}
+pub trait CellConstructor<T, U, W>: Fn(&T, U, fn(&druid::Env) -> usize) -> W {}
 
-impl<T, W, F: Fn(&T, usize, fn(&druid::Env) -> usize) -> W> CellConstructor<T, W> for F {}
+impl<T, U, W, F: Fn(&T, U, fn(&druid::Env) -> usize) -> W> CellConstructor<T, U, W> for F {}
 
-pub trait IndexableData: Data + Index<usize> + IndexMut<usize> {}
+pub trait WrapData: Data {
+  type Id<'a>: ToOwned<Owned = Self::OwnedId>;
+  type OwnedId: Eq + Clone + ToString;
+  type Value;
 
-impl<T: Data + Index<usize> + IndexMut<usize>> IndexableData for T {}
+  fn ids<'a>(&'a self) -> impl Iterator<Item = <Self::Id<'a> as ToOwned>::Owned>;
 
-pub struct WrappedTable<T: IndexableData, W: Widget<T> + 'static>
+  fn len(&self) -> usize;
+}
+
+impl<K: Clone + Hash + Eq + Display + 'static, V: Data> WrapData for xxHashMap<K, V>
 where
-  for<'a> &'a T: IntoIterator,
-  for<'a> <&'a T as IntoIterator>::IntoIter: ExactSizeIterator,
+  for<'a> &'a K: ToOwned<Owned = K>,
 {
+  type Id<'a> = &'a K;
+  type OwnedId = K;
+  type Value = V;
+
+  fn ids<'a>(&'a self) -> impl Iterator<Item = K> {
+    self.keys().cloned()
+  }
+
+  fn len(&self) -> usize {
+    self.deref().len()
+  }
+}
+
+impl<T: Data> WrapData for Vector<T> {
+  type Id<'a> = usize;
+  type OwnedId = usize;
+  type Value = T;
+
+  fn ids<'a>(&'a self) -> impl Iterator<Item = usize> {
+    0..self.len()
+  }
+
+  fn len(&self) -> usize {
+    self.len()
+  }
+}
+
+pub struct WrappedTable<T: WrapData, W: Widget<T> + 'static> {
   id: WidgetId,
   table: LayoutRepeater<TableDataImpl<T, W>, FlexTable<TableDataImpl<T, W>>>,
   min_width: f64,
   columns: usize,
-  constructor: Rc<dyn CellConstructor<T, W>>,
+  constructor: Rc<dyn CellConstructor<T, T::OwnedId, W>>,
   skip_paint: bool,
 }
 
-impl<T: IndexableData, W: Widget<T> + 'static> WrappedTable<T, W>
-where
-  for<'a> &'a T: IntoIterator,
-  for<'a> <&'a T as IntoIterator>::IntoIter: ExactSizeIterator,
-{
+impl<T: WrapData, W: Widget<T> + 'static> WrappedTable<T, W> {
   const UPDATE_AND_LAYOUT: Selector<WidgetId> = Selector::new("wrapped_table.update_and_layout");
 
-  pub fn new(min_width: f64, constructor: impl CellConstructor<T, W> + 'static) -> Self {
+  pub fn new(min_width: f64, constructor: impl CellConstructor<T, T::OwnedId, W> + 'static) -> Self {
     Self {
       id: WidgetId::next(),
       table: FlexTable::new()
@@ -61,6 +94,7 @@ where
       width: self.columns,
       data: RowDataImpl {
         data: data.clone(),
+        data_ids: data.ids().collect(),
         width: self.columns,
         row: 0.into(),
         constructor: self.constructor.clone(),
@@ -69,11 +103,7 @@ where
   }
 }
 
-impl<T: IndexableData, W: Widget<T> + 'static> Widget<T> for WrappedTable<T, W>
-where
-  for<'a> &'a T: IntoIterator,
-  for<'a> <&'a T as IntoIterator>::IntoIter: ExactSizeIterator,
-{
+impl<T: WrapData, W: Widget<T> + 'static> Widget<T> for WrappedTable<T, W> {
   fn event(
     &mut self,
     ctx: &mut druid::EventCtx,
@@ -105,7 +135,7 @@ where
       ctx.request_layout();
     }
     if let druid::LifeCycle::WidgetAdded = event {
-      self.columns = data.into_iter().len();
+      self.columns = data.len();
 
       ctx.request_layout()
     }
@@ -133,7 +163,7 @@ where
     env: &druid::Env,
   ) -> druid::Size {
     let columns = ((bc.max().width / self.min_width).floor() as usize)
-      .min(data.into_iter().len())
+      .min(data.len())
       .max(1);
 
     let mut wrapper = self.data_wrapper(data);
@@ -164,17 +194,19 @@ where
 }
 
 #[derive(Lens)]
-struct RowDataImpl<T, W> {
+struct RowDataImpl<T: WrapData, W> {
   data: T,
+  data_ids: Vec<T::OwnedId>,
   width: usize,
   row: Cell<usize>,
-  constructor: Rc<dyn CellConstructor<T, W>>,
+  constructor: Rc<dyn CellConstructor<T, T::OwnedId, W>>,
 }
 
-impl<T: Clone, W> Clone for RowDataImpl<T, W> {
+impl<T: WrapData, W> Clone for RowDataImpl<T, W> {
   fn clone(&self) -> Self {
     Self {
       data: self.data.clone(),
+      data_ids: self.data_ids.clone(),
       width: self.width,
       row: self.row.clone(),
       constructor: self.constructor.clone(),
@@ -182,17 +214,16 @@ impl<T: Clone, W> Clone for RowDataImpl<T, W> {
   }
 }
 
-impl<T: IndexableData, W: 'static> Data for RowDataImpl<T, W> {
+impl<T: WrapData, W: 'static> Data for RowDataImpl<T, W> {
   fn same(&self, other: &Self) -> bool {
-    self.data.same(&other.data) && self.width.same(&other.width)
+    self.data.same(&other.data)
+      && self.data_ids == other.data_ids
+      && self.width.same(&other.width)
+      && self.row.get().same(&other.row.get())
   }
 }
 
-impl<T: IndexableData, W: Widget<T> + 'static> RowData for RowDataImpl<T, W>
-where
-  for<'a> &'a T: IntoIterator,
-  for<'a> <&'a T as IntoIterator>::IntoIter: ExactSizeIterator,
-{
+impl<T: WrapData, W: Widget<T> + 'static> RowData for RowDataImpl<T, W> {
   type Id = usize;
   type Column = usize;
 
@@ -202,45 +233,38 @@ where
 
   fn cell(&self, column: &Self::Column) -> Box<dyn Widget<Self>> {
     let constructor = self.constructor.clone();
-    let id = get_id_raw(self.width as u64, self.id() as u64, *column as u64);
+    let raw_id = get_id_raw(self.width as u64, self.id() as u64, *column as u64);
+    let id = (raw_id < self.data.len()).then(|| self.data_ids[raw_id].to_owned());
     let data = self.data.clone();
 
     EcsWidget::new(
-      |(col_num, data): &(usize, T), env: &druid::Env| {
-        let id = get_id_inner(*col_num as u64, env);
-        (data.into_iter().len() > id).then_some(id)
+      move |data: &RowDataImpl<T, W>, env: &_| {
+        let id = get_id(env);
+        (id < data.data.len()).then(|| data.data_ids[id].to_string())
       },
       move || {
-        constructor(&data, id, get_id)
+        constructor(&data, id.clone().unwrap(), get_id)
+          .lens(RowDataImpl::data)
           .shared_constraint(
-            |_: &_, env: &druid::Env| env.get(FlexTable::<[(); 0]>::ROW_IDX),
+            |data: &RowDataImpl<T, W>, _: &druid::Env| data.row.get() as u64,
             druid::widget::Axis::Vertical,
           )
           .expand_width()
-          .lens(lens!((usize, T), 1))
-          .env_scope(|env, (col_num, _)| env.set(COL_NUM, *col_num as u64))
       },
     )
-    .lens(druid::lens::Map::new(
-      |row_data: &Self| (row_data.width, row_data.data.clone()),
-      |receiver, (_, data)| receiver.data = data,
-    ))
+    .env_scope(|env, data| env.set(COL_NUM, data.width as u64))
     .boxed()
   }
 }
 
-struct TableDataImpl<T, W> {
+struct TableDataImpl<T: WrapData, W> {
   width: usize,
   data: RowDataImpl<T, W>,
 }
 
-impl<T, W> TableDataImpl<T, W>
-where
-  for<'a> &'a T: IntoIterator,
-  for<'a> <&'a T as IntoIterator>::IntoIter: ExactSizeIterator,
-{
+impl<T: WrapData, W> TableDataImpl<T, W> {
   fn height(&self) -> usize {
-    let len = self.data.data.into_iter().len();
+    let len = self.data.data.len();
     if len <= self.width {
       1
     } else {
@@ -254,11 +278,7 @@ where
   }
 }
 
-impl<T, W> Index<usize> for TableDataImpl<T, W>
-where
-  for<'a> &'a T: IntoIterator,
-  for<'a> <&'a T as IntoIterator>::IntoIter: ExactSizeIterator,
-{
+impl<T: WrapData, W> Index<usize> for TableDataImpl<T, W> {
   type Output = RowDataImpl<T, W>;
 
   fn index(&self, row: usize) -> &Self::Output {
@@ -267,18 +287,14 @@ where
   }
 }
 
-impl<T, W> IndexMut<usize> for TableDataImpl<T, W>
-where
-  for<'a> &'a T: IntoIterator,
-  for<'a> <&'a T as IntoIterator>::IntoIter: ExactSizeIterator,
-{
+impl<T: WrapData, W> IndexMut<usize> for TableDataImpl<T, W> {
   fn index_mut(&mut self, row: usize) -> &mut Self::Output {
     self.data.row.set(row);
     &mut self.data
   }
 }
 
-impl<T: Clone, W> Clone for TableDataImpl<T, W> {
+impl<T: WrapData, W> Clone for TableDataImpl<T, W> {
   fn clone(&self) -> Self {
     Self {
       width: self.width.clone(),
@@ -287,11 +303,7 @@ impl<T: Clone, W> Clone for TableDataImpl<T, W> {
   }
 }
 
-impl<T: IndexableData, W: 'static> Data for TableDataImpl<T, W>
-where
-  for<'a> &'a T: IntoIterator,
-  for<'a> <&'a T as IntoIterator>::IntoIter: ExactSizeIterator,
-{
+impl<T: WrapData, W: 'static> Data for TableDataImpl<T, W> {
   fn same(&self, other: &Self) -> bool {
     self.data.same(&other.data)
       && self.height().same(&other.height())
@@ -299,11 +311,7 @@ where
   }
 }
 
-impl<T: IndexableData, W: Widget<T> + 'static> TableData for TableDataImpl<T, W>
-where
-  for<'a> &'a T: IntoIterator,
-  for<'a> <&'a T as IntoIterator>::IntoIter: ExactSizeIterator,
-{
+impl<T: WrapData, W: Widget<T> + 'static> TableData for TableDataImpl<T, W> {
   type Row = RowDataImpl<T, W>;
   type Column = usize;
 
@@ -329,25 +337,4 @@ fn get_id_inner(width: u64, env: &druid::Env) -> usize {
 
 fn get_id_raw(width: u64, row: u64, col: u64) -> usize {
   (width * row + col) as usize
-}
-
-const HEIGHT_LINKER_SYNC: Selector<(usize, HeightLinkerShared)> =
-  Selector::new("wrapped_table.height_linker.sync");
-
-fn on_linked_height_sync<T: Data, W: Widget<T>>(
-  height_linker: &mut LinkedHeights<T, W>,
-  ctx: &mut druid::EventCtx,
-  (target_row, linker): &(usize, HeightLinkerShared),
-  _data: &mut T,
-  env: &druid::Env,
-) -> bool {
-  let row = env.get(FlexTable::<[(); 0]>::ROW_IDX) as usize;
-
-  if *target_row == row {
-    height_linker.reset_local_state();
-    height_linker.set_height_linker_inner(linker.clone());
-    ctx.request_layout();
-  }
-
-  true
 }

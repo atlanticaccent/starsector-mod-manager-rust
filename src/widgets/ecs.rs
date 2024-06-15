@@ -8,7 +8,7 @@ use druid::{Data, Env, Widget, WidgetPod};
 use xxhash_rust::xxh3::Xxh3Builder;
 
 thread_local! {
-  static WIDGET_MAP: RefCell<HashMap<usize, Box<dyn Any>, Xxh3Builder>> = const { RefCell::new(HashMap::with_hasher(Xxh3Builder::new())) }
+  static WIDGET_MAP: RefCell<HashMap<String, Box<dyn Any>, Xxh3Builder>> = const { RefCell::new(HashMap::with_hasher(Xxh3Builder::new())) }
 }
 
 pub struct EcsWidget<T, W: Widget<T>> {
@@ -17,32 +17,32 @@ pub struct EcsWidget<T, W: Widget<T>> {
 }
 
 pub enum Key<T> {
-  Fixed(Option<usize>),
-  Dynamic(Box<dyn Fn(&T, &Env) -> Option<usize>>),
+  Fixed(Option<String>),
+  Dynamic(Box<dyn Fn(&T, &Env) -> Option<String>>),
 }
 
-impl<T> From<usize> for Key<T> {
-  fn from(value: usize) -> Self {
+impl<T> From<String> for Key<T> {
+  fn from(value: String) -> Self {
     Self::Fixed(Some(value))
   }
 }
 
-impl<T> From<Option<usize>> for Key<T> {
-  fn from(value: Option<usize>) -> Self {
+impl<T> From<Option<String>> for Key<T> {
+  fn from(value: Option<String>) -> Self {
     Self::Fixed(value)
   }
 }
 
-impl<T, F: Fn(&T, &Env) -> Option<usize> + 'static> From<F> for Key<T> {
+impl<T, F: Fn(&T, &Env) -> Option<String> + 'static> From<F> for Key<T> {
   fn from(value: F) -> Self {
     Self::Dynamic(Box::new(value))
   }
 }
 
 impl<T> Key<T> {
-  fn resolve(&self, data: &T, env: &Env) -> Option<usize> {
+  fn resolve(&self, data: &T, env: &Env) -> Option<String> {
     match self {
-      Key::Fixed(idx) => *idx,
+      Key::Fixed(idx) => idx.clone(),
       Key::Dynamic(dynamic) => dynamic(data, env),
     }
   }
@@ -76,7 +76,7 @@ impl<T: 'static, W: Widget<T> + 'static> EcsWidget<T, W> {
     if let Some(key) = key.into().resolve(data, env) {
       WIDGET_MAP.with_borrow_mut(|map| {
         if !map.contains_key(&key) {
-          map.insert(key, Box::new(WidgetPod::new((constructor)())));
+          map.insert(key.clone(), Box::new(WidgetPod::new((constructor)())));
         }
         let any = map.get_mut(&key).expect(&format!("Get widget at {key}"));
 
@@ -99,7 +99,7 @@ impl<T: 'static, W: Widget<T> + 'static> EcsWidget<T, W> {
     if let Some(key) = self.key.resolve(data, env) {
       WIDGET_MAP.with_borrow_mut(|map| {
         if !map.contains_key(&key) {
-          map.insert(key, Box::new(WidgetPod::new((self.constructor)())));
+          map.insert(key.clone(), Box::new(WidgetPod::new((self.constructor)())));
         }
         let any = map.get_mut(&key).expect(&format!("Get widget at {key}"));
         let widget = any
