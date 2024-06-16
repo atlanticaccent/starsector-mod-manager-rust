@@ -174,8 +174,9 @@ impl ModList {
 
                             true
                           })
-                          .on_command(Self::INSERT_MOD, |_, _, entry, data| {
+                          .on_command(Self::INSERT_MOD, |_, ctx, entry, data| {
                             data.mods.insert(entry.id.clone(), entry.clone().into());
+                            ctx.request_update();
                             true
                           }),
                       )
@@ -187,6 +188,7 @@ impl ModList {
                   )
                   .on_change(|ctx, old, data, _| {
                     if !old.header.same(&data.header) || !old.mods.same(&data.mods) {
+                      dbg!("in change");
                       ctx.request_paint();
                       ctx.request_update();
                       ctx.request_layout();
