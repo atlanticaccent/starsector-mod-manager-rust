@@ -70,6 +70,13 @@ pub fn init_webview(
               let _ = ext_ctx.submit_command_global(WEBVIEW_EVENT, WebviewEvent::CancelDownload);
             }
           }
+          _ if string.starts_with("pageLoaded") => {
+            let _ = ext_ctx.submit_command_global(WEBVIEW_EVENT, WebviewEvent::PageLoaded);
+          }
+          _ if string.starts_with("pageUnload") => {
+            dbg!("page unload");
+            let _ = ext_ctx.submit_command_global(WEBVIEW_EVENT, WebviewEvent::PageUnloading);
+          }
           _ => {}
         }
       }
@@ -114,7 +121,8 @@ pub fn init_webview(
             .and_then(|c| Mime::from_str(c).ok())
           {
             if mime_type_is_archive(mime) {
-              let _ = ext_ctx.submit_command_global(WEBVIEW_EVENT, WebviewEvent::AskDownload(final_url));
+              let _ =
+                ext_ctx.submit_command_global(WEBVIEW_EVENT, WebviewEvent::AskDownload(final_url));
               return false;
             }
           }
@@ -123,7 +131,8 @@ pub fn init_webview(
             let mime_guess = mime_guess::from_path(parsed_url.path());
             if let Some(mime) = mime_guess.first() {
               if mime_type_is_archive(mime) {
-                let _ = ext_ctx.submit_command_global(WEBVIEW_EVENT, WebviewEvent::AskDownload(final_url));
+                let _ = ext_ctx
+                  .submit_command_global(WEBVIEW_EVENT, WebviewEvent::AskDownload(final_url));
                 return false;
               }
             }
@@ -169,17 +178,9 @@ pub fn init_webview(
         false
       }
     })
-    .with_on_page_load_handler({
-      let ext_ctx = ext_ctx.clone();
-      move |_, _| {
-        ext_ctx
-          .submit_command_global(WEBVIEW_EVENT, WebviewEvent::PageLoaded)
-          .expect("Send event");
-      }
-    })
     .build()?;
 
-  #[cfg(all(debug_assertions, not(target_os = "macos")))]
+  #[cfg(all(debug_assertions, /* not(target_os = "macos") */))]
   webview.open_devtools();
 
   let webview = Rc::new(webview);

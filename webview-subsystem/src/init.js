@@ -116,6 +116,13 @@ document.addEventListener('DOMContentLoaded', _ => {
       color: rgb(0, 0, 0);
     }
   `;
+
+  window.ipc.postMessage("pageLoaded:");
+});
+
+window.addEventListener("beforeunload", (_) => {
+  console.log("sending page unload message");
+  window.ipc.postMessage("pageUnload:");
 });
 
 // Adds an URL.getFromObjectURL( <blob:// URI> ) method

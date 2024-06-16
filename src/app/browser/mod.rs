@@ -48,6 +48,7 @@ pub struct BrowserInner {
   screenshot_in_progress: Rc<RefCell<bool>>,
   tab_open: bool,
   force_hidden: bool,
+  load_in_progress: bool,
 }
 
 impl Browser {
@@ -214,6 +215,7 @@ impl Browser {
             screenshot_in_progress: Default::default(),
             tab_open: true,
             force_hidden: false,
+            load_in_progress: true,
           };
           inner.set_visible(true);
           data.inner = Some(inner);
@@ -259,7 +261,7 @@ impl Browser {
         ctx.submit_command(Popup::OPEN_POPUP.with(Popup::browser_install(uri.clone())))
       }
       WebviewEvent::Download(uri) => {
-        let _ = webview.evaluate_script("location.reload();");
+        let _ = inner.reload();
         ctx.submit_command(WEBVIEW_INSTALL.with(InstallType::Uri(uri.clone())))
       }
       WebviewEvent::CancelDownload => {}
@@ -332,6 +334,10 @@ impl Browser {
       }
       WebviewEvent::PageLoaded => {
         inner.screenshot(ctx.get_external_handle());
+        inner.load_in_progress = false;
+      }
+      WebviewEvent::PageUnloading => {
+        inner.load_in_progress = true;
       }
       WebviewEvent::ShowConfirmPopup(_url) => {}
     }
@@ -410,11 +416,18 @@ fn toolbar() -> SizedBox<BrowserInner> {
     .with_child(
       button(|_| Icon::new(*REFRESH).padding(-2.5).boxed())
         .on_click(|_, browser: &mut BrowserInner, _| {
-          let _ = browser.webview.evaluate_script("location.reload()");
+          browser.reload();
         })
         .padding((0.0, 5.0)),
     )
     .with_child(bookmarks())
+    .disabled_if(|data, _| data.load_in_progress)
+    .env_scope(|env, data| {
+      if data.load_in_progress {
+        const TEXT: druid::Key<druid::Color> = druid::theme::TEXT_COLOR;
+        env.set(TEXT, env.get(TEXT).lighter_by(8))
+      }
+    })
     .expand_width()
 }
 
@@ -585,5 +598,10 @@ impl BrowserInner {
 
   fn screenshow_wip(&self) -> std::cell::RefMut<bool> {
     self.screenshot_in_progress.borrow_mut()
+  }
+
+  fn reload(&mut self) {
+    self.load_in_progress = true;
+    let _ = self.webview.load_url(&self.webview.url().unwrap());
   }
 }
