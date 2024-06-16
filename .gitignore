@@ -5,3 +5,5 @@ config.json
 /docs/ignore
 rustc-ice-*
 .DS_Store
+**/**/Starsector*
+**/**/starsector*
