@@ -188,7 +188,6 @@ impl ModList {
                   )
                   .on_change(|ctx, old, data, _| {
                     if !old.header.same(&data.header) || !old.mods.same(&data.mods) {
-                      dbg!("in change");
                       ctx.request_paint();
                       ctx.request_update();
                       ctx.request_layout();
