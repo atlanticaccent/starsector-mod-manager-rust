@@ -5,7 +5,7 @@ use druid::{
   widget::{Flex, Maybe, Painter, SizedBox},
   Data, ExtEventSink, ImageBuf, Lens, Selector, SingleUse, Widget, WidgetExt,
 };
-use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
+use druid_widget_nursery::{material_icons::Icon, AnyCtx, LaidOutCtx, WidgetExt as _};
 use rand::random;
 use webview_shared::{
   ExtEventSinkExt, InstallType, WebviewEvent, PROJECT, WEBVIEW_EVENT, WEBVIEW_INSTALL,
@@ -73,7 +73,7 @@ impl Browser {
           .build(SizedBox::empty().expand().foreground(Painter::new(
             move |ctx, browser: &BrowserInner, _| {
               if !ctx.size().is_empty() && browser.is_visible() {
-                browser.set_bounds(ctx.window_origin(), ctx.size());
+                browser.set_bounds(ctx);
               }
             },
           )))
@@ -171,20 +171,25 @@ impl Browser {
                 }
                 true
               })
-              .on_command(Browser::WEBVIEW_SCREENSHOT_DATA, |_, ctx, payload, browser| {
-                let image = payload.take().unwrap();
-                *browser.screenshow_wip() = false;
-                if let Ok(image) = ImageBuf::from_data(&image) {
-                  if (image.size() + (14., 14.).into()).aspect_ratio() == ctx.size().aspect_ratio() {
-                    browser.image = Some(Rc::new(image));
-                  } else if browser.is_visible() {
-                    browser.screenshot(ctx.get_external_handle())
+              .on_command(
+                Browser::WEBVIEW_SCREENSHOT_DATA,
+                |_, ctx, payload, browser| {
+                  let image = payload.take().unwrap();
+                  *browser.screenshow_wip() = false;
+                  if let Ok(image) = ImageBuf::from_data(&image) {
+                    if (image.size() + (14., 14.).into()).aspect_ratio()
+                      == ctx.size().aspect_ratio()
+                    {
+                      browser.image = Some(Rc::new(image));
+                    } else if browser.is_visible() {
+                      browser.screenshot(ctx.get_external_handle())
+                    }
                   }
-                }
-                ctx.request_update();
-                ctx.request_paint();
-                true
-              })
+                  ctx.request_update();
+                  ctx.request_paint();
+                  true
+                },
+              )
               .on_command(WEBVIEW_EVENT, Browser::handle_webview_events),
           ),
         1.,
@@ -531,17 +536,27 @@ impl BrowserInner {
     *self.visible.borrow()
   }
 
-  fn set_bounds(&self, origin: druid::Point, size: druid::Size) {
+  fn set_bounds(&self, ctx: &mut (impl LaidOutCtx + AnyCtx)) {
+    let window_origin = ctx.window_origin();
+    let size = ctx.size();
+    #[cfg(not(target_os = "macos"))]
+    let position = (window_origin.x, window_origin.y - 7.);
+    #[cfg(target_os = "macos")]
+    let position = {
+      let actual_y = ctx.window().get_size().height - (ctx.window_origin().y + ctx.size().height);
+      (window_origin.x, actual_y - 35.0)
+    };
     let _ = self
       .webview
       .set_bounds(wry::Rect {
-        position: wry::dpi::Position::Logical((origin.x, origin.y - 7.).into()),
+        position: wry::dpi::Position::Logical(position.into()),
         size: wry::dpi::Size::Logical((size.width, size.height + 14.).into()),
       })
       .inspect_err(|e| eprintln!("{e}"));
   }
 
   fn screenshot(&self, ext_ctx: ExtEventSink) {
+    #[cfg(not(target_os = "macos"))]
     if self.is_visible()
       && !*self.screenshow_wip()
       && self
@@ -549,11 +564,6 @@ impl BrowserInner {
         .screenshot(move |res| {
           let func = || -> anyhow::Result<()> {
             let image = res?;
-
-            // std::fs::File::create("screenshot.png")
-            //   .expect("Open file")
-            //   .write_all(&image)
-            //   .expect("Write screenshot to file");
 
             let _ = ext_ctx
               .submit_command_global(Browser::WEBVIEW_SCREENSHOT_DATA, SingleUse::new(image));
@@ -569,6 +579,8 @@ impl BrowserInner {
     {
       *self.screenshow_wip() = true;
     }
+    #[cfg(target_os = "macos")]
+    drop(ext_ctx)
   }
 
   fn screenshow_wip(&self) -> std::cell::RefMut<bool> {
