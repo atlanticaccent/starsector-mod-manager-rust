@@ -121,7 +121,6 @@ impl ModList {
               .with_child(FilterButton::view().lens(Self::filter_state))
               .with_child(
                 Search::view()
-                  .scope(Search::new, Search::buffer)
                   .lens(Self::search_text)
                   .on_change(|ctx, old, data, _| {
                     if !old.same(data) {

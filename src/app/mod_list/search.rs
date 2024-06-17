@@ -1,7 +1,7 @@
 use druid::{
   lens,
   widget::{Flex, TextBox},
-  Data, Lens, UnitPoint, Widget, WidgetExt,
+  UnitPoint, Widget, WidgetExt,
 };
 use druid_widget_nursery::{material_icons::Icon, Stack, StackChildPosition, WidgetExt as _};
 
@@ -9,26 +9,10 @@ use crate::{
   app::util::{WidgetExtEx, WithHoverState, CANCEL, SEARCH},
   widgets::card::Card,
 };
-
-#[derive(Debug, Clone, Data, Lens)]
-pub struct Search {
-  buffer: String,
-}
+pub struct Search;
 
 impl Search {
-  pub fn new(buffer: String) -> Self {
-    Self { buffer }
-  }
-
-  pub fn len(&self) -> usize {
-    self.buffer.len()
-  }
-
-  pub fn is_empty(&self) -> bool {
-    self.len() == 0
-  }
-
-  pub fn view() -> impl Widget<Self> {
+  pub fn view() -> impl Widget<String> {
     Card::new(
       Stack::new()
         .with_child(
@@ -59,7 +43,6 @@ impl Search {
         .align(UnitPoint::RIGHT),
     )
     .env_scope(|env, _| env.set(druid::theme::BORDER_DARK, druid::Color::TRANSPARENT))
-    .lens(Self::buffer)
     .on_command(
       super::install::install_options::InstallOptions::DISMISS,
       |ctx, point, _| {
