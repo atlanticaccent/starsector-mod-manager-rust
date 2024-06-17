@@ -51,7 +51,6 @@ pub struct ModRepo {
   #[serde(default = "ModRepo::default_source_filters")]
   filters: HashMap<ModSource, bool>,
   #[serde(skip)]
-  #[serde(default = "ModRepo::default_sorting")]
   sort_by: Metadata,
   #[serde(skip)]
   #[serde(default = "ModRepo::default_page_size")]
@@ -416,17 +415,15 @@ impl ModRepo {
       .await
       .map_err(|e| anyhow::anyhow!(e))?;
 
-    repo.items.sort_by(|a, b| Metadata::Name.comparator(a, b));
+    repo
+      .items
+      .sort_by(|a, b| Metadata::default().comparator(a, b));
 
     Ok(repo)
   }
 
   pub fn modal_open(&self) -> bool {
     self.modal.is_some()
-  }
-
-  fn default_sorting() -> Metadata {
-    Metadata::Name
   }
 
   fn default_page_size() -> Option<usize> {
@@ -510,18 +507,14 @@ pub struct ModRepoItem {
   #[serde(alias = "gameVersionReq")]
   game_version: Option<String>,
   #[serde(rename = "authorsList")]
-  #[data(same_fn = "PartialEq::eq")]
   authors: Option<Vector<String>>,
-  #[data(same_fn = "PartialEq::eq")]
   urls: Option<HashMap<UrlSource, String>>,
-  #[data(same_fn = "PartialEq::eq")]
   sources: Option<Vector<ModSource>>,
-  #[data(same_fn = "PartialEq::eq")]
   categories: Option<Vector<String>>,
-  #[data(same_fn = "PartialEq::eq")]
+  #[data(eq)]
   #[serde(alias = "dateTimeCreated")]
   created: Option<DateTime<Utc>>,
-  #[data(same_fn = "PartialEq::eq")]
+  #[data(eq)]
   #[serde(alias = "dateTimeEdited")]
   edited: Option<DateTime<Utc>>,
   #[serde(skip)]
