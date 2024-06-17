@@ -240,7 +240,7 @@ impl<T: WrapData, W: Widget<T> + 'static> RowData for RowDataImpl<T, W> {
     EcsWidget::new(
       move |data: &RowDataImpl<T, W>, env: &_| {
         let id = get_id(env);
-        (id < data.data.len()).then(|| data.data_ids[id].to_string())
+        (id < data.data_ids.len()).then(|| data.data_ids[id].to_string())
       },
       move || {
         constructor(&data, id.clone().unwrap(), get_id)
