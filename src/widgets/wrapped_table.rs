@@ -1,6 +1,6 @@
 use std::{
   cell::Cell,
-  fmt::Display,
+  fmt::{Debug, Display},
   hash::Hash,
   ops::{Deref, Index, IndexMut},
   rc::Rc,
@@ -25,7 +25,7 @@ impl<T, U, W, F: Fn(&T, U, fn(&druid::Env) -> usize) -> W> CellConstructor<T, U,
 
 pub trait WrapData: Data {
   type Id<'a>: ToOwned<Owned = Self::OwnedId>;
-  type OwnedId: Eq + Clone + ToString;
+  type OwnedId: Eq + Clone + ToString + Debug;
   type Value;
 
   fn ids<'a>(&'a self) -> impl Iterator<Item = <Self::Id<'a> as ToOwned>::Owned>;
@@ -33,7 +33,7 @@ pub trait WrapData: Data {
   fn len(&self) -> usize;
 }
 
-impl<K: Clone + Hash + Eq + Display + 'static, V: Data> WrapData for xxHashMap<K, V>
+impl<K: Clone + Hash + Eq + Display + Debug + 'static, V: Data> WrapData for xxHashMap<K, V>
 where
   for<'a> &'a K: ToOwned<Owned = K>,
 {
@@ -76,7 +76,10 @@ pub struct WrappedTable<T: WrapData, W: Widget<T> + 'static> {
 impl<T: WrapData, W: Widget<T> + 'static> WrappedTable<T, W> {
   const UPDATE_AND_LAYOUT: Selector<WidgetId> = Selector::new("wrapped_table.update_and_layout");
 
-  pub fn new(min_width: f64, constructor: impl CellConstructor<T, T::OwnedId, W> + 'static) -> Self {
+  pub fn new(
+    min_width: f64,
+    constructor: impl CellConstructor<T, T::OwnedId, W> + 'static,
+  ) -> Self {
     Self {
       id: WidgetId::next(),
       table: FlexTable::new()
@@ -231,19 +234,17 @@ impl<T: WrapData, W: Widget<T> + 'static> RowData for RowDataImpl<T, W> {
     self.row.get()
   }
 
-  fn cell(&self, column: &Self::Column) -> Box<dyn Widget<Self>> {
+  fn cell(&self, _: &Self::Column) -> Box<dyn Widget<Self>> {
     let constructor = self.constructor.clone();
-    let raw_id = get_id_raw(self.width as u64, self.id() as u64, *column as u64);
-    let id = (raw_id < self.data.len()).then(|| self.data_ids[raw_id].to_owned());
-    let data = self.data.clone();
 
     EcsWidget::new(
       move |data: &RowDataImpl<T, W>, env: &_| {
         let id = get_id(env);
         (id < data.data_ids.len()).then(|| data.data_ids[id].to_string())
       },
-      move || {
-        constructor(&data, id.clone().unwrap(), get_id)
+      move |data, env| {
+        let raw_id = get_id(env);
+        constructor(&data.data, data.data_ids[raw_id].to_owned(), get_id)
           .lens(RowDataImpl::data)
           .shared_constraint(
             |data: &RowDataImpl<T, W>, _: &druid::Env| data.row.get() as u64,

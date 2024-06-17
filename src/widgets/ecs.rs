@@ -13,7 +13,7 @@ thread_local! {
 
 pub struct EcsWidget<T, W: Widget<T>> {
   key: Key<T>,
-  constructor: Box<dyn Fn() -> W>,
+  constructor: Box<dyn Fn(&T, &Env) -> W>,
 }
 
 pub enum Key<T> {
@@ -49,7 +49,7 @@ impl<T> Key<T> {
 }
 
 impl<T: 'static, W: Widget<T> + 'static> EcsWidget<T, W> {
-  pub fn new(key: impl Into<Key<T>>, constructor: impl Fn() -> W + 'static) -> Self {
+  pub fn new(key: impl Into<Key<T>>, constructor: impl Fn(&T, &Env) -> W + 'static) -> Self {
     Self {
       key: key.into(),
       constructor: Box::new(constructor),
@@ -63,12 +63,18 @@ impl<T: 'static, W: Widget<T> + 'static> EcsWidget<T, W> {
     func: impl FnMut(&mut WidgetPod<T, W>, &T, &Env) -> U,
   ) -> U {
     let key = self.key.resolve(data, env);
-    Self::apply_inner(key, || (self.constructor)(), data, env, func)
+    Self::apply_inner(
+      key,
+      |data, env| (self.constructor)(data, env),
+      data,
+      env,
+      func,
+    )
   }
 
   fn apply_inner<U: Default>(
     key: impl Into<Key<T>>,
-    constructor: impl Fn() -> W,
+    constructor: impl Fn(&T, &Env) -> W,
     data: &T,
     env: &Env,
     mut func: impl FnMut(&mut WidgetPod<T, W>, &T, &Env) -> U,
@@ -76,7 +82,10 @@ impl<T: 'static, W: Widget<T> + 'static> EcsWidget<T, W> {
     if let Some(key) = key.into().resolve(data, env) {
       WIDGET_MAP.with_borrow_mut(|map| {
         if !map.contains_key(&key) {
-          map.insert(key.clone(), Box::new(WidgetPod::new((constructor)())));
+          map.insert(
+            key.clone(),
+            Box::new(WidgetPod::new((constructor)(data, env))),
+          );
         }
         let any = map.get_mut(&key).expect(&format!("Get widget at {key}"));
 
@@ -99,7 +108,10 @@ impl<T: 'static, W: Widget<T> + 'static> EcsWidget<T, W> {
     if let Some(key) = self.key.resolve(data, env) {
       WIDGET_MAP.with_borrow_mut(|map| {
         if !map.contains_key(&key) {
-          map.insert(key.clone(), Box::new(WidgetPod::new((self.constructor)())));
+          map.insert(
+            key.clone(),
+            Box::new(WidgetPod::new((self.constructor)(data, env))),
+          );
         }
         let any = map.get_mut(&key).expect(&format!("Get widget at {key}"));
         let widget = any
