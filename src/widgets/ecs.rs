@@ -127,7 +127,9 @@ impl<T: 'static, W: Widget<T> + 'static> EcsWidget<T, W> {
 impl<T: Data, W: Widget<T> + 'static> Widget<T> for EcsWidget<T, W> {
   fn event(&mut self, ctx: &mut druid::EventCtx, event: &druid::Event, data: &mut T, env: &Env) {
     self.apply_mut(data, env, |widget, data, env| {
-      widget.event(ctx, event, data, env)
+      if widget.is_initialized() {
+        widget.event(ctx, event, data, env)
+      }
     })
   }
 
@@ -144,12 +146,19 @@ impl<T: Data, W: Widget<T> + 'static> Widget<T> for EcsWidget<T, W> {
       {
         return;
       }
+      if !matches!(event, druid::LifeCycle::WidgetAdded) && !widget.is_initialized() {
+        widget.lifecycle(ctx, &druid::LifeCycle::WidgetAdded, data, env)
+      }
       widget.lifecycle(ctx, event, data, env)
     })
   }
 
   fn update(&mut self, ctx: &mut druid::UpdateCtx, _old_data: &T, data: &T, env: &Env) {
-    self.apply(data, env, |widget, data, env| widget.update(ctx, data, env))
+    self.apply(data, env, |widget, data, env| {
+      if widget.is_initialized() {
+        widget.update(ctx, data, env)
+      }
+    })
   }
 
   fn layout(
@@ -160,11 +169,19 @@ impl<T: Data, W: Widget<T> + 'static> Widget<T> for EcsWidget<T, W> {
     env: &Env,
   ) -> druid::Size {
     self.apply(data, env, |widget, data, env| {
-      widget.layout(ctx, bc, data, env)
+      if widget.is_initialized() {
+        widget.layout(ctx, bc, data, env)
+      } else {
+        bc.max()
+      }
     })
   }
 
   fn paint(&mut self, ctx: &mut druid::PaintCtx, data: &T, env: &Env) {
-    self.apply(data, env, |widget, data, env| widget.paint(ctx, data, env))
+    self.apply(data, env, |widget, data, env| {
+      if widget.is_initialized() {
+        widget.paint(ctx, data, env)
+      }
+    })
   }
 }
