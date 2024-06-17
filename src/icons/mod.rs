@@ -10,14 +10,17 @@ mod icons {
     communication::HOURGLASS_TOP,
     content::{
       ADD_BOX, ADD_CIRCLE, ADD_CIRCLE_OUTLINE, CLEAR, CONTENT_COPY, DESELECT, INVENTORY_2, LINK,
-      LINK_OFF, REPORT,
+      LINK_OFF, REPORT, SORT,
     },
     file::FOLDER,
+    hardware::{
+      KEYBOARD_DOUBLE_ARROW_LEFT as DOUBLE_LEFT, KEYBOARD_DOUBLE_ARROW_RIGHT as DOUBLE_RIGHT,
+    },
     image::{NAVIGATE_NEXT, TUNE},
     maps::HANDYMAN,
     navigation::{
-      ARROW_DROP_DOWN, ARROW_DROP_UP, ARROW_LEFT, ARROW_RIGHT, CANCEL, CHEVRON_LEFT, CLOSE,
-      FIRST_PAGE, LAST_PAGE, REFRESH, UNFOLD_MORE,
+      ARROW_DROP_DOWN, ARROW_DROP_UP, ARROW_LEFT, ARROW_RIGHT, CANCEL, CHEVRON_LEFT, CHEVRON_RIGHT,
+      CLOSE, FIRST_PAGE, LAST_PAGE, REFRESH, UNFOLD_MORE,
     },
     notification::{SYNC, SYSTEM_UPDATE},
     social::CONSTRUCTION,
@@ -55,6 +58,7 @@ icons! {
   icons::ARROW_LEFT,
   icons::ARROW_RIGHT,
   icons::CHEVRON_LEFT,
+  icons::CHEVRON_RIGHT,
   icons::CLOSE,
   icons::FIRST_PAGE,
   icons::LAST_PAGE,
@@ -84,4 +88,7 @@ icons! {
   icons::HOURGLASS_TOP,
   icons::BOOKMARK,
   icons::BOOKMARK_BORDER,
+  icons::SORT,
+  icons::DOUBLE_LEFT,
+  icons::DOUBLE_RIGHT,
 }
