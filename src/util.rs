@@ -934,6 +934,13 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     .lens(lens::Identity.then(lens::Unit))
   }
 
+  fn scope_indie_computed<U: Data, In: Fn(U) -> T + 'static>(
+    self,
+    make_state: In,
+  ) -> impl Widget<U> {
+    Scope::from_function(make_state, DummyTransfer::default(), self)
+  }
+
   fn invisible_if(self, func: impl Fn(&T) -> bool + 'static) -> InvisibleIf<T, Self> {
     InvisibleIf::new(func, self)
   }
@@ -1280,7 +1287,9 @@ impl<K: Clone + Hash + Eq, V: Clone> DerefMut for xxHashMap<K, V> {
   }
 }
 
-impl<KB: Hash + Eq + ?Sized, K: Clone + Hash + Eq + Borrow<KB>, V: Clone> Index<&KB> for xxHashMap<K, V> {
+impl<KB: Hash + Eq + ?Sized, K: Clone + Hash + Eq + Borrow<KB>, V: Clone> Index<&KB>
+  for xxHashMap<K, V>
+{
   type Output = V;
 
   fn index(&self, index: &KB) -> &Self::Output {
@@ -1288,7 +1297,9 @@ impl<KB: Hash + Eq + ?Sized, K: Clone + Hash + Eq + Borrow<KB>, V: Clone> Index<
   }
 }
 
-impl<KB: Hash + Eq + ?Sized, K: Clone + Hash + Eq + Borrow<KB>, V: Clone> IndexMut<&KB> for xxHashMap<K, V> {
+impl<KB: Hash + Eq + ?Sized, K: Clone + Hash + Eq + Borrow<KB>, V: Clone> IndexMut<&KB>
+  for xxHashMap<K, V>
+{
   fn index_mut(&mut self, index: &KB) -> &mut Self::Output {
     self.deref_mut().index_mut(index)
   }
