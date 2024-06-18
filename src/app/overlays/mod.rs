@@ -10,6 +10,7 @@ use druid_widget_nursery::{Mask, WidgetExt as _};
 mod browser_install;
 mod confirm_delete;
 mod duplicate;
+mod launch_result;
 mod multiple;
 mod overwrite;
 mod remote_update;
@@ -18,6 +19,7 @@ mod select_install;
 use browser_install::*;
 use confirm_delete::*;
 use duplicate::*;
+pub use launch_result::*;
 use multiple::*;
 use overwrite::*;
 use remote_update::*;
@@ -45,7 +47,7 @@ pub enum Popup {
 
 impl Popup {
   pub const DISMISS: Selector = Selector::new("app.popup.dismiss");
-  pub const DISMISS_MATCHING: Selector<Arc<dyn Fn(&Popup) -> bool>> =
+  pub const DISMISS_MATCHING: Selector<Arc<dyn Fn(&Popup) -> bool + Send + Sync>> =
     Selector::new("app.popup.dismiss_matching");
   pub const OPEN_POPUP: Selector<Popup> = Selector::new("app.popup.open");
   pub const QUEUE_POPUP: Selector<Popup> = Selector::new("app.popup.queue");

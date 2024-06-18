@@ -1,8 +1,8 @@
 use std::{fs::File, path::PathBuf};
 
 use druid::{
-  commands, keyboard_types::Key, AppDelegate as Delegate, Command, DelegateCtx, Env, Event,
-  Handled, KeyEvent, LensExt as _, SingleUse, Target, WindowHandle, WindowId,
+  keyboard_types::Key, AppDelegate as Delegate, Command, DelegateCtx, Env, Event, Handled,
+  KeyEvent, LensExt as _, SingleUse, Target, WindowHandle, WindowId,
 };
 use itertools::Itertools;
 use rand::random;

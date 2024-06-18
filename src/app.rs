@@ -5,11 +5,14 @@ use druid::{
   im::{OrdMap, Vector},
   lens,
   widget::{Flex, Maybe, Scope, WidgetWrapper, ZStack},
-  Data, Lens, LensExt, Selector, SingleUse, Widget, WidgetExt, WidgetId,
+  Data, ExtEventSink, Lens, LensExt, Selector, SingleUse, Widget, WidgetExt, WidgetId,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
+use futures::TryFutureExt;
+use overlays::LaunchResult;
 use tokio::runtime::Handle;
-use webview_shared::PROJECT;
+use util::ShadeColor;
+use webview_shared::{ExtEventSinkExt, PROJECT};
 
 use self::{
   activity::Activity,
@@ -33,7 +36,7 @@ use crate::{
     tabs_policy::StaticTabsForked,
   },
   theme::{Theme, CHANGE_THEME},
-  widgets::root_stack::RootStack,
+  widgets::{card::Card, card_button::CardButton, root_stack::RootStack},
 };
 
 mod activity;
@@ -94,8 +97,6 @@ impl App {
   const LOG_MESSAGE: Selector<String> = Selector::new("app.mod.install.start");
   const LOG_OVERWRITE: Selector<(StringOrPath, HybridPath, ModEntry)> =
     Selector::new("app.mod.install.overwrite");
-  const REMOVE_DUPLICATE_LOG_ENTRY: Selector<String> =
-    Selector::new("app.mod.duplicate.remove_log");
   pub const OPEN_WEBVIEW: Selector<Option<String>> = Selector::new("app.webview.open");
   const CONFIRM_DELETE_MOD: Selector<ModEntry> = Selector::new("app.mod_entry.delete");
   const REMOVE_DOWNLOAD_BAR: Selector<i64> = Selector::new("app.download.bar.remove");
@@ -146,8 +147,8 @@ impl App {
 
   pub fn view() -> impl Widget<Self> {
     let nav_bar = ZStack::new(
-      Flex::<bool>::column()
-        .with_default_spacer()
+      Flex::column()
+        .with_spacer(15.0)
         .with_child(
           bold_text(
             "MOSS",
@@ -158,6 +159,8 @@ impl App {
           .align_horizontal(druid::UnitPoint::CENTER)
           .expand_width(),
         )
+        .with_spacer(10.0)
+        .with_child(App::launch_button())
         .with_spacer(10.0)
         .with_child(NavBar::new(
           Nav::new(NavLabel::Root).as_root().with_children(vec![
@@ -195,11 +198,10 @@ impl App {
     .expand();
 
     Flex::row()
-      .with_child(
-        nav_bar
-          .fix_width(175.)
+      .with_child(nav_bar.fix_width(195.).scope_with(true, |widget| {
+        widget
           .else_if(
-            |data, _| !data,
+            |data, _| !data.inner,
             Icon::new(*LAST_PAGE)
               .fix_size(34., 34.)
               .controller(HoverController::default())
@@ -208,9 +210,8 @@ impl App {
               .align_vertical(druid::UnitPoint::BOTTOM)
               .expand_height(),
           )
-          .on_command(App::TOGGLE_NAV_BAR, |_, _, data| *data = !*data)
-          .scope_independent(|| true),
-      )
+          .on_command(App::TOGGLE_NAV_BAR, |_, _, data| data.inner = !data.inner)
+      }))
       .with_flex_child(
         Tabs::for_policy(StaticTabsForked::build(vec![
           InitialTab::new(
@@ -308,6 +309,8 @@ impl App {
         }),
         1.0,
       )
+      .on_command(App::DISABLE, |ctx, _, _| ctx.set_disabled(true))
+      .on_command(App::ENABLE, |ctx, _, _| ctx.set_disabled(false))
   }
 
   fn overlay() -> impl Widget<App> {
@@ -328,14 +331,79 @@ impl App {
     )
   }
 
+  fn launch_button() -> impl Widget<App> {
+    let light_gray = druid::Color::GRAY.lighter_by(2);
+    fn text_maker<T: Data>(text: &str) -> impl Widget<T> {
+      bold_text(
+        text,
+        druid::theme::TEXT_SIZE_LARGE,
+        druid::FontWeight::SEMI_BOLD,
+        druid::theme::TEXT_COLOR,
+      )
+    }
+
+    Card::builder()
+      .with_background(druid::Color::BLACK.interpolate_with(druid::Color::GRAY, 1))
+      .with_border(1.0, light_gray)
+      .hoverable(move |_| {
+        Flex::row()
+          .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
+          .with_child(Icon::new(*PLAY_ARROW).fix_size(50.0, 50.0))
+          .with_child(
+            Flex::column()
+              .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+              .with_child(text_maker("Launch"))
+              .with_child(text_maker("Starsector"))
+              .padding((-10.0, 0.0, 10.0, 0.0)),
+          )
+          .env_scope(move |env, _| env.set(druid::theme::TEXT_COLOR, druid::Color::WHITE.darker()))
+      })
+      .expand_width()
+      .on_click(|ctx, app: &mut App, _| {
+        if let Some(install_dir) = app.settings.install_dir.clone() {
+          ctx.submit_command(Popup::OPEN_POPUP.with(Popup::custom(|| {
+            CardButton::button_text("Running Starsector...")
+              .halign_centre()
+              .boxed()
+          })));
+
+          let experimental_launch = app.settings.experimental_launch;
+          let experimental_resolution = app.settings.experimental_resolution;
+          let ext_ctx = ctx.get_external_handle();
+          app.runtime.spawn(async move {
+            let install_dir = install_dir;
+            App::launch_starsector(
+              install_dir,
+              experimental_launch,
+              experimental_resolution,
+              ext_ctx,
+            )
+            .await
+          });
+        }
+      })
+  }
+
   async fn launch_starsector(
     install_dir: PathBuf,
     experimental_launch: bool,
     resolution: (u32, u32),
+    ext_ctx: ExtEventSink,
   ) -> anyhow::Result<()> {
-    let child = Self::launch(&install_dir, experimental_launch, resolution).await?;
+    let res = Self::launch(&install_dir, experimental_launch, resolution)
+      .and_then(|child| child.wait_with_output().map_err(Into::into))
+      .await;
 
-    child.wait_with_output().await?;
+    let matches: std::sync::Arc<dyn Fn(&Popup) -> bool + Send + Sync> =
+      std::sync::Arc::new(|popup| matches!(popup, Popup::Custom(_)));
+    let _ = ext_ctx.submit_command_global(Popup::DISMISS_MATCHING, matches);
+    if let Err(err) = res {
+      let _ = ext_ctx.submit_command_global(
+        Popup::OPEN_POPUP,
+        Popup::custom(move || LaunchResult::view(err.to_string()).boxed()),
+      );
+    }
+    let _ = ext_ctx.submit_command_global(App::ENABLE, ());
 
     Ok(())
   }
@@ -376,18 +444,14 @@ impl App {
           "-DstartSound=true",
         ])
         .args(args)
-        .spawn()
-        .expect("Execute Starsector")
+        .spawn()?
     } else {
       #[cfg(target_os = "windows")]
       let executable = install_dir.join("starsector.exe");
       #[cfg(target_os = "linux")]
       let executable = install_dir.join("starsector.sh");
 
-      Command::new(executable)
-        .current_dir(install_dir)
-        .spawn()
-        .expect("Execute Starsector")
+      Command::new(executable).current_dir(install_dir).spawn()?
     })
   }
 
@@ -410,16 +474,12 @@ impl App {
             resolution.0, resolution.1
           ),
         )
-        .spawn()
-        .expect("Execute Starsector")
+        .spawn()?
     } else {
       let executable = install_dir.parent().context("Get install_dir parent")?;
       let current_dir = executable.parent().context("Get install_dir parent")?;
 
-      Command::new(executable)
-        .current_dir(current_dir)
-        .spawn()
-        .expect("Execute Starsector")
+      Command::new(executable).current_dir(current_dir).spawn()?
     })
   }
 
