@@ -4,7 +4,7 @@ use chrono::Local;
 use druid::{
   im::{OrdMap, Vector},
   lens,
-  widget::{Flex, Maybe, Scope, WidgetWrapper, ZStack},
+  widget::{Flex, Label, Maybe, Scope, WidgetWrapper, ZStack},
   Data, ExtEventSink, Lens, LensExt, Selector, SingleUse, Widget, WidgetExt, WidgetId,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
@@ -32,6 +32,7 @@ use crate::{
   app::util::WidgetExtEx,
   nav_bar::{Nav, NavBar, NavLabel},
   patch::{
+    separator::Separator,
     tabs::tab::{InitialTab, Tabs, TabsPolicy},
     tabs_policy::StaticTabsForked,
   },
@@ -342,21 +343,77 @@ impl App {
       )
     }
 
+    const OLD_TEXT_COLOR: druid::Key<druid::Color> = druid::Key::new("old_text_colour");
+
+    CardButton::stacked_dropdown(base, dropdown, width)
+
     Card::builder()
       .with_background(druid::Color::BLACK.interpolate_with(druid::Color::GRAY, 1))
       .with_border(1.0, light_gray)
       .hoverable(move |_| {
-        Flex::row()
-          .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
-          .with_child(Icon::new(*PLAY_ARROW).fix_size(50.0, 50.0))
+        Flex::column()
           .with_child(
-            Flex::column()
-              .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-              .with_child(text_maker("Launch"))
-              .with_child(text_maker("Starsector"))
-              .padding((-10.0, 0.0, 10.0, 0.0)),
+            Flex::row()
+              .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
+              .with_child(
+                Icon::new(*PLAY_ARROW)
+                  .fix_size(50.0, 50.0)
+                  .padding((-10.0, 0.0, 10.0, 0.0)),
+              )
+              .with_child(
+                Flex::column()
+                  .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+                  .with_child(text_maker("Launch"))
+                  .with_child(text_maker("Starsector"))
+                  .padding((-10.0, 0.0, 10.0, 0.0)),
+              ),
           )
-          .env_scope(move |env, _| env.set(druid::theme::TEXT_COLOR, druid::Color::WHITE.darker()))
+          .with_default_spacer()
+          .with_child(
+            Separator::new()
+              .with_color(light_gray)
+              .with_width(1.0)
+              .padding((3.5, 0.0)),
+          )
+          .with_default_spacer()
+          .with_child(
+            Flex::row()
+              .with_default_spacer()
+              .with_child(
+                Label::new("Official Launcher").else_if(
+                  |data: &App, _| data.settings.experimental_launch,
+                  Flex::row()
+                    .with_child(Label::new("Directly"))
+                    .with_spacer(2.5)
+                    .with_child(
+                      Icon::new(*INFO)
+                        .fix_size(5.0, 5.0)
+                        .align_vertical(druid::UnitPoint::TOP)
+                        .stack_tooltip_custom(Card::new(
+                          Flex::column()
+                            .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+                            .with_child(
+                              Label::new("Bypasses the official launcher and")
+                                .with_text_color(OLD_TEXT_COLOR),
+                            )
+                            .with_child(
+                              Label::new("starts the game immediately.")
+                                .with_text_color(OLD_TEXT_COLOR),
+                            )
+                            .padding((4.0, 0.0)),
+                        ))
+                        .with_background_color(druid::Color::TRANSPARENT)
+                        .with_border_color(druid::Color::TRANSPARENT),
+                    ),
+                ),
+              )
+              .with_flex_spacer(1.0)
+              .with_child(Icon::new(*ARROW_LEFT).fix_size(20.0, 20.0)),
+          )
+          .env_scope(move |env, _| {
+            env.set(OLD_TEXT_COLOR, env.get(druid::theme::TEXT_COLOR));
+            env.set(druid::theme::TEXT_COLOR, druid::Color::WHITE.darker())
+          })
       })
       .expand_width()
       .on_click(|ctx, app: &mut App, _| {
