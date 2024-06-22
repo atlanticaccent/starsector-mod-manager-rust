@@ -3,7 +3,7 @@ use proc_macros::icon;
 mod icons {
   pub use druid_widget_nursery::material_icons::normal::{
     action::{
-      BOOKMARK, BOOKMARK_BORDER, DELETE, DONE_ALL, EXTENSION, HELP, INSTALL_DESKTOP,
+      BOOKMARK, BOOKMARK_BORDER, DELETE, DONE_ALL, EXTENSION, HELP, INFO, INSTALL_DESKTOP,
       OPEN_IN_BROWSER as OPEN_BROWSER, SEARCH, SETTINGS, VERIFIED,
     },
     av::{NEW_RELEASES, PLAY_ARROW},
@@ -91,4 +91,5 @@ icons! {
   icons::SORT,
   icons::DOUBLE_LEFT,
   icons::DOUBLE_RIGHT,
+  icons::INFO,
 }
