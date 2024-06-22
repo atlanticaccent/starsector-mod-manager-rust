@@ -28,6 +28,7 @@ use druid::{
 use druid_widget_nursery::{
   animation::Interpolate,
   prism::{Closures, Prism, PrismWrap},
+  stack_tooltip::StackTooltip,
   CommandCtx, Mask,
 };
 use json_comments::strip_comments;
@@ -1014,6 +1015,10 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
 
   fn in_layout_repeater(self) -> LayoutRepeater<T, Self> {
     LayoutRepeater::new(next_id(), self)
+  }
+
+  fn stack_tooltip_custom(self, label: impl Widget<T> + 'static) -> StackTooltip<T> {
+    StackTooltip::custom(self, label)
   }
 }
 
