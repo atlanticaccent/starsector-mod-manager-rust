@@ -257,14 +257,18 @@ impl Browser {
       WebviewEvent::AskDownload(uri) => {
         inner.screenshot(ctx.get_external_handle());
         inner.force_hidden = true;
+        inner.load_in_progress = false;
         ctx.submit_command(Browser::WEBVIEW_HIDE);
         ctx.submit_command(Popup::OPEN_POPUP.with(Popup::browser_install(uri.clone())))
       }
       WebviewEvent::Download(uri) => {
         let _ = inner.reload();
+        inner.load_in_progress = false;
         ctx.submit_command(WEBVIEW_INSTALL.with(InstallType::Uri(uri.clone())))
       }
-      WebviewEvent::CancelDownload => {}
+      WebviewEvent::CancelDownload => {
+        inner.load_in_progress = false;
+      }
       WebviewEvent::NewWindow(uri) => {
         let _ = webview.load_url(uri).inspect_err(|e| eprintln!("{e}"));
       }

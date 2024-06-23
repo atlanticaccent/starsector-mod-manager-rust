@@ -74,7 +74,6 @@ pub fn init_webview(
             let _ = ext_ctx.submit_command_global(WEBVIEW_EVENT, WebviewEvent::PageLoaded);
           }
           _ if string.starts_with("pageUnload") => {
-            dbg!("page unload");
             let _ = ext_ctx.submit_command_global(WEBVIEW_EVENT, WebviewEvent::PageUnloading);
           }
           _ => {}
