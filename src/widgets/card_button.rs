@@ -31,15 +31,15 @@ impl CardButton {
   pub fn button_unconstrained<T: Data, W: Widget<T> + 'static>(
     inner: impl Fn(bool) -> W,
   ) -> impl Widget<T> {
-    Self::button_unconstrained_with(inner, |builder| builder)
+    Self::button_unconstrained_with(inner, Card::builder())
   }
 
   pub fn button_unconstrained_with<T: Data, W: Widget<T> + 'static>(
     inner: impl Fn(bool) -> W,
-    modify: impl Fn(CardBuilder<T>) -> CardBuilder<T> + 'static,
+    builder: CardBuilder,
   ) -> impl Widget<T> {
-    modify(Card::builder()
-      .with_insets((0.0, 14.0)))
+    builder
+      .with_insets((0.0, 14.0))
       .hoverable_distinct(
         || Self::button_styling(inner(false).lens(druid::lens!((T, bool), 0))),
         || Self::button_styling(inner(true).lens(druid::lens!((T, bool), 0))),
@@ -51,64 +51,64 @@ impl CardButton {
   pub fn button<T: Data, W: Widget<T> + 'static>(
     inner: impl Fn(bool) -> W + 'static,
   ) -> impl Widget<T> {
-    Self::button_with(inner, |builder| builder)
+    Self::button_with(inner, Card::builder())
   }
 
   pub fn button_with<T: Data, W: Widget<T> + 'static>(
     inner: impl Fn(bool) -> W + 'static,
-    modify: impl Fn(CardBuilder<T>) -> CardBuilder<T> + 'static,
+    builder: CardBuilder,
   ) -> impl Widget<T> {
-    Self::button_unconstrained_with(inner, modify).fix_height(52.)
+    Self::button_unconstrained_with(inner, builder).fix_height(52.)
   }
-  fn dropdown_maker<W: Widget<crate::app::App> + 'static>(
+  fn dropdown_maker<T: Data, W: Widget<T> + 'static>(
     inner: impl Fn(bool) -> W + 'static,
     width: f64,
-  ) -> impl Fn() -> Box<dyn Widget<crate::app::App>> {
-    Self::dropdown_maker_with(inner, width, |builder| builder)
+  ) -> impl Fn() -> Box<dyn Widget<T>> {
+    Self::dropdown_maker_with(inner, width, Card::builder())
   }
 
-  fn dropdown_maker_with<W: Widget<crate::app::App> + 'static>(
+  fn dropdown_maker_with<T: Data, W: Widget<T> + 'static>(
     inner: impl Fn(bool) -> W + 'static,
     width: f64,
-    modify: impl Fn(CardBuilder<App>) -> CardBuilder<App> + 'static,
-  ) -> impl Fn() -> Box<dyn Widget<crate::app::App>> {
+    builder: CardBuilder,
+  ) -> impl Fn() -> Box<dyn Widget<T>> {
     let inner = Rc::new(inner);
     move || {
       let inner = inner.clone();
-      Self::button_unconstrained_with(move |hover| (inner.clone())(hover), modify )
+      Self::button_unconstrained_with(move |hover| inner(hover), builder.clone())
         .fix_width(width)
         .boxed()
     }
   }
 
-  pub fn stacked_dropdown<
-    T: Data,
-    W: Widget<T> + 'static,
-    WO: Widget<crate::app::App> + 'static,
-  >(
+  pub fn stacked_dropdown<T: Data, W: Widget<T> + 'static, WO: Widget<App> + 'static>(
     base: impl Fn(bool) -> W + 'static,
     dropdown: impl Fn(bool) -> WO + 'static,
     width: f64,
   ) -> impl Widget<T> {
-    Self::stacked_dropdown_with_options(base, dropdown, width, |builder| builder)
+    Self::stacked_dropdown_with_options(base, dropdown, width, Card::builder())
   }
 
   pub fn stacked_dropdown_with_options<
     T: Data,
     W: Widget<T> + 'static,
-    WO: Widget<crate::app::App> + 'static,
+    WO: Widget<App> + 'static,
   >(
     base: impl Fn(bool) -> W + 'static,
     dropdown: impl Fn(bool) -> WO + 'static,
     width: f64,
-    modify: impl Fn(CardBuilder<T>) -> CardBuilder<T> + 'static,
+    builder: CardBuilder,
   ) -> impl Widget<T> {
     const DROPDOWN_DISMISSED: Selector = Selector::new("stacked_dropdown.re-enable");
 
     let id = WidgetId::next();
-    let dropdown = Rc::new(Self::dropdown_maker(dropdown, width));
+    let dropdown = Rc::new(Self::dropdown_maker_with(
+      dropdown,
+      width,
+      builder.clone(),
+    ));
 
-    Self::button_with(base, modify)
+    Self::button_with(base, builder)
       .fix_width(width)
       .scope_with(false, move |widget| {
         widget

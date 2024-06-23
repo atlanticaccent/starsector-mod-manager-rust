@@ -345,7 +345,7 @@ impl App {
 
     const OLD_TEXT_COLOR: druid::Key<druid::Color> = druid::Key::new("old_text_colour");
 
-    CardButton::stacked_dropdown(base, dropdown, width)
+    // CardButton::stacked_dropdown(base, dropdown, width)
 
     Card::builder()
       .with_background(druid::Color::BLACK.interpolate_with(druid::Color::GRAY, 1))

@@ -101,7 +101,7 @@ impl Tools {
   }
 }
 
-pub fn tool_card<T: Data>() -> CardBuilder<T> {
+pub fn tool_card() -> CardBuilder {
   Card::builder()
     .with_insets((0.0, 14.0))
     .with_corner_radius(4.0)

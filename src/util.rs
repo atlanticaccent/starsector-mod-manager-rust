@@ -981,7 +981,7 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     Card::new(self)
   }
 
-  fn in_card_builder(self, builder: CardBuilder<T>) -> impl Widget<T> {
+  fn in_card_builder(self, builder: CardBuilder) -> impl Widget<T> {
     builder.build(self)
   }
 

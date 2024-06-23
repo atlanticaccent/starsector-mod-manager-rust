@@ -325,7 +325,7 @@ impl Delegate<App> for AppDelegate {
         }
         let _ = std::fs::remove_dir_all(PROJECT.cache_dir());
         #[cfg(not(target_os = "macos"))]
-        ctx.submit_command(commands::QUIT_APP);
+        ctx.submit_command(druid::commands::QUIT_APP);
         #[cfg(target_os = "macos")]
         std::process::exit(0);
       }

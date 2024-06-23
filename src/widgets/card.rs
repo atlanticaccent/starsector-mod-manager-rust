@@ -1,3 +1,5 @@
+use std::{cell::RefCell, rc::Rc};
+
 use druid::{
   kurbo::Circle,
   lens,
@@ -16,7 +18,7 @@ impl Card {
   pub const CARD_INSET: f64 = 12.5;
   pub const DEFAULT_INSETS: (f64, f64) = (0.0, 14.0);
 
-  pub fn builder<T: Data>() -> CardBuilder<T> {
+  pub fn builder() -> CardBuilder {
     CardBuilder::new()
   }
 
@@ -37,7 +39,7 @@ impl Card {
   pub fn hoverable_distinct<T: Data, W1: Widget<T> + 'static, W2: Widget<T> + 'static, F, FH>(
     unhovered: F,
     hovered: FH,
-    builder: CardBuilder<T>,
+    builder: CardBuilder,
   ) -> Box<dyn Widget<T>>
   where
     F: Fn() -> W1,
@@ -247,23 +249,47 @@ impl Card {
   }
 }
 
-pub struct CardBuilder<T: Data> {
+pub struct CardBuilder {
   insets: Insets,
   corner_radius: f64,
   shadow_length: Option<f64>,
   border: Option<(f64, KeyOrValue<Color>)>,
-  background: Option<BackgroundBrush<T>>,
-  on_hover: Option<BackgroundBrush<T>>,
+  background: Option<BrushOrPainter>,
+  on_hover: Option<BrushOrPainter>,
   shadow_increase: Option<f64>,
+  toggled_stack_on_click: bool,
 }
 
-impl<T: Data> Clone for CardBuilder<T> {
+enum BrushOrPainter {
+  Brush(BackgroundBrush<()>),
+  Painter(Rc<RefCell<Painter<()>>>),
+}
+
+impl Clone for BrushOrPainter {
   fn clone(&self) -> Self {
-    self.convert()
+    match self {
+      Self::Brush(brush) => Self::Brush(CardBuilder::partial_brush_clone(brush)),
+      Self::Painter(cell) => Self::Painter(cell.clone()),
+    }
   }
 }
 
-impl<T: Data> CardBuilder<T> {
+impl Clone for CardBuilder {
+  fn clone(&self) -> Self {
+    CardBuilder {
+      insets: self.insets,
+      corner_radius: self.corner_radius,
+      shadow_length: self.shadow_length,
+      border: self.border.clone(),
+      background: self.background.clone(),
+      on_hover: self.on_hover.clone(),
+      shadow_increase: self.shadow_increase,
+      toggled_stack_on_click: self.toggled_stack_on_click,
+    }
+  }
+}
+
+impl CardBuilder {
   fn new() -> Self {
     Self {
       insets: Card::DEFAULT_INSETS.into(),
@@ -273,6 +299,7 @@ impl<T: Data> CardBuilder<T> {
       background: None,
       on_hover: None,
       shadow_increase: None,
+      toggled_stack_on_click: true,
     }
   }
 
@@ -306,35 +333,48 @@ impl<T: Data> CardBuilder<T> {
     self
   }
 
-  pub fn with_hover_background(mut self, background: impl Into<BackgroundBrush<T>>) -> Self {
-    self.on_hover = Some(background.into());
+  pub fn with_hover_background(mut self, background: impl Into<BackgroundBrush<()>>) -> Self {
+    let background = match background.into() {
+      BackgroundBrush::Painter(painter) => BrushOrPainter::Painter(Rc::new(RefCell::new(painter))),
+      brush @ _ => BrushOrPainter::Brush(brush),
+    };
+
+    self.on_hover = Some(background);
 
     self
   }
 
-  pub fn with_background(mut self, background: impl Into<BackgroundBrush<T>>) -> Self {
-    self.background = Some(background.into());
+  pub fn with_background(mut self, background: impl Into<BackgroundBrush<()>>) -> Self {
+    let background = match background.into() {
+      BackgroundBrush::Painter(painter) => BrushOrPainter::Painter(Rc::new(RefCell::new(painter))),
+      brush @ _ => BrushOrPainter::Brush(brush),
+    };
+
+    self.background = Some(background);
 
     self
   }
 
-  pub fn build(self, widget: impl Widget<T> + 'static) -> impl Widget<T> {
+  pub fn build<T: Data>(self, widget: impl Widget<T> + 'static) -> impl Widget<T> {
     Card::new_with_opts(
       widget,
       self.insets,
       self.corner_radius,
       self.shadow_length.unwrap_or(8.0),
-      self.background,
+      Self::convert(self.background),
       self.border,
-      self.on_hover,
+      Self::convert(self.on_hover),
     )
   }
 
-  pub fn hoverable<W: Widget<T> + 'static>(self, widget_builder: impl Fn(bool) -> W) -> impl Widget<T> {
+  pub fn hoverable<T: Data, W: Widget<T> + 'static>(
+    self,
+    widget_builder: impl Fn(bool) -> W,
+  ) -> impl Widget<T> {
     self.hoverable_distinct(|| widget_builder(false), || widget_builder(true))
   }
 
-  pub fn hoverable_distinct<W1: Widget<T> + 'static, W2: Widget<T> + 'static, F, FH>(
+  pub fn hoverable_distinct<T: Data, W1: Widget<T> + 'static, W2: Widget<T> + 'static, F, FH>(
     self,
     unhovered: F,
     hovered: FH,
@@ -346,27 +386,37 @@ impl<T: Data> CardBuilder<T> {
     Card::hoverable_distinct(unhovered, hovered, self)
   }
 
-  pub fn convert<U: Data>(&self) -> CardBuilder<U> {
-    let clone_brush = |brush: Option<&BackgroundBrush<T>>| {
-      brush.map(|brush| match brush {
-        BackgroundBrush::Color(inner) => BackgroundBrush::Color(*inner),
-        BackgroundBrush::ColorKey(inner) => BackgroundBrush::ColorKey(inner.clone()),
-        BackgroundBrush::Linear(inner) => BackgroundBrush::Linear(inner.clone()),
-        BackgroundBrush::Radial(inner) => BackgroundBrush::Radial(inner.clone()),
-        BackgroundBrush::Fixed(inner) => BackgroundBrush::Fixed(inner.clone()),
-        BackgroundBrush::Painter(_) => unimplemented!(),
-        _ => todo!(),
-      })
-    };
+  pub fn stacked_button<T: Data, W: Widget<T> + 'static, WO: Widget<crate::app::App> + 'static>(
+    self,
+    base_builder: impl Fn(bool) -> W + 'static,
+    stack_builder: impl Fn(bool) -> WO + 'static,
+    width: f64,
+  ) -> impl Widget<T> {
+    use super::card_button::CardButton;
 
-    CardBuilder {
-      insets: self.insets,
-      corner_radius: self.corner_radius,
-      shadow_length: self.shadow_length,
-      border: self.border.clone(),
-      background: clone_brush(self.background.as_ref()),
-      on_hover: clone_brush(self.on_hover.as_ref()),
-      shadow_increase: self.shadow_increase,
+    CardButton::stacked_dropdown_with_options(base_builder, stack_builder, width, self)
+  }
+
+  fn partial_brush_clone<T: Data, U: Data>(brush: &BackgroundBrush<T>) -> BackgroundBrush<U> {
+    match brush {
+      BackgroundBrush::Color(inner) => BackgroundBrush::Color(*inner),
+      BackgroundBrush::ColorKey(inner) => BackgroundBrush::ColorKey(inner.clone()),
+      BackgroundBrush::Linear(inner) => BackgroundBrush::Linear(inner.clone()),
+      BackgroundBrush::Radial(inner) => BackgroundBrush::Radial(inner.clone()),
+      BackgroundBrush::Fixed(inner) => BackgroundBrush::Fixed(inner.clone()),
+      BackgroundBrush::Painter(_) => unreachable!(),
+      _ => unimplemented!(),
     }
+  }
+
+  fn convert<U: Data>(brush: Option<BrushOrPainter>) -> Option<BackgroundBrush<U>> {
+    brush.map(|brush| match brush {
+      BrushOrPainter::Painter(cell) => {
+        BackgroundBrush::Painter(Painter::new(move |ctx, _, env| {
+          cell.borrow_mut().paint(ctx, &(), env)
+        }))
+      }
+      BrushOrPainter::Brush(brush) => Self::partial_brush_clone(&brush),
+    })
   }
 }
