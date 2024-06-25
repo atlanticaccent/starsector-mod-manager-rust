@@ -123,6 +123,7 @@ impl Browser {
               })
               .on_command(Nav::NAV_SELECTOR, |_, _, payload, browser| {
                 browser.tab_open = *payload == NavLabel::WebBrowser;
+                browser.force_hidden = !browser.tab_open;
                 browser.set_visible(browser.tab_open);
                 true
               })

@@ -4,15 +4,12 @@ use chrono::Local;
 use druid::{
   im::{OrdMap, Vector},
   lens,
-  widget::{Flex, Label, Maybe, Scope, WidgetWrapper, ZStack},
-  Data, ExtEventSink, Lens, LensExt, Selector, SingleUse, Widget, WidgetExt, WidgetId,
+  widget::{Flex, Maybe, Scope, WidgetWrapper, ZStack},
+  Data, Lens, LensExt, Selector, SingleUse, Widget, WidgetExt, WidgetId,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
-use futures::TryFutureExt;
-use overlays::LaunchResult;
 use tokio::runtime::Handle;
-use util::ShadeColor;
-use webview_shared::{ExtEventSinkExt, PROJECT};
+use webview_shared::PROJECT;
 
 use self::{
   activity::Activity,
@@ -32,12 +29,11 @@ use crate::{
   app::util::WidgetExtEx,
   nav_bar::{Nav, NavBar, NavLabel},
   patch::{
-    separator::Separator,
     tabs::tab::{InitialTab, Tabs, TabsPolicy},
     tabs_policy::StaticTabsForked,
   },
   theme::{Theme, CHANGE_THEME},
-  widgets::{card::Card, card_button::CardButton, root_stack::RootStack},
+  widgets::root_stack::RootStack,
 };
 
 mod activity;
@@ -45,6 +41,7 @@ pub mod app_delegate;
 mod browser;
 pub mod controllers;
 pub mod installer;
+mod launch;
 mod mod_description;
 pub mod mod_entry;
 pub mod mod_list;
@@ -161,7 +158,7 @@ impl App {
           .expand_width(),
         )
         .with_spacer(10.0)
-        .with_child(App::launch_button())
+        .with_child(launch::launch_button())
         .with_spacer(10.0)
         .with_child(NavBar::new(
           Nav::new(NavLabel::Root).as_root().with_children(vec![
@@ -330,214 +327,6 @@ impl App {
           data.1 = theme.clone()
         }),
     )
-  }
-
-  fn launch_button() -> impl Widget<App> {
-    let light_gray = druid::Color::GRAY.lighter_by(2);
-    fn text_maker<T: Data>(text: &str) -> impl Widget<T> {
-      bold_text(
-        text,
-        druid::theme::TEXT_SIZE_LARGE,
-        druid::FontWeight::SEMI_BOLD,
-        druid::theme::TEXT_COLOR,
-      )
-    }
-
-    const OLD_TEXT_COLOR: druid::Key<druid::Color> = druid::Key::new("old_text_colour");
-
-    // CardButton::stacked_dropdown(base, dropdown, width)
-
-    Card::builder()
-      .with_background(druid::Color::BLACK.interpolate_with(druid::Color::GRAY, 1))
-      .with_border(1.0, light_gray)
-      .hoverable(move |_| {
-        Flex::column()
-          .with_child(
-            Flex::row()
-              .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
-              .with_child(
-                Icon::new(*PLAY_ARROW)
-                  .fix_size(50.0, 50.0)
-                  .padding((-10.0, 0.0, 10.0, 0.0)),
-              )
-              .with_child(
-                Flex::column()
-                  .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-                  .with_child(text_maker("Launch"))
-                  .with_child(text_maker("Starsector"))
-                  .padding((-10.0, 0.0, 10.0, 0.0)),
-              ),
-          )
-          .with_default_spacer()
-          .with_child(
-            Separator::new()
-              .with_color(light_gray)
-              .with_width(1.0)
-              .padding((3.5, 0.0)),
-          )
-          .with_default_spacer()
-          .with_child(
-            Flex::row()
-              .with_default_spacer()
-              .with_child(
-                Label::new("Official Launcher").else_if(
-                  |data: &App, _| data.settings.experimental_launch,
-                  Flex::row()
-                    .with_child(Label::new("Directly"))
-                    .with_spacer(2.5)
-                    .with_child(
-                      Icon::new(*INFO)
-                        .fix_size(5.0, 5.0)
-                        .align_vertical(druid::UnitPoint::TOP)
-                        .stack_tooltip_custom(Card::new(
-                          Flex::column()
-                            .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-                            .with_child(
-                              Label::new("Bypasses the official launcher and")
-                                .with_text_color(OLD_TEXT_COLOR),
-                            )
-                            .with_child(
-                              Label::new("starts the game immediately.")
-                                .with_text_color(OLD_TEXT_COLOR),
-                            )
-                            .padding((4.0, 0.0)),
-                        ))
-                        .with_background_color(druid::Color::TRANSPARENT)
-                        .with_border_color(druid::Color::TRANSPARENT),
-                    ),
-                ),
-              )
-              .with_flex_spacer(1.0)
-              .with_child(Icon::new(*ARROW_LEFT).fix_size(20.0, 20.0)),
-          )
-          .env_scope(move |env, _| {
-            env.set(OLD_TEXT_COLOR, env.get(druid::theme::TEXT_COLOR));
-            env.set(druid::theme::TEXT_COLOR, druid::Color::WHITE.darker())
-          })
-      })
-      .expand_width()
-      .on_click(|ctx, app: &mut App, _| {
-        if let Some(install_dir) = app.settings.install_dir.clone() {
-          ctx.submit_command(Popup::OPEN_POPUP.with(Popup::custom(|| {
-            CardButton::button_text("Running Starsector...")
-              .halign_centre()
-              .boxed()
-          })));
-
-          let experimental_launch = app.settings.experimental_launch;
-          let experimental_resolution = app.settings.experimental_resolution;
-          let ext_ctx = ctx.get_external_handle();
-          app.runtime.spawn(async move {
-            let install_dir = install_dir;
-            App::launch_starsector(
-              install_dir,
-              experimental_launch,
-              experimental_resolution,
-              ext_ctx,
-            )
-            .await
-          });
-        }
-      })
-  }
-
-  async fn launch_starsector(
-    install_dir: PathBuf,
-    experimental_launch: bool,
-    resolution: (u32, u32),
-    ext_ctx: ExtEventSink,
-  ) -> anyhow::Result<()> {
-    let res = Self::launch(&install_dir, experimental_launch, resolution)
-      .and_then(|child| child.wait_with_output().map_err(Into::into))
-      .await;
-
-    let matches: std::sync::Arc<dyn Fn(&Popup) -> bool + Send + Sync> =
-      std::sync::Arc::new(|popup| matches!(popup, Popup::Custom(_)));
-    let _ = ext_ctx.submit_command_global(Popup::DISMISS_MATCHING, matches);
-    if let Err(err) = res {
-      let _ = ext_ctx.submit_command_global(
-        Popup::OPEN_POPUP,
-        Popup::custom(move || LaunchResult::view(err.to_string()).boxed()),
-      );
-    }
-    let _ = ext_ctx.submit_command_global(App::ENABLE, ());
-
-    Ok(())
-  }
-
-  #[cfg(any(target_os = "windows", target_os = "linux"))]
-  async fn launch(
-    install_dir: &PathBuf,
-    experimental_launch: bool,
-    resolution: (u32, u32),
-  ) -> anyhow::Result<tokio::process::Child> {
-    use tokio::{fs::read_to_string, process::Command};
-
-    Ok(if experimental_launch {
-      #[cfg(target_os = "windows")]
-      let vmparams_path = install_dir.join("vmparams");
-      #[cfg(target_os = "linux")]
-      let vmparams_path = install_dir.join("starsector.sh");
-
-      let args_raw = read_to_string(vmparams_path).await?;
-      let args: Vec<&str> = args_raw.split_ascii_whitespace().skip(1).collect();
-
-      #[cfg(target_os = "windows")]
-      let executable = install_dir.join("jre/bin/java.exe");
-      #[cfg(target_os = "linux")]
-      let executable = install_dir.join("jre_linux/bin/java");
-
-      #[cfg(target_os = "windows")]
-      let current_dir = install_dir.join("starsector-core");
-      #[cfg(target_os = "linux")]
-      let current_dir = install_dir.clone();
-
-      Command::new(executable)
-        .current_dir(current_dir)
-        .args([
-          "-DlaunchDirect=true",
-          &format!("-DstartRes={}x{}", resolution.0, resolution.1),
-          "-DstartFS=false",
-          "-DstartSound=true",
-        ])
-        .args(args)
-        .spawn()?
-    } else {
-      #[cfg(target_os = "windows")]
-      let executable = install_dir.join("starsector.exe");
-      #[cfg(target_os = "linux")]
-      let executable = install_dir.join("starsector.sh");
-
-      Command::new(executable).current_dir(install_dir).spawn()?
-    })
-  }
-
-  #[cfg(target_os = "macos")]
-  async fn launch(
-    install_dir: &std::path::Path,
-    experimental_launch: bool,
-    resolution: (u32, u32),
-  ) -> anyhow::Result<tokio::process::Child> {
-    use anyhow::Context;
-    use tokio::process::Command;
-
-    Ok(if experimental_launch {
-      Command::new(install_dir.join("Contents/MacOS/starsector_macos.sh"))
-        .current_dir(install_dir.join("Contents/MacOS"))
-        .env(
-          "EXTRAARGS",
-          format!(
-            "-DlaunchDirect=true -DstartRes={}x{} -DstartFS=false -DstartSound=true",
-            resolution.0, resolution.1
-          ),
-        )
-        .spawn()?
-    } else {
-      let executable = install_dir.parent().context("Get install_dir parent")?;
-      let current_dir = executable.parent().context("Get install_dir parent")?;
-
-      Command::new(executable).current_dir(current_dir).spawn()?
-    })
   }
 
   fn log_message(&mut self, message: &str) {

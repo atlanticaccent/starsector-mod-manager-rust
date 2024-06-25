@@ -7,10 +7,11 @@ use druid::{
   theme,
   widget::{BackgroundBrush, Either, Painter},
   Color, Data, Insets, KeyOrValue, LinearGradient, RadialGradient, Rect, RenderContext, UnitPoint,
-  Widget, WidgetExt,
+  Widget, WidgetExt, WidgetId,
 };
 
-use crate::app::util::WithHoverState as _;
+use super::card_button::ScopedStackCardButton;
+use crate::app::util::{State, WithHoverState as _};
 
 pub struct Card;
 
@@ -257,7 +258,6 @@ pub struct CardBuilder {
   background: Option<BrushOrPainter>,
   on_hover: Option<BrushOrPainter>,
   shadow_increase: Option<f64>,
-  toggled_stack_on_click: bool,
 }
 
 enum BrushOrPainter {
@@ -284,7 +284,6 @@ impl Clone for CardBuilder {
       background: self.background.clone(),
       on_hover: self.on_hover.clone(),
       shadow_increase: self.shadow_increase,
-      toggled_stack_on_click: self.toggled_stack_on_click,
     }
   }
 }
@@ -299,7 +298,6 @@ impl CardBuilder {
       background: None,
       on_hover: None,
       shadow_increase: None,
-      toggled_stack_on_click: true,
     }
   }
 
@@ -386,15 +384,34 @@ impl CardBuilder {
     Card::hoverable_distinct(unhovered, hovered, self)
   }
 
-  pub fn stacked_button<T: Data, W: Widget<T> + 'static, WO: Widget<crate::app::App> + 'static>(
+  pub fn stacked_button<
+    T: Data,
+    W: Widget<T> + 'static,
+    WO: Widget<crate::app::App> + 'static,
+    WS: Widget<State<T, bool>> + 'static,
+  >(
     self,
     base_builder: impl Fn(bool) -> W + 'static,
     stack_builder: impl Fn(bool) -> WO + 'static,
+    alt_stack_activation: Option<
+      impl Fn(
+          ScopedStackCardButton<T>,
+          Rc<dyn Fn() -> Box<dyn Widget<crate::app::App>> + 'static>,
+          WidgetId,
+        ) -> WS
+        + 'static,
+    >,
     width: f64,
   ) -> impl Widget<T> {
     use super::card_button::CardButton;
 
-    CardButton::stacked_dropdown_with_options(base_builder, stack_builder, width, self)
+    CardButton::stacked_dropdown_with_options(
+      base_builder,
+      stack_builder,
+      alt_stack_activation,
+      width,
+      self,
+    )
   }
 
   fn partial_brush_clone<T: Data, U: Data>(brush: &BackgroundBrush<T>) -> BackgroundBrush<U> {

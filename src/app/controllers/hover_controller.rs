@@ -4,7 +4,7 @@ use druid::{widget::Controller, Cursor, Data, Selector, Widget, WidgetId};
 
 pub type SharedHoverState = Rc<Cell<bool>>;
 
-pub trait HoverState {
+pub trait HoverState: Data {
   fn set(&mut self, state: bool);
 }
 

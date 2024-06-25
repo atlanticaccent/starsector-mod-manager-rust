@@ -1020,12 +1020,21 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
   fn stack_tooltip_custom(self, label: impl Widget<T> + 'static) -> StackTooltip<T> {
     StackTooltip::custom(self, label)
   }
+
+  fn wrap_with_hover_state<S: HoverState, WO: Widget<(T, S)> + 'static>(
+    self,
+    state: S,
+    set_cursor: bool,
+    scope: impl FnOnce(Box<dyn Widget<(T, S)>>) -> WO,
+  ) -> impl Widget<T> {
+    scope(self.lens(lens!((T, S), 0)).boxed()).with_hover_state_opts(state, set_cursor)
+  }
 }
 
 #[derive(Clone, Data, Lens)]
-pub struct State<T, U> {
-  pub outer: T,
-  pub inner: U,
+pub struct State<Outer, Inner> {
+  pub outer: Outer,
+  pub inner: Inner,
 }
 
 impl<T: Data, W: Widget<T> + 'static> WidgetExtEx<T, W> for W {}
@@ -1034,6 +1043,10 @@ pub trait WithHoverState<S: HoverState + Data + Clone, T: Data, W: Widget<(T, S)
   Widget<(T, S)> + Sized + 'static
 {
   fn with_hover_state(self, state: S) -> Box<dyn Widget<T>> {
+    self.with_hover_state_opts(state, true)
+  }
+
+  fn with_hover_state_opts(self, state: S, set_cursor: bool) -> Box<dyn Widget<T>> {
     const HOVER_STATE_CHANGE: Selector = Selector::new("util.hover_state.change");
 
     let id = WidgetId::next();
@@ -1042,11 +1055,13 @@ pub trait WithHoverState<S: HoverState + Data + Clone, T: Data, W: Widget<(T, S)
       move |data| (data, state.clone()),
       lens!((T, S), 0),
       self
-        .on_event(|_, ctx, event, data| {
+        .on_event(move |_, ctx, event, data| {
           if let druid::Event::MouseMove(_) = event
             && !ctx.is_disabled()
           {
-            ctx.set_cursor(&druid::Cursor::Pointer);
+            if set_cursor {
+              ctx.set_cursor(&druid::Cursor::Pointer);
+            }
             data.1.set(true);
             ctx.request_update();
             ctx.request_paint();
@@ -1054,7 +1069,9 @@ pub trait WithHoverState<S: HoverState + Data + Clone, T: Data, W: Widget<(T, S)
             && cmd.is(HOVER_STATE_CHANGE)
           {
             data.1.set(false);
-            ctx.clear_cursor()
+            if set_cursor {
+              ctx.clear_cursor()
+            }
           }
           ctx.request_update();
           ctx.request_paint();

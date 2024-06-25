@@ -302,7 +302,7 @@ impl ModRepo {
 
     Flex::row()
       .with_child(
-        CardButton::button(|_| Icon::new(*DOUBLE_LEFT))
+        CardButton::button(|_| Icon::new(*DOUBLE_LEFT).padding((8.0, 0.0)))
           .on_click(|_, data: &mut PageState, _| data.page_number = 0)
           .disabled_if(is_start)
           .env_scope(move |env, data| {
@@ -316,7 +316,7 @@ impl ModRepo {
           .or_empty(show_if),
       )
       .with_child(
-        CardButton::button(|_| Icon::new(*CHEVRON_LEFT))
+        CardButton::button(|_| Icon::new(*CHEVRON_LEFT).padding((8.0, 0.0)))
           .on_click(|_, data: &mut PageState, _| data.page_number -= 1)
           .env_scope(move |env, data| {
             if is_start(data, env) {
@@ -341,10 +341,11 @@ impl ModRepo {
           }))
           .valign_centre()
         })
-        .disabled(),
+        .disabled()
+        .padding((8.0, 0.0)),
       )
       .with_child(
-        CardButton::button(|_| Icon::new(*CHEVRON_RIGHT))
+        CardButton::button(|_| Icon::new(*CHEVRON_RIGHT).padding((8.0, 0.0)))
           .on_click(|_, data: &mut PageState, _| data.page_number += 1)
           .env_scope(move |env, data| {
             if is_end(data, env) {
@@ -358,7 +359,7 @@ impl ModRepo {
           .or_empty(show_if),
       )
       .with_child(
-        CardButton::button(|_| Icon::new(*DOUBLE_RIGHT))
+        CardButton::button(|_| Icon::new(*DOUBLE_RIGHT).padding((8.0, 0.0)))
           .on_click(|_, data: &mut PageState, _| data.page_number = data.total_pages - 1)
           .env_scope(move |env, data| {
             if is_end(data, env) {
