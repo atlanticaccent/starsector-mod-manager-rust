@@ -16,7 +16,9 @@ use super::{
 };
 use crate::{
   app::{
-    util::{bold_text, ShadeColor, WidgetExtEx}, ARROW_DROP_DOWN, CHEVRON_LEFT, INFO, PLAY_ARROW
+    controllers::Rotated,
+    util::{bold_text, ShadeColor, WidgetExtEx},
+    CHEVRON_LEFT, CHEVRON_RIGHT, INFO, PLAY_ARROW,
   },
   patch::separator::Separator,
   widgets::{
@@ -117,7 +119,8 @@ fn footer_collapsed() -> impl Widget<App> {
           experimental_launch_row(),
         ))
         .with_flex_spacer(1.0)
-        .with_child(Icon::new(*CHEVRON_LEFT).fix_size(20.0, 20.0)),
+        .with_child(Icon::new(*CHEVRON_LEFT).fix_size(20.0, 20.0))
+        .with_spacer(8.0),
     )
     .with_default_spacer()
     .background(BACKGROUND)
@@ -180,7 +183,11 @@ fn footer_expanded() -> impl Widget<App> {
           experimental_launch_row(),
         ))
         .with_flex_spacer(1.0)
-        .with_child(Icon::new(*ARROW_DROP_DOWN).fix_size(20.0, 20.0)),
+        .with_child(Rotated::new(
+          Icon::new(*CHEVRON_RIGHT).fix_size(20.0, 20.0),
+          1,
+        ))
+        .with_spacer(8.0),
     )
     .with_default_spacer()
     .with_child(
@@ -218,7 +225,7 @@ fn footer_expanded() -> impl Widget<App> {
     .padding((0.0, 0.0, 0.0, -6.0))
     .scope_with(false, |widget| {
       widget
-        .env_scope(move |env, state| {
+        .env_scope(move |env, _| {
           env.set(druid::theme::TEXT_COLOR, env.get(OLD_TEXT_COLOR));
         })
         .lens(Map::new(
@@ -244,21 +251,33 @@ fn footer_expanded() -> impl Widget<App> {
 
 fn experimental_launch_row() -> Flex<App> {
   Flex::row()
-    .with_child(Label::new("Directly"))
+    .with_child(Label::new("Skip Launcher"))
     .with_spacer(2.5)
     .with_child(
       Icon::new(*INFO)
         .fix_size(20.0, 20.0)
         .align_vertical(druid::UnitPoint::TOP)
-        .stack_tooltip_custom(Card::new(
-          Flex::column()
-            .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-            .with_child(
-              Label::new("Bypasses the official launcher and").with_text_color(OLD_TEXT_COLOR),
-            )
-            .with_child(Label::new("starts the game immediately.").with_text_color(OLD_TEXT_COLOR))
-            .padding((4.0, 0.0)),
-        ))
+        .stack_tooltip_custom(
+          Card::builder()
+            .with_background(Color::GRAY.lighter_by(7))
+            .build(
+              Flex::column()
+                .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+                .with_child(
+                  Label::new("Bypasses the official launcher.").with_text_color(OLD_TEXT_COLOR),
+                )
+                .with_child(
+                  Label::new("You can't change your mod list or").with_text_color(OLD_TEXT_COLOR),
+                )
+                .with_child(
+                  Label::new("launcher only graphics settings").with_text_color(OLD_TEXT_COLOR),
+                )
+                .with_child(
+                  Label::new("like resolution when this is set.").with_text_color(OLD_TEXT_COLOR),
+                )
+                .padding((4.0, 0.0)),
+            ),
+        )
         .with_background_color(druid::Color::TRANSPARENT)
         .with_border_color(druid::Color::TRANSPARENT),
     )
