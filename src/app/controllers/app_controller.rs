@@ -19,6 +19,7 @@ use crate::{
   },
   match_command,
   nav_bar::Nav,
+  widgets::root_stack::RootStack,
 };
 
 pub struct AppController;
@@ -197,7 +198,9 @@ impl MaskController {
       BUILTIN_TEXTBOX_CANCEL,
       App::CONFIRM_DELETE_MOD,
       Nav::NAV_SELECTOR,
-      Settings::SELECTOR, => false,
+      Settings::SELECTOR,
+      RootStack::SHOW,
+      RootStack::DISMISS, => false,
     })
   }
 }

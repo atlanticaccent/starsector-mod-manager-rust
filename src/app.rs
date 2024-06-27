@@ -314,7 +314,7 @@ impl App {
   }
 
   fn overlay() -> impl Widget<App> {
-    Popup::overlay(RootStack::new(Self::view())).controller(AppController)
+    RootStack::new(Popup::overlay(Self::view())).controller(AppController)
   }
 
   pub fn theme_wrapper(theme: Theme) -> impl Widget<Self> {
