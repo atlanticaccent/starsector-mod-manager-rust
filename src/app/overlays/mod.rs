@@ -43,6 +43,7 @@ pub enum Popup {
   RemoteUpdate(RemoteUpdate),
   BrowserInstall(BrowserInstall),
   Custom(Arc<dyn Fn() -> Box<dyn Widget<()>> + Send + Sync>),
+  AppCustom(Arc<dyn Fn() -> Box<dyn Widget<App>> + Send + Sync>),
 }
 
 impl Popup {
@@ -115,6 +116,7 @@ impl Popup {
             Popup::RemoteUpdate(remote_update) => remote_update.view().boxed(),
             Popup::BrowserInstall(browser_install) => browser_install.view().boxed(),
             Popup::Custom(maker) => maker().constant(()).boxed(),
+            Popup::AppCustom(maker) => maker().boxed(),
           }
         } else {
           SizedBox::empty().boxed()
@@ -150,6 +152,10 @@ impl Popup {
 
   pub fn custom(maker: impl Fn() -> Box<dyn Widget<()>> + Send + Sync + 'static) -> Popup {
     Popup::Custom(Arc::new(maker))
+  }
+
+  pub fn app_custom(maker: impl Fn() -> Box<dyn Widget<App>> + Send + Sync + 'static) -> Popup {
+    Popup::AppCustom(Arc::new(maker))
   }
 
   pub fn dismiss_matching(matching: impl Fn(&Popup) -> bool + Send + Sync + 'static) -> Command {

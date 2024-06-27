@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use druid::{
   lens::Map,
-  widget::{Container, Flex, Label},
-  Color, Data, ExtEventSink, Key, Selector, Widget, WidgetExt,
+  widget::{Container, Flex, Label, ViewSwitcher},
+  Color, Data, Key, LensExt, Selector, Widget, WidgetExt,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
 use futures::TryFutureExt;
@@ -11,25 +11,45 @@ use webview_shared::ExtEventSinkExt;
 
 use super::{
   overlays::{LaunchResult, Popup},
-  util::{State, WithHoverState},
-  App,
+  util::{h2_fixed, State, Tap, WithHoverState, BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
+  App, SETTINGS,
 };
 use crate::{
   app::{
     controllers::Rotated,
+    settings::Settings,
     util::{bold_text, ShadeColor, WidgetExtEx},
     CHEVRON_LEFT, CHEVRON_RIGHT, INFO, PLAY_ARROW,
   },
-  patch::separator::Separator,
+  patch::{
+    separator::Separator,
+    table::{FixedFlexTable, TableColumnWidth, TableRow},
+  },
   widgets::{
     card::Card,
     card_button::{CardButton, ScopedStackCardButton},
+    root_stack::RootStack,
   },
 };
 
 const OLD_TEXT_COLOR: druid::Key<druid::Color> = druid::Key::new("old_text_colour");
 const OVERRIDE_HOVER: Selector<bool> = Selector::new("launch.dropdown.collapsed.hovered.supp");
 const OPEN_STACK: Selector = Selector::new("launch_button.stack.open");
+
+const RESOLUTIONS: &'static [(u32, u32)] = &[
+  (3840, 2160),
+  (3440, 1440),
+  (2560, 1600),
+  (2560, 1440),
+  (1920, 1200),
+  (1920, 1080),
+  (1600, 900),
+  (1440, 900),
+  (1366, 768),
+  (1280, 720),
+  (800, 600),
+  (640, 480),
+];
 
 fn text_maker<T: Data>(text: &str) -> impl Widget<T> {
   bold_text(
@@ -116,7 +136,7 @@ fn footer_collapsed() -> impl Widget<App> {
         .with_default_spacer()
         .with_child(Label::new("Official Launcher").else_if(
           |data: &App, _| data.settings.experimental_launch,
-          experimental_launch_row(),
+          experimental_launch_row(true),
         ))
         .with_flex_spacer(1.0)
         .with_child(Icon::new(*CHEVRON_LEFT).fix_size(20.0, 20.0))
@@ -180,7 +200,7 @@ fn footer_expanded() -> impl Widget<App> {
         .with_default_spacer()
         .with_child(Label::new("Official Launcher").else_if(
           |data: &App, _| data.settings.experimental_launch,
-          experimental_launch_row(),
+          experimental_launch_row(true),
         ))
         .with_flex_spacer(1.0)
         .with_child(Rotated::new(
@@ -195,7 +215,7 @@ fn footer_expanded() -> impl Widget<App> {
         .with_default_spacer()
         .with_child(Label::new("Official Launcher").else_if(
           |data: &App, _| !data.settings.experimental_launch,
-          experimental_launch_row(),
+          experimental_launch_row(false),
         ))
         .with_flex_spacer(1.0)
         .padding((0.0, 10.0))
@@ -249,13 +269,13 @@ fn footer_expanded() -> impl Widget<App> {
     })
 }
 
-fn experimental_launch_row() -> Flex<App> {
+fn experimental_launch_row(active: bool) -> Flex<App> {
   Flex::row()
     .with_child(Label::new("Skip Launcher"))
     .with_spacer(2.5)
     .with_child(
       Icon::new(*INFO)
-        .fix_size(20.0, 20.0)
+        .fix_size(15.0, 15.0)
         .align_vertical(druid::UnitPoint::TOP)
         .stack_tooltip_custom(
           Card::builder()
@@ -281,6 +301,161 @@ fn experimental_launch_row() -> Flex<App> {
         .with_background_color(druid::Color::TRANSPARENT)
         .with_border_color(druid::Color::TRANSPARENT),
     )
+    .pipe(|row| {
+      if active {
+        row
+          .with_spacer(5.0)
+          .with_child(
+            Icon::new(*SETTINGS)
+              .fix_size(20.0, 20.0)
+              .on_click(|ctx, _, _| {
+                RootStack::dismiss(ctx);
+                ctx.submit_command(
+                  Popup::DELAYED_POPUP.with(vec![Popup::app_custom(move || resolution_options())]),
+                );
+              }),
+          )
+      } else {
+        row
+      }
+    })
+}
+
+fn resolution_options() -> Box<dyn Widget<App>> {
+  FixedFlexTable::new()
+    .default_column_width(TableColumnWidth::Intrinsic)
+    .with_row(
+      TableRow::new().with_child(Card::new(
+        Flex::row()
+          .cross_axis_alignment(druid::widget::CrossAxisAlignment::Center)
+          .with_child(h2_fixed("Select resolution:").padding((0.0, 0.0, 0.0, 4.0)))
+          .with_default_spacer()
+          .with_child(
+            Card::builder()
+              .with_insets(0.1)
+              .with_corner_radius(0.0)
+              .with_shadow_length(0.0)
+              .with_shadow_increase(0.0)
+              .with_border(1.0, Color::BLACK)
+              .stacked_button(
+                {
+                  move |_| {
+                    Flex::row()
+                      .with_child(ViewSwitcher::new(
+                        |data, _| *data,
+                        |_, current_res: &(u32, u32), _| {
+                          let res;
+                          CardButton::button_text(if *current_res != (0, 0) {
+                            res = format!("{} x {}", current_res.0, current_res.1);
+                            &res
+                          } else {
+                            "None selected"
+                          })
+                          .boxed()
+                        },
+                      ))
+                      .with_flex_spacer(1.0)
+                      .with_child(Icon::new(*CHEVRON_LEFT))
+                      .padding(8.0)
+                      .lens(App::settings.then(Settings::experimental_resolution))
+                  }
+                },
+                move |_| {
+                  Flex::column()
+                    .with_child(
+                      Flex::row()
+                        .with_child(ViewSwitcher::new(
+                          |data: &App, _| data.settings.experimental_resolution,
+                          |current_res: &(u32, u32), _, _| {
+                            let res;
+                            CardButton::button_text(if *current_res != (0, 0) {
+                              res = format!("{} x {}", current_res.0, current_res.1);
+                              &res
+                            } else {
+                              "None selected"
+                            })
+                            .boxed()
+                          },
+                        ))
+                        .with_flex_spacer(1.0)
+                        .with_child(Rotated::new(Icon::new(*CHEVRON_RIGHT), 1))
+                        .padding((8.0, 8.0, 8.0, 5.0)),
+                    )
+                    .with_spacer(5.0)
+                    .tap(|col| {
+                      for res in RESOLUTIONS.iter() {
+                        let (x, y) = res;
+                        col.add_child(
+                          Label::new(format!("{x} x {y}"))
+                            .padding((3.5, 5.0))
+                            .expand_width()
+                            .wrap_with_hover_state(false, true, |widget| {
+                              const RES_BORDER_COLOR: Key<Color> =
+                                Key::new("resolution_select.resolution.border.colour");
+                              widget.border(RES_BORDER_COLOR, 1.0).env_scope(|env, data| {
+                                env.set(
+                                  RES_BORDER_COLOR,
+                                  if data.1 {
+                                    Color::BLACK
+                                  } else {
+                                    Color::TRANSPARENT
+                                  },
+                                )
+                              })
+                            })
+                            .on_click(move |_, data: &mut App, _| {
+                              data.settings.experimental_resolution = *res;
+                            }),
+                        )
+                      }
+                    })
+                    .on_click(|ctx, _, _| RootStack::dismiss(ctx))
+                },
+                CardButton::stack_none(),
+                150.0,
+              ),
+          )
+          .padding((7.0, 0.0)),
+      )),
+    )
+    .with_row(
+      TableRow::new().with_child(
+        Flex::row()
+          .with_child(
+            CardButton::button_with(
+              |_| CardButton::button_text("Close").padding((8.0, 0.0)),
+              Card::builder()
+                .with_background(RED_KEY)
+                .with_border(1.0, ON_RED_KEY),
+            )
+            .on_click(|ctx, _, _| {
+              ctx.submit_command(Popup::dismiss_matching(|pop| {
+                matches!(pop, Popup::AppCustom(_))
+              }))
+            })
+            .env_scope(|env, _| env.set(druid::theme::TEXT_COLOR, env.get(ON_RED_KEY))),
+          )
+          .with_child(
+            CardButton::button_with(
+              |_| CardButton::button_text("Launch").padding((8.0, 0.0)),
+              Card::builder()
+                .with_background(BLUE_KEY)
+                .with_border(1.0, ON_BLUE_KEY),
+            )
+            .on_click(|ctx, data, _| {
+              ctx.submit_command(Popup::dismiss_matching(|pop| {
+                matches!(pop, Popup::AppCustom(_))
+              }));
+              managed_starsector_launch(data, ctx);
+            })
+            .env_scope(|env, _| env.set(druid::theme::TEXT_COLOR, env.get(ON_BLUE_KEY))),
+          )
+          .align_right(),
+      ),
+    )
+    .align_horizontal(druid::UnitPoint::CENTER)
+    .on_added(|_, ctx, _, _| RootStack::dismiss(ctx))
+    .boxed()
 }
 
 fn launch_button_body() -> impl Widget<App> {
@@ -303,52 +478,38 @@ fn launch_button_body() -> impl Widget<App> {
     )
     .with_default_spacer()
     .on_click(|ctx, app: &mut App, _| {
-      if let Some(install_dir) = app.settings.install_dir.clone() {
-        ctx.submit_command(Popup::OPEN_POPUP.with(Popup::custom(|| {
-          CardButton::button_text("Running Starsector...")
-            .halign_centre()
-            .boxed()
-        })));
-
-        let experimental_launch = app.settings.experimental_launch;
-        let experimental_resolution = app.settings.experimental_resolution;
-        let ext_ctx = ctx.get_external_handle();
-        app.runtime.spawn(async move {
-          let install_dir = install_dir;
-          launch_starsector(
-            install_dir,
-            experimental_launch,
-            experimental_resolution,
-            ext_ctx,
-          )
-          .await
-        });
-      }
+      managed_starsector_launch(app, ctx);
     })
 }
 
-pub(crate) async fn launch_starsector(
-  install_dir: PathBuf,
-  experimental_launch: bool,
-  resolution: (u32, u32),
-  ext_ctx: ExtEventSink,
-) -> anyhow::Result<()> {
-  let res = launch(&install_dir, experimental_launch, resolution)
-    .and_then(|child| child.wait_with_output().map_err(Into::into))
-    .await;
+fn managed_starsector_launch(app: &mut App, ctx: &mut druid::EventCtx) {
+  if let Some(install_dir) = app.settings.install_dir.clone() {
+    ctx.submit_command(Popup::OPEN_POPUP.with(Popup::custom(|| {
+      CardButton::button_text("Running Starsector...")
+        .halign_centre()
+        .boxed()
+    })));
 
-  let matches: std::sync::Arc<dyn Fn(&Popup) -> bool + Send + Sync> =
-    std::sync::Arc::new(|popup| matches!(popup, Popup::Custom(_)));
-  let _ = ext_ctx.submit_command_global(Popup::DISMISS_MATCHING, matches);
-  if let Err(err) = res {
-    let _ = ext_ctx.submit_command_global(
-      Popup::OPEN_POPUP,
-      Popup::custom(move || LaunchResult::view(err.to_string()).boxed()),
-    );
+    let experimental_launch = app.settings.experimental_launch;
+    let experimental_resolution = app.settings.experimental_resolution;
+    let ext_ctx = ctx.get_external_handle();
+    app.runtime.spawn(async move {
+      let res = launch(&install_dir, experimental_launch, experimental_resolution)
+        .and_then(|child| child.wait_with_output().map_err(Into::into))
+        .await;
+
+      let matches: std::sync::Arc<dyn Fn(&Popup) -> bool + Send + Sync> =
+        std::sync::Arc::new(|popup| matches!(popup, Popup::Custom(_)));
+      let _ = ext_ctx.submit_command_global(Popup::DISMISS_MATCHING, matches);
+      if let Err(err) = res {
+        let _ = ext_ctx.submit_command_global(
+          Popup::OPEN_POPUP,
+          Popup::custom(move || LaunchResult::view(err.to_string()).boxed()),
+        );
+      }
+      let _ = ext_ctx.submit_command_global(App::ENABLE, ());
+    });
   }
-  let _ = ext_ctx.submit_command_global(App::ENABLE, ());
-
-  Ok(())
 }
 
 #[cfg(any(target_os = "windows", target_os = "linux"))]
