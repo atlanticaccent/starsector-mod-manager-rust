@@ -54,13 +54,17 @@ impl RootStack {
         StackChildParams::dynamic(|data: &(App, RootStack), _| &data.1.position).duration(0.0),
       )
       .on_command(Self::SHOW, |ctx, payload, data| {
-        let payload = payload.take().unwrap();
-        data.1.position = StackChildPosition::new()
-          .left(Some(payload.0.x))
-          .top(Some(payload.0.y));
-        data.1.widget_maker = Some(Rc::new(payload.1));
-        data.1.on_dismiss = payload.2.map(Rc::new);
-        ctx.request_update();
+        if !data.0.block_next_root_stack {
+          let payload = payload.take().unwrap();
+          data.1.position = StackChildPosition::new()
+            .left(Some(payload.0.x))
+            .top(Some(payload.0.y));
+          data.1.widget_maker = Some(Rc::new(payload.1));
+          data.1.on_dismiss = payload.2.map(Rc::new);
+          ctx.request_update();
+        } else {
+          data.0.block_next_root_stack = false;
+        }
       })
       .on_command(Self::DISMISS, |ctx, _, data| {
         data.1.widget_maker = None;

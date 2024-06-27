@@ -76,6 +76,7 @@ pub struct App {
   mod_repo: Option<ModRepo>,
   pub popups: Vector<Popup>,
   pub current_tab: NavLabel,
+  pub block_next_root_stack: bool,
 }
 
 impl App {
@@ -136,6 +137,7 @@ impl App {
       mod_repo: None,
       popups: Vector::new(),
       current_tab: NavLabel::Mods,
+      block_next_root_stack: false,
     }
   }
 
