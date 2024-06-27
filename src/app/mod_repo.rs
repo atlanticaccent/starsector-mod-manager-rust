@@ -128,7 +128,7 @@ impl ModRepo {
   }
 
   fn filter_control() -> impl Widget<ModRepo> {
-    fn filter_heading<T: Data>(_: bool) -> impl Widget<T> {
+    fn filter_heading<T: Data>() -> impl Widget<T> {
       Flex::row()
         .with_child(CardButton::button_text("Filter by Source"))
         .with_child(Icon::new(*TUNE))
@@ -141,13 +141,13 @@ impl ModRepo {
     }
 
     CardButton::stacked_dropdown(
-      filter_heading,
-      |hovered| {
+      |_| filter_heading().padding((7.0, 0.0)),
+      |_| {
         use crate::app::App;
 
         Flex::column()
           .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-          .with_child(filter_heading(hovered))
+          .with_child(filter_heading())
           .with_default_spacer()
           .tap(|column| {
             for (idx, source) in ModSource::visible_iter().enumerate() {
@@ -183,6 +183,7 @@ impl ModRepo {
           })
           .prism(OptionSome)
           .lens(App::mod_repo)
+          .padding((7.0, 0.0))
       },
       BUTTON_WIDTH,
     )
@@ -193,7 +194,7 @@ impl ModRepo {
       Icon::new(*RADIO_BUTTON_UNCHECKED).else_if(|data, _| *data, Icon::new(*RADIO_BUTTON_CHECKED))
     }
 
-    fn sort_heading<T: Data>(_: bool) -> impl Widget<T> {
+    fn sort_heading<T: Data>() -> impl Widget<T> {
       Flex::row()
         .with_child(CardButton::button_text("Sort by"))
         .with_child(Icon::new(*SORT))
@@ -202,13 +203,13 @@ impl ModRepo {
     }
 
     CardButton::stacked_dropdown(
-      sort_heading,
-      |hovered| {
+      |_| sort_heading().padding((7.0, 0.0)),
+      |_| {
         use crate::app::App;
 
         Flex::column()
           .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-          .with_child(sort_heading(hovered))
+          .with_child(sort_heading())
           .with_default_spacer()
           .tap(|column| {
             let mut inner =
@@ -257,6 +258,7 @@ impl ModRepo {
           })
           .prism(OptionSome)
           .lens(App::mod_repo)
+          .padding((7.0, 0.0))
       },
       BUTTON_WIDTH,
     )
@@ -340,9 +342,9 @@ impl ModRepo {
             format!("{} / {}", state.page_number + 1, state.total_pages)
           }))
           .valign_centre()
+          .padding((8.0, 0.0))
         })
-        .disabled()
-        .padding((8.0, 0.0)),
+        .disabled(),
       )
       .with_child(
         CardButton::button(|_| Icon::new(*CHEVRON_RIGHT).padding((8.0, 0.0)))

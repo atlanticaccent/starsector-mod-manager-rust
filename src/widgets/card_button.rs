@@ -15,6 +15,16 @@ use crate::{
 pub struct CardButton;
 
 impl CardButton {
+  pub const fn stack_none<T: Data>() -> Option<
+    fn(
+      ScopedStackCardButton<T>,
+      Rc<dyn Fn() -> Box<dyn Widget<App>> + 'static>,
+      WidgetId,
+    ) -> ScopedStackCardButton<T>,
+  > {
+    None
+  }
+
   pub fn button_text<T: Data>(text: &str) -> impl Widget<T> {
     bold_text(
       text,
@@ -35,7 +45,6 @@ impl CardButton {
     builder: CardBuilder,
   ) -> impl Widget<T> {
     builder
-      .with_insets((0.0, 14.0))
       .hoverable_distinct(
         || inner(false).lens(druid::lens!((T, bool), 0)),
         || inner(true).lens(druid::lens!((T, bool), 0)),
@@ -128,6 +137,9 @@ impl CardButton {
         .disabled_if(|data, _| data.inner)
         .on_command(DROPDOWN_DISMISSED, |_, _, data| data.inner = false)
         .with_id(id)
+        .on_command(crate::app::overlays::Popup::IS_EMPTY, |_, _, data| {
+          data.inner = false
+        })
       })
   }
 
