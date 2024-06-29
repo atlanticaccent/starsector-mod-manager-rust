@@ -1,16 +1,15 @@
-use std::path::PathBuf;
+use std::{convert::identity, ops::Not, path::PathBuf};
 
 use druid::{
   im::Vector,
-  lens,
+  lens::Map,
   text::ParseFormatter,
   widget::{
-    Axis, Button, Checkbox, Flex, Label, Painter, TextBox, TextBoxEvent, ValidationDelegate,
-    ViewSwitcher, WidgetExt,
+    Button, Checkbox, Flex, Label, Painter, TextBox, TextBoxEvent, ValidationDelegate, WidgetExt,
   },
   Data, Lens, LensExt, Selector, Widget,
 };
-use druid_widget_nursery::{material_icons::Icon, wrap::Wrap, WidgetExt as _};
+use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
 use extend::ext;
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
@@ -20,15 +19,16 @@ use super::{
   mod_list::headings::{Header, Heading},
   tools::vmparams::VMParams,
   util::{
-    button_painter, default_true, h2_fixed, hoverable_text, icons::*, make_column_pair,
-    make_flex_pair, CommandExt, LabelExt, LoadError, SaveError, ShadeColor, WidgetExtEx,
-    WithHoverState,
+    button_painter, default_true, h2_fixed, hoverable_text, icons::*, CommandExt, LabelExt,
+    LoadError, SaveError, ShadeColor, WidgetExtEx, WithHoverState,
   },
 };
 use crate::{
-  app::{util::Tap as _, PROJECT},
+  app::PROJECT,
   theme::Themes,
-  widgets::{card::Card, root_stack::RootStack},
+  widgets::{
+    card::Card, card_button::CardButton, root_stack::RootStack, wrapped_table::WrappedTable,
+  },
 };
 
 #[derive(Clone, Data, Lens, Serialize, Deserialize, Default, Debug)]
@@ -49,7 +49,6 @@ pub struct Settings {
   #[serde(default = "default_true")]
   pub open_forum_link_in_webview: bool,
   #[serde(default = "default_headers")]
-  #[data(eq)]
   pub headings: Vector<Heading>,
   pub show_auto_update_for_discrepancy: bool,
   pub theme: Themes,
@@ -172,212 +171,121 @@ impl Settings {
   }
 
   fn headings_editor() -> impl Widget<Self> {
-    const DISMISS_ADD_COLUMN_DROPDOWN: Selector =
-      Selector::new("settings.add_column_dropdown.dismiss");
-
-    ViewSwitcher::new(
-      |headings: &Vector<Heading>, _| headings.clone(),
-      |_, headings, _| {
-        Wrap::new()
-          .direction(Axis::Horizontal)
-          .alignment(druid_widget_nursery::wrap::WrapAlignment::Start)
-          .tap(|row| {
-            let mut height_linker = None;
-            for (idx, heading) in headings.iter().cloned().enumerate() {
-              row.add_child(
-                Card::builder()
-                  .with_shadow_length(6.)
-                  .with_background(druid::theme::BACKGROUND_DARK)
-                  .build(
-                    Flex::row()
-                      .with_default_spacer()
-                      .with_child({
-                        let icon = Icon::new(*ARROW_LEFT).background(button_painter());
-
-                        if idx > 0 {
-                          icon
-                            .controller(HoverController::default())
-                            .on_click(move |ctx, data: &mut Vector<Heading>, _| {
-                              data.swap(idx - 1, idx);
-                              ctx.submit_command(Header::SWAP_HEADINGS.with((idx - 1, idx)))
-                            })
-                            .boxed()
-                        } else {
-                          icon.disabled().invisible().boxed()
-                        }
-                      })
-                      .with_flex_child(
-                        Label::wrapped(format!("{}. {}", idx + 1, heading))
-                          .with_text_alignment(druid::TextAlignment::Center)
-                          .expand_width()
-                          .padding((5.0, 0.0)),
-                        1.,
-                      )
-                      .with_child(
-                        Icon::new(*CLOSE)
-                          .on_click(move |ctx, data: &mut Vector<Heading>, _| {
-                            if data.len() > 1 {
-                              data.retain(|existing| existing != &heading);
-                              ctx.submit_command_global(Header::REMOVE_HEADING.with(heading));
-                            }
-                          })
-                          .disabled_if({
-                            let disabled = headings.len() <= 1;
-                            move |_, _| disabled
-                          })
-                          .controller(HoverController::default()),
-                      )
-                      .with_child({
-                        let icon = Icon::new(*ARROW_RIGHT).background(button_painter());
-
-                        if idx < headings.len() - 1 {
-                          icon
-                            .controller(HoverController::default())
-                            .on_click(move |ctx, data: &mut Vector<Heading>, _| {
-                              data.swap(idx, idx + 1);
-                              ctx.submit_command(Header::SWAP_HEADINGS.with((idx, idx + 1)))
-                            })
-                            .boxed()
-                        } else {
-                          icon.disabled().invisible().boxed()
-                        }
-                      })
-                      .with_default_spacer()
-                      .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
-                      .must_fill_main_axis(true)
-                      .padding((0., 5., 0., 5.)),
-                  )
-                  .padding(2.)
-                  .fix_width(300.)
-                  .link_height_with(&mut height_linker)
-                  .boxed(),
-              )
-            }
-            let missing = Heading::iter()
-              .filter(|h| !headings.contains(h) && !matches!(h, Heading::Enabled | Heading::Score))
-              .collect::<Vec<_>>();
-            if !missing.is_empty() {
-              row.add_child(
-                Card::builder()
-                  .with_insets((-4., 18.))
-                  .with_shadow_length(6.0)
-                  .with_shadow_increase(2.0)
-                  .with_background(druid::Color::GRAY.lighter_by(9))
-                  .hoverable_distinct(
-                    {
-                      move || {
-                        Flex::row()
-                          .with_default_spacer()
-                          .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
-                          .with_flex_child(
-                            Label::wrapped("Add Column")
-                              .with_text_alignment(druid::TextAlignment::Center)
-                              .expand_width()
-                              .padding((5.0, 0.0)),
-                            1.,
-                          )
-                          .with_child(Icon::new(*ADD_CIRCLE_OUTLINE))
-                          .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
-                          .with_default_spacer()
-                          .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
-                          .must_fill_main_axis(true)
-                          .padding((0., 5., 0., 5.))
-                      }
-                    },
-                    {
-                      move || {
-                        Flex::row()
-                          .with_default_spacer()
-                          .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
-                          .with_flex_child(
-                            Label::wrapped("Add Column")
-                              .with_text_alignment(druid::TextAlignment::Center)
-                              .expand_width()
-                              .padding((5.0, 0.0)),
-                            1.,
-                          )
-                          .with_child(Icon::new(*ADD_CIRCLE))
-                          .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
-                          .with_default_spacer()
-                          .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
-                          .must_fill_main_axis(true)
-                          .padding((0., 5., 0., 5.))
-                      }
-                    },
-                  )
-                  .fix_width(300.)
-                  .link_height_with(&mut height_linker)
-                  .on_click(move |ctx, data, _| {
-                    *data = true;
-                    RootStack::show(
-                      ctx,
-                      ctx.window_origin(),
-                      Self::add_column_dropdown(missing.clone()),
-                      Some(|ctx: &mut druid::EventCtx| {
-                        ctx.submit_command(DISMISS_ADD_COLUMN_DROPDOWN)
-                      }),
-                    )
-                  })
-                  .disabled_if(|data, _| *data)
-                  .invisible_if(|data| *data)
-                  .on_command(DISMISS_ADD_COLUMN_DROPDOWN, |_, _, data| *data = false)
-                  .scope_independent(|| false)
-                  .boxed(),
-              )
-            }
-          })
-          .boxed()
-      },
-    )
-    .lens(Settings::headings)
-  }
-
-  fn add_column_dropdown(missing: Vec<Heading>) -> impl Fn() -> Box<dyn Widget<super::App>> {
-    move || {
-      let missing = missing.clone();
-
-      #[ext]
-      impl<T: Data> Flex<T> {
-        fn padded_row() -> Flex<T> {
-          Flex::row()
-            .must_fill_main_axis(true)
-            .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
-            .with_default_spacer()
-            .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
-        }
-
-        fn with_content(self, widget: impl Widget<T> + 'static) -> impl Widget<T> {
-          self
-            .with_flex_child(widget.expand_width().padding((5., 17.)), 1.)
-            .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
-            .with_default_spacer()
-            .lens(lens!((T, bool), 0))
-            .background(Painter::new(|ctx, data: &(T, bool), _| {
-              use druid::RenderContext;
-
-              if data.1 {
-                let path = ctx.size().to_rect().inset(-0.5).to_rounded_rect(3.);
-
-                ctx.stroke(path, &druid::Color::BLACK, 1.)
-              }
-            }))
-            .with_hover_state(false)
-        }
-      }
-
+    WrappedTable::new(250.0, |_, _, map_id| {
+      let map_id = std::rc::Rc::new(map_id);
       Card::builder()
-        .with_insets((-4., 18.))
-        .with_shadow_length(6.0)
-        .with_shadow_increase(2.0)
-        .with_background(druid::Color::WHITE.darker())
-        .hoverable(move |_| {
-          let mut column = Flex::column()
+        .with_shadow_length(6.)
+        .with_background(druid::theme::BACKGROUND_DARK)
+        .build(
+          Flex::row()
+            .with_default_spacer()
+            .with_child({
+              Icon::new(*ARROW_LEFT)
+                .background(button_painter())
+                .controller(HoverController::default())
+                .on_click({
+                  let map_id = map_id.clone();
+                  move |ctx, data: &mut Vector<Heading>, env| {
+                    let idx = map_id(env);
+                    data.swap(idx - 1, idx);
+                    ctx.submit_command(Header::SWAP_HEADINGS.with((idx - 1, idx)))
+                  }
+                })
+                .disabled_if({
+                  let map_id = map_id.clone();
+                  move |_, env| map_id(env) == 0
+                })
+                .invisible_if({
+                  let map_id = map_id.clone();
+                  move |_, env| map_id(env) == 0
+                })
+            })
+            .with_flex_child(
+              Label::wrapped_func({
+                let map_id = map_id.clone();
+                move |data: &Vector<Heading>, env| {
+                  let idx = map_id(env);
+                  format!("{}. {}", idx + 1, data.get(idx).unwrap_or(&Heading::Score))
+                }
+              })
+              .with_text_alignment(druid::TextAlignment::Center)
+              .expand_width()
+              .padding((5.0, 0.0)),
+              1.,
+            )
             .with_child(
-              Card::builder()
-                .with_insets(0.0)
-                .with_shadow_length(0.0)
-                .with_background(druid::Color::GRAY.lighter_by(9))
-                .build(
+              Icon::new(*CLOSE)
+                .on_click({
+                  let map_id = map_id.clone();
+                  move |ctx, data: &mut Vector<Heading>, env| {
+                    let heading = data[map_id(env)];
+                    if data.len() > 1 {
+                      data.retain(|existing| existing != &heading);
+                      ctx.submit_command_global(Header::REMOVE_HEADING.with(heading));
+                    }
+                  }
+                })
+                .disabled_if(|data, _| data.len() <= 1)
+                .controller(HoverController::default()),
+            )
+            .with_child({
+              Icon::new(*ARROW_RIGHT)
+                .background(button_painter())
+                .controller(HoverController::default())
+                .on_click({
+                  let map_id = map_id.clone();
+                  move |ctx, data: &mut Vector<Heading>, env| {
+                    let idx = map_id(env);
+                    data.swap(idx, idx + 1);
+                    ctx.submit_command(Header::SWAP_HEADINGS.with((idx, idx + 1)))
+                  }
+                })
+                .disabled_if({
+                  let map_id = map_id.clone();
+                  move |data, env| map_id(env) == data.len() - 1
+                })
+                .invisible_if({
+                  let map_id = map_id.clone();
+                  move |data, env| map_id(env) == data.len() - 1
+                })
+            })
+            .with_default_spacer()
+            .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
+            .must_fill_main_axis(true)
+            .padding((0., 5., 0., 5.))
+            .boxed(),
+        )
+        .padding(2.)
+        .lens(Map::new(
+          |data: &Vector<Option<Heading>>| {
+            data
+              .iter()
+              .cloned()
+              .filter_map(identity)
+              .collect()
+          },
+          |data, opts: Vector<Heading>| {
+            let incomplete = !Heading::complete(&opts);
+            *data = opts
+              .into_iter()
+              .map(Some)
+              .chain(incomplete.then_some(None))
+              .collect::<Vector<Option<Heading>>>()
+          },
+        ))
+        .else_if(
+          {
+            let map_id = map_id.clone();
+            move |data, env| data[map_id(env)].is_none()
+          },
+          {
+            Card::builder()
+              .with_insets((-4., 18.))
+              .with_shadow_length(6.0)
+              .with_shadow_increase(2.0)
+              .with_background(druid::Color::GRAY.lighter_by(9))
+              .stacked_button(
+                |_| {
                   Flex::row()
                     .with_default_spacer()
                     .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
@@ -385,83 +293,118 @@ impl Settings {
                       Label::wrapped("Add Column")
                         .with_text_alignment(druid::TextAlignment::Center)
                         .expand_width()
-                        .padding((5., 17.)),
+                        .padding((5.0, 0.0)),
                       1.,
                     )
-                    .with_child(Icon::new(*ADD_CIRCLE))
+                    .with_child(Icon::new(*ADD_CIRCLE_OUTLINE))
                     .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
                     .with_default_spacer()
                     .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
-                    .must_fill_main_axis(true),
-                )
-                .padding((0., -9., 0., 0.)),
-            )
-            .with_spacer(10.);
-
-          for heading in missing.clone() {
-            column.add_child(
-              Flex::padded_row()
-                .with_content(
-                  Label::wrapped(heading.to_string())
-                    .with_text_alignment(druid::TextAlignment::Center),
-                )
-                .on_click(move |ctx, data: &mut Vector<Heading>, _| {
-                  data.push_back(heading);
-                  ctx.submit_command(Header::ADD_HEADING.with(heading))
-                }),
-            );
-          }
-
-          column
-        })
-        .fix_width(300.)
-        .lens(super::App::settings.then(Settings::headings))
-        .on_click(|ctx, _, _| RootStack::dismiss(ctx))
+                    .must_fill_main_axis(true)
+                    .padding((0., 5., 0., 5.))
+                },
+                Self::add_column_dropdown,
+                CardButton::stack_none(),
+                250.0,
+              )
+          },
+        )
         .boxed()
-    }
+    })
+    .lens(Settings::headings.map(
+      |headings| {
+        headings
+          .iter()
+          .cloned()
+          .map(Some)
+          .chain(Heading::complete(headings).not().then_some(None))
+          .collect::<Vector<Option<Heading>>>()
+      },
+      |headings, synth| {
+        *headings = synth
+          .into_iter()
+          .filter_map(identity)
+          .collect()
+      },
+    ))
   }
 
-  pub fn install_dir_browser_builder(axis: Axis) -> Flex<Self> {
-    let input = TextBox::multiline()
-      .with_line_wrapping(true)
-      .with_formatter(ParseFormatter::new())
-      .delegate(InstallDirDelegate {})
-      .lens(lens!(Settings, install_dir_buf));
+  fn add_column_dropdown(_: bool) -> Box<dyn Widget<super::App>> {
+    #[ext]
+    impl<T: Data> Flex<T> {
+      fn padded_row() -> Flex<T> {
+        Flex::row()
+          .must_fill_main_axis(true)
+          .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
+          .with_default_spacer()
+          .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
+      }
 
-    match axis {
-      Axis::Horizontal => make_flex_pair(
-        Label::wrapped("Starsector Install Directory:"),
-        1.,
-        Flex::for_axis(axis)
-          .with_flex_child(input.expand_width(), 1.)
-          .with_child(
-            Button::new("Browse...")
-              .controller(HoverController::default())
-              .on_click(|ctx, _, _| {
-                ctx.submit_command_global(Selector::new("druid.builtin.textbox-cancel-editing"));
-                ctx
-                  .submit_command_global(Settings::SELECTOR.with(SettingsCommand::SelectInstallDir))
-              }),
-          ),
-        1.5,
-        axis,
-      ),
-      Axis::Vertical => make_column_pair(
-        h2_fixed("Starsector Install Directory:"),
-        Flex::for_axis(axis)
-          .with_child(input.expand_width())
-          .with_child(
-            Button::new("Browse...")
-              .controller(HoverController::default())
-              .on_click(|ctx, _, _| {
-                ctx.submit_command_global(Selector::new("druid.builtin.textbox-cancel-editing"));
-                ctx
-                  .submit_command_global(Settings::SELECTOR.with(SettingsCommand::SelectInstallDir))
-              }),
-          )
-          .cross_axis_alignment(druid::widget::CrossAxisAlignment::End),
-      ),
+      fn with_content(self, widget: impl Widget<T> + 'static) -> impl Widget<T> {
+        self
+          .with_flex_child(widget.expand_width().padding((5., 17.)), 1.)
+          .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
+          .with_default_spacer()
+          .lens(druid::lens!((T, bool), 0))
+          .background(Painter::new(|ctx, data: &(T, bool), _| {
+            use druid::RenderContext;
+
+            if data.1 {
+              let path = ctx.size().to_rect().inset(-0.5).to_rounded_rect(3.);
+
+              ctx.stroke(path, &druid::Color::BLACK, 1.)
+            }
+          }))
+          .with_hover_state(false)
+      }
     }
+
+    let mut column = Flex::column()
+      .with_child(
+        Card::builder()
+          .with_insets(0.0)
+          .with_shadow_length(0.0)
+          .with_background(druid::Color::GRAY.lighter_by(9))
+          .build(
+            Flex::row()
+              .with_default_spacer()
+              .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
+              .with_flex_child(
+                Label::wrapped("Add Column")
+                  .with_text_alignment(druid::TextAlignment::Center)
+                  .expand_width()
+                  .padding((5., 17.)),
+                1.,
+              )
+              .with_child(Icon::new(*ADD_CIRCLE))
+              .with_child(Icon::new(*ARROW_RIGHT).disabled().invisible())
+              .with_default_spacer()
+              .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
+              .must_fill_main_axis(true),
+          )
+          .padding((0., -9., 0., 0.)),
+      )
+      .with_spacer(10.);
+
+    for heading in Heading::iter().filter(|h| !matches!(h, Heading::Enabled | Heading::Score)) {
+      column.add_child(
+        Flex::padded_row()
+          .with_content(
+            Label::wrapped(heading.to_string()).with_text_alignment(druid::TextAlignment::Center),
+          )
+          .on_click(move |ctx, data: &mut Vector<Heading>, _| {
+            data.push_back(heading);
+            ctx.submit_command(Header::ADD_HEADING.with(heading))
+          })
+          .disabled_if(move |data, _| data.contains(&heading))
+          .or_empty(move |data, _| !data.contains(&heading)),
+      );
+    }
+
+    column
+      .lens(super::App::settings.then(Settings::headings))
+      .on_click(|ctx, _, _| RootStack::dismiss(ctx))
+      .boxed()
   }
 
   pub fn path(try_make: bool) -> PathBuf {

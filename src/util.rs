@@ -942,12 +942,12 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     Scope::from_function(make_state, DummyTransfer::default(), self)
   }
 
-  fn invisible_if(self, func: impl Fn(&T) -> bool + 'static) -> InvisibleIf<T, Self> {
+  fn invisible_if(self, func: impl Fn(&T, &Env) -> bool + 'static) -> InvisibleIf<T, Self> {
     InvisibleIf::new(func, self)
   }
 
   fn invisible(self) -> InvisibleIf<T, Self> {
-    InvisibleIf::new(|_| true, self)
+    InvisibleIf::new(|_, _| true, self)
   }
 
   fn on_key_up(

@@ -443,7 +443,7 @@ fn bookmarks() -> druid::widget::Padding<BrowserInner, impl Widget<BrowserInner>
       const RE_ENABLE: Selector = Selector::new("browser.bookmarks.toggle");
 
       widget
-        .invisible_if(|data| !data.inner.0)
+        .invisible_if(|data, _| !data.inner.0)
         .on_command(RE_ENABLE, |ctx, _, data| {
           data.inner.0 = !data.inner.0;
           data.outer.force_hidden = false;

@@ -90,7 +90,7 @@ impl VMParams {
                           data.1 = false
                         }
                       })
-                      .invisible_if(|(_, data)| *data)
+                      .invisible_if(|(_, data), _| *data)
                       .disabled_if(|(_, data), _| *data)
                       .scope(|unit| (unit, false), lens!((Unit, bool), 0))
                       .lens(Value::unit),
@@ -155,7 +155,7 @@ impl VMParams {
                           data.1 = false
                         }
                       })
-                      .invisible_if(|(_, data)| *data)
+                      .invisible_if(|(_, data), _| *data)
                       .disabled_if(|(_, data), _| *data)
                       .scope(|unit| (unit, false), lens!((Unit, bool), 0))
                       .lens(Value::unit),

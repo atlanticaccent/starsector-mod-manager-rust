@@ -7,6 +7,7 @@ use druid::{
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
 use serde::{Deserialize, Serialize};
+use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 use super::{util::icons::*, ModList};
@@ -46,6 +47,12 @@ pub enum Heading {
 impl Heading {
   pub fn visible(&self) -> bool {
     matches!(self, Heading::Enabled | Heading::Score)
+  }
+
+  pub fn complete(list: &Vector<Heading>) -> bool {
+    Heading::iter()
+      .filter(|h| !matches!(h, Heading::Enabled | Heading::Score))
+      .all(|h| list.contains(&h))
   }
 }
 

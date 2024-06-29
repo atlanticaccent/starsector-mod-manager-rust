@@ -32,7 +32,7 @@ impl Search {
                 env.get(druid::theme::TEXT_COLOR).with_alpha(0.5),
               )
             })
-            .invisible_if(String::is_empty)
+            .invisible_if(|data: &String, _| data.is_empty())
             .suppress_event(|event| matches!(event, druid::Event::MouseMove(_)))
             .lens(lens!((String, bool), 0))
             .with_hover_state(true)

@@ -96,6 +96,7 @@ impl<T: WrapData, W: Widget<T> + 'static> WrappedTable<T, W> {
     TableDataImpl {
       width: self.columns,
       data: RowDataImpl {
+        parent_id: self.id,
         data: data.clone(),
         data_ids: data.ids().collect(),
         width: self.columns,
@@ -198,6 +199,7 @@ impl<T: WrapData, W: Widget<T> + 'static> Widget<T> for WrappedTable<T, W> {
 
 #[derive(Lens)]
 struct RowDataImpl<T: WrapData, W> {
+  parent_id: WidgetId,
   data: T,
   data_ids: Vec<T::OwnedId>,
   width: usize,
@@ -208,6 +210,7 @@ struct RowDataImpl<T: WrapData, W> {
 impl<T: WrapData, W> Clone for RowDataImpl<T, W> {
   fn clone(&self) -> Self {
     Self {
+      parent_id: self.parent_id,
       data: self.data.clone(),
       data_ids: self.data_ids.clone(),
       width: self.width,
@@ -236,11 +239,13 @@ impl<T: WrapData, W: Widget<T> + 'static> RowData for RowDataImpl<T, W> {
 
   fn cell(&self, _: &Self::Column) -> Box<dyn Widget<Self>> {
     let constructor = self.constructor.clone();
+    let parent_id = self.parent_id;
 
     EcsWidget::new(
       move |data: &RowDataImpl<T, W>, env: &_| {
         let id = get_id(env);
-        (id < data.data_ids.len()).then(|| data.data_ids[id].to_string())
+        (id < data.data_ids.len())
+          .then(|| format!("{:?}{}", parent_id, data.data_ids[id].to_string()))
       },
       move |data, env| {
         let raw_id = get_id(env);

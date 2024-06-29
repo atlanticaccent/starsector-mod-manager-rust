@@ -133,7 +133,7 @@ impl CardButton {
             })
             .boxed()
         }
-        .invisible_if(|data| data.inner)
+        .invisible_if(|data, _| data.inner)
         .disabled_if(|data, _| data.inner)
         .on_command(DROPDOWN_DISMISSED, |_, _, data| data.inner = false)
         .with_id(id)
