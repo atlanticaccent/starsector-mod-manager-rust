@@ -19,7 +19,7 @@ use druid::{
   theme,
   widget::{
     Align, Axis, Controller, ControllerHost, DefaultScopePolicy, Either, Flex, Label, LabelText,
-    LensScopeTransfer, LensWrap, Painter, RawLabel, Scope, ScopeTransfer, SizedBox, WidgetWrapper,
+    LensScopeTransfer, LensWrap, Painter, RawLabel, Scope, ScopeTransfer, SizedBox,
   },
   Color, Command, Data, Env, Event, EventCtx, ExtEventSink, FontWeight, Key, KeyOrValue, Lens,
   LensExt as _, MouseEvent, Point, RenderContext, Selector, Target, TimerToken, UnitPoint, Widget,
@@ -1021,7 +1021,11 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     StackTooltip::custom(self, label)
   }
 
-  fn wrap_with_hover_state<S: HoverState, WO: Widget<(T, S)> + 'static>(
+  fn wrap_with_hover_state<S: HoverState>(self, state: S, set_cursor: bool) -> impl Widget<T> {
+    self.scope_with_hover_state(state, set_cursor, |widget| widget)
+  }
+
+  fn scope_with_hover_state<S: HoverState, WO: Widget<(T, S)> + 'static>(
     self,
     state: S,
     set_cursor: bool,
@@ -1651,24 +1655,27 @@ pub impl<T, E: Debug> Result<T, E> {
   }
 }
 
-pub trait RecursiveWrap<T, W, WW> {
-  type Wrapped;
+pub struct ValueFormatter;
 
-  fn recursive_wrap(&self) -> &Self::Wrapped;
-  fn recursive_wrap_mut(&mut self) -> &mut Self::Wrapped;
-}
-
-impl<T, W: WidgetWrapper, WW: WidgetWrapper<Wrapped = W>> RecursiveWrap<T, W, WW> for WW
-where
-  for<'a> W: 'a,
-{
-  type Wrapped = W::Wrapped;
-
-  fn recursive_wrap(&self) -> &Self::Wrapped {
-    self.wrapped().wrapped()
+impl druid::text::Formatter<u32> for ValueFormatter {
+  fn format(&self, value: &u32) -> String {
+    value.to_string()
   }
 
-  fn recursive_wrap_mut(&mut self) -> &mut Self::Wrapped {
-    self.wrapped_mut().wrapped_mut()
+  fn validate_partial_input(
+    &self,
+    input: &str,
+    _sel: &druid::text::Selection,
+  ) -> druid::text::Validation {
+    match input.parse::<u32>() {
+      Err(err) if !input.is_empty() => druid::text::Validation::failure(err),
+      _ => druid::text::Validation::success(),
+    }
+  }
+
+  fn value(&self, input: &str) -> Result<u32, druid::text::ValidationError> {
+    input
+      .parse::<u32>()
+      .map_err(druid::text::ValidationError::new)
   }
 }

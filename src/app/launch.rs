@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use druid::{
   lens::Map,
-  widget::{Container, Flex, Label, ViewSwitcher},
+  widget::{Container, Either, Flex, Label, TextBox, ViewSwitcher},
   Color, Data, Key, LensExt, Selector, Widget, WidgetExt,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
@@ -11,8 +11,11 @@ use webview_shared::ExtEventSinkExt;
 
 use super::{
   overlays::{LaunchResult, Popup},
-  util::{h2_fixed, State, Tap, WithHoverState, BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
-  App, SETTINGS,
+  util::{
+    h2_fixed, State, Tap, ValueFormatter, WithHoverState, BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY,
+    RED_KEY,
+  },
+  App, SETTINGS, TOGGLE_ON,
 };
 use crate::{
   app::{
@@ -35,6 +38,8 @@ use crate::{
 const OLD_TEXT_COLOR: druid::Key<druid::Color> = druid::Key::new("old_text_colour");
 const OVERRIDE_HOVER: Selector<bool> = Selector::new("launch.dropdown.collapsed.hovered.supp");
 const OPEN_STACK: Selector = Selector::new("launch_button.stack.open");
+
+const ROW_HEIGHT: f64 = 64.0;
 
 const RESOLUTIONS: &'static [(u32, u32)] = &[
   (3840, 2160),
@@ -122,6 +127,14 @@ pub(crate) fn launch_button() -> impl Widget<App> {
       }
     })
     .expand_width()
+    .mask_default()
+    .dynamic(|data: &App, _| {
+      !data
+        .settings
+        .install_dir
+        .as_deref()
+        .is_some_and(std::path::Path::exists)
+    })
 }
 
 fn footer_collapsed() -> impl Widget<App> {
@@ -221,7 +234,7 @@ fn footer_expanded() -> impl Widget<App> {
         .padding((0.0, 10.0))
         .background(BACKGROUND)
         .rounded(6.0)
-        .wrap_with_hover_state(false, false, |scoped| {
+        .scope_with_hover_state(false, false, |scoped| {
           scoped.env_scope(|env, data| {
             env.set(
               BACKGROUND,
@@ -325,137 +338,206 @@ fn resolution_options() -> Box<dyn Widget<App>> {
   FixedFlexTable::new()
     .default_column_width(TableColumnWidth::Intrinsic)
     .with_row(
-      TableRow::new().with_child(Card::new(
-        Flex::row()
-          .cross_axis_alignment(druid::widget::CrossAxisAlignment::Center)
-          .with_child(h2_fixed("Select resolution:").padding((0.0, 0.0, 0.0, 4.0)))
-          .with_default_spacer()
-          .with_child(
-            Card::builder()
-              .with_insets(0.1)
-              .with_corner_radius(0.0)
-              .with_shadow_length(0.0)
-              .with_shadow_increase(0.0)
-              .with_border(1.0, Color::BLACK)
-              .stacked_button(
-                {
-                  move |_| {
-                    Flex::row()
-                      .with_child(ViewSwitcher::new(
-                        |data, _| *data,
-                        |_, current_res: &(u32, u32), _| {
-                          let res;
-                          CardButton::button_text(if *current_res != (0, 0) {
-                            res = format!("{} x {}", current_res.0, current_res.1);
-                            &res
-                          } else {
-                            "None selected"
-                          })
-                          .boxed()
-                        },
-                      ))
-                      .with_flex_spacer(1.0)
-                      .with_child(Icon::new(*CHEVRON_LEFT))
-                      .padding(8.0)
-                      .lens(App::settings.then(Settings::experimental_resolution))
-                  }
-                },
-                move |_| {
-                  Flex::column()
-                    .with_child(
-                      Flex::row()
-                        .with_child(ViewSwitcher::new(
-                          |data: &App, _| data.settings.experimental_resolution,
-                          |current_res: &(u32, u32), _, _| {
-                            let res;
-                            CardButton::button_text(if *current_res != (0, 0) {
-                              res = format!("{} x {}", current_res.0, current_res.1);
-                              &res
-                            } else {
-                              "None selected"
-                            })
-                            .boxed()
-                          },
-                        ))
-                        .with_flex_spacer(1.0)
-                        .with_child(Rotated::new(Icon::new(*CHEVRON_RIGHT), 1))
-                        .padding((8.0, 8.0, 8.0, 5.0)),
-                    )
-                    .with_spacer(5.0)
-                    .tap(|col| {
-                      for res in RESOLUTIONS.iter() {
-                        let (x, y) = res;
-                        col.add_child(
-                          Label::new(format!("{x} x {y}"))
-                            .padding((3.5, 5.0))
-                            .expand_width()
-                            .wrap_with_hover_state(false, true, |widget| {
-                              const RES_BORDER_COLOR: Key<Color> =
-                                Key::new("resolution_select.resolution.border.colour");
-                              widget.border(RES_BORDER_COLOR, 1.0).env_scope(|env, data| {
-                                env.set(
-                                  RES_BORDER_COLOR,
-                                  if data.1 {
-                                    Color::BLACK
-                                  } else {
-                                    Color::TRANSPARENT
-                                  },
-                                )
-                              })
-                            })
-                            .on_click(move |_, data: &mut App, _| {
-                              data.settings.experimental_resolution = *res;
-                            }),
-                        )
-                      }
-                    })
-                    .on_click(|ctx, _, _| RootStack::dismiss(ctx))
-                },
-                CardButton::stack_none(),
-                150.0,
+      TableRow::new().with_child(
+        Card::new(
+          Flex::row()
+            .with_child(
+              Rotated::new(Icon::new(*TOGGLE_ON), 1)
+                .else_if(
+                  |data: &(App, bool), _| data.1,
+                  Rotated::new(Icon::new(*TOGGLE_ON), 3),
+                )
+                .fix_size(35.0, 35.0)
+                .on_click(|_, data, _| data.1 = !data.1)
+                .padding((0.0, 0.0, -4.0, 0.0))
+                .wrap_with_hover_state(true, true),
+            )
+            .with_flex_child(
+              Either::new(
+                |data, _| data.1,
+                preset_resolution().lens(druid::lens!((App, bool), 0)),
+                custom_resolution().lens(druid::lens!((App, bool), 0)),
               ),
-          )
-          .padding((7.0, 0.0)),
-      )),
+              1.0,
+            ),
+        )
+        .fix_size(375.0, ROW_HEIGHT),
+      ),
     )
     .with_row(
       TableRow::new().with_child(
         Flex::row()
           .with_child(
-            CardButton::button_with(
-              |_| CardButton::button_text("Close").padding((8.0, 0.0)),
-              Card::builder()
-                .with_background(RED_KEY)
-                .with_border(1.0, ON_RED_KEY),
-            )
-            .on_click(|ctx, _, _| {
-              ctx.submit_command(Popup::dismiss_matching(|pop| {
-                matches!(pop, Popup::AppCustom(_))
-              }))
-            })
-            .env_scope(|env, _| env.set(druid::theme::TEXT_COLOR, env.get(ON_RED_KEY))),
-          )
-          .with_child(
-            CardButton::button_with(
-              |_| CardButton::button_text("Launch").padding((8.0, 0.0)),
-              Card::builder()
-                .with_background(BLUE_KEY)
-                .with_border(1.0, ON_BLUE_KEY),
-            )
-            .on_click(|ctx, data, _| {
-              ctx.submit_command(Popup::dismiss_matching(|pop| {
-                matches!(pop, Popup::AppCustom(_))
-              }));
-              managed_starsector_launch(data, ctx);
-            })
-            .env_scope(|env, _| env.set(druid::theme::TEXT_COLOR, env.get(ON_BLUE_KEY))),
+            Flex::row()
+              .with_child(
+                CardButton::button_with(
+                  |_| CardButton::button_text("Close").padding((8.0, 0.0)),
+                  Card::builder()
+                    .with_background(RED_KEY)
+                    .with_border(1.0, ON_RED_KEY),
+                )
+                .on_click(|ctx, _, _| {
+                  ctx.submit_command(Popup::dismiss_matching(|pop| {
+                    matches!(pop, Popup::AppCustom(_))
+                  }))
+                })
+                .env_scope(|env, _| env.set(druid::theme::TEXT_COLOR, env.get(ON_RED_KEY))),
+              )
+              .with_child(
+                CardButton::button_with(
+                  |_| CardButton::button_text("Launch").padding((8.0, 0.0)),
+                  Card::builder()
+                    .with_background(BLUE_KEY)
+                    .with_border(1.0, ON_BLUE_KEY),
+                )
+                .on_click(|ctx, data, _| {
+                  ctx.submit_command(Popup::dismiss_matching(|pop| {
+                    matches!(pop, Popup::AppCustom(_))
+                  }));
+                  managed_starsector_launch(data, ctx);
+                })
+                .env_scope(|env, _| env.set(druid::theme::TEXT_COLOR, env.get(ON_BLUE_KEY))),
+              )
+              .lens(druid::lens!((App, bool), 0)),
           )
           .align_right(),
       ),
     )
     .align_horizontal(druid::UnitPoint::CENTER)
     .on_added(|_, ctx, _, _| RootStack::dismiss(ctx))
+    .scope(|data| (data.clone(), true), druid::lens!((App, bool), 0))
     .boxed()
+}
+
+fn preset_resolution() -> impl Widget<App> {
+  Flex::row()
+    .must_fill_main_axis(true)
+    .cross_axis_alignment(druid::widget::CrossAxisAlignment::Center)
+    .with_child(h2_fixed("Select resolution:").padding((0.0, 0.0, 0.0, 4.0)))
+    .with_flex_spacer(1.0)
+    .with_child(
+      Card::builder()
+        .with_insets(0.1)
+        .with_corner_radius(0.0)
+        .with_shadow_length(0.0)
+        .with_shadow_increase(0.0)
+        .with_border(1.0, Color::BLACK)
+        .stacked_button(
+          {
+            move |_| {
+              Flex::row()
+                .with_child(ViewSwitcher::new(
+                  |data: &Option<(u32, u32)>, _| data.clone(),
+                  |_, current_res, _| {
+                    let res;
+                    CardButton::button_text(if let Some((x, y)) = current_res {
+                      res = format!("{x} x {y}");
+                      &res
+                    } else {
+                      "None selected"
+                    })
+                    .boxed()
+                  },
+                ))
+                .with_flex_spacer(1.0)
+                .with_child(Icon::new(*CHEVRON_LEFT))
+                .padding(8.0)
+                .lens(App::settings.then(Settings::experimental_resolution))
+            }
+          },
+          move |_| {
+            Flex::column()
+              .with_child(
+                Flex::row()
+                  .with_child(ViewSwitcher::new(
+                    |data: &Option<(u32, u32)>, _| data.clone(),
+                    |_, current_res, _| {
+                      let res;
+                      CardButton::button_text(if let Some((x, y)) = current_res {
+                        res = format!("{x} x {y}");
+                        &res
+                      } else {
+                        "None selected"
+                      })
+                      .boxed()
+                    },
+                  ))
+                  .with_flex_spacer(1.0)
+                  .with_child(Rotated::new(Icon::new(*CHEVRON_RIGHT), 1))
+                  .padding((8.0, 6.0, 8.0, 3.0)),
+              )
+              .with_spacer(5.0)
+              .tap(|col| {
+                for res in RESOLUTIONS.iter() {
+                  let (x, y) = res;
+                  col.add_child(
+                    Label::new(format!("{x} x {y}"))
+                      .padding((3.5, 5.0))
+                      .expand_width()
+                      .scope_with_hover_state(false, true, |widget| {
+                        const RES_BORDER_COLOR: Key<Color> =
+                          Key::new("resolution_select.resolution.border.colour");
+                        widget.border(RES_BORDER_COLOR, 1.0).env_scope(|env, data| {
+                          env.set(
+                            RES_BORDER_COLOR,
+                            if data.1 {
+                              Color::BLACK
+                            } else {
+                              Color::TRANSPARENT
+                            },
+                          )
+                        })
+                      })
+                      .on_click(move |_, data: &mut Option<(u32, u32)>, _| {
+                        data.replace(*res);
+                      }),
+                  )
+                }
+              })
+              .on_click(|ctx, _, _| RootStack::dismiss(ctx))
+              .lens(Settings::experimental_resolution)
+              .on_change(|_, _, data, _| {
+                let _ = data.save();
+              })
+              .lens(App::settings)
+          },
+          CardButton::stack_none(),
+          130.0,
+        ),
+    )
+    .padding((7.0, 0.0))
+}
+
+fn custom_resolution() -> impl Widget<App> {
+  Flex::row()
+    .must_fill_main_axis(true)
+    .cross_axis_alignment(druid::widget::CrossAxisAlignment::Center)
+    .with_child(h2_fixed("Custom:").padding((0.0, 0.0, 0.0, 4.0)))
+    .with_flex_spacer(1.0)
+    .with_child(
+      TextBox::new()
+        .with_placeholder("Horizontal")
+        .with_formatter(ValueFormatter)
+        .update_data_while_editing(true)
+        .lens(druid::lens!((u32, u32), 0)),
+    )
+    .with_child(h2_fixed("x"))
+    .with_child(
+      TextBox::new()
+        .with_placeholder("Vertical")
+        .with_formatter(ValueFormatter)
+        .update_data_while_editing(true)
+        .lens(druid::lens!((u32, u32), 1)),
+    )
+    .padding((7.0, 0.0))
+    .lens(App::settings.then(Settings::experimental_resolution).map(
+      |data| data.unwrap_or_default(),
+      |data, res| {
+        if res != (0, 0) {
+          data.replace(res);
+        }
+      },
+    ))
 }
 
 fn launch_button_body() -> impl Widget<App> {
@@ -478,7 +560,14 @@ fn launch_button_body() -> impl Widget<App> {
     )
     .with_default_spacer()
     .on_click(|ctx, app: &mut App, _| {
-      managed_starsector_launch(app, ctx);
+      if app.settings.experimental_launch && app.settings.experimental_resolution.is_none() {
+        RootStack::dismiss(ctx);
+        ctx.submit_command(
+          Popup::DELAYED_POPUP.with(vec![Popup::app_custom(move || resolution_options())]),
+        );
+      } else {
+        managed_starsector_launch(app, ctx);
+      }
     })
 }
 
@@ -494,9 +583,13 @@ fn managed_starsector_launch(app: &mut App, ctx: &mut druid::EventCtx) {
     let experimental_resolution = app.settings.experimental_resolution;
     let ext_ctx = ctx.get_external_handle();
     app.runtime.spawn(async move {
-      let res = launch(&install_dir, experimental_launch, experimental_resolution)
-        .and_then(|child| child.wait_with_output().map_err(Into::into))
-        .await;
+      let res = launch(
+        &install_dir,
+        experimental_launch,
+        experimental_resolution.unwrap(),
+      )
+      .and_then(|child| child.wait_with_output().map_err(Into::into))
+      .await;
 
       let matches: std::sync::Arc<dyn Fn(&Popup) -> bool + Send + Sync> =
         std::sync::Arc::new(|popup| matches!(popup, Popup::Custom(_)));

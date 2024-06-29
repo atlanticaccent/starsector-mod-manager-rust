@@ -43,7 +43,7 @@ pub struct Settings {
   pub last_browsed: Option<PathBuf>,
   pub git_warn: bool,
   pub experimental_launch: bool,
-  pub experimental_resolution: (u32, u32),
+  pub experimental_resolution: Option<(u32, u32)>,
   #[serde(default = "default_true")]
   pub hide_webview_on_conflict: bool,
   #[serde(default = "default_true")]

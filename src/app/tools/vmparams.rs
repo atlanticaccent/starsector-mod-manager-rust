@@ -19,7 +19,7 @@ use strum_macros::EnumIter;
 use super::tool_card;
 use crate::{
   app::{
-    util::{h2_fixed, LoadError, SaveError, ShadeColor, WidgetExtEx, WithHoverState as _},
+    util::{h2_fixed, LoadError, SaveError, ShadeColor, ValueFormatter, WidgetExtEx, WithHoverState as _},
     ARROW_DROP_DOWN, ARROW_LEFT, LINK, LINK_OFF,
   },
   widgets::{card::Card, root_stack::RootStack},
@@ -315,31 +315,6 @@ impl Value {
 impl Display for Value {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_fmt(format_args!("{}{}", self.amount, self.unit))
-  }
-}
-
-struct ValueFormatter;
-
-impl druid::text::Formatter<u32> for ValueFormatter {
-  fn format(&self, value: &u32) -> String {
-    value.to_string()
-  }
-
-  fn validate_partial_input(
-    &self,
-    input: &str,
-    _sel: &druid::text::Selection,
-  ) -> druid::text::Validation {
-    match input.parse::<u32>() {
-      Err(err) if !input.is_empty() => druid::text::Validation::failure(err),
-      _ => druid::text::Validation::success(),
-    }
-  }
-
-  fn value(&self, input: &str) -> Result<u32, druid::text::ValidationError> {
-    input
-      .parse::<u32>()
-      .map_err(druid::text::ValidationError::new)
   }
 }
 
