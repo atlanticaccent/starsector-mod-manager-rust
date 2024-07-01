@@ -5,9 +5,10 @@ use druid::{
   lens::Map,
   text::ParseFormatter,
   widget::{
-    Button, Checkbox, Flex, Label, Painter, TextBox, TextBoxEvent, ValidationDelegate, WidgetExt,
+    Button, Checkbox, Flex, Label, Painter, SizedBox, TextBox, TextBoxEvent, ValidationDelegate,
+    WidgetExt,
   },
-  Data, Lens, LensExt, Selector, Widget,
+  Data, Insets, Key, Lens, LensExt, Selector, Widget,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
 use extend::ext;
@@ -15,13 +16,14 @@ use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 
 use super::{
-  controllers::HoverController,
+  controllers::{HoverController, Rotated},
   mod_list::headings::{Header, Heading},
   tools::vmparams::VMParams,
   util::{
-    button_painter, default_true, h2_fixed, hoverable_text, icons::*, CommandExt, LabelExt,
-    LoadError, SaveError, ShadeColor, WidgetExtEx, WithHoverState,
+    button_painter, default_true, h2_fixed, hoverable_text, icons::*, lensed_bold, CommandExt,
+    LabelExt, LoadError, SaveError, ShadeColor, Tap, WidgetExtEx, WithHoverState,
   },
+  App,
 };
 use crate::{
   app::PROJECT,
@@ -104,13 +106,19 @@ impl Settings {
             ),
         )
         .with_default_spacer()
-        .with_child(h2_fixed("Warn when overwriting '.git' folders:"))
         .with_child(
-          Checkbox::from_label(Label::wrapped(
-            "Aimed at developers. If a mod folder is an active Git project this option will warn \
-             you if it would be overwritten or deleted",
-          ))
-          .lens(Settings::git_warn),
+          Flex::column()
+            .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+            .with_child(h2_fixed("Warn when overwriting '.git' folders:"))
+            .with_child(
+              Checkbox::from_label(Label::wrapped(
+                "Aimed at developers. If a mod folder is an active Git project this option will \
+                 warn you if it would be overwritten or deleted (Unimplemented)",
+              ))
+              .lens(Settings::git_warn),
+            )
+            .mask_default()
+            .with_mask(SizedBox::empty()),
         )
         .with_default_spacer()
         .with_child(h2_fixed("Use in-app browser to open links:"))
@@ -138,8 +146,8 @@ impl Settings {
         ))
         .with_child(
           Checkbox::from_label(Label::wrapped(
-            "When more than one copy of a mod is installed at the same time it is completely \
-             random which version is actually loaded by the game.",
+            "When more than one copy of a mod is installed at the same time it is random which \
+             version is actually loaded by the game.",
           ))
           .lens(Settings::show_duplicate_warnings),
         )
@@ -147,12 +155,32 @@ impl Settings {
         .with_child(h2_fixed("Edit columns:"))
         .with_child(Self::headings_editor())
         .with_default_spacer()
+        .with_child(h2_fixed("Theme:"))
+        .with_spacer(5.0)
+        .with_child(
+          Card::builder()
+            .with_insets(0.1)
+            .with_corner_radius(0.0)
+            .with_shadow_length(0.0)
+            .with_shadow_increase(0.0)
+            .with_border(1.0, druid::Color::BLACK)
+            .stacked_button(
+              |_| Self::theme_picker_heading(true, 7.0).lens(Settings::theme),
+              Self::theme_picker_expanded,
+              CardButton::stack_none(),
+              150.0,
+            ),
+        )
+        .with_default_spacer()
         .with_child(
           hoverable_text(Some(druid::Color::BLACK))
             .constant("Open config.json".to_owned())
             .on_click(|_, _, _| {
               let _ = opener::open(Settings::path(false));
             })
+            .stack_tooltip_custom(Card::new(h2_fixed(
+              "Requires application restart for changes to apply.",
+            )))
             .align_right()
             .expand_width(),
         )
@@ -257,13 +285,7 @@ impl Settings {
         )
         .padding(2.)
         .lens(Map::new(
-          |data: &Vector<Option<Heading>>| {
-            data
-              .iter()
-              .cloned()
-              .filter_map(identity)
-              .collect()
-          },
+          |data: &Vector<Option<Heading>>| data.iter().cloned().filter_map(identity).collect(),
           |data, opts: Vector<Heading>| {
             let incomplete = !Heading::complete(&opts);
             *data = opts
@@ -320,12 +342,7 @@ impl Settings {
           .chain(Heading::complete(headings).not().then_some(None))
           .collect::<Vector<Option<Heading>>>()
       },
-      |headings, synth| {
-        *headings = synth
-          .into_iter()
-          .filter_map(identity)
-          .collect()
-      },
+      |headings, synth| *headings = synth.into_iter().filter_map(identity).collect(),
     ))
   }
 
@@ -405,6 +422,72 @@ impl Settings {
       .lens(super::App::settings.then(Settings::headings))
       .on_click(|ctx, _, _| RootStack::dismiss(ctx))
       .boxed()
+  }
+
+  fn theme_picker_heading<T: Data + AsRef<str>>(
+    collapsed: bool,
+    padding: impl Into<Insets>,
+  ) -> impl Widget<T> {
+    let mut row = Flex::row()
+      .with_child(lensed_bold(
+        druid::theme::TEXT_SIZE_NORMAL,
+        druid::FontWeight::SEMI_BOLD,
+        druid::theme::TEXT_COLOR,
+      ))
+      .with_flex_spacer(1.0);
+
+    if collapsed {
+      row.add_child(Icon::new(*CHEVRON_LEFT))
+    } else {
+      row.add_child(Rotated::new(Icon::new(*CHEVRON_RIGHT), 1))
+    }
+
+    row.padding(padding.into())
+  }
+
+  fn theme_picker_expanded(_: bool) -> impl Widget<super::App> {
+    Flex::column()
+      .with_child(Self::theme_picker_heading(false, (7.0, 7.0, 7.0, 0.0)))
+      .tap(|col| {
+        for theme in Themes::iter() {
+          col.add_child(
+            Flex::column()
+              .with_default_spacer()
+              .with_child(
+                CardButton::button_text(theme.as_ref())
+                  .padding(7.0)
+                  .expand_width()
+                  .scope_with_hover_state(false, true, |widget| {
+                    const THEME_OPTION_BORDER: Key<druid::Color> =
+                      Key::new("settings.themes.option.border");
+
+                    widget
+                      .border(THEME_OPTION_BORDER, 1.0)
+                      .env_scope(|env, data| {
+                        env.set(
+                          THEME_OPTION_BORDER,
+                          if data.1 {
+                            druid::Color::BLACK
+                          } else {
+                            druid::Color::TRANSPARENT
+                          },
+                        )
+                      })
+                  })
+                  .on_click(move |ctx, data, _| {
+                    *data = theme;
+                    ctx.submit_command(super::CHANGE_THEME.with(theme.into()))
+                  }),
+              )
+              .or_empty(move |data, _| data != &theme),
+          )
+        }
+      })
+      .lens(App::settings.then(Settings::theme))
+      .on_change(|_, _, data, _| {
+        let _ = data.settings.save();
+      })
+      .on_click(|ctx, _, _| RootStack::dismiss(ctx))
   }
 
   pub fn path(try_make: bool) -> PathBuf {

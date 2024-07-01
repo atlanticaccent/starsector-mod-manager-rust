@@ -1018,7 +1018,7 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
   }
 
   fn stack_tooltip_custom(self, label: impl Widget<T> + 'static) -> StackTooltip<T> {
-    StackTooltip::custom(self, label)
+    StackTooltip::custom(self, label).with_background_color(druid::Color::TRANSPARENT)
   }
 
   fn wrap_with_hover_state<S: HoverState>(self, state: S, set_cursor: bool) -> impl Widget<T> {
