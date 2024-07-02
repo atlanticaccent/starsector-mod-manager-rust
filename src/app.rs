@@ -1,18 +1,18 @@
-use std::{path::PathBuf, rc::Rc};
+use std::path::PathBuf;
 
-use chrono::Local;
 use druid::{
-  im::{OrdMap, Vector},
+  im::Vector,
   lens,
   widget::{Flex, Maybe, Scope, WidgetWrapper, ZStack},
   Data, Lens, LensExt, Selector, SingleUse, Widget, WidgetExt, WidgetId,
 };
-use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
+use druid_widget_nursery::{
+  material_icons::Icon, navigator::Navigator, WidgetExt as WidgetExtNursery,
+};
 use tokio::runtime::Handle;
 use webview_shared::PROJECT;
 
 use self::{
-  activity::Activity,
   browser::Browser,
   controllers::{AppController, HoverController, ModListController},
   installer::{HybridPath, StringOrPath},
@@ -36,7 +36,6 @@ use crate::{
   widgets::root_stack::RootStack,
 };
 
-mod activity;
 pub mod app_delegate;
 mod browser;
 pub mod controllers;
@@ -67,12 +66,7 @@ pub struct App {
   runtime: Handle,
   #[data(ignore)]
   widget_id: WidgetId,
-  #[data(same_fn = "PartialEq::eq")]
-  log: Vector<String>,
-  overwrite_log: Vector<Rc<(StringOrPath, HybridPath, ModEntry)>>,
-  duplicate_log: Vector<(ViewModEntry, ViewModEntry)>,
   browser: Browser,
-  downloads: OrdMap<i64, (i64, String, f64)>,
   mod_repo: Option<ModRepo>,
   pub popups: Vector<Popup>,
   pub current_tab: NavLabel,
@@ -129,11 +123,7 @@ impl App {
       active: None,
       runtime,
       widget_id: WidgetId::reserved(0),
-      log: Vector::new(),
-      overwrite_log: Vector::new(),
-      duplicate_log: Vector::new(),
       browser: Default::default(),
-      downloads: OrdMap::new(),
       mod_repo: None,
       popups: Vector::new(),
       current_tab: NavLabel::Mods,
@@ -213,6 +203,7 @@ impl App {
           .on_command(App::TOGGLE_NAV_BAR, |_, _, data| data.inner = !data.inner)
       }))
       .with_flex_child(
+        // Navigator::new(name, ui_builder)
         Tabs::for_policy(StaticTabsForked::build(vec![
           InitialTab::new(
             NavLabel::Mods,
@@ -246,7 +237,6 @@ impl App {
           ),
           InitialTab::new(NavLabel::Starmodder, ModRepo::wrapper()),
           InitialTab::new(NavLabel::WebBrowser, Browser::view().lens(App::browser)),
-          InitialTab::new(NavLabel::Activity, Activity::view().lens(App::log)),
           InitialTab::new(NavLabel::Settings, Settings::view().lens(App::settings)),
         ]))
         .with_transition(crate::patch::tabs::tab::TabsTransition::Instant)
@@ -329,11 +319,5 @@ impl App {
           data.1 = theme.clone()
         }),
     )
-  }
-
-  fn log_message(&mut self, message: &str) {
-    self
-      .log
-      .push_back(format!("[{}] {}", Local::now().format("%H:%M:%S"), message))
   }
 }

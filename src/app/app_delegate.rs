@@ -144,19 +144,6 @@ impl Delegate<App> for AppDelegate {
       App::mod_list
         .then(ModList::starsector_version)
         .put(data, res.as_ref().ok().cloned());
-    } else if let Some(name) = cmd.get(App::LOG_SUCCESS) {
-      data.log_message(&format!("Successfully installed {}", name));
-      return Handled::Yes;
-    } else if let Some(()) = cmd.get(App::CLEAR_LOG) {
-      data.log.clear();
-
-      return Handled::Yes;
-    } else if let Some((name, err)) = cmd.get(App::LOG_ERROR) {
-      data.log_message(&format!("Failed to install {}. Error: {}", name, err));
-      return Handled::Yes;
-    } else if let Some(message) = cmd.get(App::LOG_MESSAGE) {
-      data.log_message(message);
-      return Handled::Yes;
     } else if let Some((conflict, to_install, entry)) = cmd.get(App::LOG_OVERWRITE) {
       ctx.submit_command(Popup::QUEUE_POPUP.with(Popup::overwrite(
         conflict.clone(),
@@ -248,20 +235,20 @@ impl Delegate<App> for AppDelegate {
       } else {
         eprintln!("Failed to delete mod")
       }
-    } else if let Some((timestamp, url)) = cmd.get(DOWNLOAD_STARTED) {
-      data
-        .downloads
-        .insert(*timestamp, (*timestamp, url.clone(), 0.0));
+    } else if let Some((_timestamp, _url)) = cmd.get(DOWNLOAD_STARTED) {
+      // data
+      //   .downloads
+      //   .insert(*timestamp, (*timestamp, url.clone(), 0.0));
 
       return Handled::Yes;
-    } else if let Some(updates) = cmd.get(DOWNLOAD_PROGRESS) {
-      for update in updates {
-        data.downloads.insert(update.0, update.clone());
-      }
+    } else if let Some(_updates) = cmd.get(DOWNLOAD_PROGRESS) {
+      // for update in updates {
+      //   data.downloads.insert(update.0, update.clone());
+      // }
 
       return Handled::Yes;
-    } else if let Some(timestamp) = cmd.get(App::REMOVE_DOWNLOAD_BAR) {
-      data.downloads.remove(timestamp);
+    } else if let Some(_timestamp) = cmd.get(App::REMOVE_DOWNLOAD_BAR) {
+      // data.downloads.remove(timestamp);
 
       return Handled::Yes;
     } else if let Some((to_install, source)) = cmd
