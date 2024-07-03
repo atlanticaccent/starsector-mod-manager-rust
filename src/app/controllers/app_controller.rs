@@ -28,7 +28,6 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
   fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut App, env: &Env) {
     if let Event::Command(cmd) = event {
       if let Some(settings::SettingsCommand::SelectInstallDir) = cmd.get(Settings::SELECTOR) {
-        dbg!("Open install dir browser");
         let ext_ctx = ctx.get_external_handle();
         ctx.set_disabled(true);
         data.runtime.spawn_blocking(move || {

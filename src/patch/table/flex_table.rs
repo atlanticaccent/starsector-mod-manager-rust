@@ -363,16 +363,17 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
     for (row_num, row_id) in keys.into_iter().enumerate() {
       let columns: Vec<_> = data.columns().collect();
       if let Some(row) = self.children.get_mut(&row_id) {
-        let row_data = &mut data[row_id];
-        for (idx, column) in columns.iter().enumerate() {
-          if let Some(cell) = &mut row.children.get_mut(column) {
-            let env = env
-              .clone()
-              .adding(Self::ROW_IDX, row_num as u64)
-              .adding(Self::COL_IDX, idx as u64);
-            cell.event(ctx, event, row_data, &env);
+        data.with_mut(row_id, |row_data| {
+          for (idx, column) in columns.iter().enumerate() {
+            if let Some(cell) = &mut row.children.get_mut(column) {
+              let env = env
+                .clone()
+                .adding(Self::ROW_IDX, row_num as u64)
+                .adding(Self::COL_IDX, idx as u64);
+              cell.event(ctx, event, row_data, &env);
+            }
           }
-        }
+        })
       }
     }
   }

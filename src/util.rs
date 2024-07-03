@@ -1679,3 +1679,7 @@ impl druid::text::Formatter<u32> for ValueFormatter {
       .map_err(druid::text::ValidationError::new)
   }
 }
+
+pub fn ident_arc<T: Data>() -> lens::InArc<lens::Identity> {
+  lens::InArc::new::<T, T>(lens::Identity)
+}

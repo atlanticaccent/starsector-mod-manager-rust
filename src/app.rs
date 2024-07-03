@@ -1,15 +1,14 @@
 use std::path::PathBuf;
 
 use druid::{
-  im::Vector,
+  im::{HashSet, Vector},
   lens,
   widget::{Flex, Maybe, Scope, WidgetWrapper, ZStack},
   Data, Lens, LensExt, Selector, SingleUse, Widget, WidgetExt, WidgetId,
 };
-use druid_widget_nursery::{
-  material_icons::Icon, navigator::Navigator, WidgetExt as WidgetExtNursery,
-};
+use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
 use tokio::runtime::Handle;
+use util::{ident_arc, Tap};
 use webview_shared::PROJECT;
 
 use self::{
@@ -71,6 +70,8 @@ pub struct App {
   pub popups: Vector<Popup>,
   pub current_tab: NavLabel,
   pub block_next_root_stack: bool,
+  views: HashSet<NavLabel>,
+  current_view: NavLabel,
 }
 
 impl App {
@@ -84,8 +85,6 @@ impl App {
   const UPDATE_AVAILABLE: Selector<Result<Release, String>> = Selector::new("app.update.available");
   const SELF_UPDATE: Selector<()> = Selector::new("app.update.perform");
   const RESTART: Selector<PathBuf> = Selector::new("app.update.restart");
-  const LOG_SUCCESS: Selector<String> = Selector::new("app.mod.install.success");
-  const CLEAR_LOG: Selector = Selector::new("app.install.clear_log");
   const LOG_ERROR: Selector<(String, String)> = Selector::new("app.mod.install.fail");
   const LOG_MESSAGE: Selector<String> = Selector::new("app.mod.install.start");
   const LOG_OVERWRITE: Selector<(StringOrPath, HybridPath, ModEntry)> =
@@ -128,6 +127,8 @@ impl App {
       popups: Vector::new(),
       current_tab: NavLabel::Mods,
       block_next_root_stack: false,
+      views: HashSet::new().tap(|s| s.insert(NavLabel::Mods)),
+      current_view: NavLabel::Mods,
     }
   }
 
@@ -203,7 +204,6 @@ impl App {
           .on_command(App::TOGGLE_NAV_BAR, |_, _, data| data.inner = !data.inner)
       }))
       .with_flex_child(
-        // Navigator::new(name, ui_builder)
         Tabs::for_policy(StaticTabsForked::build(vec![
           InitialTab::new(
             NavLabel::Mods,
@@ -214,7 +214,11 @@ impl App {
           ),
           InitialTab::new(
             NavLabel::ModDetails,
-            Maybe::new(ModDescription::view, ModDescription::empty_builder).lens(lens::Map::new(
+            Maybe::new(
+              || ModDescription::view().lens(ident_arc::<ModEntry>()),
+              ModDescription::empty_builder,
+            )
+            .lens(lens::Map::new(
               |app: &App| {
                 app
                   .active
@@ -284,16 +288,18 @@ impl App {
           let remote = res.as_ref().ok().cloned();
           let entry_lens = App::mod_list.then(ModList::mods).deref().index(id);
 
-          if let Some(version_checker) =
-            entry_lens.clone().then(ModEntry::version_checker).get(data)
+          if let Some(version_checker) = entry_lens
+            .clone()
+            .then(ModEntry::version_checker.in_arc())
+            .get(data)
           {
             entry_lens
               .clone()
-              .then(ModEntry::remote_version)
+              .then(ModEntry::remote_version.in_arc())
               .put(data, remote.clone());
 
             entry_lens
-              .then(ModEntry::update_status)
+              .then(ModEntry::update_status.in_arc())
               .put(data, Some(UpdateStatus::from((&version_checker, &remote))))
           }
         }),

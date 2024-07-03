@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use druid::{
   widget::{Either, Flex, Label},
   Data, Key, Widget, WidgetExt,
@@ -134,11 +136,14 @@ impl RemoteUpdate {
                   .on_click(move |ctx, data: &mut App, _| {
                     ctx.submit_command(Popup::DISMISS);
                     let old = data.mod_list.mods.get_mut(&mod_id).unwrap();
-                    old.view_state.updating = true;
+                    let new = Arc::make_mut(old);
+                    new.view_state.updating = true;
+                    let new = Arc::new(new.clone());
+                    data.mod_list.mods[&mod_id] = new;
                     data.runtime.spawn(
                       installer::Payload::Download {
                         mod_id: mod_id.clone(),
-                        old_path: old.path.clone(),
+                        old_path: data.mod_list.mods[&mod_id].path.clone(),
                         remote_version: remote_version.clone(),
                       }
                       .install(

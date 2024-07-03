@@ -1,4 +1,4 @@
-use std::ops::{Index, IndexMut};
+use std::ops::Index;
 
 use druid::{
   widget::{BackgroundBrush, Painter},
@@ -409,12 +409,6 @@ impl<T: Data> Index<usize> for FixedTable<T> {
   }
 }
 
-impl<T: Data> IndexMut<usize> for FixedTable<T> {
-  fn index_mut(&mut self, _: usize) -> &mut Self::Output {
-    &mut self.data
-  }
-}
-
 impl<T: Data> TableData for FixedTable<T> {
   type Row = FixedRow<T>;
   type Column = <Self::Row as RowData>::Column;
@@ -425,6 +419,10 @@ impl<T: Data> TableData for FixedTable<T> {
 
   fn columns(&self) -> impl Iterator<Item = Self::Column> {
     0..self.columns
+  }
+
+  fn with_mut(&mut self, _: <Self::Row as RowData>::Id, mutate: impl FnOnce(&mut Self::Row)) {
+    mutate(&mut self.data)
   }
 }
 

@@ -2,8 +2,9 @@ use std::{
   collections::HashMap,
   hash::Hash,
   iter::FromIterator,
-  ops::{Deref, Index, IndexMut},
+  ops::{Deref, Index},
   path::{Path, PathBuf},
+  sync::Arc,
 };
 
 use comemo::memoize;
@@ -57,7 +58,7 @@ const CONTROL_WIDTH: f64 = 175.0;
 
 #[derive(Clone, Data, Lens)]
 pub struct ModList {
-  pub mods: xxHashMap<String, ModEntry>,
+  pub mods: xxHashMap<String, Arc<ModEntry>>,
   pub header: Header,
   pub search_text: String,
   starsector_version: Option<GameVersion>,
@@ -100,7 +101,7 @@ impl ModList {
       mods
         .inner()
         .into_iter()
-        .map(|(id, entry)| (id, ModEntry::from(entry))),
+        .map(|(id, entry)| (id, Arc::new(ModEntry::from(entry)))),
     );
   }
 
@@ -174,7 +175,9 @@ impl ModList {
                             true
                           })
                           .on_command(Self::INSERT_MOD, |_, ctx, entry, data| {
-                            data.mods.insert(entry.id.clone(), entry.clone().into());
+                            data
+                              .mods
+                              .insert(entry.id.clone(), Arc::new(entry.clone().into()));
                             ctx.request_update();
                             true
                           }),
@@ -244,7 +247,7 @@ impl ModList {
     ModList::mods
       .deref()
       .index(id)
-      .then(ModEntry::manager_metadata)
+      .then(ModEntry::manager_metadata.in_arc())
       .put(data, metadata.clone());
 
     false
@@ -488,7 +491,7 @@ impl ModList {
   }
 
   pub fn sorted_vals(
-    mods: xxHashMap<String, ModEntry>,
+    mods: xxHashMap<String, Arc<ModEntry>>,
     header: Header,
     search_text: String,
     filters: Vec<Filters>,
@@ -500,7 +503,7 @@ impl ModList {
 
   #[memoize]
   fn sorted_vals_memo(
-    mods: xxHashMap<String, ModEntry>,
+    mods: xxHashMap<String, Arc<ModEntry>>,
     header: Header,
     search_text: String,
     filters: Vec<Filters>,
@@ -509,7 +512,7 @@ impl ModList {
   }
 
   pub fn sorted_vals_inner(
-    mods: xxHashMap<String, ModEntry>,
+    mods: xxHashMap<String, Arc<ModEntry>>,
     header: Header,
     search_text: String,
     filters: Vec<Filters>,
@@ -598,12 +601,6 @@ impl<I: AsRef<str>> Index<I> for ModList {
   }
 }
 
-impl<I: AsRef<str>> IndexMut<I> for ModList {
-  fn index_mut(&mut self, index: I) -> &mut Self::Output {
-    &mut self.mods[index.as_ref()]
-  }
-}
-
 impl TableData for ModList {
   type Row = ModEntry;
   type Column = Heading;
@@ -623,6 +620,15 @@ impl TableData for ModList {
       .iter()
       .chain(self.header.headings.iter())
       .cloned()
+  }
+
+  fn with_mut(
+    &mut self,
+    idx: <Self::Row as crate::patch::table::RowData>::Id,
+    mutate: impl FnOnce(&mut Self::Row),
+  ) {
+    let entry = Arc::make_mut(&mut self.mods[&idx]);
+    mutate(entry)
   }
 }
 

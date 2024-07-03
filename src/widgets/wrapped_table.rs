@@ -328,6 +328,10 @@ impl<T: WrapData, W: Widget<T> + 'static> TableData for TableDataImpl<T, W> {
   fn columns(&self) -> impl Iterator<Item = Self::Column> {
     0..self.width
   }
+
+  fn with_mut(&mut self, _: <Self::Row as RowData>::Id, mutate: impl FnOnce(&mut Self::Row)) {
+    mutate(&mut self.data)
+  }
 }
 
 const COL_NUM: Key<u64> = Key::new("wrapped_table.cell.col_num");

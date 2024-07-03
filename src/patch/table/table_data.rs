@@ -1,7 +1,7 @@
 use std::{
   fmt::Debug,
   hash::Hash,
-  ops::{Deref, Index, IndexMut},
+  ops::{Deref, Index},
   sync::Arc,
 };
 
@@ -37,17 +37,15 @@ impl<T: RowData> RowData for Arc<T> {
   }
 }
 
-pub trait TableData:
-  Data
-  + Index<<Self::Row as RowData>::Id, Output = Self::Row>
-  + IndexMut<<Self::Row as RowData>::Id, Output = Self::Row>
-{
+pub trait TableData: Data + Index<<Self::Row as RowData>::Id, Output = Self::Row> {
   type Row: RowData<Column = Self::Column>;
   type Column: Hash + Eq + Clone + Debug;
 
   fn keys(&self) -> impl Iterator<Item = <Self::Row as RowData>::Id>;
 
   fn columns(&self) -> impl Iterator<Item = Self::Column>;
+
+  fn with_mut(&mut self, idx: <Self::Row as RowData>::Id, mutate: impl FnOnce(&mut Self::Row));
 }
 
 pub type WidgetFactoryRow = Vector<Arc<dyn Fn() -> Box<dyn Widget<()>>>>;
@@ -82,6 +80,10 @@ impl TableData for WidgetFactoryTable {
       0..self[0].1.len()
     }
   }
+
+  fn with_mut(&mut self, idx: <Self::Row as RowData>::Id, mutate: impl FnOnce(&mut Self::Row)) {
+    mutate(&mut self[idx])
+  }
 }
 
 impl RowData for () {
@@ -108,4 +110,6 @@ impl TableData for [(); 0] {
   fn columns(&self) -> impl Iterator<Item = Self::Column> {
     0..0
   }
+
+  fn with_mut(&mut self, _: usize, _: impl FnOnce(&mut ())) {}
 }

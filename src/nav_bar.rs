@@ -7,7 +7,7 @@ use druid::{
   widget::{Container, Either, Flex, Label, Scope, SizedBox},
   Color, Command, Data, Lens, Selector, Widget, WidgetExt as _,
 };
-use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
+use druid_widget_nursery::{material_icons::Icon, navigator::View, WidgetExt as _};
 
 use crate::{
   app::{
@@ -140,7 +140,9 @@ pub struct Nav {
   pub override_: Option<bool>,
 }
 
-#[derive(strum_macros::Display, strum_macros::AsRefStr, Clone, Copy, PartialEq, Debug, Data)]
+#[derive(
+  strum_macros::Display, strum_macros::AsRefStr, Clone, Copy, PartialEq, Debug, Data, Hash, Eq,
+)]
 #[strum(serialize_all = "title_case")]
 pub enum NavLabel {
   Root,
@@ -157,6 +159,8 @@ pub enum NavLabel {
   Settings,
   Separator,
 }
+
+impl View for NavLabel {}
 
 impl From<NavLabel> for String {
   fn from(value: NavLabel) -> Self {

@@ -287,8 +287,12 @@ impl<TP: TabsPolicy> Widget<TabsState<TP>> for TabBar<TP> {
       _ => {}
     }
 
-    for (_, tab) in self.tabs.iter_mut() {
-      tab.event(ctx, event, data, env);
+    if event.should_propagate_to_hidden() {
+      for (_, tab) in self.tabs.iter_mut() {
+        tab.event(ctx, event, data, env);
+      }
+    } else {
+      self.tabs[data.selected].1.event(ctx, event, data, env)
     }
   }
 
@@ -304,8 +308,12 @@ impl<TP: TabsPolicy> Widget<TabsState<TP>> for TabBar<TP> {
       ctx.children_changed();
     }
 
-    for (_, tab) in self.tabs.iter_mut() {
-      tab.lifecycle(ctx, event, data, env);
+    if event.should_propagate_to_hidden() {
+      for (_, tab) in self.tabs.iter_mut() {
+        tab.lifecycle(ctx, event, data, env)
+      }
+    } else {
+      self.tabs[data.selected].1.lifecycle(ctx, event, data, env)
     }
   }
 
@@ -761,7 +769,6 @@ enum TabsContent<TP: TabsPolicy> {
 ///     .with_tab("Connection", Label::new("Connection information"))
 ///     .with_tab("Proxy", Label::new("Proxy settings"))
 ///     .lens(AppState::name);
-///
 /// ```
 pub struct Tabs<TP: TabsPolicy> {
   axis: Axis,
