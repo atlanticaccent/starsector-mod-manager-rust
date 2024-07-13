@@ -525,7 +525,7 @@ impl ModList {
           if !search_text.is_empty() {
             let id_score = best_match(&search_text, &entry.id).map(|m| m.score());
             let name_score = best_match(&search_text, &entry.name).map(|m| m.score());
-            let author_score = best_match(&search_text, &entry.author).map(|m| m.score());
+            let author_score = best_match(&search_text, entry.author.as_deref().unwrap_or_default()).map(|m| m.score());
 
             id_score.is_some() || name_score.is_some() || author_score.is_some()
           } else {
@@ -570,7 +570,7 @@ impl ModList {
       Heading::Score => sort!(ids, |entry: &ModEntry| {
         let id_score = best_match(&search_text, &entry.id).map(|m| m.score());
         let name_score = best_match(&search_text, &entry.name).map(|m| m.score());
-        let author_score = best_match(&search_text, &entry.author).map(|m| m.score());
+        let author_score = best_match(&search_text, entry.author.as_deref().unwrap_or_default()).map(|m| m.score());
 
         id_score
           .max(name_score)

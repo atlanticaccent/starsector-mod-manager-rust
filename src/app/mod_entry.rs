@@ -51,7 +51,7 @@ pub struct ModEntry<T = ()> {
   pub id: String,
   pub name: String,
   #[serde(default)]
-  pub author: String,
+  pub author: Option<String>,
   pub version: VersionUnion,
   description: String,
   #[serde(alias = "gameVersion")]
@@ -248,7 +248,13 @@ impl ViewModEntry {
           match header {
             Heading::ID => label.lens(ViewModEntry::id).padding(5.).expand_width(),
             Heading::Name => label.lens(ViewModEntry::name).padding(5.).expand_width(),
-            Heading::Author => label.lens(ViewModEntry::author).padding(5.).expand_width(),
+            Heading::Author => label
+              .lens(
+                ViewModEntry::author
+                  .compute(|author| author.clone().unwrap_or("Unknown".to_owned())),
+              )
+              .padding(5.)
+              .expand_width(),
             _ => unreachable!(),
           }
           .boxed()

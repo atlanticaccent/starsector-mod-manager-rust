@@ -267,9 +267,16 @@ impl ModDescription {
               })
             })),
           )
-          .with_child(h2_fixed("Author(s)"))
-          .with_child(Label::wrapped_lens(ModEntry::author))
-          .with_default_spacer()
+          .with_child(
+            Maybe::or_empty(|| {
+              Flex::column()
+                .with_child(h2_fixed("Author(s)"))
+                .with_child(Label::wrapped_func(|data: &String, _| data.clone()))
+                .with_default_spacer()
+                .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+            })
+            .lens(ModEntry::author),
+          )
           .with_child(h2_fixed("Installed at"))
           .with_child(
             Label::wrapped_func(|data: &ModMetadata, _| {
