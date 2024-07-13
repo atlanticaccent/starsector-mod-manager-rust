@@ -312,6 +312,8 @@ impl ModDescription {
           )
           .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
           .must_fill_main_axis(true)
+          .scroll()
+          .vertical()
           .expand()
           .padding(5.0),
       )
