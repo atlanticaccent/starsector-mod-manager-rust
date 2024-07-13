@@ -37,7 +37,6 @@ use regex::Regex;
 use reqwest::Client;
 use serde::Deserialize;
 use tokio::{select, sync::mpsc};
-use xxhash_rust::xxh3::Xxh3Builder;
 
 use crate::{
   app::{
@@ -1269,52 +1268,52 @@ impl<T: Any + Send, U: Any + Send, SINK: Default + Collection<T, U> + Send>
 
 #[allow(non_camel_case_types)]
 #[derive(Clone, Default)]
-pub struct xxHashMap<K: Clone + Hash + Eq, V: Clone>(druid::im::HashMap<K, V, Xxh3Builder>);
+pub struct FastImMap<K: Clone + Hash + Eq, V: Clone>(druid::im::HashMap<K, V, ahash::RandomState>);
 
-impl<K: Clone + Hash + Eq, V: Clone> xxHashMap<K, V> {
+impl<K: Clone + Hash + Eq, V: Clone> FastImMap<K, V> {
   pub fn new() -> Self {
-    Self(druid::im::HashMap::with_hasher(Xxh3Builder::new()))
+    Self(druid::im::HashMap::with_hasher(ahash::RandomState::new()))
   }
 
-  pub fn inner(self) -> druid::im::HashMap<K, V, Xxh3Builder> {
+  pub fn inner(self) -> druid::im::HashMap<K, V, ahash::RandomState> {
     self.0
   }
 }
 
-impl<K: Clone + Hash + Eq, V: Clone> Debug for xxHashMap<K, V>
+impl<K: Clone + Hash + Eq, V: Clone> Debug for FastImMap<K, V>
 where
-  druid::im::HashMap<K, V, Xxh3Builder>: Debug,
+  druid::im::HashMap<K, V, ahash::RandomState>: Debug,
 {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     self.deref().fmt(f)
   }
 }
 
-impl<K: Clone + Hash + Eq, V: Clone + Hash> Hash for xxHashMap<K, V>
+impl<K: Clone + Hash + Eq, V: Clone + Hash> Hash for FastImMap<K, V>
 where
-  druid::im::HashMap<K, V, Xxh3Builder>: Hash,
+  druid::im::HashMap<K, V, ahash::RandomState>: Hash,
 {
   fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
     self.deref().hash(state)
   }
 }
 
-impl<K: Clone + Hash + Eq, V: Clone> Deref for xxHashMap<K, V> {
-  type Target = druid::im::HashMap<K, V, Xxh3Builder>;
+impl<K: Clone + Hash + Eq, V: Clone> Deref for FastImMap<K, V> {
+  type Target = druid::im::HashMap<K, V, ahash::RandomState>;
 
   fn deref(&self) -> &Self::Target {
     &self.0
   }
 }
 
-impl<K: Clone + Hash + Eq, V: Clone> DerefMut for xxHashMap<K, V> {
+impl<K: Clone + Hash + Eq, V: Clone> DerefMut for FastImMap<K, V> {
   fn deref_mut(&mut self) -> &mut Self::Target {
     &mut self.0
   }
 }
 
 impl<KB: Hash + Eq + ?Sized, K: Clone + Hash + Eq + Borrow<KB>, V: Clone> Index<&KB>
-  for xxHashMap<K, V>
+  for FastImMap<K, V>
 {
   type Output = V;
 
@@ -1324,29 +1323,29 @@ impl<KB: Hash + Eq + ?Sized, K: Clone + Hash + Eq + Borrow<KB>, V: Clone> Index<
 }
 
 impl<KB: Hash + Eq + ?Sized, K: Clone + Hash + Eq + Borrow<KB>, V: Clone> IndexMut<&KB>
-  for xxHashMap<K, V>
+  for FastImMap<K, V>
 {
   fn index_mut(&mut self, index: &KB) -> &mut Self::Output {
     self.deref_mut().index_mut(index)
   }
 }
 
-impl<K: Clone + Eq + Hash + 'static, V: Clone + Data + 'static> Data for xxHashMap<K, V> {
+impl<K: Clone + Eq + Hash + 'static, V: Clone + Data + 'static> Data for FastImMap<K, V> {
   fn same(&self, other: &Self) -> bool {
     self.is_submap_by(&**other, |other, val| other.same(val))
   }
 }
 
-impl<K: Clone + Hash + Eq, V: Clone> From<xxHashMap<K, V>>
-  for druid::im::HashMap<K, V, Xxh3Builder>
+impl<K: Clone + Hash + Eq, V: Clone> From<FastImMap<K, V>>
+  for druid::im::HashMap<K, V, ahash::RandomState>
 {
-  fn from(other: xxHashMap<K, V>) -> Self {
+  fn from(other: FastImMap<K, V>) -> Self {
     other.0
   }
 }
 
 impl<K: Clone + Hash + Eq + PartialEq + Eq, V: Clone, O: Into<druid::im::HashMap<K, V>>> From<O>
-  for xxHashMap<K, V>
+  for FastImMap<K, V>
 {
   fn from(other: O) -> Self {
     let mut new = Self::new();
@@ -1356,17 +1355,17 @@ impl<K: Clone + Hash + Eq + PartialEq + Eq, V: Clone, O: Into<druid::im::HashMap
   }
 }
 
-impl<K: Clone + Hash + Eq, V: Clone> PartialEq for xxHashMap<K, V>
+impl<K: Clone + Hash + Eq, V: Clone> PartialEq for FastImMap<K, V>
 where
-  druid::im::HashMap<K, V, Xxh3Builder>: PartialEq,
+  druid::im::HashMap<K, V, ahash::RandomState>: PartialEq,
 {
   fn eq(&self, other: &Self) -> bool {
     self.0 == other.0
   }
 }
 
-impl<K: Clone + Hash + Eq, V: Clone> Eq for xxHashMap<K, V> where
-  druid::im::HashMap<K, V, Xxh3Builder>: Eq
+impl<K: Clone + Hash + Eq, V: Clone> Eq for FastImMap<K, V> where
+  druid::im::HashMap<K, V, ahash::RandomState>: Eq
 {
 }
 

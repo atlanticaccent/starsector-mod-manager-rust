@@ -22,7 +22,7 @@ use self::{
   overlays::Popup,
   settings::Settings,
   tools::Tools,
-  util::{bold_text, icons::*, xxHashMap, Release},
+  util::{bold_text, icons::*, FastImMap, Release},
 };
 use crate::{
   app::util::WidgetExtEx,
@@ -96,7 +96,7 @@ impl App {
     Selector::new("app.install.found_multiple");
 
   const TOGGLE_NAV_BAR: Selector = Selector::new("app.nav_bar.collapse");
-  const REPLACE_MODS: Selector<SingleUse<xxHashMap<String, ModEntry>>> =
+  const REPLACE_MODS: Selector<SingleUse<FastImMap<String, ModEntry>>> =
     Selector::new("app.mod_list.replace");
 
   pub fn new(runtime: Handle) -> Self {
@@ -132,7 +132,7 @@ impl App {
     }
   }
 
-  pub fn replace_mods(&mut self, mods: xxHashMap<String, ModEntry>) {
+  pub fn replace_mods(&mut self, mods: FastImMap<String, ModEntry>) {
     self.mod_list.replace_mods(mods)
   }
 

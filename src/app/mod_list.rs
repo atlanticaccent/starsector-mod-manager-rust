@@ -31,7 +31,7 @@ use super::{
   mod_entry::{
     GameVersion, ModEntry as RawModEntry, ModMetadata, UpdateStatus, ViewModEntry as ModEntry,
   },
-  util::{self, xxHashMap, SaveError, WidgetExtEx},
+  util::{self, FastImMap, SaveError, WidgetExtEx},
   App,
 };
 use crate::{
@@ -58,7 +58,7 @@ const CONTROL_WIDTH: f64 = 175.0;
 
 #[derive(Clone, Data, Lens)]
 pub struct ModList {
-  pub mods: xxHashMap<String, Arc<ModEntry>>,
+  pub mods: FastImMap<String, Arc<ModEntry>>,
   pub header: Header,
   pub search_text: String,
   starsector_version: Option<GameVersion>,
@@ -86,7 +86,7 @@ impl ModList {
 
   pub fn new(headings: Vector<Heading>) -> Self {
     Self {
-      mods: xxHashMap::new(),
+      mods: FastImMap::new(),
       header: Header::new(headings),
       search_text: String::new(),
       starsector_version: None,
@@ -96,7 +96,7 @@ impl ModList {
     }
   }
 
-  pub fn replace_mods(&mut self, mods: xxHashMap<String, RawModEntry>) {
+  pub fn replace_mods(&mut self, mods: FastImMap<String, RawModEntry>) {
     *self.mods = druid::im::HashMap::from_iter(
       mods
         .inner()
@@ -157,6 +157,7 @@ impl ModList {
                       }))
                       .with_column_width(TableColumnWidth::Fixed(Header::ENABLED_WIDTH))
                       .column_border(theme::BORDER_DARK, 1.0)
+                      .clip_aware(true)
                       .controller(
                         ExtensibleController::new()
                           .on_command(Self::UPDATE_COLUMN_WIDTH, Self::column_resized)
@@ -228,7 +229,7 @@ impl ModList {
   fn replace_mods_command_handler(
     _table: &mut FlexTable<ModList>,
     ctx: &mut EventCtx,
-    payload: &SingleUse<xxHashMap<String, RawModEntry>>,
+    payload: &SingleUse<FastImMap<String, RawModEntry>>,
     data: &mut ModList,
   ) -> bool {
     data.replace_mods(payload.take().unwrap());
@@ -349,7 +350,7 @@ impl ModList {
 
   pub fn parse_mod_folder(
     root_dir: PathBuf,
-  ) -> Result<xxHashMap<String, RawModEntry>, (xxHashMap<String, RawModEntry>, Vec<Vec<RawModEntry>>)>
+  ) -> Result<FastImMap<String, RawModEntry>, (FastImMap<String, RawModEntry>, Vec<Vec<RawModEntry>>)>
   {
     eprintln!("parsing mods");
     let handle = tokio::runtime::Handle::current();
@@ -441,7 +442,7 @@ impl ModList {
       .into_iter()
       .partition(|(_, bucket)| bucket.len() == 1);
 
-    let mut out = xxHashMap::new();
+    let mut out = FastImMap::new();
     *out = map
       .into_iter()
       .map(|(id, mut bucket)| (id, bucket.swap_remove(0)))
@@ -491,7 +492,7 @@ impl ModList {
   }
 
   pub fn sorted_vals(
-    mods: xxHashMap<String, Arc<ModEntry>>,
+    mods: FastImMap<String, Arc<ModEntry>>,
     header: Header,
     search_text: String,
     filters: Vec<Filters>,
@@ -503,7 +504,7 @@ impl ModList {
 
   #[memoize]
   fn sorted_vals_memo(
-    mods: xxHashMap<String, Arc<ModEntry>>,
+    mods: FastImMap<String, Arc<ModEntry>>,
     header: Header,
     search_text: String,
     filters: Vec<Filters>,
@@ -512,7 +513,7 @@ impl ModList {
   }
 
   pub fn sorted_vals_inner(
-    mods: xxHashMap<String, Arc<ModEntry>>,
+    mods: FastImMap<String, Arc<ModEntry>>,
     header: Header,
     search_text: String,
     filters: Vec<Filters>,

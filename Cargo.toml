@@ -2,7 +2,7 @@ cargo-features = ["codegen-backend"]
 
 [package]
 name = "moss"
-version = "0.7.2"
+version = "0.8.0-beta2"
 authors = ["ikl"]
 edition = "2018"
 description = "A mod manager for the game Starsector"
@@ -53,7 +53,7 @@ junction = { workspace = true }
 flate2 = { workspace = true }
 tar = { workspace = true }
 deunicode = { workspace = true }
-xxhash-rust = { workspace = true, features = ["xxh3"] }
+ahash = { workspace = true }
 wry = { workspace = true }
 thiserror = { workspace = true }
 internment = { workspace = true }
@@ -126,7 +126,7 @@ members = [
 
 [workspace.dependencies]
 wry = { git = "https://github.com/atlanticaccent/wry.git", branch = "screenshot-v2" }
-druid = { git = "https://github.com/atlanticaccent/druid", default-features = false, features = ["raw-win-handle"], branch = "update-raw-win-handle" }
+druid = { git = "https://github.com/atlanticaccent/druid", default-features = false, features = ["raw-win-handle"], branch = "faster-hashing" }
 druid-widget-nursery = { git = "https://github.com/atlanticaccent/druid-widget-nursery", default-features = false }
 tokio = { version = "1.6.0" }
 infer = "0.3.4"
@@ -165,7 +165,7 @@ junction = "0.2.0"
 flate2 = "1.0"
 tar = "0.4"
 deunicode = "1.3.2"
-xxhash-rust = { version = "0.8.6" }
+ahash = "0.8.11"
 thiserror = "1.0.50"
 internment = "0.7.4"
 syn = "2.0.48"
@@ -175,3 +175,6 @@ fake = { version = "2.9.2", features = ["derive", "chrono", "chrono-tz"] }
 extend = "1.2.0"
 itertools = "0.12.1"
 futures = "0.3.30"
+
+# [patch.'https://github.com/atlanticaccent/druid']
+# druid = { path = "../druid/druid" }

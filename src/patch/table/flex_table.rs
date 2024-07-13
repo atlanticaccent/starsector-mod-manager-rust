@@ -18,7 +18,8 @@ use std::collections::HashMap;
 
 use druid::{
   widget::BackgroundBrush, BoxConstraints, Color, Env, Event, EventCtx, Key, KeyOrValue, LayoutCtx,
-  LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget, WidgetPod,
+  LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, UpdateCtx, Widget,
+  WidgetPod,
 };
 
 use super::{
@@ -127,6 +128,8 @@ pub struct FlexTable<T: TableData> {
   pub(crate) row_starts: Option<Vec<f64>>,
   pub(crate) col_starts: Option<Vec<f64>>,
   pub(crate) row_background: Option<BackgroundBrush<T>>,
+  pub(crate) clip: Option<Rect>,
+  pub(crate) clip_aware: bool,
 }
 
 impl<T: TableData> Default for FlexTable<T> {
@@ -154,6 +157,8 @@ impl<T: TableData> FlexTable<T> {
       col_starts: None,
       background: None,
       row_background: None,
+      clip: None,
+      clip_aware: false,
     }
   }
 
@@ -316,6 +321,15 @@ impl<T: TableData> FlexTable<T> {
     self.default_vertical_alignment = default_vertical_alignment;
   }
 
+  pub fn clip_aware(mut self, clip_aware: bool) -> Self {
+    self.set_clip_aware(clip_aware);
+    self
+  }
+
+  pub fn set_clip_aware(&mut self, clip_aware: bool) {
+    self.clip_aware = clip_aware
+  }
+
   /// Returns the column count
   pub fn column_count(&self) -> usize {
     if self.children.is_empty() {
@@ -350,10 +364,16 @@ impl<T: TableData> FlexTable<T> {
     self.row_count() == 0
   }
 
-  pub fn cell_from_closure(
+  fn cell_from_closure(
     maker: impl Fn() -> Box<dyn Widget<()>> + 'static,
   ) -> std::sync::Arc<dyn Fn() -> Box<dyn Widget<()>>> {
     std::sync::Arc::new(maker) as std::sync::Arc<dyn Fn() -> Box<dyn Widget<()>>>
+  }
+
+  fn check_clipped(&self, row_starts: &Vec<f64>, row_num: usize, clip: Rect) -> bool {
+    self.clip_aware
+      && (row_starts[row_num] > clip.max_y()
+        || row_starts.get(row_num + 1).unwrap_or(&f64::INFINITY) < &clip.min_y())
   }
 }
 
@@ -362,6 +382,14 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
     let mut env = env.clone();
     let keys: Vec<_> = data.keys().collect();
     for (row_num, row_id) in keys.into_iter().enumerate() {
+      if let Some(ref row_starts) = self.row_starts {
+        if let Some(clip) = self.clip {
+          if !event.should_propagate_to_hidden() && self.check_clipped(row_starts, row_num, clip) {
+            continue;
+          }
+        }
+      }
+
       let columns: Vec<_> = data.columns().collect();
       if let Some(row) = self.children.get_mut(&row_id) {
         env.set(Self::ROW_IDX, row_num as u64);
@@ -378,36 +406,43 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
   }
 
   fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &T, env: &Env) {
+    if let LifeCycle::ViewContextChanged(context) = event {
+      self.clip = Some(context.clip);
+    }
+
     let columns: Vec<_> = data.columns().collect();
     if let LifeCycle::WidgetAdded = event {
-      let mut changed = false;
       for row_data in data.keys().map(|k| &data[k]) {
         let row_id = row_data.id();
         let row = if let Some(row) = self.children.get_mut(&row_id) {
           row
         } else {
-          changed = true;
           self.insert_row(TableRowInternal::new(row_data.id().clone()));
           self.children.get_mut(&row_id).unwrap()
         };
 
         for column in columns.iter() {
           if !row.children().contains_key(column) {
-            changed = true;
             row
               .children()
               .insert(column.clone(), WidgetPod::new(row_data.cell(column)));
           }
         }
       }
-      if changed {
-        ctx.children_changed();
-      }
+      ctx.children_changed();
     }
 
     let keys: Vec<_> = data.keys().collect();
     let mut env = env.clone();
     for (row_num, row_id) in keys.into_iter().enumerate() {
+      if let Some(ref row_starts) = self.row_starts {
+        if let Some(clip) = self.clip {
+          if !event.should_propagate_to_hidden() && self.check_clipped(row_starts, row_num, clip) {
+            continue;
+          }
+        }
+      }
+
       env.set(Self::ROW_IDX, row_num as u64);
       if let Some(row) = self.children.get_mut(&row_id) {
         let row_data = &data[row_id];
@@ -455,6 +490,14 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
 
     let mut env = env.clone();
     for (row_num, row_id) in data.keys().enumerate() {
+      if let Some(ref row_starts) = self.row_starts {
+        if let Some(clip) = self.clip {
+          if self.check_clipped(row_starts, row_num, clip) {
+            continue;
+          }
+        }
+      }
+
       env.set(Self::ROW_IDX, row_num as u64);
       if let Some(row) = self.children.get_mut(&row_id) {
         let row_data = &data[row_id];
@@ -740,6 +783,14 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
     let mut env = env.clone();
     let keys: Vec<_> = data.keys().collect();
     for (row_num, row_id) in keys.into_iter().enumerate() {
+      if let Some(ref row_starts) = self.row_starts {
+        if let Some(clip) = self.clip {
+          if self.check_clipped(row_starts, row_num, clip) {
+            continue;
+          }
+        }
+      }
+
       env.set(Self::ROW_IDX, row_num as u64);
       if let Some(ref row_starts) = self.row_starts {
         if row_num > 0 && row_border_width > 0.0 {

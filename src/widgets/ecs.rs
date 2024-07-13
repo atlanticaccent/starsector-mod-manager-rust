@@ -5,10 +5,9 @@ use std::{
 };
 
 use druid::{Data, Env, Widget, WidgetPod};
-use xxhash_rust::xxh3::Xxh3Builder;
 
 thread_local! {
-  static WIDGET_MAP: RefCell<HashMap<String, Box<dyn Any>, Xxh3Builder>> = const { RefCell::new(HashMap::with_hasher(Xxh3Builder::new())) }
+  static WIDGET_MAP: RefCell<HashMap<String, Box<dyn Any>, ahash::RandomState>> = const { RefCell::new(HashMap::with_hasher(ahash::RandomState::with_seeds(0, 0, 0, 0))) }
 }
 
 pub struct EcsWidget<T, W: Widget<T>> {

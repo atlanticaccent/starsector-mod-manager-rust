@@ -14,7 +14,7 @@ use super::ecs::EcsWidget;
 use crate::{
   app::{
     controllers::LayoutRepeater,
-    util::{xxHashMap, WidgetExtEx},
+    util::{FastImMap, WidgetExtEx},
   },
   patch::table::{FlexTable, RowData, TableColumnWidth, TableData},
 };
@@ -33,7 +33,7 @@ pub trait WrapData: Data {
   fn len(&self) -> usize;
 }
 
-impl<K: Clone + Hash + Eq + Display + Debug + 'static, V: Data> WrapData for xxHashMap<K, V>
+impl<K: Clone + Hash + Eq + Display + Debug + 'static, V: Data> WrapData for FastImMap<K, V>
 where
   for<'a> &'a K: ToOwned<Owned = K>,
 {
