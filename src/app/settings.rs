@@ -20,8 +20,8 @@ use super::{
   mod_list::headings::{Header, Heading},
   tools::vmparams::VMParams,
   util::{
-    button_painter, default_true, h2_fixed, hoverable_text, icons::*, lensed_bold, CommandExt,
-    LabelExt, LoadError, SaveError, ShadeColor, Tap, WidgetExtEx, WithHoverState,
+    bolded, button_painter, default_true, h2_fixed, hoverable_text, icons::*, lensed_bold,
+    CommandExt, LabelExt, LoadError, SaveError, ShadeColor, Tap, WidgetExtEx, WithHoverState,
   },
   App,
 };
@@ -178,9 +178,11 @@ impl Settings {
             .on_click(|_, _, _| {
               let _ = opener::open(Settings::path(false));
             })
-            .stack_tooltip_custom(Card::new(h2_fixed(
-              "Requires application restart for changes to apply.",
-            )))
+            .stack_tooltip_custom(Card::new(
+              bolded("Requires application restart for changes to apply.").padding((7.0, 0.0)),
+            ))
+            .with_offset((10.0, 10.0))
+            .with_border_width(0.0)
             .align_right()
             .expand_width(),
         )
