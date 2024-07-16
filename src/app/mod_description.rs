@@ -1,7 +1,7 @@
 use chrono::{DateTime, Local};
 use druid::{
   lens::Constant,
-  widget::{Flex, Label, Maybe, ZStack},
+  widget::{Flex, Label, List, Maybe, ZStack},
   Color, Key, LensExt, Selector, UnitPoint, Widget, WidgetExt,
 };
 use druid_widget_nursery::{material_icons::Icon, Mask};
@@ -11,11 +11,11 @@ use super::{
   mod_entry::{ModMetadata, UpdateStatus},
   overlays::Popup,
   util::{
-    h1, h2_fixed, h3, h3_fixed, hoverable_text, lensed_bold, Compute, LabelExt, LensExtExt,
-    ShadeColor, WidgetExtEx, BLUE_KEY, CHEVRON_LEFT, DELETE, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY,
-    ON_RED_KEY, RED_KEY, SYSTEM_UPDATE, TOGGLE_ON,
+    bolded, h1, h2_fixed, h3, h3_fixed, hoverable_text, lensed_bold, Compute, LabelExt, LensExtExt,
+    ShadeColor, WidgetExtEx, WithHoverState, BLUE_KEY, CHEVRON_LEFT, DELETE, GREEN_KEY,
+    ON_BLUE_KEY, ON_GREEN_KEY, ON_RED_KEY, RED_KEY, SYSTEM_UPDATE, TOGGLE_ON,
   },
-  ViewModEntry as ModEntry,
+  ViewModEntry as ModEntry, INFO,
 };
 use crate::{
   nav_bar::{Nav, NavLabel},
@@ -277,6 +277,73 @@ impl ModDescription {
             })
             .lens(ModEntry::author),
           )
+          .with_child(
+            Flex::column()
+              .with_child(
+                Flex::row()
+                  .with_child(h2_fixed("Utility"))
+                  .with_spacer(5.0)
+                  .with_child(
+                    Icon::new(*INFO)
+                      .with_hover_state(false)
+                      .stack_tooltip_custom(Card::new(
+                        Flex::column()
+                          .with_child(bolded(
+                            "Utility mods should always be possible to uninstall without breaking ",
+                          ))
+                          .with_child(bolded("saves."))
+                          .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+                          .padding((7.0, 0.0)),
+                      )),
+                  ),
+              )
+              .with_child(Label::wrapped_func(|data: &bool, _| data.to_string()))
+              .with_default_spacer()
+              .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+              .or_empty(|data, _| *data)
+              .lens(ModEntry::utility),
+          )
+          .with_child(
+            Flex::column()
+              .with_child(
+                Flex::row()
+                  .with_child(h2_fixed("Total Conversion"))
+                  .with_spacer(5.0)
+                  .with_child(
+                    Icon::new(*INFO)
+                      .with_hover_state(false)
+                      .stack_tooltip_custom(Card::new(
+                        Flex::column()
+                          .with_child(bolded(
+                            "Total Conversion mods automatically disable all other mods that are \
+                             not",
+                          ))
+                          .with_child(bolded("tagged as utility mods."))
+                          .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+                          .padding((7.0, 0.0)),
+                      )),
+                  ),
+              )
+              .with_child(Label::wrapped_func(|data: &bool, _| data.to_string()))
+              .with_default_spacer()
+              .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+              .or_empty(|data, _| *data)
+              .lens(ModEntry::total_conversion),
+          )
+          .with_child(
+            Flex::column()
+              .with_child(h2_fixed("Dependencies"))
+              .with_child(List::new(|| {
+                Label::dynamic(|data: &super::mod_entry::Dependency, _| data.to_string())
+              }))
+              .with_default_spacer()
+              .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+              .or_empty(
+                |data: &std::sync::Arc<Vec<super::mod_entry::Dependency>>, _| !data.is_empty(),
+              )
+              .lens(ModEntry::dependencies),
+          )
+          .with_child(Flex::column().cross_axis_alignment(druid::widget::CrossAxisAlignment::Start))
           .with_child(h2_fixed("Installed at"))
           .with_child(
             Label::wrapped_func(|data: &ModMetadata, _| {

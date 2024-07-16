@@ -10,7 +10,7 @@ use super::Popup;
 use crate::{
   app::{
     installer,
-    mod_entry::{ModVersionMeta, VersionUnion},
+    mod_entry::{ModVersionMeta, Version},
     util::{
       h2_fixed, DataTimer, WidgetExtEx as _, WithHoverState, BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY,
       RED_KEY,
@@ -25,7 +25,7 @@ use crate::{
 pub struct RemoteUpdate {
   mod_id: String,
   mod_name: String,
-  local_version: VersionUnion,
+  local_version: Version,
   remote_version: ModVersionMeta,
 }
 
@@ -33,7 +33,7 @@ impl RemoteUpdate {
   pub fn new(
     mod_id: String,
     mod_name: String,
-    local_version: VersionUnion,
+    local_version: Version,
     remote_version: ModVersionMeta,
   ) -> Self {
     Self {

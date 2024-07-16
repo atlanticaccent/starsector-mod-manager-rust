@@ -136,7 +136,7 @@ serde_json = "1.0"
 json5 = "0.3.0"
 json_comments = "0.1.0"
 reqwest = { version = "0.11.7", default-features = false }
-serde-aux = "2.1.1"
+serde-aux = "4.5.0"
 handwritten-json = { git = "https://github.com/atlanticaccent/rust-handwritten-json.git" }
 unrar = "0.4.4"
 opener = "0.5"

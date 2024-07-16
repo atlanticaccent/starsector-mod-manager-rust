@@ -372,7 +372,7 @@ impl<T: TableData> FlexTable<T> {
 
   fn check_clipped(&self, row_starts: &Vec<f64>, row_num: usize, clip: Rect) -> bool {
     self.clip_aware
-      && (row_starts[row_num] > clip.max_y()
+      && (row_starts.get(row_num).unwrap_or(&f64::NEG_INFINITY) > &clip.max_y()
         || row_starts.get(row_num + 1).unwrap_or(&f64::INFINITY) < &clip.min_y())
   }
 }

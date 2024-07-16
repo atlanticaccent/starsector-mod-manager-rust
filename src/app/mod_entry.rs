@@ -52,12 +52,24 @@ pub struct ModEntry<T = ()> {
   pub name: String,
   #[serde(default)]
   pub author: Option<String>,
-  pub version: VersionUnion,
+  pub version: Version,
   description: String,
-  #[serde(alias = "gameVersion")]
-  raw_game_version: String,
-  #[serde(skip)]
+  #[serde(
+    alias = "gameVersion",
+    deserialize_with = "ModEntry::deserialize_game_version"
+  )]
   pub game_version: GameVersion,
+  #[serde(default, deserialize_with = "deserialize_bool_from_anything")]
+  pub utility: bool,
+  #[data(eq)]
+  #[serde(deserialize_with = "ModEntry::deserialize_dependencies", default)]
+  pub dependencies: std::sync::Arc<Vec<Dependency>>,
+  #[serde(
+    alias = "totalConversion",
+    default,
+    deserialize_with = "deserialize_bool_from_anything"
+  )]
+  pub total_conversion: bool,
   #[serde(skip)]
   pub enabled: bool,
   #[serde(skip)]
@@ -77,6 +89,25 @@ pub struct ModEntry<T = ()> {
   #[serde(skip)]
   #[data(ignore)]
   pub view_state: T,
+}
+
+#[derive(Debug, Clone, PartialEq, Data, Deserialize, Dummy)]
+pub struct Dependency {
+  pub id: String,
+  pub name: Option<String>,
+  pub version: Option<Version>,
+}
+
+impl Display for Dependency {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    let Dependency { id, name, version } = self;
+    write!(f, "{}", if let Some(name) = name { name } else { id })?;
+    if let Some(version) = version {
+      write!(f, "@{}", version)?
+    }
+
+    Ok(())
+  }
 }
 
 #[derive(Clone, Data, Lens)]
@@ -150,7 +181,7 @@ impl ModEntry {
       {
         mod_info.version_checker = ModEntry::parse_version_checker(path, &mod_info.id);
         mod_info.path = path.to_path_buf();
-        mod_info.game_version = parse_game_version(&mod_info.raw_game_version);
+        // mod_info.game_version = parse_game_version(&mod_info.raw_game_version);
         mod_info.manager_metadata = manager_metadata;
         Ok(mod_info)
       } else {
@@ -192,6 +223,40 @@ impl ModEntry {
   /// Set the mod entry's path.
   pub fn set_path(&mut self, path: PathBuf) {
     self.path = path;
+  }
+
+  fn deserialize_game_version<'de, D>(deserializer: D) -> Result<GameVersion, D::Error>
+  where
+    D: serde::Deserializer<'de>,
+  {
+    let buf = String::deserialize(deserializer)?;
+
+    Ok(parse_game_version(&buf))
+  }
+
+  fn deserialize_dependencies<'de, D>(
+    deserializer: D,
+  ) -> Result<std::sync::Arc<Vec<Dependency>>, D::Error>
+  where
+    D: serde::Deserializer<'de>,
+  {
+    #[derive(Debug, Deserialize)]
+    struct RawDependency {
+      id: Option<String>,
+      name: Option<String>,
+      version: Option<Version>,
+    }
+
+    let dependencies = Vec::<RawDependency>::deserialize(deserializer)?;
+
+    Ok(std::sync::Arc::new(
+      dependencies
+        .into_iter()
+        .filter_map(|RawDependency { id, name, version }| {
+          id.map(|id| Dependency { id, name, version })
+        })
+        .collect(),
+    ))
   }
 }
 
@@ -267,9 +332,9 @@ impl ViewModEntry {
         .expand_width()
         .boxed(),
         Heading::Version => Either::new(
-          |data: &(Option<UpdateStatus>, VersionUnion), _| data.0.is_some(),
+          |data: &(Option<UpdateStatus>, Version), _| data.0.is_some(),
           ViewSwitcher::new(
-            |data: &(Option<UpdateStatus>, VersionUnion), _| data.clone(),
+            |data: &(Option<UpdateStatus>, Version), _| data.clone(),
             |(update_status, version_union), _, env| {
               if let Some(update_status) = update_status {
                 let update_status = update_status;
@@ -322,18 +387,18 @@ impl ViewModEntry {
                         )
                         .with_background_color(background_color)
                         .with_offset((10.0, 10.0))
-                        .lens(lens!(((Option<UpdateStatus>, VersionUnion), bool), 0))
+                        .lens(lens!(((Option<UpdateStatus>, Version), bool), 0))
                         .with_hover_state(false),
                       )
                     }),
                 )
               } else {
-                Label::dynamic(|data: &(Option<UpdateStatus>, VersionUnion), _| data.1.to_string())
+                Label::dynamic(|data: &(Option<UpdateStatus>, Version), _| data.1.to_string())
                   .boxed()
               }
             },
           ),
-          Label::dynamic(|data: &(Option<UpdateStatus>, VersionUnion), _| data.1.to_string()),
+          Label::dynamic(|data: &(Option<UpdateStatus>, Version), _| data.1.to_string()),
         )
         .lens(
           lens::Identity
@@ -420,7 +485,6 @@ impl<T> PartialEq for ModEntry<T> {
       && self.author == other.author
       && self.version == other.version
       && self.description == other.description
-      && self.raw_game_version == other.raw_game_version
       && self.game_version == other.game_version
       && self.enabled == other.enabled
       && self.version_checker == other.version_checker
@@ -442,8 +506,10 @@ impl From<ModEntry> for ViewModEntry {
       author,
       version,
       description,
-      raw_game_version,
       game_version,
+      utility,
+      dependencies,
+      total_conversion,
       enabled,
       version_checker,
       remote_version,
@@ -460,8 +526,10 @@ impl From<ModEntry> for ViewModEntry {
       author,
       version,
       description,
-      raw_game_version,
       game_version,
+      utility,
+      dependencies,
+      total_conversion,
       enabled,
       version_checker,
       remote_version,
@@ -488,8 +556,10 @@ impl From<ViewModEntry> for ModEntry {
       author,
       version,
       description,
-      raw_game_version,
       game_version,
+      utility,
+      dependencies,
+      total_conversion,
       enabled,
       version_checker,
       remote_version,
@@ -506,8 +576,10 @@ impl From<ViewModEntry> for ModEntry {
       author,
       version,
       description,
-      raw_game_version,
       game_version,
+      utility,
+      dependencies,
+      total_conversion,
       enabled,
       version_checker,
       remote_version,
@@ -541,31 +613,31 @@ impl RowData for ViewModEntry {
 
 #[derive(Debug, Clone, Deserialize, Data, PartialEq, Eq, PartialOrd, Ord, Hash, Dummy)]
 #[serde(untagged)]
-pub enum VersionUnion {
-  String(String),
-  Object(Version),
+pub enum Version {
+  Simple(String),
+  Complex(VersionComplex),
 }
 
-impl Display for VersionUnion {
+impl Display for Version {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
     let display: &dyn Display = match self {
-      VersionUnion::String(s) => s,
-      VersionUnion::Object(o) => o,
+      Version::Simple(s) => s,
+      Version::Complex(o) => o,
     };
 
     write!(f, "{}", display)
   }
 }
 
-impl From<VersionUnion> for String {
-  fn from(version_union: VersionUnion) -> Self {
+impl From<Version> for String {
+  fn from(version_union: Version) -> Self {
     version_union.to_string()
   }
 }
 
-impl Default for VersionUnion {
+impl Default for Version {
   fn default() -> Self {
-    Self::String(String::default())
+    Self::Simple(String::default())
   }
 }
 
@@ -593,7 +665,7 @@ pub struct ModVersionMeta {
   #[serde(default)]
   pub nexus_id: String,
   #[serde(alias = "modVersion")]
-  pub version: Version,
+  pub version: VersionComplex,
 }
 
 impl PartialEq for ModVersionMeta {
@@ -615,7 +687,7 @@ impl Ord for ModVersionMeta {
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, PartialOrd, Ord, Data, Lens, Hash, Dummy)]
-pub struct Version {
+pub struct VersionComplex {
   #[serde(deserialize_with = "deserialize_number_from_string")]
   pub major: i32,
   #[serde(deserialize_with = "deserialize_number_from_string")]
@@ -625,7 +697,7 @@ pub struct Version {
   pub patch: String,
 }
 
-impl Display for Version {
+impl Display for VersionComplex {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
     if !self.patch.is_empty() {
       write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
@@ -639,10 +711,10 @@ impl Display for Version {
 pub enum UpdateStatus {
   Error,
   UpToDate,
-  Discrepancy(Version),
-  Patch(Version),
-  Minor(Version),
-  Major(Version),
+  Discrepancy(VersionComplex),
+  Patch(VersionComplex),
+  Minor(VersionComplex),
+  Major(VersionComplex),
 }
 
 impl Display for UpdateStatus {

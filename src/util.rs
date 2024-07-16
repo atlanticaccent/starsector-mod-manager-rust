@@ -449,7 +449,7 @@ pub fn parse_game_version(
   Option<String>,
 ) {
   lazy_static! {
-    static ref VERSION_REGEX: Regex = Regex::new(r"\.|a-RC|A-RC|a-rc|a").unwrap();
+    static ref VERSION_REGEX: Regex = Regex::new(r"(?i)\.|a-rc|a").unwrap();
   }
   let components: Vec<&str> = VERSION_REGEX
     .split(text)
@@ -1017,7 +1017,10 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
   }
 
   fn stack_tooltip_custom(self, label: impl Widget<T> + 'static) -> StackTooltip<T> {
-    StackTooltip::custom(self, label).with_background_color(druid::Color::TRANSPARENT)
+    StackTooltip::custom(self, label)
+      .with_background_color(druid::Color::TRANSPARENT)
+      .with_border_color(druid::Color::TRANSPARENT)
+      .with_border_width(0.0)
   }
 
   fn wrap_with_hover_state<S: HoverState>(self, state: S, set_cursor: bool) -> impl Widget<T> {
