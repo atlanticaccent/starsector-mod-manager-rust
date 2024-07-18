@@ -65,6 +65,7 @@ pub struct ModList {
   install_state: InstallState,
   pub filter_state: FilterState,
   pub install_dir_available: bool,
+  pub refreshing: bool,
 }
 
 impl ModList {
@@ -93,6 +94,7 @@ impl ModList {
       install_state: InstallState::default(),
       filter_state: Default::default(),
       install_dir_available: false,
+      refreshing: false,
     }
   }
 
@@ -161,11 +163,12 @@ impl ModList {
                       .controller(
                         ExtensibleController::new()
                           .on_command(Self::UPDATE_COLUMN_WIDTH, Self::column_resized)
-                          .on_command(Self::UPDATE_TABLE_SORT, Self::update_sorting)
+                          .on_command(Self::UPDATE_TABLE_SORT, |_, ctx, _payload, _data| {
+                            Self::update_sorting(ctx, _payload, _data)
+                          })
                           .on_command(ModMetadata::SUBMIT_MOD_METADATA, Self::metadata_submitted)
                           .on_command(Self::FILTER_UPDATE, Self::on_filter_change)
                           .on_command(Self::FILTER_RESET, Self::on_filter_reset)
-                          .on_command(App::REPLACE_MODS, Self::replace_mods_command_handler)
                           .on_command(Self::REBUILD, |table, ctx, _, _| {
                             table.clear();
                             ctx.children_changed();
@@ -224,19 +227,25 @@ impl ModList {
         data.filter_state.stack_position.top = Some(rect.height());
         data.filter_state.stack_position.left = Some(rect.width());
       })
+      .mask_default()
+      .dynamic(|data, _| data.refreshing)
+      .with_text_mask("")
+      .on_command(App::REFRESH, |_, _, data| {
+        data.refreshing = true;
+      })
+      .on_command(App::REPLACE_MODS, Self::replace_mods_command_handler)
   }
 
   fn replace_mods_command_handler(
-    _table: &mut FlexTable<ModList>,
     ctx: &mut EventCtx,
     payload: &SingleUse<FastImMap<String, RawModEntry>>,
     data: &mut ModList,
-  ) -> bool {
+  ) {
+    data.refreshing = false;
     data.replace_mods(payload.take().unwrap());
 
-    Self::update_sorting(_table, ctx, &(), data);
+    Self::update_sorting(ctx, &(), data);
     ctx.children_changed();
-    false
   }
 
   fn metadata_submitted(
@@ -277,12 +286,7 @@ impl ModList {
     false
   }
 
-  fn update_sorting<T: Data, P>(
-    _: &mut impl Widget<T>,
-    ctx: &mut EventCtx,
-    _: &P,
-    _: &mut ModList,
-  ) -> bool {
+  fn update_sorting<P>(ctx: &mut EventCtx, _: &P, _: &mut ModList) -> bool {
     ctx.request_update();
     ctx.request_layout();
     ctx.request_paint();
@@ -330,7 +334,7 @@ impl ModList {
     } else {
       data.filter_state.active_filters.remove(&payload.0)
     };
-    Self::update_sorting(_table, ctx, &(), data);
+    Self::update_sorting(ctx, &(), data);
 
     false
   }
@@ -342,7 +346,7 @@ impl ModList {
     data: &mut ModList,
   ) -> bool {
     data.filter_state.active_filters.clear();
-    Self::update_sorting(_table, ctx, &(), data);
+    Self::update_sorting(ctx, &(), data);
     ctx.request_update();
 
     true

@@ -132,14 +132,13 @@ impl Delegate<App> for AppDelegate {
       ctx.submit_command(App::LOG_MESSAGE.with(format!("Begin auto-update of {}", entry.name)));
     } else if let Some(()) = cmd.get(App::REFRESH) {
       if let Some(install_dir) = data.settings.install_dir.as_ref() {
-        // data.mod_list.mods.clear();
         data.runtime.spawn(ModList::parse_mod_folder_async(
           install_dir.clone(),
           ctx.get_external_handle(),
         ));
       }
 
-      return Handled::Yes;
+      return Handled::No;
     } else if let Some(res) = cmd.get(GET_INSTALLED_STARSECTOR) {
       App::mod_list
         .then(ModList::starsector_version)
