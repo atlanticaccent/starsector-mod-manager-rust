@@ -373,13 +373,6 @@ impl Delegate<App> for AppDelegate {
   }
 }
 
-impl AppDelegate {
-  pub fn with_popups(mut self, popups: Vec<Popup>) -> Self {
-    self.startup_popups = popups;
-    self
-  }
-}
-
 pub enum SubwindowType {
   Log,
   Overwrite,

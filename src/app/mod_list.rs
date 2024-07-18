@@ -234,6 +234,7 @@ impl ModList {
         data.refreshing = true;
       })
       .on_command(App::REPLACE_MODS, Self::replace_mods_command_handler)
+      .on_added(|_, ctx, _, _| ctx.submit_command(App::REFRESH))
   }
 
   fn replace_mods_command_handler(
