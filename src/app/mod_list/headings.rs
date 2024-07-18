@@ -25,6 +25,7 @@ use crate::{app::util::LabelExt, patch::split::Split};
   Serialize,
   Deserialize,
   strum_macros::Display,
+  strum_macros::IntoStaticStr,
   Default,
 )]
 pub enum Heading {
@@ -42,6 +43,7 @@ pub enum Heading {
   AutoUpdateSupport,
   #[strum(serialize = "Install Date")]
   InstallDate,
+  Type,
 }
 
 impl Heading {
@@ -51,24 +53,8 @@ impl Heading {
 
   pub fn complete(list: &Vector<Heading>) -> bool {
     Heading::iter()
-      .filter(|h| !matches!(h, Heading::Enabled | Heading::Score))
+      .filter(|h| !h.visible())
       .all(|h| list.contains(&h))
-  }
-}
-
-impl From<Heading> for &str {
-  fn from(sorting: Heading) -> Self {
-    match sorting {
-      Heading::ID => "ID",
-      Heading::Name => "Name",
-      Heading::Author => "Author(s)",
-      Heading::GameVersion => "Game Version",
-      Heading::Enabled => "Enabled",
-      Heading::Version => "Version",
-      Heading::Score => "score",
-      Heading::AutoUpdateSupport => "Auto-Update Supported",
-      Heading::InstallDate => "Install Date",
-    }
   }
 }
 
@@ -196,7 +182,7 @@ impl Eq for Header {}
 fn heading_builder(title: Heading) -> impl Widget<Header> {
   Flex::row()
     .with_flex_child(
-      Label::wrapped(<&str>::from(title))
+      Label::wrapped(<&'static str>::from(title))
         .with_text_alignment(druid::TextAlignment::Center)
         .expand_width(),
       1.,

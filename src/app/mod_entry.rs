@@ -458,6 +458,18 @@ impl ViewModEntry {
         .padding(5.)
         .expand_width()
         .boxed(),
+        Heading::Type => Label::wrapped_func(|data: &ModEntry<ViewState>, _| {
+          if data.total_conversion {
+            "Total Conversion"
+          } else if data.utility {
+            "Utility"
+          } else {
+            "Standard"
+          }
+        })
+        .padding(5.)
+        .expand_width()
+        .boxed(),
         Heading::Enabled | Heading::Score => unreachable!(),
       }
       .on_click(|ctx, data, _| {

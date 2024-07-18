@@ -285,11 +285,12 @@ impl ModDescription {
                   .with_spacer(5.0)
                   .with_child(
                     Icon::new(*INFO)
+                      .fix_size(15.0, 15.0)
                       .with_hover_state(false)
                       .stack_tooltip_custom(Card::new(
                         Flex::column()
                           .with_child(bolded(
-                            "Utility mods should always be possible to uninstall without breaking ",
+                            "Utility mods should always be possible to uninstall without breaking",
                           ))
                           .with_child(bolded("saves."))
                           .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
@@ -311,14 +312,14 @@ impl ModDescription {
                   .with_spacer(5.0)
                   .with_child(
                     Icon::new(*INFO)
+                      .fix_size(15.0, 15.0)
                       .with_hover_state(false)
                       .stack_tooltip_custom(Card::new(
                         Flex::column()
                           .with_child(bolded(
-                            "Total Conversion mods automatically disable all other mods that are \
-                             not",
+                            "Total Conversion mods automatically disable all other mods that are",
                           ))
-                          .with_child(bolded("tagged as utility mods."))
+                          .with_child(bolded("not tagged as utility mods."))
                           .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
                           .padding((7.0, 0.0)),
                       )),
