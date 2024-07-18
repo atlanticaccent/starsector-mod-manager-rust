@@ -60,9 +60,7 @@ impl Heading {
 
 #[derive(Clone, Data, Lens, Default)]
 pub struct Header {
-  #[data(same_fn = "PartialEq::eq")]
   pub ratios: Vector<f64>,
-  #[data(same_fn = "PartialEq::eq")]
   pub headings: Vector<Heading>,
   pub sort_by: (Heading, bool),
 }
