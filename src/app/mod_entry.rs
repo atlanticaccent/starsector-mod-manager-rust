@@ -86,7 +86,7 @@ pub struct ModEntry<T = ()> {
   display: bool,
   #[serde(skip)]
   pub manager_metadata: ModMetadata,
-  #[serde(skip)]
+  #[serde(skip, default)]
   #[data(ignore)]
   pub view_state: T,
 }
@@ -127,6 +127,12 @@ impl ViewState {
   }
 }
 
+impl Default for ViewState {
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
 pub type ViewModEntry = ModEntry<ViewState>;
 
 impl<T> ModEntry<T> {
@@ -147,41 +153,28 @@ impl<T> ModEntry<T> {
       .map(|v| &v.nexus_id)
       .and_then(|s| (!s.is_empty()).then(|| format!("{}{}", ModDescription::NEXUS_URL, s.clone())))
   }
-}
 
-impl<T> Hash for ModEntry<T> {
-  fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-    self.id.hash(state);
-    self.name.hash(state);
-    self.author.hash(state);
-    self.version.hash(state);
-    self.description.hash(state);
-    self.game_version.hash(state);
-    self.enabled.hash(state);
-    self.version_checker.hash(state);
-    self.remote_version.hash(state);
-    self.update_status.hash(state);
-    self.path.hash(state);
-    self.manager_metadata.hash(state);
+  pub fn set_enabled(&mut self, enabled: bool) {
+    self.enabled = enabled;
+  }
+
+  /// Set the mod entry's path.
+  pub fn set_path(&mut self, path: PathBuf) {
+    self.path = path;
   }
 }
 
-impl ModEntry {
-  pub const REPLACE: Selector<ModEntry> = Selector::new("MOD_ENTRY_REPLACE");
-  pub const AUTO_UPDATE: Selector<ModEntry> = Selector::new("mod_list.update.auto");
-  pub const ASK_DELETE_MOD: Selector<ModEntry> = Selector::new("mod_entry.delete");
-
-  pub fn from_file(path: &Path, manager_metadata: ModMetadata) -> Result<ModEntry, ModEntryError> {
+impl<T: Default> ModEntry<T> {
+  pub fn from_file(path: &Path, manager_metadata: ModMetadata) -> Result<Self, ModEntryError> {
     if let Ok(mod_info_file) = std::fs::read_to_string(path.join("mod_info.json")) {
       let mut stripped = String::new();
       if strip_comments(mod_info_file.as_bytes())
         .read_to_string(&mut stripped)
         .is_ok()
-        && let Ok(mut mod_info) = json5::from_str::<ModEntry>(&stripped)
+        && let Ok(mut mod_info) = json5::from_str::<Self>(&stripped)
       {
         mod_info.version_checker = ModEntry::parse_version_checker(path, &mod_info.id);
         mod_info.path = path.to_path_buf();
-        // mod_info.game_version = parse_game_version(&mod_info.raw_game_version);
         mod_info.manager_metadata = manager_metadata;
         Ok(mod_info)
       } else {
@@ -191,6 +184,12 @@ impl ModEntry {
       Err(ModEntryError::FileError)
     }
   }
+}
+
+impl ModEntry {
+  pub const REPLACE: Selector<ModEntry> = Selector::new("MOD_ENTRY_REPLACE");
+  pub const AUTO_UPDATE: Selector<ModEntry> = Selector::new("mod_list.update.auto");
+  pub const ASK_DELETE_MOD: Selector<ModEntry> = Selector::new("mod_entry.delete");
 
   fn parse_version_checker(path: &Path, id: &str) -> Option<ModVersionMeta> {
     let mut no_comments = String::new();
@@ -214,15 +213,6 @@ impl ModEntry {
     } else {
       None
     }
-  }
-
-  pub fn set_enabled(&mut self, enabled: bool) {
-    self.enabled = enabled;
-  }
-
-  /// Set the mod entry's path.
-  pub fn set_path(&mut self, path: PathBuf) {
-    self.path = path;
   }
 
   fn deserialize_game_version<'de, D>(deserializer: D) -> Result<GameVersion, D::Error>
@@ -487,6 +477,23 @@ impl ViewModEntry {
         .with_shared_id_hover_state(self.view_state.hover_state.clone())
         .shared_constraint(self.view_state.id, druid::widget::Axis::Vertical),
     )
+  }
+}
+
+impl<T> Hash for ModEntry<T> {
+  fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    self.id.hash(state);
+    self.name.hash(state);
+    self.author.hash(state);
+    self.version.hash(state);
+    self.description.hash(state);
+    self.game_version.hash(state);
+    self.enabled.hash(state);
+    self.version_checker.hash(state);
+    self.remote_version.hash(state);
+    self.update_status.hash(state);
+    self.path.hash(state);
+    self.manager_metadata.hash(state);
   }
 }
 
