@@ -25,7 +25,7 @@ use webview_shared::ExtEventSinkExt;
 use super::{
   mod_entry::{ModMetadata, ModVersionMeta, UpdateStatus},
   overlays::Popup,
-  util::{get_master_version, Tap},
+  util::{get_master_version, Tap, WebClient},
 };
 use crate::app::{mod_entry::ModEntry, util::LoadBalancer};
 
@@ -176,11 +176,7 @@ async fn handle_path(
 
           mod_info.set_path(mods_dir.join(&mod_info.id));
           if let Some(version_checker) = mod_info.version_checker.clone() {
-            let client = reqwest::Client::builder()
-              .timeout(std::time::Duration::from_millis(500))
-              .connect_timeout(std::time::Duration::from_millis(500))
-              .build()
-              .expect("Build reqwest client");
+            let client = WebClient::new();
             mod_info.remote_version = get_master_version(&client, None, &version_checker).await;
             mod_info.update_status = Some(UpdateStatus::from((
               &version_checker,
@@ -358,11 +354,7 @@ async fn handle_delete(
   move_or_copy(origin, old_path.clone()).await;
   entry.set_path(old_path);
   if let Some(version_checker) = entry.version_checker.clone() {
-    let client = reqwest::Client::builder()
-      .timeout(std::time::Duration::from_millis(500))
-      .connect_timeout(std::time::Duration::from_millis(500))
-      .build()
-      .expect("Build reqwest client");
+    let client = WebClient::new();
     entry.remote_version = get_master_version(&client, None, &version_checker).await;
     entry.update_status = Some(UpdateStatus::from((
       &version_checker,

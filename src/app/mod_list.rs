@@ -31,7 +31,7 @@ use super::{
   mod_entry::{
     GameVersion, ModEntry as RawModEntry, ModMetadata, UpdateStatus, ViewModEntry as ModEntry,
   },
-  util::{self, FastImMap, SaveError, WidgetExtEx},
+  util::{self, FastImMap, SaveError, WebClient, WidgetExtEx},
   App,
 };
 use crate::{
@@ -379,11 +379,7 @@ impl ModList {
     };
     let enabled_mods_iter = enabled_mods.par_iter();
 
-    let client = reqwest::Client::builder()
-      .connect_timeout(std::time::Duration::from_millis(75))
-      .timeout(std::time::Duration::from_millis(75))
-      .build()
-      .expect("Build reqwest client");
+    let client = WebClient::new();
     let mods = dir_iter
       .par_bridge()
       .filter_map(|entry| entry.ok())

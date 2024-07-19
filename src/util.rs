@@ -612,9 +612,7 @@ pub struct Asset {
 }
 
 pub async fn get_latest_manager() -> Result<Release, String> {
-  let client = reqwest::Client::builder()
-    .timeout(std::time::Duration::from_millis(500))
-    .connect_timeout(std::time::Duration::from_millis(500))
+  let client = WebClient::builder()
     .user_agent("StarsectorModManager")
     .build()
     .map_err(|e| e.to_string())?;
@@ -1684,4 +1682,22 @@ impl druid::text::Formatter<u32> for ValueFormatter {
 
 pub fn ident_arc<T: Data>() -> lens::InArc<lens::Identity> {
   lens::InArc::new::<T, T>(lens::Identity)
+}
+
+pub struct WebClient;
+
+impl WebClient {
+  const TIMEOUT: u64 = 75;
+
+  pub fn new() -> reqwest::Client {
+    Self::builder()
+      .build()
+      .unwrap()
+  }
+  
+  pub fn builder() -> reqwest::ClientBuilder {
+    reqwest::Client::builder()
+      .timeout(std::time::Duration::from_millis(Self::TIMEOUT))
+      .connect_timeout(std::time::Duration::from_millis(Self::TIMEOUT))
+  }
 }
