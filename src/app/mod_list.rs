@@ -357,7 +357,6 @@ impl ModList {
     root_dir: PathBuf,
   ) -> Result<FastImMap<String, RawModEntry>, (FastImMap<String, RawModEntry>, Vec<Vec<RawModEntry>>)>
   {
-    eprintln!("parsing mods");
     let handle = tokio::runtime::Handle::current();
 
     let mod_dir = root_dir.join("mods");
@@ -381,8 +380,8 @@ impl ModList {
     let enabled_mods_iter = enabled_mods.par_iter();
 
     let client = reqwest::Client::builder()
-      .connect_timeout(std::time::Duration::from_millis(500))
-      .timeout(std::time::Duration::from_millis(500))
+      .connect_timeout(std::time::Duration::from_millis(75))
+      .timeout(std::time::Duration::from_millis(75))
       .build()
       .expect("Build reqwest client");
     let mods = dir_iter
@@ -397,14 +396,30 @@ impl ModList {
       })
       .filter_map(
         |entry| match RawModEntry::from_file(&entry.path(), ModMetadata::default()) {
-          Ok(mut mod_info) => {
-            mod_info.set_enabled(
+          Ok(mut entry) => {
+            entry.set_enabled(
               enabled_mods_iter
                 .clone()
-                .find_any(|id| mod_info.id.clone().eq(*id))
+                .find_any(|id| entry.id.clone().eq(*id))
                 .is_some(),
             );
-            Some(mod_info)
+
+            if let Some(version) = entry.version_checker.clone() {
+              let master_version =
+                handle.block_on(util::get_master_version(&client, None, &version));
+              entry.remote_version = master_version.clone();
+              entry.update_status = Some(UpdateStatus::from((&version, &master_version)));
+            }
+            if ModMetadata::path(&entry.path).exists() {
+              if let Some(mod_metadata) = handle.block_on(ModMetadata::parse_and_send(
+                entry.id.clone(),
+                entry.path.clone(),
+                None,
+              )) {
+                entry.manager_metadata = mod_metadata;
+              }
+            }
+            Some(entry)
           }
           Err(err) => {
             eprintln!("Failed to get mod info for mod at: {:?}", entry.path());
@@ -413,24 +428,6 @@ impl ModList {
           }
         },
       )
-      .map(|mut entry| {
-        if let Some(version) = entry.version_checker.clone() {
-          let master_version = handle.block_on(util::get_master_version(&client, None, &version));
-          entry.remote_version = master_version.clone();
-          entry.update_status = Some(UpdateStatus::from((&version, &master_version)));
-        }
-        if ModMetadata::path(&entry.path).exists() {
-          if let Some(mod_metadata) = handle.block_on(ModMetadata::parse_and_send(
-            entry.id.clone(),
-            entry.path.clone(),
-            None,
-          )) {
-            entry.manager_metadata = mod_metadata;
-          }
-        }
-
-        entry
-      })
       .collect::<Vec<_>>();
 
     let mut bucket_map: HashMap<String, Vec<RawModEntry>> = HashMap::new();
