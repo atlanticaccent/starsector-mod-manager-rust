@@ -23,7 +23,8 @@ use super::{
   mod_description::OPEN_IN_BROWSER,
   mod_list::search::Search,
   util::{
-    default_true, hoverable_text, icons::*, lensed_bold, CommandExt, Compute, LabelExt, WidgetExtEx,
+    default_true, hoverable_text, icons::*, lensed_bold, CommandExt, Compute, LabelExt, WebClient,
+    WidgetExtEx,
   },
   App,
 };
@@ -395,22 +396,12 @@ impl ModRepo {
   }
 
   pub async fn get_mod_repo() -> anyhow::Result<Self> {
-    let client = reqwest::Client::builder()
-      .timeout(std::time::Duration::from_millis(500))
-      .no_trust_dns()
-      .build()?;
+    let client = WebClient::new();
 
-    let mut res;
-    loop {
-      res = client.get(Self::REPO_URL).send().await;
-      if !res.as_ref().is_err_and(|err| err.is_timeout()) {
-        break;
-      } else {
-        eprintln!("timeout")
-      }
-    }
-
-    let mut repo = res
+    let mut repo = client
+      .get(Self::REPO_URL)
+      .send()
+      .await
       .inspect_err(|err| {
         dbg!(err);
       })?

@@ -34,7 +34,7 @@ use druid_widget_nursery::{
 use json_comments::strip_comments;
 use lazy_static::lazy_static;
 use regex::Regex;
-use reqwest::Client;
+use reqwest_middleware::ClientWithMiddleware;
 use serde::Deserialize;
 use tokio::{select, sync::mpsc};
 
@@ -48,8 +48,10 @@ use crate::{
 };
 
 pub(crate) mod icons;
+pub(crate) mod web_client;
 
 pub use icons::*;
+pub use web_client::*;
 
 use super::{
   controllers::{
@@ -223,7 +225,7 @@ pub const MASTER_VERSION_RECEIVED: Selector<(String, Result<ModVersionMeta, Stri
   Selector::new("remote_version_received");
 
 pub async fn get_master_version(
-  client: &Client,
+  client: &ClientWithMiddleware,
   ext_sink: Option<ExtEventSink>,
   local: &ModVersionMeta,
 ) -> Option<ModVersionMeta> {
@@ -259,7 +261,7 @@ pub async fn get_master_version(
   }
 }
 
-async fn send_request(client: &Client, url: String) -> Result<String, String> {
+async fn send_request(client: &ClientWithMiddleware, url: String) -> Result<String, String> {
   let request = client.get(url).build().map_err(|e| format!("{:?}", e))?;
 
   client
@@ -598,38 +600,33 @@ impl<T, W: Widget<T>> Controller<T, W> for DragWindowController {
   }
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct Release {
   pub name: String,
   pub tag_name: String,
   pub assets: Vec<Asset>,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct Asset {
   pub name: String,
   pub browser_download_url: String,
 }
 
-pub async fn get_latest_manager() -> Result<Release, String> {
-  let client = WebClient::builder()
-    .user_agent("StarsectorModManager")
-    .build()
-    .map_err(|e| e.to_string())?;
+pub async fn get_latest_manager() -> anyhow::Result<Release> {
+  let client = WebClient::new();
 
   let mut res = client
     .get("https://api.github.com/repos/atlanticaccent/starsector-mod-manager-rust/releases")
     .send()
-    .await
-    .map_err(|e| e.to_string())?
+    .await?
     .json::<VecDeque<Release>>()
-    .await
-    .map_err(|e| e.to_string())?;
+    .await?;
 
   if let Some(release) = res.pop_front() {
     Ok(release)
   } else {
-    Err(String::from("Could not find any releases."))
+    anyhow::bail!("Could not find any releases.")
   }
 }
 
@@ -1562,8 +1559,6 @@ impl<T, U> Prism<T, U> for PrismBox<T, U> {
   }
 }
 
-mod modname {}
-
 #[extend::ext(name = Tap)]
 pub impl<T> T {
   fn tap<U>(mut self, func: impl FnOnce(&mut Self) -> U) -> Self {
@@ -1682,22 +1677,4 @@ impl druid::text::Formatter<u32> for ValueFormatter {
 
 pub fn ident_arc<T: Data>() -> lens::InArc<lens::Identity> {
   lens::InArc::new::<T, T>(lens::Identity)
-}
-
-pub struct WebClient;
-
-impl WebClient {
-  const TIMEOUT: u64 = 75;
-
-  pub fn new() -> reqwest::Client {
-    Self::builder()
-      .build()
-      .unwrap()
-  }
-  
-  pub fn builder() -> reqwest::ClientBuilder {
-    reqwest::Client::builder()
-      .timeout(std::time::Duration::from_millis(Self::TIMEOUT))
-      .connect_timeout(std::time::Duration::from_millis(Self::TIMEOUT))
-  }
 }

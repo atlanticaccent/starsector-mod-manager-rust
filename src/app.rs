@@ -82,7 +82,7 @@ impl App {
   const DUMB_UNIVERSAL_ESCAPE: Selector<()> = Selector::new("app.universal_escape");
   const REFRESH: Selector<()> = Selector::new("app.mod_list.refresh");
   const DISABLE: Selector<()> = Selector::new("app.disable");
-  const UPDATE_AVAILABLE: Selector<Result<Release, String>> = Selector::new("app.update.available");
+  const UPDATE_AVAILABLE: Selector<anyhow::Result<Release>> = Selector::new("app.update.available");
   const SELF_UPDATE: Selector<()> = Selector::new("app.update.perform");
   const RESTART: Selector<PathBuf> = Selector::new("app.update.restart");
   const LOG_ERROR: Selector<(String, String)> = Selector::new("app.mod.install.fail");
