@@ -1,10 +1,11 @@
-use druid::{piet::ColorParseError, theme, Color, Data, Env, Selector};
+use druid::{piet::ColorParseError, theme, Color, Data, Env, Key, Selector};
 use druid_widget_nursery::prism::Prism;
 use serde::{Deserialize, Serialize};
 
-use crate::app::util::{self, PrismBox};
+use crate::app::util;
 
 pub const CHANGE_THEME: Selector<Theme> = Selector::new("app.theme.change");
+pub const SHADOW: Key<Color> = Key::new("custom_theme.shadow");
 
 #[derive(Data, Clone)]
 pub struct Theme {
@@ -25,6 +26,7 @@ pub struct Theme {
   warning_text: Color,
   do_not_ignore: Color,
   do_not_ignore_text: Color,
+  shadow: Option<Color>,
 }
 
 impl Theme {
@@ -46,6 +48,7 @@ impl Theme {
     warning_text: unwrap(Color::from_hex_str("#ffe174")),
     do_not_ignore: unwrap(Color::from_hex_str("#7f2c00")),
     do_not_ignore_text: unwrap(Color::from_hex_str("#ffdbcc")),
+    shadow: None,
   };
 
   pub const RETRO: Self = Self {
@@ -66,6 +69,7 @@ impl Theme {
     warning_text: unwrap(Color::from_hex_str("#ffe174")),
     do_not_ignore: unwrap(Color::from_hex_str("#7f2c00")),
     do_not_ignore_text: unwrap(Color::from_hex_str("#ffdbcc")),
+    shadow: None,
   };
 
   pub fn apply(self, env: &mut Env) {
@@ -87,6 +91,7 @@ impl Theme {
       warning_text,
       do_not_ignore,
       do_not_ignore_text,
+      shadow,
     } = self;
 
     if let Some(text) = text {
@@ -116,6 +121,9 @@ impl Theme {
     env.set(util::ON_YELLOW_KEY, warning_text);
     env.set(util::ORANGE_KEY, do_not_ignore);
     env.set(util::ON_ORANGE_KEY, do_not_ignore_text);
+    if let Some(shadow) = shadow {
+      env.set(SHADOW, shadow)
+    }
   }
 }
 
@@ -123,15 +131,6 @@ const fn unwrap(res: Result<Color, ColorParseError>) -> Color {
   match res {
     Ok(color) => color,
     Err(_) => panic!(),
-  }
-}
-
-impl From<Themes> for Theme {
-  fn from(theme: Themes) -> Self {
-    match theme {
-      Themes::Retro => Self::RETRO,
-      Themes::Legacy => Self::LEGACY,
-    }
   }
 }
 
@@ -153,13 +152,36 @@ pub enum Themes {
   #[default]
   Retro,
   Legacy,
+  Brooklyn,
 }
 
-impl Themes {
-  pub fn prism(&self) -> PrismBox<Self, ()> {
-    match self {
-      Themes::Retro => PrismBox::new(ThemesRetro),
-      Themes::Legacy => PrismBox::new(ThemesLegacy),
+impl From<Themes> for Theme {
+  fn from(theme: Themes) -> Self {
+    match theme {
+      Themes::Retro => Self::RETRO,
+      Themes::Legacy => Self::LEGACY,
+      Themes::Brooklyn => KINGSCOUNTRY_BROOKLYN,
     }
   }
 }
+
+const KINGSCOUNTRY_BROOKLYN: Theme = Theme {
+  text: None,
+  button_dark: Some(unwrap(Color::from_hex_str("#7c7577"))),
+  button_light: Some(unwrap(Color::from_hex_str("#7c7577"))),
+  background_dark: unwrap(Color::from_hex_str("#050405")),
+  background_light: unwrap(Color::from_hex_str("#2f2e2f")),
+  border_dark: unwrap(Color::from_hex_str("#4a6d92")),
+  border_light: unwrap(Color::from_hex_str("#36717e")),
+  action: unwrap(Color::from_hex_str("#004d66")),
+  action_text: unwrap(Color::from_hex_str("#bbe9ff")),
+  success: unwrap(Color::from_hex_str("#135200")),
+  success_text: unwrap(Color::from_hex_str("#adf68a")),
+  error: unwrap(Color::from_hex_str("#930006")),
+  error_text: unwrap(Color::from_hex_str("#ffdad4")),
+  warning: unwrap(Color::from_hex_str("#574500")),
+  warning_text: unwrap(Color::from_hex_str("#ffe174")),
+  do_not_ignore: unwrap(Color::from_hex_str("#7f2c00")),
+  do_not_ignore_text: unwrap(Color::from_hex_str("#ffdbcc")),
+  shadow: Some(unwrap(Color::from_hex_str("#d0c5a7"))),
+};

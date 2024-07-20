@@ -6,12 +6,15 @@ use druid::{
   piet::ScaleMode,
   theme,
   widget::{BackgroundBrush, Either, Painter},
-  Color, Data, Insets, KeyOrValue, LinearGradient, RadialGradient, Rect, RenderContext, UnitPoint,
-  Widget, WidgetExt, WidgetId,
+  Color, Data, Env, Insets, KeyOrValue, LinearGradient, RadialGradient, Rect, RenderContext,
+  UnitPoint, Widget, WidgetExt, WidgetId,
 };
 
 use super::card_button::ScopedStackCardButton;
-use crate::app::util::{State, WithHoverState as _};
+use crate::{
+  app::util::{ShadeColor, State, WithHoverState as _},
+  theme::SHADOW,
+};
 
 pub struct Card;
 
@@ -127,7 +130,7 @@ impl Card {
       insets.y0 /= 2.0;
       insets.y1 /= 2.0;
 
-      Self::shadow_painter(ctx, insets, corner_radius, shadow_length);
+      Self::shadow_painter(ctx, env, insets, corner_radius, shadow_length);
 
       let rounded_rect = size.to_rect().inset(-insets).to_rounded_rect(corner_radius);
 
@@ -158,6 +161,7 @@ impl Card {
 
   fn shadow_painter(
     ctx: &mut druid::PaintCtx,
+    env: &Env,
     insets: Insets,
     corner_radius: f64,
     shadow_length: f64,
@@ -165,17 +169,17 @@ impl Card {
     let rect = ctx.size().to_rect();
 
     let light = Color::TRANSPARENT;
-    let dark = Color::BLACK;
+    let dark = env.try_get(SHADOW).unwrap_or(Color::BLACK);
 
     ctx.fill(rect, &light);
 
-    let stops = (dark, light);
+    let stops = (dark, dark.interpolate_with(light, 9), light);
     let radius = corner_radius + shadow_length;
     let mut circle = Circle::new(
       (insets.x0 + corner_radius, insets.y0 + corner_radius),
       radius,
     );
-    let brush = RadialGradient::new(0.5, stops).with_scale_mode(ScaleMode::Fit);
+    let brush = RadialGradient::new(0.5, stops).with_scale_mode(ScaleMode::Fill);
 
     ctx.with_save(|ctx| {
       ctx.clip(Rect::new(0.0, 0.0, circle.center.x, circle.center.y));
@@ -212,6 +216,7 @@ impl Card {
       ctx.fill(circle, &brush);
     });
 
+    let stops = (dark, light);
     let linear = LinearGradient::new(UnitPoint::BOTTOM, UnitPoint::TOP, stops);
     let rect = Rect::new(
       insets.x0 + corner_radius,
