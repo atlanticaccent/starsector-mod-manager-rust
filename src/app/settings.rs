@@ -21,7 +21,7 @@ use super::{
   tools::vmparams::VMParams,
   util::{
     bolded, button_painter, default_true, h2_fixed, hoverable_text, icons::*, lensed_bold,
-    CommandExt, LabelExt, LoadError, SaveError, ShadeColor, Tap, WidgetExtEx, WithHoverState,
+    CommandExt, LabelExt, LoadError, SaveError, Tap, WidgetExtEx, WithHoverState,
   },
   App,
 };
@@ -307,7 +307,7 @@ impl Settings {
               .with_insets((-4., 18.))
               .with_shadow_length(6.0)
               .with_shadow_increase(2.0)
-              .with_background(druid::Color::GRAY.lighter_by(9))
+              .with_background(druid::theme::BACKGROUND_DARK)
               .stacked_button(
                 |_| {
                   Flex::row()
@@ -383,7 +383,7 @@ impl Settings {
         Card::builder()
           .with_insets(0.0)
           .with_shadow_length(0.0)
-          .with_background(druid::Color::GRAY.lighter_by(9))
+          .with_background(druid::theme::BACKGROUND_DARK)
           .build(
             Flex::row()
               .with_default_spacer()
