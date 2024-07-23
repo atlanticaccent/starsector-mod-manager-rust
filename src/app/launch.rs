@@ -12,8 +12,8 @@ use webview_shared::ExtEventSinkExt;
 use super::{
   overlays::{LaunchResult, Popup},
   util::{
-    h2_fixed, State, Tap, ValueFormatter, WithHoverState, BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY,
-    RED_KEY,
+    h2_fixed, LabelExt, State, Tap, ValueFormatter, WithHoverState, BLUE_KEY, ON_BLUE_KEY,
+    ON_RED_KEY, RED_KEY,
   },
   App, SETTINGS, TOGGLE_ON,
 };
@@ -167,7 +167,7 @@ fn footer_collapsed() -> impl Widget<App> {
         .env_scope(move |env, state| {
           if state.inner {
             env.set(BACKGROUND, Color::GRAY.lighter_by(4));
-            env.set(druid::theme::TEXT_COLOR, env.get(OLD_TEXT_COLOR));
+            env.set(druid::theme::TEXT_COLOR, Color::BLACK);
           } else {
             env.set(BACKGROUND, Color::BLACK.interpolate_with(Color::GRAY, 1))
           };
@@ -259,7 +259,7 @@ fn footer_expanded() -> impl Widget<App> {
     .scope_with(false, |widget| {
       widget
         .env_scope(move |env, _| {
-          env.set(druid::theme::TEXT_COLOR, env.get(OLD_TEXT_COLOR));
+          env.set(druid::theme::TEXT_COLOR, Color::BLACK);
         })
         .lens(Map::new(
           |data: &(State<App, bool>, bool)| {
@@ -297,17 +297,16 @@ fn experimental_launch_row(active: bool) -> Flex<App> {
               Flex::column()
                 .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
                 .with_child(
-                  Label::new("Bypasses the official launcher.").with_text_color(OLD_TEXT_COLOR),
+                  Label::new("Bypasses the official launcher.").with_text_color(Color::BLACK),
                 )
                 .with_child(
-                  Label::new("You can't change your mod list or").with_text_color(OLD_TEXT_COLOR),
+                  Label::wrapped(
+                    "You can't change your mod list or launcher only graphics settings like \
+                     resolution when this is set.",
+                  )
+                  .with_text_color(Color::BLACK),
                 )
-                .with_child(
-                  Label::new("launcher only graphics settings").with_text_color(OLD_TEXT_COLOR),
-                )
-                .with_child(
-                  Label::new("like resolution when this is set.").with_text_color(OLD_TEXT_COLOR),
-                )
+                .fix_width(200.0)
                 .padding((4.0, 0.0)),
             ),
         )
