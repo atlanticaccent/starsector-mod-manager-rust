@@ -396,7 +396,7 @@ impl ModRepo {
   }
 
   pub async fn get_mod_repo() -> anyhow::Result<Self> {
-    let client = WebClient::new();
+    let client = WebClient::builder(75).build();
 
     let mut repo = client
       .get(Self::REPO_URL)
@@ -407,7 +407,7 @@ impl ModRepo {
       })?
       .json::<ModRepo>()
       .await
-      .map_err(|e| anyhow::anyhow!(e))?;
+      .map_err(|e| anyhow::anyhow!(dbg!(e)))?;
 
     repo
       .items

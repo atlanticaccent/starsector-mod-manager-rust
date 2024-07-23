@@ -12,20 +12,19 @@ impl WebClient {
   pub(crate) const TIMEOUT: u64 = 75;
 
   pub fn new() -> ClientWithMiddleware {
-    Self::builder().build()
+    Self::builder(50).build()
   }
 
-  pub fn builder() -> ClientBuilder {
+  pub fn builder(max_retries: u32) -> ClientBuilder {
     let retry_policy = ExponentialBackoff::builder()
       .retry_bounds(Duration::from_millis(20), Duration::from_millis(200))
-      .build_with_max_retries(50);
+      .build_with_max_retries(max_retries);
     ClientBuilder::new(
       reqwest::Client::builder()
         .brotli(true)
         .gzip(true)
         .deflate(true)
         .timeout(Duration::from_millis(Self::TIMEOUT))
-        .connect_timeout(Duration::from_millis(Self::TIMEOUT))
         .user_agent("StarsectorModManager")
         .build()
         .unwrap(),
