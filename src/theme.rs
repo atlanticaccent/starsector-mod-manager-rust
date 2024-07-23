@@ -173,8 +173,8 @@ impl From<Themes> for Theme {
 // https://www.dayroselane.com/hydrants/details/40_704692_-73_924656
 const TROUTMANST_BROOKLYN: Theme = Theme {
   text: Some(unwrap(Color::from_hex_str("#36717e"))),
-  button_dark: Some(unwrap(Color::from_hex_str("#7b474a"))),
-  button_light: Some(unwrap(Color::from_hex_str("#7b474a"))),
+  button_dark: Some(unwrap(Color::from_hex_str("#3b0e14"))),
+  button_light: Some(unwrap(Color::from_hex_str("#3b0e14"))),
   background_dark: unwrap(Color::from_hex_str("#050405")),
   background_light: unwrap(Color::from_hex_str("#2f2e2f")),
   border_dark: unwrap(Color::from_hex_str("#4a6d92")),
