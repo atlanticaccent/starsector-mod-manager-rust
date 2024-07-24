@@ -1,4 +1,4 @@
-use druid::{piet::ColorParseError, theme, Color, Data, Env, Key, Selector};
+use druid::{piet::ColorParseError, text::FontWeight, theme, Color, Data, Env, Key, Selector};
 use druid_widget_nursery::prism::Prism;
 use serde::{Deserialize, Serialize};
 
@@ -124,6 +124,10 @@ impl Theme {
     if let Some(shadow) = shadow {
       env.set(SHADOW, shadow)
     }
+
+    let mut font = env.get(druid::theme::UI_FONT);
+    font.weight = FontWeight::new(450);
+    env.set(druid::theme::UI_FONT, font);
   }
 }
 
@@ -216,12 +220,12 @@ const GATESAVE_BROOKLYN: Theme = Theme {
 
 // https://www.dayroselane.com/hydrants/details/42_377487_-71_101188
 const WARDTWO_MA: Theme = Theme {
-  text: Some(unwrap(Color::from_hex_str("#a47260"))),
-  button_dark: Some(unwrap(Color::from_hex_str("#444846"))),
-  button_light: Some(unwrap(Color::from_hex_str("#444846"))),
+  text: Some(unwrap(Color::from_hex_str("#ca9582"))),
+  button_dark: Some(unwrap(Color::from_hex_str("#343836"))),
+  button_light: Some(unwrap(Color::from_hex_str("#343836"))),
   background_dark: unwrap(Color::from_hex_str("#350f0f")),
   background_light: unwrap(Color::from_hex_str("#443530")),
-  border_dark: unwrap(Color::from_hex_str("#443530")),
+  border_dark: unwrap(Color::from_hex_str("#b19f99")),
   border_light: unwrap(Color::from_hex_str("#9a5d41")),
   action: unwrap(Color::from_hex_str("#004d66")),
   action_text: unwrap(Color::from_hex_str("#bbe9ff")),
