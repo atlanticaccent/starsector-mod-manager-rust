@@ -13,6 +13,7 @@ use druid_widget_nursery::{
   material_icons::Icon, prism::OptionSome, FutureWidget, Separator, WidgetExt as WidgetExtNursery,
 };
 use itertools::Itertools;
+use reqwest_retry::policies::ExponentialBackoff;
 use serde::Deserialize;
 use strum::{IntoEnumIterator, VariantArray};
 use strum_macros::{EnumIter, EnumString, IntoStaticStr, VariantArray};
@@ -396,18 +397,27 @@ impl ModRepo {
   }
 
   pub async fn get_mod_repo() -> anyhow::Result<Self> {
-    let client = WebClient::builder(75).build();
+    let client = WebClient::builder(
+      ExponentialBackoff::builder()
+        .retry_bounds(
+          std::time::Duration::from_millis(50),
+          std::time::Duration::from_secs(60),
+        )
+        .jitter(reqwest_retry::Jitter::Bounded)
+        .build_with_total_retry_duration(std::time::Duration::from_secs(30 * 60)),
+    )
+    .build();
 
-    let mut repo = client
-      .get(Self::REPO_URL)
-      .send()
-      .await
-      .inspect_err(|err| {
-        dbg!(err);
-      })?
-      .json::<ModRepo>()
-      .await
-      .map_err(|e| anyhow::anyhow!(dbg!(e)))?;
+    let mut req = client.get(Self::REPO_URL).send().await.inspect_err(|err| {
+      dbg!(err);
+    })?;
+
+    let mut bytes = Vec::new();
+    while let Ok(Some(chunk)) = req.chunk().await {
+      bytes.extend(chunk)
+    }
+
+    let mut repo: ModRepo = serde_json::from_slice(&bytes)?;
 
     repo
       .items

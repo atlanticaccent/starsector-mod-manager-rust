@@ -4,7 +4,7 @@ use futures::future::BoxFuture;
 use http::Extensions;
 use reqwest::{Request, Response};
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware, Middleware, Next};
-use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
+use reqwest_retry::{policies::ExponentialBackoff, RetryPolicy, RetryTransientMiddleware};
 
 pub struct WebClient;
 
@@ -12,13 +12,15 @@ impl WebClient {
   pub(crate) const TIMEOUT: u64 = 75;
 
   pub fn new() -> ClientWithMiddleware {
-    Self::builder(50).build()
+    Self::builder(
+      ExponentialBackoff::builder()
+        .retry_bounds(Duration::from_millis(20), Duration::from_millis(200))
+        .build_with_max_retries(50),
+    )
+    .build()
   }
 
-  pub fn builder(max_retries: u32) -> ClientBuilder {
-    let retry_policy = ExponentialBackoff::builder()
-      .retry_bounds(Duration::from_millis(20), Duration::from_millis(200))
-      .build_with_max_retries(max_retries);
+  pub fn builder(retry_policy: impl RetryPolicy + Send + Sync + 'static) -> ClientBuilder {
     ClientBuilder::new(
       reqwest::Client::builder()
         .brotli(true)
@@ -47,9 +49,7 @@ fn increment_timeout<'a>(
 ) -> BoxFuture<'a, reqwest_middleware::Result<Response>> {
   let timeout = extensions.get_or_insert(Timeout(WebClient::TIMEOUT));
 
-  req
-    .timeout_mut()
-    .replace(Duration::from_millis(timeout.0));
+  req.timeout_mut().replace(Duration::from_millis(timeout.0));
 
   timeout.0 *= 2;
 
