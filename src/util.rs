@@ -9,7 +9,7 @@ use std::{
   ops::{Deref, DerefMut, Index, IndexMut},
   path::PathBuf,
   rc::Rc,
-  sync::{Arc, Mutex, Weak},
+  sync::{Arc, RwLock, Weak},
 };
 
 use druid::{
@@ -227,12 +227,13 @@ pub const MASTER_VERSION_RECEIVED: Selector<(String, Result<ModVersionMeta, Stri
 pub async fn get_master_version(
   client: &ClientWithMiddleware,
   ext_sink: Option<ExtEventSink>,
-  local: &ModVersionMeta,
+  remote_url: String,
+  id: String,
 ) -> Option<ModVersionMeta> {
-  let res = send_request(client, local.remote_url.clone()).await;
+  let res = send_request(client, remote_url).await;
 
   let payload = match res {
-    Err(err) => (local.id.clone(), Err(err)),
+    Err(err) => (id, Err(err)),
     Ok(remote) => {
       let mut stripped = String::new();
       if strip_comments(remote.as_bytes())
@@ -241,12 +242,9 @@ pub async fn get_master_version(
         && let Ok(normalized) = handwritten_json::normalize(&stripped)
         && let Ok(remote) = json5::from_str::<ModVersionMeta>(&normalized)
       {
-        (local.id.clone(), Ok(remote))
+        (id, Ok(remote))
       } else {
-        (
-          local.id.clone(),
-          Err(format!("Parse error. Payload:\n{}", remote)),
-        )
+        (id, Err(format!("Parse error. Payload:\n{}", remote)))
       }
     }
   };
@@ -1188,6 +1186,36 @@ impl<A: Clone + Hash + Eq, B, C> Collection<(A, B, C), Vec<(A, B, C)>> for HashM
   }
 }
 
+impl<A: Clone + Hash + Eq, B> Collection<(A, B), Vec<(A, B)>> for HashMap<A, B> {
+  fn insert(&mut self, (k, v): (A, B)) {
+    HashMap::insert(self, k, v);
+  }
+
+  fn len(&self) -> usize {
+    self.len()
+  }
+
+  fn drain(&mut self) -> Vec<(A, B)> {
+    self.drain().collect()
+  }
+}
+
+impl<A: Clone + Hash + Eq, B> Collection<(A, B), HashMap<A, B>> for HashMap<A, B> {
+  fn insert(&mut self, (k, v): (A, B)) {
+    HashMap::insert(self, k, v);
+  }
+
+  fn len(&self) -> usize {
+    self.len()
+  }
+
+  fn drain(&mut self) -> HashMap<A, B> {
+    let mut drain = HashMap::new();
+    std::mem::swap(self, &mut drain);
+    drain
+  }
+}
+
 impl Collection<Arc<ModEntry>, Vec<Arc<ModEntry>>> for Vec<Arc<ModEntry>> {
   fn insert(&mut self, item: Arc<ModEntry>) {
     self.push(item);
@@ -1203,7 +1231,7 @@ impl Collection<Arc<ModEntry>, Vec<Arc<ModEntry>>> for Vec<Arc<ModEntry>> {
 }
 
 pub struct LoadBalancer<T: Any + Send, DRAIN: Any + Send, SINK: Default + Collection<T, DRAIN>> {
-  tx: std::sync::LazyLock<Mutex<Weak<mpsc::UnboundedSender<T>>>>,
+  tx: std::sync::LazyLock<RwLock<Weak<mpsc::UnboundedSender<T>>>>,
   sink: PhantomData<SINK>,
   selector: Selector<DRAIN>,
 }
@@ -1220,10 +1248,16 @@ impl<T: Any + Send, U: Any + Send, SINK: Default + Collection<T, U> + Send>
   }
 
   pub fn sender(&self, ext_ctx: ExtEventSink) -> Arc<mpsc::UnboundedSender<T>> {
-    let mut sender = self.tx.lock().unwrap();
+    let sender = self.tx.read().unwrap();
     if let Some(tx) = sender.upgrade() {
       tx
     } else {
+      drop(sender);
+      let mut sender = if let Ok(tx) = self.tx.try_write() {
+        tx
+      } else {
+        return self.sender(ext_ctx);
+      };
       let (tx, mut rx) = mpsc::unbounded_channel::<T>();
       let tx = Arc::new(tx);
       let selector = self.selector;
@@ -1249,8 +1283,10 @@ impl<T: Any + Send, U: Any + Send, SINK: Default + Collection<T, U> + Send>
               }
             },
             _ = &mut sleep => {
-              let vals = sink.drain();
-              let _ = ext_ctx.submit_command(selector, vals, Target::Auto);
+              if !sink.is_empty() {
+                let vals = sink.drain();
+                let _ = ext_ctx.submit_command(selector, vals, Target::Auto);
+              }
               sleep.as_mut().reset(tokio::time::Instant::now() + std::time::Duration::from_millis(50));
             }
           }
@@ -1264,7 +1300,6 @@ impl<T: Any + Send, U: Any + Send, SINK: Default + Collection<T, U> + Send>
   }
 }
 
-#[allow(non_camel_case_types)]
 #[derive(Clone, Default)]
 pub struct FastImMap<K: Clone + Hash + Eq, V: Clone>(druid::im::HashMap<K, V, ahash::RandomState>);
 

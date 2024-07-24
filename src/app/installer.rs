@@ -177,7 +177,13 @@ async fn handle_path(
           mod_info.set_path(mods_dir.join(&mod_info.id));
           if let Some(version_checker) = mod_info.version_checker.clone() {
             let client = WebClient::new();
-            mod_info.remote_version = get_master_version(&client, None, &version_checker).await;
+            mod_info.remote_version = get_master_version(
+              &client,
+              None,
+              version_checker.remote_url.clone(),
+              version_checker.id.clone(),
+            )
+            .await;
             mod_info.update_status = Some(UpdateStatus::from((
               &version_checker,
               &mod_info.remote_version,
@@ -355,7 +361,13 @@ async fn handle_delete(
   entry.set_path(old_path);
   if let Some(version_checker) = entry.version_checker.clone() {
     let client = WebClient::new();
-    entry.remote_version = get_master_version(&client, None, &version_checker).await;
+    entry.remote_version = get_master_version(
+      &client,
+      None,
+      version_checker.remote_url.clone(),
+      version_checker.id.clone(),
+    )
+    .await;
     entry.update_status = Some(UpdateStatus::from((
       &version_checker,
       &entry.remote_version,

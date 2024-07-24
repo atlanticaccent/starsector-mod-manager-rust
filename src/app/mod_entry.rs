@@ -1,3 +1,4 @@
+use core::fmt;
 use std::{
   fmt::Display,
   fs::File,
@@ -130,6 +131,12 @@ impl ViewState {
 impl Default for ViewState {
   fn default() -> Self {
     Self::new()
+  }
+}
+
+impl fmt::Debug for ViewState {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    f.debug_struct("ViewState").finish()
   }
 }
 

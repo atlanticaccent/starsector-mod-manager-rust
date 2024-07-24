@@ -29,12 +29,14 @@ use super::{
   controllers::ExtensibleController,
   installer::HybridPath,
   mod_entry::{
-    GameVersion, ModEntry as RawModEntry, ModMetadata, UpdateStatus, ViewModEntry as ModEntry,
+    GameVersion, ModEntry as RawModEntry, ModMetadata, ModVersionMeta, UpdateStatus,
+    ViewModEntry as ModEntry,
   },
   util::{self, FastImMap, SaveError, WebClient, WidgetExtEx},
   App,
 };
 use crate::{
+  app::util::LoadBalancer,
   patch::table::{ComplexTableColumnWidth, FlexTable, TableColumnWidth, TableData},
   widgets::card::Card,
 };
@@ -84,6 +86,8 @@ impl ModList {
     Selector::new("mod_list.column.update_width");
   const UPDATE_TABLE_SORT: Selector = Selector::new("mod_list.table.update_sorting");
   pub const INSERT_MOD: Selector<RawModEntry> = Selector::new("mod_list.mods.insert");
+  const UPDATE_VERSION_CHECKER: Selector<HashMap<String, Option<ModVersionMeta>>> =
+    Selector::new("mod_list.mods.update_version_checker");
 
   pub fn new(headings: Vector<Heading>) -> Self {
     Self {
@@ -183,6 +187,23 @@ impl ModList {
                               .mods
                               .insert(entry.id.clone(), Arc::new(entry.clone().into()));
                             ctx.request_update();
+                            true
+                          })
+                          .on_command(Self::UPDATE_VERSION_CHECKER, |_, _, payload, data| {
+                            for (id, remote_version) in payload {
+                              if let Some(entry) = data.mods.get(id) {
+                                let mut entry = entry.clone();
+                                let entry_ref = Arc::make_mut(&mut entry);
+                                entry_ref.remote_version = remote_version.clone();
+                                entry_ref.update_status = Some(UpdateStatus::from((
+                                  entry_ref.version_checker.as_ref().unwrap(),
+                                  &entry_ref.remote_version,
+                                )));
+
+                                data.mods[id] = entry;
+                              }
+                            }
+
                             true
                           }),
                       )
@@ -355,8 +376,15 @@ impl ModList {
 
   pub fn parse_mod_folder(
     root_dir: PathBuf,
+    ext_ctx: ExtEventSink,
   ) -> Result<FastImMap<String, RawModEntry>, (FastImMap<String, RawModEntry>, Vec<Vec<RawModEntry>>)>
   {
+    static BALANCER: LoadBalancer<
+      (String, Option<ModVersionMeta>),
+      HashMap<String, Option<ModVersionMeta>>,
+      HashMap<String, Option<ModVersionMeta>>,
+    > = LoadBalancer::new(ModList::UPDATE_VERSION_CHECKER);
+
     let handle = tokio::runtime::Handle::current();
 
     let mod_dir = root_dir.join("mods");
@@ -379,7 +407,8 @@ impl ModList {
     };
     let enabled_mods_iter = enabled_mods.par_iter();
 
-    let client = WebClient::new();
+    let client = Arc::new(WebClient::new());
+    let barrier = Arc::new(tokio::sync::Semaphore::new(0));
     let mods = dir_iter
       .par_bridge()
       .filter_map(|entry| entry.ok())
@@ -400,11 +429,21 @@ impl ModList {
                 .is_some(),
             );
 
-            if let Some(version) = entry.version_checker.clone() {
-              let master_version =
-                handle.block_on(util::get_master_version(&client, None, &version));
-              entry.remote_version = master_version.clone();
-              entry.update_status = Some(UpdateStatus::from((&version, &master_version)));
+            if let Some(version) = entry.version_checker.as_ref() {
+              let client = client.clone();
+              let remote_url = version.remote_url.clone();
+              let id = version.id.clone();
+              let tx = {
+                let _handle = handle.enter();
+                BALANCER.sender(ext_ctx.clone())
+              };
+              let barrier = barrier.clone();
+              handle.spawn(async move {
+                let remote_version =
+                  util::get_master_version(client.as_ref(), None, remote_url, id.clone()).await;
+                let _ = barrier.acquire().await;
+                let _ = tx.send((id, remote_version));
+              });
             }
             if ModMetadata::path(&entry.path).exists() {
               if let Some(mod_metadata) = handle.block_on(ModMetadata::parse_and_send(
@@ -456,28 +495,23 @@ impl ModList {
         })
         .collect();
 
-      return Err((out, duplicates));
-    }
+      barrier.close();
 
-    Ok(out)
+      Err((out, duplicates))
+    } else {
+      barrier.close();
+
+      Ok(out)
+    }
   }
 
   pub async fn parse_mod_folder_async(root_dir: PathBuf, ext_ctx: ExtEventSink) {
-    let map = tokio::task::spawn_blocking(|| Self::parse_mod_folder(root_dir)).await;
+    let ext_ctx_tmp = ext_ctx.clone();
+    let map = tokio::task::spawn_blocking(|| Self::parse_mod_folder(root_dir, ext_ctx_tmp)).await;
 
-    let mods = match map {
-      Ok(Ok(mods)) => mods,
-      Ok(Err((mods, duplicates))) => {
-        let _ = ext_ctx.submit_command_global(
-          super::Popup::DELAYED_POPUP,
-          duplicates
-            .into_iter()
-            .map(|dupes| super::Popup::duplicate(dupes.into()))
-            .collect::<Vec<_>>(),
-        );
-
-        mods
-      }
+    let (mods, duplicates) = match map {
+      Ok(Ok(mods)) => (mods, None),
+      Ok(Err((mods, duplicates))) => (mods, Some(duplicates)),
       Err(err) => {
         eprintln!("{} | Failed to parse mod folder async: {err}", line!());
         return;
@@ -486,6 +520,15 @@ impl ModList {
     if let Err(err) = ext_ctx.submit_command_global(super::App::REPLACE_MODS, SingleUse::new(mods))
     {
       eprintln!("{} | {err}", line!())
+    }
+    if let Some(duplicates) = duplicates {
+      let _ = ext_ctx.submit_command_global(
+        super::Popup::DELAYED_POPUP,
+        duplicates
+          .into_iter()
+          .map(|dupes| super::Popup::duplicate(dupes.into()))
+          .collect::<Vec<_>>(),
+      );
     }
   }
 
