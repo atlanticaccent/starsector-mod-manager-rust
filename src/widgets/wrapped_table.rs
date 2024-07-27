@@ -6,17 +6,12 @@ use std::{
   rc::Rc,
 };
 
-use druid::{
-  im::Vector, widget::WidgetWrapper, Data, Key, Lens, Selector, Widget, WidgetExt, WidgetId,
-};
+use druid::{im::Vector, Data, Key, Lens, Selector, Widget, WidgetExt, WidgetId};
 
 use super::ecs::EcsWidget;
 use crate::{
-  app::{
-    controllers::LayoutRepeater,
-    util::{FastImMap, WidgetExtEx},
-  },
-  patch::table::{FlexTable, RowData, TableColumnWidth, TableData},
+  app::util::FastImMap,
+  patch::table::{FlexTable, RowData, TableCellVerticalAlignment, TableColumnWidth, TableData},
 };
 
 pub trait CellConstructor<T, U, W>: Fn(&T, U, fn(&druid::Env) -> usize) -> W {}
@@ -66,7 +61,7 @@ impl<T: Data> WrapData for Vector<T> {
 
 pub struct WrappedTable<T: WrapData, W: Widget<T> + 'static> {
   id: WidgetId,
-  table: LayoutRepeater<TableDataImpl<T, W>, FlexTable<TableDataImpl<T, W>>>,
+  table: FlexTable<TableDataImpl<T, W>>,
   min_width: f64,
   columns: usize,
   constructor: Rc<dyn CellConstructor<T, T::OwnedId, W>>,
@@ -84,7 +79,7 @@ impl<T: WrapData, W: Widget<T> + 'static> WrappedTable<T, W> {
       id: WidgetId::next(),
       table: FlexTable::new()
         .default_column_width((TableColumnWidth::Flex(1.0), min_width))
-        .in_layout_repeater(),
+        .default_vertical_alignment(TableCellVerticalAlignment::Fill),
       min_width,
       columns: 0,
       constructor: Rc::new(constructor),
@@ -177,7 +172,7 @@ impl<T: WrapData, W: Widget<T> + 'static> Widget<T> for WrappedTable<T, W> {
     wrapper.width = columns;
     let height = wrapper.height();
 
-    let table = WidgetWrapper::wrapped_mut(&mut self.table);
+    let table = &mut self.table;
     let max_width = (bc.max().width - 10.0) / columns as f64;
     table.set_column_widths(&vec![max_width.into(); columns]);
 
@@ -251,10 +246,6 @@ impl<T: WrapData, W: Widget<T> + 'static> RowData for RowDataImpl<T, W> {
         let raw_id = get_id(env);
         constructor(&data.data, data.data_ids[raw_id].to_owned(), get_id)
           .lens(RowDataImpl::data)
-          .shared_constraint(
-            |data: &RowDataImpl<T, W>, _: &druid::Env| data.row.get() as u64,
-            druid::widget::Axis::Vertical,
-          )
           .expand_width()
       },
     )

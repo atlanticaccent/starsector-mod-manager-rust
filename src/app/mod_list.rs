@@ -37,7 +37,7 @@ use super::{
 };
 use crate::{
   app::util::LoadBalancer,
-  patch::table::{ComplexTableColumnWidth, FlexTable, TableColumnWidth, TableData},
+  patch::table::{ComplexTableColumnWidth, FlexTable, TableCellVerticalAlignment, TableColumnWidth, TableData},
   widgets::card::Card,
 };
 
@@ -162,6 +162,7 @@ impl ModList {
                         }
                       }))
                       .with_column_width(TableColumnWidth::Fixed(Header::ENABLED_WIDTH))
+                      .default_vertical_alignment(TableCellVerticalAlignment::Fill)
                       .column_border(theme::BORDER_DARK, 1.0)
                       .clip_aware(true)
                       .controller(
@@ -207,7 +208,7 @@ impl ModList {
                             true
                           }),
                       )
-                      .in_layout_repeater()
+                      // .in_layout_repeater()
                       .scroll()
                       .vertical()
                       .expand_width(),

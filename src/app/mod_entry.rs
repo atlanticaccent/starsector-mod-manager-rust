@@ -28,9 +28,9 @@ use super::{
   mod_description::ModDescription,
   mod_list::{headings::Heading, ModList},
   util::{
-    self, icons::*, LensExtExt, Tap, WidgetExtEx as _, WithHoverIdState as _, WithHoverState,
-    BLUE_KEY, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ON_RED_KEY, ON_YELLOW_KEY,
-    ORANGE_KEY, RED_KEY, YELLOW_KEY,
+    self, icons::*, LensExtExt, Tap, WithHoverIdState as _, WithHoverState, BLUE_KEY, GREEN_KEY,
+    ON_BLUE_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ON_RED_KEY, ON_YELLOW_KEY, ORANGE_KEY, RED_KEY,
+    YELLOW_KEY,
   },
   App,
 };
@@ -481,8 +481,7 @@ impl ViewModEntry {
         .lens(lens!((ViewModEntry, SharedIdHoverState), 0))
         .padding(2.0)
         .background(painter())
-        .with_shared_id_hover_state(self.view_state.hover_state.clone())
-        .shared_constraint(self.view_state.id, druid::widget::Axis::Vertical),
+        .with_shared_id_hover_state(self.view_state.hover_state.clone()),
     )
   }
 }
