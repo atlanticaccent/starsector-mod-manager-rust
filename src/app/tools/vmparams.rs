@@ -19,7 +19,9 @@ use strum_macros::EnumIter;
 use super::tool_card;
 use crate::{
   app::{
-    util::{h2_fixed, LoadError, SaveError, ShadeColor, ValueFormatter, WidgetExtEx, WithHoverState as _},
+    util::{
+      h2_fixed, LoadError, SaveError, ShadeColor, ValueFormatter, WidgetExtEx, WithHoverState as _,
+    },
     ARROW_DROP_DOWN, ARROW_LEFT, LINK, LINK_OFF,
   },
   widgets::{card::Card, root_stack::RootStack},
@@ -64,8 +66,13 @@ impl VMParams {
                       .with_insets(4.0)
                       .with_shadow_increase(3.0)
                       .with_shadow_length(0.0)
-                      .with_border(1.0, druid::Color::BLACK)
-                      .with_background(druid::Color::GRAY.lighter_by(9))
+                      .with_border(1.0, druid::theme::BORDER_DARK)
+                      .with_background(Painter::new(|ctx, _, env| {
+                        use druid::RenderContext;
+
+                        let rect = ctx.size().to_rect();
+                        ctx.fill(rect, &env.get(druid::theme::BACKGROUND_DARK).lighter_by(2))
+                      }))
                       .hoverable(|_| {
                         Flex::row()
                           .with_child(
@@ -129,8 +136,13 @@ impl VMParams {
                       .with_insets(4.0)
                       .with_shadow_increase(3.0)
                       .with_shadow_length(0.0)
-                      .with_border(1.0, druid::Color::BLACK)
-                      .with_background(druid::Color::GRAY.lighter_by(9))
+                      .with_border(1.0, druid::theme::BORDER_DARK)
+                      .with_background(Painter::new(|ctx, _, env| {
+                        use druid::RenderContext;
+
+                        let rect = ctx.size().to_rect();
+                        ctx.fill(rect, &env.get(druid::theme::BACKGROUND_DARK).lighter_by(2))
+                      }))
                       .hoverable(|_| {
                         Flex::row()
                           .with_child(
@@ -204,16 +216,21 @@ impl VMParams {
             .with_insets(4.0)
             .with_shadow_increase(3.0)
             .with_shadow_length(0.0)
-            .with_border(1.0, druid::Color::BLACK)
-            .with_background(druid::Color::WHITE.darker_by(1))
+            .with_border(1.0, druid::theme::BORDER_DARK)
+            .with_background(druid::theme::BACKGROUND_DARK)
             .hoverable(|_| {
               Flex::column()
                 .with_child(
                   Card::builder()
                     .with_insets(0.0)
                     .with_shadow_length(0.0)
-                    .with_border(1.0, druid::Color::BLACK)
-                    .with_background(druid::Color::GRAY.lighter_by(9))
+                    .with_border(1.0, druid::theme::BORDER_DARK)
+                    .with_background(Painter::new(|ctx, _, env| {
+                      use druid::RenderContext;
+
+                      let rect = ctx.size().to_rect();
+                      ctx.fill(rect, &env.get(druid::theme::BACKGROUND_DARK).lighter_by(2))
+                    }))
                     .build(
                       Flex::row()
                         .with_child(
@@ -254,7 +271,7 @@ fn other_units_dropdown(higher: bool) -> impl Widget<Unit> {
     Card::builder()
       .with_insets(0.0)
       .with_shadow_length(0.0)
-      .with_background(druid::Color::WHITE.darker_by(1))
+      .with_background(druid::theme::BACKGROUND_DARK)
       .hoverable_distinct(
         || {
           Flex::row()
