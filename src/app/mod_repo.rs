@@ -4,7 +4,8 @@ use chrono::{DateTime, Local, Utc};
 use deunicode::deunicode;
 use druid::{
   im::{HashMap, Vector},
-  lens::{self, Index, Map},
+  lens,
+  lens::{Index, Map},
   theme,
   widget::{Either, Flex, Label, Maybe, Painter, SizedBox, Spinner, ViewSwitcher},
   Data, Lens, LensExt, RenderContext, Selector, Widget, WidgetExt,
@@ -73,26 +74,48 @@ impl ModRepo {
   const UPDATE_PAGE: Selector = Selector::new("mod_repo.page.update");
 
   pub fn wrapper() -> impl Widget<App> {
-    FutureWidget::new(
-      |_, _| Self::get_mod_repo(),
-      Spinner::new()
-        .fix_size(40.0, 40.0)
-        .valign_centre()
-        .halign_centre(),
-      |mod_repo, app: &mut Option<ModRepo>, _| {
-        let mut err = None;
-        *app = mod_repo.inspect_err(|e| err = Some(e.to_string())).ok();
+    const REBUILD: Selector = Selector::new("mod_repo.rebuild");
 
-        Maybe::new(Self::view, move || {
-          Flex::column()
-            .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-            .with_child(Label::new("Could not load Starmodder catalogue:"))
-            .with_child(Label::new(err.clone().unwrap()))
-            .halign_centre()
-        })
+    ViewSwitcher::new(
+      |(_, ver), _| *ver,
+      |_, _, _| {
+        FutureWidget::new(
+          |_, _| Self::get_mod_repo(),
+          Spinner::new()
+            .fix_size(40.0, 40.0)
+            .valign_centre()
+            .halign_centre(),
+          |mod_repo, app: &mut Option<ModRepo>, _| {
+            let mut err = None;
+            *app = mod_repo.inspect_err(|e| err = Some(e.to_string())).ok();
+
+            Maybe::new(Self::view, move || {
+              Flex::column()
+                .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+                .with_child(Label::new("Could not load Starmodder catalogue:"))
+                .with_child(Label::new(err.clone().unwrap()))
+                .with_child(
+                  Card::builder()
+                    .hoverable(|_| {
+                      Flex::row()
+                        .with_child(Label::new("Retry"))
+                        .with_spacer(5.0)
+                        .with_child(Icon::new(*REFRESH))
+                        .padding((10.0, 0.0))
+                    })
+                    .on_click(|ctx, _, _| ctx.submit_notification(REBUILD)),
+                )
+                .halign_centre()
+            })
+            .boxed()
+          },
+        )
+        .lens(lens!((Option<ModRepo>, u32), 0))
         .boxed()
       },
     )
+    .on_notification(REBUILD, |_, _, data| data.1 += 1)
+    .scope(|data| (data, 0), lens!((Option<ModRepo>, u32), 0))
     .lens(App::mod_repo)
   }
 
