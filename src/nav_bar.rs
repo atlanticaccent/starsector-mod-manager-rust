@@ -57,7 +57,7 @@ impl NavBar {
                 .padding((4., 0.)),
             )
             .with_child(
-              hoverable_text_opts(None, |w| w.with_text_size(20.))
+              hoverable_text_opts(Option::<Color>::None, |w| w.with_text_size(20.))
                 .lens(Compute::new(|data: &Nav| data.label.to_string()))
                 .controller(HoverController::default())
                 .on_click(|ctx, data, _| {
@@ -157,6 +157,7 @@ pub enum NavLabel {
   Activity,
   Downloads,
   Settings,
+  ThemeEditor,
   Separator,
 }
 

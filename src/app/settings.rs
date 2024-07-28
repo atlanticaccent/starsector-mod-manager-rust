@@ -27,11 +27,16 @@ use super::{
 };
 use crate::{
   app::PROJECT,
-  theme::Themes,
+  nav_bar::Nav,
+  theme::{Theme, Themes},
   widgets::{
     card::Card, card_button::CardButton, root_stack::RootStack, wrapped_table::WrappedTable,
   },
 };
+
+mod theme_editor;
+
+pub use theme_editor::*;
 
 #[derive(Clone, Data, Lens, Serialize, Deserialize, Default, Debug)]
 pub struct Settings {
@@ -60,6 +65,7 @@ pub struct Settings {
 
   #[serde(default = "default_true")]
   pub show_duplicate_warnings: bool,
+  pub custom_theme: Theme,
 }
 
 fn default_headers() -> Vector<Heading> {
@@ -165,19 +171,32 @@ impl Settings {
             .with_shadow_increase(0.0)
             .with_border(1.0, druid::Color::BLACK)
             .stacked_button(
-              |_| Self::theme_picker_heading(true, 7.0).lens(Settings::theme),
-              Self::theme_picker_expanded,
+              |_| Self::theme_picker_heading(true, 7.0),
+              |_| Self::theme_picker_expanded(Themes::iter()),
               CardButton::stack_none(),
               150.0,
-            ),
+            )
+            .lens(Settings::theme),
+        )
+        .with_spacer(5.0)
+        .with_child(
+          hoverable_text(Option::<druid::Color>::None)
+            .constant("Edit Custom Theme".to_owned())
+            .on_click(|ctx, _, _| {
+              ctx.submit_command(Nav::NAV_SELECTOR.with(crate::nav_bar::NavLabel::ThemeEditor))
+            })
+            .with_hover_state(false)
+            .noop_if(|data, _| data != &Themes::Custom)
+            .lens(Settings::theme),
         )
         .with_default_spacer()
         .with_child(
-          hoverable_text(Some(druid::Color::BLACK))
+          hoverable_text(Option::<druid::Color>::None)
             .constant("Open config.json".to_owned())
             .on_click(|_, _, _| {
               let _ = opener::open(Settings::path(false));
             })
+            .with_hover_state(false)
             .stack_tooltip_custom(Card::new(
               bolded("Requires application restart for changes to apply.").padding((7.0, 0.0)),
             ))
@@ -447,11 +466,11 @@ impl Settings {
     row.padding(padding.into())
   }
 
-  fn theme_picker_expanded(_: bool) -> impl Widget<super::App> {
+  fn theme_picker_expanded(themes: impl Iterator<Item = Themes>) -> impl Widget<super::App> {
     Flex::column()
       .with_child(Self::theme_picker_heading(false, (7.0, 7.0, 7.0, 0.0)))
       .tap(|col| {
-        for theme in Themes::iter() {
+        for theme in themes {
           col.add_child(
             Flex::column()
               .with_default_spacer()
@@ -469,16 +488,15 @@ impl Settings {
                         env.set(
                           THEME_OPTION_BORDER,
                           if data.1 {
-                            druid::Color::BLACK
+                            env.get(druid::theme::BORDER_LIGHT)
                           } else {
                             druid::Color::TRANSPARENT
                           },
                         )
                       })
                   })
-                  .on_click(move |ctx, data, _| {
+                  .on_click(move |_, data, _| {
                     *data = theme;
-                    ctx.submit_command(super::CHANGE_THEME.with(theme.into()))
                   }),
               )
               .or_empty(move |data, _| data != &theme),
@@ -515,7 +533,7 @@ impl Settings {
       .map_err(|_| LoadError::ReadError)?;
 
     serde_json::from_str::<Settings>(&config_string)
-      .map_err(|_| LoadError::FormatError)
+      .map_err(Into::into)
       .map(|mut settings| {
         settings.dirty = true;
         settings

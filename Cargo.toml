@@ -175,7 +175,7 @@ internment = "0.7.4"
 syn = "2.0.48"
 quote = "1.0.35"
 comemo = "0.4.0"
-fake = { version = "2.9.2", features = ["derive", "chrono", "chrono-tz"] }
+fake = { version = "2.9.2", features = ["derive", "chrono", "chrono-tz", "random_color"] }
 extend = "1.2.0"
 itertools = "0.12.1"
 futures = "0.3.30"

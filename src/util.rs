@@ -84,6 +84,8 @@ pub enum LoadError {
   ZipError(#[from] zip::result::ZipError),
   #[error("IO error")]
   IoError(#[from] std::io::Error),
+  #[error("Serialization error")]
+  SerializationError(#[from] serde_json::Error),
 }
 
 #[derive(Debug, Clone)]
@@ -724,14 +726,18 @@ impl<X, Y> Default for DummyTransfer<X, Y> {
   }
 }
 
-pub fn hoverable_text(colour: Option<Color>) -> impl Widget<String> {
+pub fn hoverable_text(
+  colour: Option<impl Into<KeyOrValue<Color>> + 'static>,
+) -> impl Widget<String> {
   hoverable_text_opts(colour, |w| w)
 }
 
 pub fn hoverable_text_opts<W: Widget<RichText> + 'static>(
-  colour: Option<Color>,
+  colour: Option<impl Into<KeyOrValue<Color>> + 'static>,
   mut modify: impl FnMut(RawLabel<RichText>) -> W,
 ) -> impl Widget<String> {
+  let colour = colour.map(Into::into);
+
   struct TextHoverController;
 
   impl<D: Data, W: Widget<(D, bool)>> Controller<(D, bool), W> for TextHoverController {
@@ -765,11 +771,7 @@ pub fn hoverable_text_opts<W: Widget<RichText> + 'static>(
           .with_attribute(0..text.len(), Attribute::Underline(*hovered))
           .with_attribute(
             0..text.len(),
-            Attribute::TextColor(
-              colour
-                .map(|c| c.into())
-                .unwrap_or_else(|| theme::TEXT_COLOR.into()),
-            ),
+            Attribute::TextColor(colour.clone().unwrap_or_else(|| theme::TEXT_COLOR.into())),
           )
       }))
       .controller(TextHoverController),
@@ -977,18 +979,18 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     builder.build(self)
   }
 
-  fn scope_with<In: Data, SWO: Widget<State<T, In>> + 'static>(
+  fn scope_with<U: Data, In: Fn(T) -> U, SWO: Widget<State<T, U>> + 'static>(
     self,
-    state: In,
-    with: impl FnOnce(LensWrap<State<T, In>, T, state_derived_lenses::outer<T, In>, Self>) -> SWO,
+    state_maker: In,
+    with: impl FnOnce(LensWrap<State<T, U>, T, state_derived_lenses::outer<T, U>, Self>) -> SWO,
   ) -> impl Widget<T> {
-    let inner = self.lens(<State<T, In>>::outer);
+    let inner = self.lens(<State<T, U>>::outer);
     Scope::from_lens(
       move |outer| State {
-        outer,
-        inner: state.clone(),
+        outer: outer.clone(),
+        inner: state_maker(outer),
       },
-      <State<T, In>>::outer,
+      <State<T, U>>::outer,
       with(inner),
     )
   }
@@ -1027,6 +1029,13 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     scope: impl FnOnce(Box<dyn Widget<(T, S)>>) -> WO,
   ) -> impl Widget<T> {
     scope(self.lens(lens!((T, S), 0)).boxed()).with_hover_state_opts(state, set_cursor)
+  }
+
+  fn noop_if(
+    self,
+    func: impl Fn(&T, &Env) -> bool + Clone + 'static,
+  ) -> InvisibleIf<T, druid::widget::DisabledIf<T, Self>> {
+    self.disabled_if(func.clone()).invisible_if(func)
   }
 }
 

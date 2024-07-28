@@ -3,10 +3,11 @@ use std::path::PathBuf;
 use druid::{
   im::{HashSet, Vector},
   lens,
-  widget::{Flex, Maybe, Scope, WidgetWrapper, ZStack},
+  widget::{Flex, Maybe, WidgetWrapper, ZStack},
   Data, Lens, LensExt, Selector, SingleUse, Widget, WidgetExt, WidgetId,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
+use settings::ThemeEditor;
 use tokio::runtime::Handle;
 use util::{ident_arc, Tap};
 use webview_shared::PROJECT;
@@ -31,7 +32,7 @@ use crate::{
     tabs::tab::{InitialTab, Tabs, TabsPolicy},
     tabs_policy::StaticTabsForked,
   },
-  theme::{Theme, CHANGE_THEME},
+  theme::Themes,
   widgets::root_stack::RootStack,
 };
 
@@ -189,20 +190,23 @@ impl App {
     .expand();
 
     Flex::row()
-      .with_child(nav_bar.fix_width(195.).scope_with(true, |widget| {
-        widget
-          .else_if(
-            |data, _| !data.inner,
-            Icon::new(*LAST_PAGE)
-              .fix_size(34., 34.)
-              .controller(HoverController::default())
-              .on_click(|ctx, _, _| ctx.submit_command(App::TOGGLE_NAV_BAR))
-              .padding(6.)
-              .align_vertical(druid::UnitPoint::BOTTOM)
-              .expand_height(),
-          )
-          .on_command(App::TOGGLE_NAV_BAR, |_, _, data| data.inner = !data.inner)
-      }))
+      .with_child(nav_bar.fix_width(195.).scope_with(
+        |_| true,
+        |widget| {
+          widget
+            .else_if(
+              |data, _| !data.inner,
+              Icon::new(*LAST_PAGE)
+                .fix_size(34., 34.)
+                .controller(HoverController::default())
+                .on_click(|ctx, _, _| ctx.submit_command(App::TOGGLE_NAV_BAR))
+                .padding(6.)
+                .align_vertical(druid::UnitPoint::BOTTOM)
+                .expand_height(),
+            )
+            .on_command(App::TOGGLE_NAV_BAR, |_, _, data| data.inner = !data.inner)
+        },
+      ))
       .with_flex_child(
         Tabs::for_policy(StaticTabsForked::build(vec![
           InitialTab::new(
@@ -242,48 +246,67 @@ impl App {
           InitialTab::new(NavLabel::Starmodder, ModRepo::wrapper()),
           InitialTab::new(NavLabel::WebBrowser, Browser::view().lens(App::browser)),
           InitialTab::new(NavLabel::Settings, Settings::view().lens(App::settings)),
+          InitialTab::new(
+            NavLabel::ThemeEditor,
+            ThemeEditor::view()
+              .lens(Settings::custom_theme)
+              .on_change(Settings::save_on_change)
+              .lens(App::settings),
+          ),
         ]))
         .with_transition(crate::patch::tabs::tab::TabsTransition::Instant)
-        .scope_with(false, |widget| {
-          widget
-            .on_command2(Nav::NAV_SELECTOR, |tabs, ctx, label, state| {
-              let tabs = tabs.wrapped_mut();
-              let rebuild = &mut state.inner;
-              state.outer.current_tab = label.clone();
-              if *label != NavLabel::ModDetails {
-                ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Mods, false)));
-                ctx.submit_command(NavBar::REMOVE_OVERRIDE.with(NavLabel::ModDetails))
-              }
-              if *label != NavLabel::StarmodderDetails {
-                ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Starmodder, false)));
-                ctx.submit_command(NavBar::REMOVE_OVERRIDE.with(NavLabel::StarmodderDetails))
-              }
+        .scope_with(
+          |_| false,
+          |widget| {
+            widget
+              .on_command2(Nav::NAV_SELECTOR, |tabs, ctx, label, state| {
+                let tabs = tabs.wrapped_mut();
+                let rebuild = &mut state.inner;
+                state.outer.current_tab = label.clone();
+                if *label != NavLabel::ModDetails {
+                  ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Mods, false)));
+                  ctx.submit_command(NavBar::REMOVE_OVERRIDE.with(NavLabel::ModDetails))
+                }
+                if *label != NavLabel::StarmodderDetails {
+                  ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Starmodder, false)));
+                  ctx.submit_command(NavBar::REMOVE_OVERRIDE.with(NavLabel::StarmodderDetails))
+                }
+                if *label != NavLabel::ThemeEditor {
+                  ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::ThemeEditor, false)));
+                  ctx.submit_command(NavBar::REMOVE_OVERRIDE.with(NavLabel::Settings))
+                }
 
-              match label {
-                NavLabel::Mods => {
-                  tabs.set_tab_index_by_label(NavLabel::Mods);
-                  if *rebuild {
-                    ctx.submit_command(ModList::REBUILD);
-                    *rebuild = false;
+                match label {
+                  NavLabel::Mods => {
+                    tabs.set_tab_index_by_label(NavLabel::Mods);
+                    if *rebuild {
+                      ctx.submit_command(ModList::REBUILD);
+                      *rebuild = false;
+                    }
                   }
+                  NavLabel::ModDetails => {
+                    ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Mods, true)));
+                    ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::ModDetails, true)));
+                    tabs.set_tab_index_by_label(NavLabel::ModDetails)
+                  }
+                  NavLabel::ThemeEditor => {
+                    ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Settings, true)));
+                    ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::ThemeEditor, true)));
+                    tabs.set_tab_index_by_label(NavLabel::ThemeEditor)
+                  }
+                  label @ (NavLabel::Performance
+                  | NavLabel::Starmodder
+                  | NavLabel::WebBrowser
+                  | NavLabel::Settings) => tabs.set_tab_index_by_label(label),
+                  _ => eprintln!("Failed to open an item for a nav bar control"),
                 }
-                NavLabel::ModDetails => {
-                  ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Mods, true)));
-                  ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::ModDetails, true)));
-                  tabs.set_tab_index_by_label(NavLabel::ModDetails)
-                }
-                label @ (NavLabel::Performance
-                | NavLabel::Starmodder
-                | NavLabel::WebBrowser
-                | NavLabel::Settings) => tabs.set_tab_index_by_label(label),
-                _ => eprintln!("Failed to open an item for a nav bar control"),
-              }
-              true
-            })
-            .on_command(ModList::REBUILD_NEXT_PASS, |_, _, state| {
-              state.inner = true;
-            })
-        })
+                true
+              })
+              .on_command(ModList::REBUILD_NEXT_PASS, |_, _, state| {
+                state.inner = true;
+              })
+          },
+        )
         .on_command(util::MASTER_VERSION_RECEIVED, |_ctx, (id, res), data| {
           let remote = res.as_ref().ok().cloned();
           let entry_lens = App::mod_list.then(ModList::mods).deref().index(id);
@@ -313,17 +336,17 @@ impl App {
     RootStack::new(Popup::overlay(Self::view())).controller(AppController)
   }
 
-  pub fn theme_wrapper(theme: Theme) -> impl Widget<Self> {
-    Scope::from_lens(
-      move |data| (data, theme.clone()),
-      lens!((Self, Theme), 0),
-      Self::overlay()
-        .lens(lens!((Self, Theme), 0))
-        .background(druid::theme::WINDOW_BACKGROUND_COLOR)
-        .env_scope(|env, (_, theme)| theme.clone().apply(env))
-        .on_command(CHANGE_THEME, |_, theme: &Theme, data| {
-          data.1 = theme.clone()
-        }),
-    )
+  pub fn theme_wrapper() -> impl Widget<Self> {
+    Self::overlay()
+      .background(druid::theme::WINDOW_BACKGROUND_COLOR)
+      .env_scope(|env, app| {
+        let theme = app.settings.theme;
+        if theme == Themes::Custom {
+          app.settings.custom_theme.clone()
+        } else {
+          theme.into()
+        }
+        .apply(env)
+      })
   }
 }

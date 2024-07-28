@@ -123,7 +123,7 @@ impl CardButton {
 
     Self::button_with(base, builder)
       .fix_width(width)
-      .scope_with(false, move |widget| {
+      .scope_with(|_| false, move |widget| {
         if let Some(alt) = alt_stack_activation {
           alt(widget, dropdown, id).boxed()
         } else {

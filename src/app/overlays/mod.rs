@@ -72,7 +72,7 @@ impl Popup {
       .on_command(Popup::DISMISS_MATCHING, |_, matching, data| {
         data.popups.retain(|popup| !matching(popup));
       })
-      .scope_with((DataTimer::INVALID, Vector::new()), |scoped| {
+      .scope_with(|_| (DataTimer::INVALID, Vector::new()), |scoped| {
         scoped
           .on_command(Popup::DELAYED_POPUP, |ctx, popups, data| {
             let data = &mut data.inner;

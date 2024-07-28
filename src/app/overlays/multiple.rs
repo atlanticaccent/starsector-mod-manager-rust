@@ -204,7 +204,7 @@ fn row<T: Data>(entry: &ModEntry) -> impl Widget<T> {
       TableRow::new()
         .with_child(bolded("Path:").align_right())
         .with_child(
-          hoverable_text(None)
+          hoverable_text(Option::<druid::Color>::None)
             .constant(entry.path.to_string_lossy().to_string())
             .on_click(move |ctx, _, _| {
               let _ = opener::open(path.clone());

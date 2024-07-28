@@ -25,3 +25,4 @@ pub mod patch;
 pub mod theme;
 #[allow(dead_code)]
 pub mod widgets;
+pub mod formatter;

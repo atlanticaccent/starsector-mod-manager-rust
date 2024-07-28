@@ -2,9 +2,9 @@
 
 use const_format::concatcp;
 use druid::{AppLauncher, WindowDesc};
-use moss::app::{
-  app_delegate::AppDelegate,
-  self,
+use moss::{
+  app::{app_delegate::AppDelegate, App},
+  theme::save_original_env,
 };
 use tokio::runtime::Builder;
 use webview_shared::PROJECT;
@@ -18,7 +18,7 @@ fn main() {
   let _guard = runtime.enter();
 
   // create the initial app state
-  let mut initial_state = app::App::new(runtime.handle().clone());
+  let mut initial_state = App::new(runtime.handle().clone());
 
   if let Some(install_dir) = initial_state.settings.install_dir.as_ref() {
     if !install_dir.exists() {
@@ -26,7 +26,7 @@ fn main() {
     }
   }
 
-  let main_window = WindowDesc::new(app::App::theme_wrapper(initial_state.settings.theme.into()))
+  let main_window = WindowDesc::new(App::theme_wrapper())
     .title(concatcp!(
       "MOSS | Mod Organizer for StarSector v",
       env!("CARGO_PKG_VERSION")
@@ -35,8 +35,14 @@ fn main() {
 
   // start the application
   AppLauncher::with_window(main_window)
-    .configure_env(druid_widget_nursery::configure_env)
+    .configure_env(configure_env)
     .delegate(AppDelegate::default())
     .launch(initial_state)
     .expect("Failed to launch application");
+}
+
+fn configure_env<T>(env: &mut druid::Env, _data: &T) {
+  druid_widget_nursery::configure_env(env, _data);
+
+  save_original_env(env)
 }

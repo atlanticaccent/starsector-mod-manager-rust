@@ -439,7 +439,7 @@ fn toolbar() -> SizedBox<BrowserInner> {
 fn bookmarks() -> druid::widget::Padding<BrowserInner, impl Widget<BrowserInner>> {
   button(|hovered| bookmarks_heading_button::<BrowserInner>(hovered))
     .fix_width(BOOKMARK_WIDTH)
-    .scope_with((true, DataTimer::INVALID), |widget| {
+    .scope_with(|_| (true, DataTimer::INVALID), |widget| {
       const RE_ENABLE: Selector = Selector::new("browser.bookmarks.toggle");
 
       widget

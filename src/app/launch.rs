@@ -162,7 +162,7 @@ fn footer_collapsed() -> impl Widget<App> {
   Container::new(child)
     .rounded(4.0)
     .padding((0.0, 0.0, 0.0, -6.0))
-    .scope_with(false, |widget| {
+    .scope_with(|_| false, |widget| {
       widget
         .env_scope(move |env, state| {
           if state.inner {
@@ -256,7 +256,7 @@ fn footer_expanded() -> impl Widget<App> {
   Container::new(child)
     .rounded(4.0)
     .padding((0.0, 0.0, 0.0, -6.0))
-    .scope_with(false, |widget| {
+    .scope_with(|_| false, |widget| {
       widget
         .env_scope(move |env, _| {
           env.set(druid::theme::TEXT_COLOR, Color::BLACK);
