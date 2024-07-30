@@ -10,7 +10,6 @@
 #![feature(let_chains)]
 #![feature(iterator_try_collect)]
 #![feature(iter_next_chunk)]
-#![feature(lazy_cell)]
 #![feature(test)]
 #![feature(const_collections_with_hasher)]
 #![allow(clippy::new_ret_no_self)]
