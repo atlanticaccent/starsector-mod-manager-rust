@@ -200,7 +200,7 @@ impl ModDescription {
                   })
                   .fix_height(42.0)
                   .padding((0.0, 2.0))
-                  .or_empty(|data: &ModEntry, _| {
+                  .empty_if_not(|data: &ModEntry, _| {
                     data
                       .remote_version
                       .as_ref()
@@ -301,7 +301,7 @@ impl ModDescription {
               .with_child(Label::wrapped_func(|data: &bool, _| data.to_string()))
               .with_default_spacer()
               .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-              .or_empty(|data, _| *data)
+              .empty_if_not(|data, _| *data)
               .lens(ModEntry::utility),
           )
           .with_child(
@@ -328,7 +328,7 @@ impl ModDescription {
               .with_child(Label::wrapped_func(|data: &bool, _| data.to_string()))
               .with_default_spacer()
               .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-              .or_empty(|data, _| *data)
+              .empty_if_not(|data, _| *data)
               .lens(ModEntry::total_conversion),
           )
           .with_child(
@@ -339,7 +339,7 @@ impl ModDescription {
               }))
               .with_default_spacer()
               .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-              .or_empty(
+              .empty_if_not(
                 |data: &std::sync::Arc<Vec<super::mod_entry::Dependency>>, _| !data.is_empty(),
               )
               .lens(ModEntry::dependencies),

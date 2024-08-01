@@ -33,7 +33,7 @@ impl FilterOptions {
           .fix_height(60.0)
           .padding((-8.0, 0.0, -8.0, -4.0)),
       )
-      .or_empty(|data: &bool, _| *data)
+      .empty_if_not(|data: &bool, _| *data)
       .fix_width(super::FILTER_WIDTH)
       .lens(FilterState::open)
   }
@@ -59,7 +59,7 @@ impl FilterOptions {
           .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
           .expand_width(),
       ))
-      .or_empty(|data, _| *data)
+      .empty_if_not(|data, _| *data)
       .on_command(InstallOptions::DISMISS, |ctx, payload, data| {
         let hitbox = ctx
           .size()

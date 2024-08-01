@@ -74,7 +74,7 @@ impl FilterButton {
             *data = true;
           })
           .on_added(|_, ctx, _, _| ctx.submit_command(FILTER_POSITION.with(ctx.window_origin())))
-          .or_empty(|data, _| !*data)
+          .empty_if_not(|data, _| !*data)
           .fix_size(super::FILTER_WIDTH, 52.0)
           .lens(FilterState::open),
         StackChildPosition::new().right(Some(0.0)),

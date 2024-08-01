@@ -807,7 +807,7 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
   /**
    * Displays alternative when closure returns false
    */
-  fn or_empty(self, f: impl Fn(&T, &Env) -> bool + 'static) -> Either<T> {
+  fn empty_if_not(self, f: impl Fn(&T, &Env) -> bool + 'static) -> Either<T> {
     Either::new(f, self, SizedBox::empty())
   }
 
@@ -1029,13 +1029,6 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     scope: impl FnOnce(Box<dyn Widget<(T, S)>>) -> WO,
   ) -> impl Widget<T> {
     scope(self.lens(lens!((T, S), 0)).boxed()).with_hover_state_opts(state, set_cursor)
-  }
-
-  fn noop_if(
-    self,
-    func: impl Fn(&T, &Env) -> bool + Clone + 'static,
-  ) -> InvisibleIf<T, druid::widget::DisabledIf<T, Self>> {
-    self.disabled_if(func.clone()).invisible_if(func)
   }
 }
 

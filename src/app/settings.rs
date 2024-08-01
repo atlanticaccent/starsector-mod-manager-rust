@@ -189,7 +189,7 @@ impl Settings {
               ctx.submit_command(Nav::NAV_SELECTOR.with(crate::nav_bar::NavLabel::ThemeEditor))
             })
             .with_hover_state(false)
-            .noop_if(|data, _| data != &Themes::Custom)
+            .empty_if_not(|data, _| data == &Themes::Custom)
             .lens(Settings::theme),
         )
         .with_default_spacer()
@@ -438,7 +438,7 @@ impl Settings {
             ctx.submit_command(Header::ADD_HEADING.with(heading))
           })
           .disabled_if(move |data, _| data.contains(&heading))
-          .or_empty(move |data, _| !data.contains(&heading)),
+          .empty_if_not(move |data, _| !data.contains(&heading)),
       );
     }
 
@@ -502,7 +502,7 @@ impl Settings {
                     *data = theme;
                   }),
               )
-              .or_empty(move |data, _| data != &theme),
+              .empty_if_not(move |data, _| data != &theme),
           )
         }
       })

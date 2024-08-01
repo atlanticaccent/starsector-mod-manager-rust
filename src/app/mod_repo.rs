@@ -340,7 +340,7 @@ impl ModRepo {
               )
             }
           })
-          .or_empty(show_if),
+          .empty_if_not(show_if),
       )
       .with_child(
         CardButton::button(|_| Icon::new(*CHEVRON_LEFT).padding((8.0, 0.0)))
@@ -354,7 +354,7 @@ impl ModRepo {
             }
           })
           .disabled_if(is_start)
-          .or_empty(show_if),
+          .empty_if_not(show_if),
       )
       .with_child(
         CardButton::button(|_| {
@@ -383,7 +383,7 @@ impl ModRepo {
             }
           })
           .disabled_if(is_end)
-          .or_empty(show_if),
+          .empty_if_not(show_if),
       )
       .with_child(
         CardButton::button(|_| Icon::new(*DOUBLE_RIGHT).padding((8.0, 0.0)))
@@ -397,7 +397,7 @@ impl ModRepo {
             }
           })
           .disabled_if(is_end)
-          .or_empty(show_if),
+          .empty_if_not(show_if),
       )
       .lens(Map::new(
         |repo: &ModRepo| {

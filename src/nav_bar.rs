@@ -105,7 +105,7 @@ impl NavBar {
             .padding((4., 6., 6., 0.))
             .expand_width(),
         )
-        .or_empty(|data, _| !data.root)
+        .empty_if_not(|data, _| !data.root)
       },
       Compute::new(|data: &Nav| data.override_.unwrap_or(data.expanded || data.always_open)),
     )

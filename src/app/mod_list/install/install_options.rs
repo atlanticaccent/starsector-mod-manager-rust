@@ -73,7 +73,7 @@ impl InstallOptions {
         .fix_height(128.0)
         .padding((-8.0, 0.0, -8.0, -4.0)),
       )
-      .or_empty(|data: &InstallState, _| data.open)
+      .empty_if_not(|data: &InstallState, _| data.open)
       .on_command(Self::DISMISS, |ctx, payload, data| {
         let hitbox = ctx
           .size()
