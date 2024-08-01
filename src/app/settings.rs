@@ -59,6 +59,7 @@ pub struct Settings {
   pub headings: Vector<Heading>,
   #[serde(alias = "show_auto_update_for_discrepancy")]
   pub show_discrepancies: bool,
+  #[serde(default)]
   pub theme: Themes,
   #[serde(skip)]
   pub vmparams: Option<VMParams>,
@@ -66,6 +67,7 @@ pub struct Settings {
 
   #[serde(default = "default_true")]
   pub show_duplicate_warnings: bool,
+  #[serde(default)]
   pub custom_theme: Theme,
 }
 
