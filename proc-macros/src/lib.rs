@@ -37,64 +37,66 @@ pub fn impl_widget(input: TokenStream) -> TokenStream {
   let mut paint = None;
   let mut widget_pod = None;
 
-  let list = &attrs[0].meta.require_list().unwrap();
-  assert!(list.path.is_ident("widget"));
-  let args = list
-    .parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
-    .unwrap();
+  if let Some(attr) = attrs.get(0) {
+    let list = attr.meta.require_list().unwrap();
+    assert!(list.path.is_ident("widget"));
+    let args = list
+      .parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
+      .unwrap();
 
-  for args in args {
-    let name_val = args.require_name_value().unwrap();
+    for args in args {
+      let name_val = args.require_name_value().unwrap();
 
-    let value = match &name_val.value {
-      Expr::Path(expr_path) => {
-        let ident = expr_path.path.require_ident().unwrap();
-        ident.to_token_stream()
-      }
-      Expr::Lit(lit) => lit.to_token_stream(),
-      _ => panic!(
-        "Must be literal naming a method on Self {:?}",
-        name_val.value
-      ),
-    };
+      let value = match &name_val.value {
+        Expr::Path(expr_path) => {
+          let ident = expr_path.path.require_ident().unwrap();
+          ident.to_token_stream()
+        }
+        Expr::Lit(lit) => lit.to_token_stream(),
+        _ => panic!(
+          "Must be literal naming a method on Self {:?}",
+          name_val.value
+        ),
+      };
 
-    match &name_val.path {
-      path if path.is_ident("event") => {
-        if value.to_string() == "event" {
-          panic!("`event` method implementation cannot be named `event`")
+      match &name_val.path {
+        path if path.is_ident("event") => {
+          if value.to_string() == "event" {
+            panic!("`event` method implementation cannot be named `event`")
+          }
+          event = Some(quote! {self.#value(ctx, event, data, env)})
         }
-        event = Some(quote! {self.#value(ctx, event, data, env)})
-      }
-      path if path.is_ident("lifecycle") => {
-        if value.to_string() == "lifecycle" {
-          panic!("`lifecycle` method implementation cannot be named `lifecycle`")
+        path if path.is_ident("lifecycle") => {
+          if value.to_string() == "lifecycle" {
+            panic!("`lifecycle` method implementation cannot be named `lifecycle`")
+          }
+          lifecycle = Some(quote! {self.#value(ctx, event, data, env)})
         }
-        lifecycle = Some(quote! {self.#value(ctx, event, data, env)})
-      }
-      path if path.is_ident("update") => {
-        if value.to_string() == "update" {
-          panic!("`update` method implementation cannot be named `update`")
+        path if path.is_ident("update") => {
+          if value.to_string() == "update" {
+            panic!("`update` method implementation cannot be named `update`")
+          }
+          update = Some(quote! {self.#value(ctx, old_data, data, env)})
         }
-        update = Some(quote! {self.#value(ctx, old_data, data, env)})
-      }
-      path if path.is_ident("layout") => {
-        if value.to_string() == "layout" {
-          panic!("`layout` method implementation cannot be named `layout`")
+        path if path.is_ident("layout") => {
+          if value.to_string() == "layout" {
+            panic!("`layout` method implementation cannot be named `layout`")
+          }
+          layout = Some(quote! {self.#value(ctx, bc, data, env)})
         }
-        layout = Some(quote! {self.#value(ctx, bc, data, env)})
-      }
-      path if path.is_ident("paint") => {
-        if value.to_string() == "paint" {
-          panic!("`paint` method implementation cannot be named `paint`")
+        path if path.is_ident("paint") => {
+          if value.to_string() == "paint" {
+            panic!("`paint` method implementation cannot be named `paint`")
+          }
+          paint = Some(quote! {self.#value(ctx, data, env)})
         }
-        paint = Some(quote! {self.#value(ctx, data, env)})
-      }
-      path if path.is_ident("widget_pod") => widget_pod = Some(quote! {self.#value}),
-      _ => panic!("Must be one of `event`, `lifecycle`, `update`, `layout` or `paint`."),
-    };
+        path if path.is_ident("widget_pod") => widget_pod = Some(quote! {self.#value}),
+        _ => panic!("Must be one of `event`, `lifecycle`, `update`, `layout` or `paint`."),
+      };
+    }
   }
 
-  let widget_pod = widget_pod.unwrap_or_else(|| quote! {"self.widget_pod"});
+  let widget_pod = widget_pod.unwrap_or_else(|| quote! {self.widget_pod});
   let event = event.unwrap_or_else(|| {
     quote! {
       #widget_pod.event(ctx, event, data, env)

@@ -23,7 +23,7 @@ mod icons {
       CLOSE, FIRST_PAGE, LAST_PAGE, REFRESH, UNFOLD_MORE,
     },
     notification::{SYNC, SYSTEM_UPDATE},
-    social::CONSTRUCTION,
+    social::{CONSTRUCTION, SICK},
     toggle::{
       CHECK_BOX_OUTLINE_BLANK, INDETERMINATE_CHECK_BOX, RADIO_BUTTON_CHECKED,
       RADIO_BUTTON_UNCHECKED, TOGGLE_ON,
@@ -93,4 +93,5 @@ icons! {
   icons::DOUBLE_RIGHT,
   icons::INFO,
   icons::SHUFFLE,
+  icons::SICK,
 }

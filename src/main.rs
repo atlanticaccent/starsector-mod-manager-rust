@@ -3,7 +3,7 @@
 use const_format::concatcp;
 use druid::{AppLauncher, WindowDesc};
 use moss::{
-  app::{app_delegate::AppDelegate, App},
+  app::{app_delegate::AppDelegate, App, AppViewExt},
   theme::save_original_env,
 };
 use tokio::runtime::Builder;
@@ -26,7 +26,7 @@ fn main() {
     }
   }
 
-  let main_window = WindowDesc::new(App::theme_wrapper())
+  let main_window = WindowDesc::new(App::view().overlay().theme_wrapper().env_as_shared_data())
     .title(concatcp!(
       "MOSS | Mod Organizer for StarSector v",
       env!("CARGO_PKG_VERSION")

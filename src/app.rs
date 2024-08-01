@@ -34,6 +34,7 @@ use crate::{
   },
   theme::Themes,
   widgets::root_stack::RootStack,
+  ENV_STATE,
 };
 
 pub mod app_delegate;
@@ -331,13 +332,16 @@ impl App {
       .on_command(App::DISABLE, |ctx, _, _| ctx.set_disabled(true))
       .on_command(App::ENABLE, |ctx, _, _| ctx.set_disabled(false))
   }
+}
 
-  fn overlay() -> impl Widget<App> {
-    RootStack::new(Popup::overlay(Self::view())).controller(AppController)
+#[extend::ext(name = AppViewExt)]
+pub impl<W: Widget<App> + 'static> W {
+  fn overlay(self) -> impl Widget<App> {
+    RootStack::new(Popup::overlay(self)).controller(AppController)
   }
 
-  pub fn theme_wrapper() -> impl Widget<Self> {
-    Self::overlay()
+  fn theme_wrapper(self) -> impl Widget<App> {
+    self
       .background(druid::theme::WINDOW_BACKGROUND_COLOR)
       .env_scope(|env, app| {
         let theme = app.settings.theme;
@@ -348,5 +352,45 @@ impl App {
         }
         .apply(env)
       })
+  }
+
+  fn env_as_shared_data(self) -> impl Widget<App> {
+    self.env_scope(|env, data| env.set(crate::ENV_STATE, data))
+  }
+}
+
+#[derive(Debug, Clone, Hash)]
+pub struct EnvSharedData {
+  show_discrepancy: bool,
+}
+
+impl<'a> From<&'a App> for std::sync::Arc<EnvSharedData> {
+  fn from(
+    App {
+      init: _,
+      settings,
+      mod_list: _,
+      active: _,
+      runtime: _,
+      widget_id: _,
+      browser: _,
+      mod_repo: _,
+      popups: _,
+      current_tab: _,
+      block_next_root_stack: _,
+      views: _,
+      current_view: _,
+    }: &'a App,
+  ) -> Self {
+    std::sync::Arc::new(EnvSharedData {
+      show_discrepancy: settings.show_discrepancies,
+    })
+  }
+}
+
+#[extend::ext(name = SharedFromEnv)]
+pub impl druid::Env {
+  fn shared_data(&self) -> std::sync::Arc<EnvSharedData> {
+    self.get(ENV_STATE)
   }
 }

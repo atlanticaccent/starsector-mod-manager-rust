@@ -10,13 +10,11 @@ use std::{
 use chrono::{DateTime, Local, Utc};
 use druid::{
   kurbo::Line,
-  lens,
-  text::RichTextBuilder,
-  theme,
+  lens, theme,
   widget::{Button, Checkbox, Either, Flex, Label, Painter, ViewSwitcher},
   Color, Data, ExtEventSink, KeyOrValue, Lens, RenderContext as _, Selector, Widget, WidgetExt,
 };
-use druid_widget_nursery::{material_icons::Icon, stack_tooltip::StackTooltip};
+use druid_widget_nursery::material_icons::Icon;
 use fake::Dummy;
 use json_comments::strip_comments;
 use serde::{Deserialize, Serialize};
@@ -24,20 +22,22 @@ use serde_aux::prelude::*;
 
 use super::{
   app_delegate::AppCommands,
-  controllers::{next_id, SharedIdHoverState},
+  controllers::{next_id, MaxSizeBox, SharedIdHoverState},
   mod_description::ModDescription,
   mod_list::{headings::Heading, ModList},
   util::{
-    self, icons::*, LensExtExt, Tap, WithHoverIdState as _, WithHoverState, BLUE_KEY, GREEN_KEY,
-    ON_BLUE_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ON_RED_KEY, ON_YELLOW_KEY, ORANGE_KEY, RED_KEY,
-    YELLOW_KEY,
+    self, icons::*, LensExtExt, Tap, WidgetExtEx, WithHoverIdState as _, WithHoverState, BLUE_KEY,
+    GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ON_RED_KEY, ON_YELLOW_KEY, ORANGE_KEY,
+    RED_KEY, YELLOW_KEY,
   },
-  App,
+  App, SharedFromEnv,
 };
 use crate::{
   app::util::{default_true, parse_game_version, LabelExt},
   nav_bar::{Nav, NavLabel},
   patch::table::{FlexTable, RowData},
+  widgets::card::Card,
+  ENV_STATE,
 };
 
 pub type GameVersion = (
@@ -331,11 +331,16 @@ impl ViewModEntry {
         Heading::Version => Either::new(
           |data: &(Option<UpdateStatus>, Version), _| data.0.is_some(),
           ViewSwitcher::new(
-            |data: &(Option<UpdateStatus>, Version), _| data.clone(),
-            |(update_status, version_union), _, env| {
+            |data: &(Option<UpdateStatus>, Version), env| {
+              (data.clone(), env.get(ENV_STATE).show_discrepancy)
+            },
+            |_, (update_status, version_union), env| {
               if let Some(update_status) = update_status {
-                let update_status = update_status;
-                let color = update_status.as_text_colour();
+                let update_status = if env.shared_data().show_discrepancy {
+                  UpdateStatus::UpToDate
+                } else {
+                  update_status.clone()
+                };
                 Box::new(
                   Flex::row()
                     .with_child(Label::new(version_union.to_string()))
@@ -349,7 +354,7 @@ impl ViewModEntry {
                         UpdateStatus::Minor(_) => iter = 2,
                         UpdateStatus::Patch(_) => iter = 1,
                         UpdateStatus::Error => icon_row.add_child(Icon::new(*REPORT)),
-                        UpdateStatus::Discrepancy(_) => icon_row.add_child(Icon::new(*HELP)),
+                        UpdateStatus::Discrepancy(_) => icon_row.add_child(Icon::new(*SICK)),
                         UpdateStatus::UpToDate => icon_row.add_child(Icon::new(*VERIFIED)),
                       };
 
@@ -361,7 +366,6 @@ impl ViewModEntry {
                         UpdateStatus::Error => "Error\nThere was an error retrieving or parsing \
                                                 this mod's version information."
                           .to_string(),
-                        UpdateStatus::UpToDate => update_status.to_string(),
                         UpdateStatus::Discrepancy(_) => "\
                           Discrepancy\nThe installed version of this mod is higher than the \
                                                          version available from the server.\nThis \
@@ -371,21 +375,26 @@ impl ViewModEntry {
                           .to_string(),
                         _ => update_status.to_string(),
                       };
-                      let text_color = color.clone();
-                      let background_color = <KeyOrValue<Color>>::from(update_status).resolve(env);
+                      let builder = Card::builder();
                       row.add_child(
-                        StackTooltip::new(
-                          icon_row,
-                          RichTextBuilder::new()
-                            .tap(|builder| {
-                              builder.push(&tooltip).text_color(text_color);
-                            })
-                            .build(),
-                        )
-                        .with_background_color(background_color)
-                        .with_offset((10.0, 10.0))
-                        .lens(lens!(((Option<UpdateStatus>, Version), bool), 0))
-                        .with_hover_state(false),
+                        icon_row
+                          .stack_tooltip_custom(
+                            match (&update_status).into() {
+                              druid::KeyOrValue::Concrete(color) => builder.with_background(color),
+                              druid::KeyOrValue::Key(key) => builder.with_background(key),
+                            }
+                            .build(MaxSizeBox::new(
+                              Label::new(tooltip)
+                                .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
+                                .with_text_color(update_status.as_text_colour())
+                                .padding((5.0, 0.0)),
+                              druid::widget::Axis::Horizontal,
+                              300.0,
+                            )),
+                          )
+                          .with_offset((10.0, 10.0))
+                          .lens(lens!(((Option<UpdateStatus>, Version), bool), 0))
+                          .with_hover_state(false),
                       )
                     }),
                 )

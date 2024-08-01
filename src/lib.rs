@@ -25,3 +25,7 @@ pub mod theme;
 #[allow(dead_code)]
 pub mod widgets;
 pub mod formatter;
+
+pub use app::EnvSharedData;
+
+pub const ENV_STATE: druid::Key<std::sync::Arc<EnvSharedData>> = druid::Key::new("global.env_shared_state");

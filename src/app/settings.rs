@@ -57,7 +57,8 @@ pub struct Settings {
   pub open_forum_link_in_webview: bool,
   #[serde(default = "default_headers")]
   pub headings: Vector<Heading>,
-  pub show_auto_update_for_discrepancy: bool,
+  #[serde(alias = "show_auto_update_for_discrepancy")]
+  pub show_discrepancies: bool,
   pub theme: Themes,
   #[serde(skip)]
   pub vmparams: Option<VMParams>,
@@ -137,14 +138,14 @@ impl Settings {
         )
         .with_default_spacer()
         .with_child(h2_fixed(
-          "Show automatic updates even for mods that have a version discrepancy",
+          "Show a warning/automatic updates for mods that have a version discrepancy",
         ))
         .with_child(
           Checkbox::from_label(Label::wrapped(
             "Indicates a mod has an update even when the installed version is a higher/more \
-             recent version than is available on the server. (Recommended Off)",
+             recent version than is advertised by the author online.\n(Recommended Off)",
           ))
-          .lens(Settings::show_auto_update_for_discrepancy),
+          .lens(Settings::show_discrepancies),
         )
         .with_default_spacer()
         .with_child(h2_fixed(
