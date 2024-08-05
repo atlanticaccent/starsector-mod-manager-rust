@@ -1100,6 +1100,14 @@ pub trait WithHoverIdState<T: Data, W: Widget<(T, SharedIdHoverState)> + 'static
   Widget<(T, SharedIdHoverState)> + Sized + 'static
 {
   fn with_shared_id_hover_state(self, state: SharedIdHoverState) -> Box<dyn Widget<T>> {
+    self.with_shared_id_hover_state_opts(state, false)
+  }
+
+  fn with_shared_id_hover_state_opts(
+    self,
+    state: SharedIdHoverState,
+    set_cursor: bool,
+  ) -> Box<dyn Widget<T>> {
     const HOVER_STATE_CHANGE_FOR_ID: Selector<(WidgetId, bool)> =
       Selector::new("util.hover_state.change");
 
@@ -1109,27 +1117,30 @@ pub trait WithHoverIdState<T: Data, W: Widget<(T, SharedIdHoverState)> + 'static
       lens!((T, SharedIdHoverState), 0),
       self
         .on_event(move |_, ctx, event, data| {
-          /* if let druid::Event::MouseMove(_) = event
+          if let druid::Event::MouseMove(_) = event
             && !ctx.is_disabled()
-            && ctx.is_hot()
           {
-            ctx.set_cursor(&druid::Cursor::Pointer);
+            if set_cursor {
+              ctx.set_cursor(&druid::Cursor::Pointer);
+            }
             data.1.set(true);
-            ctx.submit_command(HOVER_STATE_CHANGE_FOR_ID.with((id, true)))
-          } else  */
-          if let druid::Event::Command(cmd) = event
+            ctx.request_update();
+            ctx.request_paint();
+          } else if let druid::Event::Command(cmd) = event
             && let Some((target, state)) = cmd.get(HOVER_STATE_CHANGE_FOR_ID)
             && *target == id
           {
             data.1.set(*state);
-            if *state {
-              ctx.set_cursor(&druid::Cursor::Pointer);
-            } else {
-              ctx.clear_cursor()
+            if set_cursor {
+              if *state {
+                ctx.set_cursor(&druid::Cursor::Pointer);
+              } else {
+                ctx.clear_cursor()
+              }
             }
+            ctx.request_update();
+            ctx.request_paint();
           }
-          ctx.request_update();
-          ctx.request_paint();
           false
         })
         .controller(

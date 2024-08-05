@@ -184,5 +184,5 @@ reqwest-retry = "0.6.0"
 http = "1.1.0"
 async-trait = "0.1.81"
 
-# [patch.'https://github.com/atlanticaccent/druid']
-# druid = { path = "../druid/druid" }
+# [patch.'https://github.com/atlanticaccent/druid-widget-nursery']
+# druid-widget-nursery = { path = "../druid-widget-nursery" }

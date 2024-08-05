@@ -1,5 +1,6 @@
 use core::fmt;
 use std::{
+  borrow::Cow,
   fmt::Display,
   fs::File,
   hash::Hash,
@@ -14,7 +15,7 @@ use druid::{
   widget::{Button, Checkbox, Either, Flex, Label, Painter, ViewSwitcher},
   Color, Data, ExtEventSink, KeyOrValue, Lens, RenderContext as _, Selector, Widget, WidgetExt,
 };
-use druid_widget_nursery::material_icons::Icon;
+use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
 use fake::Dummy;
 use json_comments::strip_comments;
 use serde::{Deserialize, Serialize};
@@ -23,12 +24,12 @@ use serde_aux::prelude::*;
 use super::{
   app_delegate::AppCommands,
   controllers::{next_id, MaxSizeBox, SharedIdHoverState},
-  mod_description::ModDescription,
+  mod_description::{notify_enabled, ModDescription},
   mod_list::{headings::Heading, ModList},
   util::{
-    self, icons::*, LensExtExt, Tap, WidgetExtEx, WithHoverIdState as _, WithHoverState, BLUE_KEY,
-    GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ON_RED_KEY, ON_YELLOW_KEY, ORANGE_KEY,
-    RED_KEY, YELLOW_KEY,
+    self, icons::*, LensExtExt, Tap, WidgetExtEx, WithHoverIdState as _, BLUE_KEY, GREEN_KEY,
+    ON_BLUE_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ON_RED_KEY, ON_YELLOW_KEY, ORANGE_KEY, RED_KEY,
+    YELLOW_KEY,
   },
   App, SharedFromEnv,
 };
@@ -378,6 +379,8 @@ impl ViewModEntry {
                       let builder = Card::builder();
                       row.add_child(
                         icon_row
+                          .padding(2.0)
+                          .wrap_with_hover_state(false, true)
                           .stack_tooltip_custom(
                             match (&update_status).into() {
                               druid::KeyOrValue::Concrete(color) => builder.with_background(color),
@@ -392,9 +395,7 @@ impl ViewModEntry {
                               300.0,
                             )),
                           )
-                          .with_offset((10.0, 10.0))
-                          .lens(lens!(((Option<UpdateStatus>, Version), bool), 0))
-                          .with_hover_state(false),
+                          .with_offset((10.0, 10.0)),
                       )
                     }),
                 )
@@ -490,7 +491,7 @@ impl ViewModEntry {
         .lens(lens!((ViewModEntry, SharedIdHoverState), 0))
         .padding(2.0)
         .background(painter())
-        .with_shared_id_hover_state(self.view_state.hover_state.clone()),
+        .with_shared_id_hover_state_opts(self.view_state.hover_state.clone(), false),
     )
   }
 }
