@@ -119,7 +119,7 @@ impl Theme {
   pub const SUCCESS: ExtColor = unwrap("#135200");
   pub const SUCCESS_TEXT: ExtColor = unwrap("#adf68a");
   pub const ERROR: ExtColor = unwrap("#930006");
-  pub const ERROR_TEXT: ExtColor = unwrap("#ffdad4");
+  pub const ERROR_TEXT: ExtColor = unwrap("#ff9a7e");
   pub const WARNING: ExtColor = unwrap("#574500");
   pub const WARNING_TEXT: ExtColor = unwrap("#ffe174");
   pub const DO_NOT_IGNORE: ExtColor = unwrap("#7f2c00");

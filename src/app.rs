@@ -2,14 +2,14 @@ use std::path::PathBuf;
 
 use druid::{
   im::{HashSet, Vector},
-  lens,
-  widget::{Flex, Maybe, WidgetWrapper, ZStack},
+  widget::{Flex, WidgetWrapper, ZStack},
   Data, Lens, LensExt, Selector, SingleUse, Widget, WidgetExt, WidgetId,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
+use mod_description::ENABLE_DEPENDENCIES;
 use settings::ThemeEditor;
 use tokio::runtime::Handle;
-use util::{ident_arc, Tap};
+use util::Tap;
 use webview_shared::PROJECT;
 
 use self::{
@@ -62,7 +62,7 @@ pub struct App {
   init: bool,
   pub settings: settings::Settings,
   pub mod_list: mod_list::ModList,
-  active: Option<String>,
+  active: Option<ModDescription<String>>,
   #[data(ignore)]
   runtime: Handle,
   #[data(ignore)]
@@ -164,9 +164,7 @@ impl App {
             Nav::new(NavLabel::Performance),
             Nav::new(NavLabel::ModBrowsers)
               .with_children(vec![
-                Nav::new(NavLabel::Starmodder)
-                  .overridden(false)
-                  .with_children(Some(Nav::new(NavLabel::StarmodderDetails))),
+                Nav::new(NavLabel::Starmodder),
                 Nav::new(NavLabel::WebBrowser),
               ])
               .linked_to(NavLabel::Starmodder)
@@ -217,26 +215,7 @@ impl App {
               .on_change(ModList::on_app_data_change)
               .controller(ModListController),
           ),
-          InitialTab::new(
-            NavLabel::ModDetails,
-            Maybe::new(
-              || ModDescription::view().lens(ident_arc::<ModEntry>()),
-              ModDescription::empty_builder,
-            )
-            .lens(lens::Map::new(
-              |app: &App| {
-                app
-                  .active
-                  .as_ref()
-                  .and_then(|id| app.mod_list.mods.get(id).cloned())
-              },
-              |app, entry| {
-                if let Some(entry) = entry {
-                  app.mod_list.mods.insert(entry.id.clone(), entry);
-                }
-              },
-            )),
-          ),
+          InitialTab::new(NavLabel::ModDetails, ModDescription::wrapped_view()),
           InitialTab::new(
             NavLabel::Performance,
             Tools::view()
@@ -290,6 +269,10 @@ impl App {
                     ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::ModDetails, true)));
                     tabs.set_tab_index_by_label(NavLabel::ModDetails)
                   }
+                  NavLabel::WebBrowser => {
+                    ctx.submit_command(NavBar::RECURSE_SET_EXPANDED.with(NavLabel::WebBrowser));
+                    tabs.set_tab_index_by_label(NavLabel::WebBrowser)
+                  }
                   NavLabel::ThemeEditor => {
                     ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Settings, true)));
                     ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::ThemeEditor, true)));
@@ -297,7 +280,6 @@ impl App {
                   }
                   label @ (NavLabel::Performance
                   | NavLabel::Starmodder
-                  | NavLabel::WebBrowser
                   | NavLabel::Settings) => tabs.set_tab_index_by_label(label),
                   _ => eprintln!("Failed to open an item for a nav bar control"),
                 }
@@ -326,7 +308,8 @@ impl App {
               .then(ModEntry::update_status.in_arc())
               .put(data, Some(UpdateStatus::from((&version_checker, &remote))))
           }
-        }),
+        })
+        .on_notification(ENABLE_DEPENDENCIES, ModDescription::enable_dependencies),
         1.0,
       )
       .on_command(App::DISABLE, |ctx, _, _| ctx.set_disabled(true))

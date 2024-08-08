@@ -12,7 +12,7 @@ use webview_shared::{InstallType, PROJECT, WEBVIEW_INSTALL};
 
 use super::{
   installer::{self, DOWNLOAD_PROGRESS, DOWNLOAD_STARTED},
-  mod_description,
+  mod_description::{self, ModDescription},
   mod_list::{install::install_options::InstallOptions, ModList},
   overlays::Popup,
   settings::{self, Settings, SettingsCommand},
@@ -23,7 +23,7 @@ use super::{
 use crate::nav_bar::Nav;
 
 pub enum AppCommands {
-  UpdateModDescription(String),
+  UpdateModDescription(ModDescription<String>),
   PickFile(bool),
 }
 

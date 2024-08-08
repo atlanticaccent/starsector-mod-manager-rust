@@ -2,9 +2,11 @@ use std::{
   any::Any,
   borrow::Borrow,
   collections::{HashMap, VecDeque},
+  convert::identity,
   fmt::Debug,
   hash::Hash,
   io::Read,
+  iter::FromIterator,
   marker::PhantomData,
   ops::{Deref, DerefMut, Index, IndexMut},
   path::PathBuf,
@@ -729,53 +731,40 @@ impl<X, Y> Default for DummyTransfer<X, Y> {
 pub fn hoverable_text(
   colour: Option<impl Into<KeyOrValue<Color>> + 'static>,
 ) -> impl Widget<String> {
-  hoverable_text_opts(colour, |w| w)
+  hoverable_text_opts(colour, identity, &[])
 }
 
 pub fn hoverable_text_opts<W: Widget<RichText> + 'static>(
   colour: Option<impl Into<KeyOrValue<Color>> + 'static>,
   mut modify: impl FnMut(RawLabel<RichText>) -> W,
+  attrs: &[Attribute],
 ) -> impl Widget<String> {
   let colour = colour.map(Into::into);
+  let attrs = Vec::from(attrs);
 
-  struct TextHoverController;
-
-  impl<D: Data, W: Widget<(D, bool)>> Controller<(D, bool), W> for TextHoverController {
-    fn event(
-      &mut self,
-      child: &mut W,
-      ctx: &mut EventCtx,
-      event: &Event,
-      data: &mut (D, bool),
-      env: &druid::Env,
-    ) {
-      if let Event::MouseMove(_) = event {
-        data.1 = ctx.is_hot() && !ctx.is_disabled()
-      }
-
-      child.event(ctx, event, data, env)
-    }
-  }
-
-  let label: RawLabel<RichText> =
-    RawLabel::new().with_line_break_mode(druid::widget::LineBreaking::WordWrap);
+  let label: RawLabel<RichText> = RawLabel::new()
+    .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
+    .with_text_color(colour.unwrap_or_else(|| theme::TEXT_COLOR.into()));
 
   let wrapped = modify(label);
 
-  Scope::from_function(
-    |input: String| (input, false),
-    DummyTransfer::default(),
-    wrapped
-      .lens(Compute::new(move |(text, hovered): &(String, bool)| {
-        RichText::new(text.clone().into())
-          .with_attribute(0..text.len(), Attribute::Underline(*hovered))
-          .with_attribute(
-            0..text.len(),
-            Attribute::TextColor(colour.clone().unwrap_or_else(|| theme::TEXT_COLOR.into())),
-          )
+  wrapped
+    .scope_with_hover_state(false, false, |widget| {
+      widget.lens(Compute::new(move |(text, hovered): &(RichText, bool)| {
+        let mut text = text
+          .clone()
+          .with_attribute(0..text.len(), Attribute::Underline(*hovered));
+
+        for attr in attrs.clone() {
+          text.add_attribute(0..text.len(), attr)
+        }
+
+        (text, *hovered)
       }))
-      .controller(TextHoverController),
-  )
+    })
+    .lens(Compute::new(|text: &String| {
+      RichText::new(text.clone().into())
+    }))
 }
 
 pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
@@ -1314,9 +1303,9 @@ impl<T: Any + Send, U: Any + Send, SINK: Default + Collection<T, U> + Send>
 }
 
 #[derive(Clone, Default)]
-pub struct FastImMap<K: Clone + Hash + Eq, V: Clone>(druid::im::HashMap<K, V, ahash::RandomState>);
+pub struct FastImMap<K, V>(druid::im::HashMap<K, V, ahash::RandomState>);
 
-impl<K: Clone + Hash + Eq, V: Clone> FastImMap<K, V> {
+impl<K, V> FastImMap<K, V> {
   pub fn new() -> Self {
     Self(druid::im::HashMap::with_hasher(ahash::RandomState::new()))
   }
@@ -1398,6 +1387,16 @@ impl<K: Clone + Hash + Eq + PartialEq + Eq, V: Clone, O: Into<druid::im::HashMap
     new.extend(other.into().iter().map(|(k, v)| (k.clone(), v.clone())));
 
     new
+  }
+}
+
+impl<K, V> FromIterator<(K, V)> for FastImMap<K, V>
+where
+  K: Hash + Eq + Clone,
+  V: Clone,
+{
+  fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
+    Self(iter.into_iter().collect())
   }
 }
 

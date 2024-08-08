@@ -1,21 +1,28 @@
+use std::{convert::identity, sync::Arc};
+
 use chrono::{DateTime, Local};
 use druid::{
-  lens::Constant,
+  im::{vector, Vector},
+  lens::{Constant, Map},
   widget::{Flex, Label, List, Maybe, ZStack},
-  Color, Key, LensExt, Selector, UnitPoint, Widget, WidgetExt,
+  Color, Data, Key, KeyOrValue, Lens, LensExt, Selector, UnitPoint, Widget, WidgetExt,
 };
-use druid_widget_nursery::{material_icons::Icon, Mask};
+use druid_widget_nursery::{material_icons::Icon, Mask, WidgetExt as _};
+use itertools::Itertools;
 
 use super::{
+  app_delegate::AppCommands,
   controllers::Rotated,
-  mod_entry::{ModMetadata, UpdateStatus},
+  mod_entry::{ModMetadata, UpdateStatus, VersionComplex},
+  mod_list::ModList,
   overlays::Popup,
   util::{
-    bolded, h1, h2_fixed, h3, h3_fixed, hoverable_text, lensed_bold, Compute, LabelExt, LensExtExt,
-    ShadeColor, WidgetExtEx, WithHoverState, BLUE_KEY, CHEVRON_LEFT, DELETE, GREEN_KEY,
-    ON_BLUE_KEY, ON_GREEN_KEY, ON_RED_KEY, RED_KEY, SYSTEM_UPDATE, TOGGLE_ON,
+    bolded, h1, h2_fixed, h3, h3_fixed, hoverable_text, hoverable_text_opts, ident_arc,
+    lensed_bold, Compute, FastImMap, LabelExt, LensExtExt, ShadeColor, WidgetExtEx, WithHoverState,
+    BLUE_KEY, CHEVRON_LEFT, DELETE, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_RED_KEY, RED_KEY,
+    SYSTEM_UPDATE, TOGGLE_ON,
   },
-  ViewModEntry as ModEntry, INFO,
+  App, ViewModEntry as ModEntry, INFO,
 };
 use crate::{
   nav_bar::{Nav, NavLabel},
@@ -24,15 +31,108 @@ use crate::{
 
 pub const OPEN_IN_BROWSER: Selector<String> =
   Selector::new("mod_description.forum.open_in_webview");
+pub const ENABLE_DEPENDENCIES: Selector<String> =
+  Selector::new("mod_description.enabled.enable_dependencies");
 
-#[derive(Default)]
-pub struct ModDescription;
+#[derive(Debug, Clone, Data, Lens)]
+pub struct ModDescription<T = Arc<ModEntry>> {
+  entry: T,
+  crumbs: Vector<(String, String)>,
+}
+
+impl ModDescription<String> {
+  pub fn from_entry(entry: &ModEntry) -> Self {
+    Self {
+      entry: entry.id.clone(),
+      crumbs: vector![(entry.name.clone(), entry.id.clone())],
+    }
+  }
+}
 
 impl ModDescription {
   pub const FRACTAL_URL: &'static str = "https://fractalsoftworks.com/forum/index.php?topic=";
   pub const NEXUS_URL: &'static str = "https://www.nexusmods.com/starsector/mods/";
 
-  pub fn view() -> impl Widget<ModEntry> {
+  pub const DEP_MAP: Key<std::sync::Arc<FastImMap<String, UpdateStatus>>> =
+    Key::new("mod_description.dep_map");
+  const DEP_TEXT_COLOR: Key<Color> = Key::new("mod_description.dependencies.link_colour");
+  const DEP_TEXT_SHADOW_COLOR: Key<Color> = Key::new("mod_description.dependencies.link_bg_colour");
+
+  const NOTIF_OPEN_DEP: Selector<String> = Selector::new("mod_description.dependencies.open");
+
+  pub fn from_entry_self(entry: Arc<ModEntry>, other: ModDescription<String>) -> Self {
+    Self {
+      entry,
+      crumbs: other.crumbs,
+    }
+  }
+
+  pub fn wrapped_view() -> impl Widget<App> {
+    Maybe::new(|| ModDescription::view(), ModDescription::empty_builder)
+      .lens(Map::new(
+        |app: &App| {
+          app.active.as_ref().and_then(|desc| {
+            app
+              .mod_list
+              .mods
+              .get(&desc.entry)
+              .cloned()
+              .map(|entry| ModDescription::from_entry_self(entry, desc.clone()))
+          })
+        },
+        |app, entry| {
+          if let Some(desc) = entry {
+            app.mod_list.mods.insert(desc.entry.id.clone(), desc.entry);
+          }
+        },
+      ))
+      .env_scope(|env, data| {
+        if let Some(entry) = data
+          .active
+          .as_ref()
+          .and_then(|desc| data.mod_list.mods.get(&desc.entry))
+        {
+          let found_deps = entry
+            .dependencies
+            .iter()
+            .filter_map(|dep| {
+              dep.version.as_ref().map(|version| {
+                let found_version = data.mod_list.mods.get(&dep.id).map(|found| &found.version);
+                let status = match (version, found_version) {
+                  (version, Some(found_version)) if version == found_version => {
+                    UpdateStatus::UpToDate
+                  }
+                  (version, Some(found_version)) if version.major() == found_version.major() => {
+                    UpdateStatus::Minor(VersionComplex::DUMMY)
+                  }
+                  _ => UpdateStatus::Error,
+                };
+                (dep.id.clone(), status)
+              })
+            })
+            .collect();
+
+          env.set(ModDescription::DEP_MAP, std::sync::Arc::new(found_deps));
+        }
+      })
+      .on_notification(ModDescription::NOTIF_OPEN_DEP, |ctx, id, app| {
+        if let Some(notif_entry) = app.mod_list.mods.get(id) {
+          let mut crumbs = if let Some(current_desc) = app.active.take() {
+            current_desc.crumbs
+          } else {
+            Vector::new()
+          };
+          crumbs.push_back((notif_entry.name.clone(), notif_entry.id.clone()));
+          app.active = Some(ModDescription {
+            entry: notif_entry.id.clone(),
+            crumbs,
+          })
+        }
+        ctx.set_handled()
+      })
+  }
+
+  pub fn view() -> impl Widget<ModDescription> {
     let title_text = || {
       lensed_bold(
         druid::theme::TEXT_SIZE_NORMAL,
@@ -61,7 +161,19 @@ impl ModDescription {
             )
             .fix_height(52.0)
             .padding((0.0, 5.0))
-            .on_click(|ctx, _, _| ctx.submit_command(Nav::NAV_SELECTOR.with(NavLabel::Mods))),
+            .on_click(|ctx, desc: &mut ModDescription, _| {
+              if desc.crumbs.len() > 1 {
+                desc.crumbs.pop_back();
+                ctx.submit_command(App::SELECTOR.with(AppCommands::UpdateModDescription(
+                  ModDescription {
+                    entry: desc.crumbs.last().unwrap().1.clone(),
+                    crumbs: desc.crumbs.split_off(0),
+                  },
+                )))
+              } else {
+                ctx.submit_command(Nav::NAV_SELECTOR.with(NavLabel::Mods))
+              }
+            }),
           )
           .with_flex_child(
             Card::builder()
@@ -70,9 +182,14 @@ impl ModDescription {
               .with_shadow_length(6.0)
               .build(
                 title_text()
-                  .lens(
-                    ModEntry::name.then(Compute::new(|t| format!("Mods  /  {}  /  Details", t))),
-                  )
+                  .lens(ModDescription::crumbs.then(Compute::new(
+                    |crumbs: &Vector<(String, String)>| {
+                      format!(
+                        "Mods  /  {}  /  Details",
+                        crumbs.iter().map(|(name, _)| name).join("  /  ")
+                      )
+                    },
+                  )))
                   .valign_centre()
                   .align_left(),
               )
@@ -86,28 +203,32 @@ impl ModDescription {
       .with_flex_child(
         Mask::new(Self::body())
           .dynamic(|data, _| data.view_state.updating)
-          .with_text_mask("Updating"),
+          .with_text_mask("Updating")
+          .lens(ModDescription::entry.then(ident_arc::<ModEntry>())),
         1.0,
       )
       .with_child(
-        Flex::row().with_flex_spacer(1.0).with_child(
-          Card::hoverable(
-            || {
-              title_text()
-                .lens(Constant("Open in file manager...".to_owned()))
-                .valign_centre()
-                .expand_height()
-            },
-            (0.0, 14.0),
+        Flex::row()
+          .with_flex_spacer(1.0)
+          .with_child(
+            Card::hoverable(
+              || {
+                title_text()
+                  .lens(Constant("Open in file manager...".to_owned()))
+                  .valign_centre()
+                  .expand_height()
+              },
+              (0.0, 14.0),
+            )
+            .fix_height(52.0)
+            .padding((0.0, 5.0))
+            .on_click(|_, data: &mut ModEntry, _| {
+              if let Err(err) = opener::open(data.path.clone()) {
+                eprintln!("{}", err)
+              }
+            }),
           )
-          .fix_height(52.0)
-          .padding((0.0, 5.0))
-          .on_click(|_, data: &mut ModEntry, _| {
-            if let Err(err) = opener::open(data.path.clone()) {
-              eprintln!("{}", err)
-            }
-          }),
-        ),
+          .lens(ModDescription::entry.then(ident_arc::<ModEntry>())),
       )
       .expand_height()
   }
@@ -175,7 +296,8 @@ impl ModDescription {
                   .fix_height(42.0)
                   .padding((-4.0, 2.0, 0.0, 2.0))
                   .on_click(|_, data, _| *data = !*data)
-                  .lens(ModEntry::enabled),
+                  .lens(ModEntry::enabled)
+                  .on_change(notify_enabled),
               )
               .with_child(
                 Card::builder()
@@ -335,7 +457,51 @@ impl ModDescription {
             Flex::column()
               .with_child(h2_fixed("Dependencies"))
               .with_child(List::new(|| {
-                Label::dynamic(|data: &super::mod_entry::Dependency, _| data.to_string())
+                ZStack::new(
+                  hoverable_text_opts(
+                    Some(ModDescription::DEP_TEXT_SHADOW_COLOR),
+                    identity,
+                    const {
+                      &[druid::text::Attribute::Weight(
+                        druid::text::FontWeight::SEMI_BOLD,
+                      )]
+                    },
+                  )
+                  .padding(2.0),
+                )
+                .with_aligned_child(
+                  hoverable_text_opts(
+                    Some(ModDescription::DEP_TEXT_COLOR),
+                    identity,
+                    const {
+                      &[druid::text::Attribute::Weight(
+                        druid::text::FontWeight::SEMI_BOLD,
+                      )]
+                    },
+                  ),
+                  UnitPoint::TOP_LEFT,
+                )
+                .lens(Compute::new(ToString::to_string))
+                .env_scope(|env, dep: &super::mod_entry::Dependency| {
+                  let dep_map = env.get(ModDescription::DEP_MAP);
+                  let status = dep_map.get(&dep.id);
+
+                  let text_color = status
+                    .map(UpdateStatus::as_text_colour)
+                    .unwrap_or_else(|| druid::theme::TEXT_COLOR.into());
+                  env.set(ModDescription::DEP_TEXT_COLOR, text_color.resolve(env));
+
+                  let shadow_color = status
+                    .map(KeyOrValue::<Color>::from)
+                    .unwrap_or_else(|| Color::TRANSPARENT.into());
+                  env.set(
+                    ModDescription::DEP_TEXT_SHADOW_COLOR,
+                    shadow_color.resolve(env),
+                  );
+                })
+                .on_click(|ctx, data, _| {
+                  ctx.submit_notification(ModDescription::NOTIF_OPEN_DEP.with(data.id.clone()));
+                })
               }))
               .with_default_spacer()
               .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
@@ -397,5 +563,42 @@ impl ModDescription {
 
   pub fn empty_builder() -> impl Widget<()> {
     Label::new("No mod selected.")
+  }
+
+  pub fn enable_dependencies(_: &mut druid::EventCtx, id: &String, data: &mut App) {
+    let mods = &mut data.mod_list.mods;
+    if let Some(entry) = mods.get(id).cloned() {
+      if entry.dependencies.iter().all(|d| {
+        mods.get(&d.id).is_some_and(|entry| match &d.version {
+          Some(v) => v.major() == entry.version.major(),
+          None => true,
+        })
+      }) {
+        for dep in entry.dependencies.as_ref() {
+          App::mod_list
+            .then(ModList::mods)
+            .index(&dep.id)
+            .then(ModEntry::enabled.in_arc())
+            .put(data, true);
+        }
+      } else {
+        App::mod_list
+          .then(ModList::mods)
+          .index(&entry.id)
+          .then(ModEntry::enabled.in_arc())
+          .put(data, false);
+      }
+    }
+  }
+}
+
+pub fn notify_enabled(
+  ctx: &mut druid::EventCtx,
+  _: &ModEntry,
+  data: &mut ModEntry,
+  _: &druid::Env,
+) {
+  if data.enabled {
+    ctx.submit_notification(ENABLE_DEPENDENCIES.with(data.id.clone()))
   }
 }

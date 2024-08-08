@@ -1,6 +1,6 @@
 use core::fmt;
 use std::{
-  borrow::Cow,
+  borrow::{Borrow, Cow},
   fmt::Display,
   fs::File,
   hash::Hash,
@@ -303,6 +303,7 @@ impl ViewModEntry {
         .center()
         .padding(5.)
         .lens(ViewModEntry::enabled)
+        .on_change(notify_enabled)
         .boxed()
     } else {
       match heading {
@@ -480,7 +481,7 @@ impl ViewModEntry {
         Heading::Enabled | Heading::Score => unreachable!(),
       }
       .on_click(|ctx, data, _| {
-        ctx.submit_command(App::SELECTOR.with(AppCommands::UpdateModDescription(data.id.clone())));
+        ctx.submit_command(App::SELECTOR.with(AppCommands::UpdateModDescription(ModDescription::from_entry(data))));
         ctx.submit_command(Nav::NAV_SELECTOR.with(NavLabel::ModDetails));
       })
       .boxed()
@@ -653,6 +654,18 @@ pub enum Version {
   Complex(VersionComplex),
 }
 
+impl Version {
+  pub fn major(&self) -> Cow<'_, str> {
+    match self {
+      Version::Simple(str) => str
+        .split_once('.')
+        .map(|(major, _)| major.into())
+        .unwrap_or_default(),
+      Version::Complex(complex) => complex.major.to_string().into(),
+    }
+  }
+}
+
 impl Display for Version {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
     let display: &dyn Display = match self {
@@ -732,6 +745,14 @@ pub struct VersionComplex {
   pub patch: String,
 }
 
+impl VersionComplex {
+  pub const DUMMY: VersionComplex = VersionComplex {
+    major: 0,
+    minor: 0,
+    patch: String::new(),
+  };
+}
+
 impl Display for VersionComplex {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
     if !self.patch.is_empty() {
@@ -765,11 +786,13 @@ impl Display for UpdateStatus {
   }
 }
 
-impl From<(&ModVersionMeta, &Option<ModVersionMeta>)> for UpdateStatus {
-  fn from((local, remote): (&ModVersionMeta, &Option<ModVersionMeta>)) -> Self {
+impl<VL: Borrow<VersionComplex>, VR: Borrow<VersionComplex>> From<(VL, Option<VR>)>
+  for UpdateStatus
+{
+  fn from((local, remote): (VL, Option<VR>)) -> Self {
     if let Some(remote) = remote {
-      let local = &local.version;
-      let remote = remote.version.clone();
+      let local = local.borrow();
+      let remote = remote.borrow().clone();
 
       if remote == *local {
         UpdateStatus::UpToDate
@@ -788,6 +811,12 @@ impl From<(&ModVersionMeta, &Option<ModVersionMeta>)> for UpdateStatus {
   }
 }
 
+impl From<(&ModVersionMeta, &Option<ModVersionMeta>)> for UpdateStatus {
+  fn from((local, remote): (&ModVersionMeta, &Option<ModVersionMeta>)) -> Self {
+    (&local.version, remote.as_ref().map(|r| &r.version)).into()
+  }
+}
+
 impl From<&UpdateStatus> for KeyOrValue<Color> {
   fn from(status: &UpdateStatus) -> Self {
     match status {
@@ -802,7 +831,7 @@ impl From<&UpdateStatus> for KeyOrValue<Color> {
 }
 
 impl UpdateStatus {
-  fn as_text_colour(&self) -> KeyOrValue<Color> {
+  pub fn as_text_colour(&self) -> KeyOrValue<Color> {
     match self {
       UpdateStatus::Major(_) => ON_ORANGE_KEY.into(),
       UpdateStatus::Minor(_) => ON_YELLOW_KEY.into(),

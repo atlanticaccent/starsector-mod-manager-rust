@@ -57,7 +57,7 @@ impl NavBar {
                 .padding((4., 0.)),
             )
             .with_child(
-              hoverable_text_opts(Option::<Color>::None, |w| w.with_text_size(20.))
+              hoverable_text_opts(Option::<Color>::None, |w| w.with_text_size(20.), &[])
                 .lens(Compute::new(|data: &Nav| data.label.to_string()))
                 .controller(HoverController::default())
                 .on_click(|ctx, data, _| {
@@ -98,6 +98,7 @@ impl NavBar {
               if data.root {
                 data.set_ancestors_expanded(*label);
               }
+              ctx.request_update();
               ctx.set_handled()
             }),
           SizedBox::empty()
