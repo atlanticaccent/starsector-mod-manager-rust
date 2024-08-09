@@ -357,7 +357,7 @@ impl ViewModEntry {
                         UpdateStatus::Patch(_) => iter = 1,
                         UpdateStatus::Error => icon_row.add_child(Icon::new(*REPORT)),
                         UpdateStatus::Discrepancy(_) => icon_row.add_child(Icon::new(*SICK)),
-                        UpdateStatus::UpToDate => icon_row.add_child(Icon::new(*VERIFIED)),
+                        UpdateStatus::UpToDate => icon_row.add_child(Icon::new(*THUMB_UP)),
                       };
 
                       for _ in 0..iter {

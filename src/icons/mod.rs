@@ -4,7 +4,7 @@ mod icons {
   pub use druid_widget_nursery::material_icons::normal::{
     action::{
       BOOKMARK, BOOKMARK_BORDER, DELETE, DONE_ALL, EXTENSION, HELP, INFO, INSTALL_DESKTOP,
-      OPEN_IN_BROWSER as OPEN_BROWSER, SEARCH, SETTINGS, VERIFIED,
+      OPEN_IN_BROWSER as OPEN_BROWSER, SEARCH, SETTINGS, THUMB_UP, VERIFIED,
     },
     av::{NEW_RELEASES, PLAY_ARROW, SHUFFLE},
     communication::HOURGLASS_TOP,
@@ -94,4 +94,5 @@ icons! {
   icons::INFO,
   icons::SHUFFLE,
   icons::SICK,
+  icons::THUMB_UP
 }
