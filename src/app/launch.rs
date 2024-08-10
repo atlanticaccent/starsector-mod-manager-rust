@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 use druid::{
-  lens::Map,
   widget::{Container, Either, Flex, Label, TextBox, ViewSwitcher},
   Color, Data, Key, LensExt, Selector, Widget, WidgetExt,
 };
@@ -11,10 +10,7 @@ use webview_shared::ExtEventSinkExt;
 
 use super::{
   overlays::{LaunchResult, Popup},
-  util::{
-    h2_fixed, LabelExt, State, Tap, ValueFormatter, WithHoverState, BLUE_KEY, ON_BLUE_KEY,
-    ON_RED_KEY, RED_KEY,
-  },
+  util::{h2_fixed, LabelExt, Tap, ValueFormatter, BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
   App, SETTINGS, TOGGLE_ON,
 };
 use crate::{
@@ -71,6 +67,8 @@ pub(crate) fn launch_button() -> impl Widget<App> {
   Card::builder()
     .with_background(druid::Color::BLACK.interpolate_with(druid::Color::GRAY, 1))
     .with_border(1.0, light_gray)
+    .with_shadow_length(8.0)
+    .with_shadow_increase(4.0)
     .stacked_button(
       |_| {
         Flex::column()
@@ -162,26 +160,23 @@ fn footer_collapsed() -> impl Widget<App> {
   Container::new(child)
     .rounded(4.0)
     .padding((0.0, 0.0, 0.0, -6.0))
-    .scope_with(|_| false, |widget| {
+    .scope_with_hover_state(false, false, |widget| {
       widget
         .env_scope(move |env, state| {
-          if state.inner {
+          if state.1 {
             env.set(BACKGROUND, Color::GRAY.lighter_by(4));
             env.set(druid::theme::TEXT_COLOR, Color::BLACK);
           } else {
             env.set(BACKGROUND, Color::BLACK.interpolate_with(Color::GRAY, 1))
           };
         })
-        .lens(Map::new(
-          |data: &(State<App, bool>, bool)| {
-            let mut out = data.0.clone();
-            out.inner = data.1;
-            out
-          },
-          |data, state| data.0 = state,
-        ))
+        .on_command(OVERRIDE_HOVER, |ctx, payload, data| {
+          data.1 = *payload;
+          ctx.request_update();
+          ctx.request_paint();
+        })
         .on_event(|_, ctx, _, data| {
-          if ctx.is_hot() || data.0.inner || data.1 {
+          if ctx.is_hot() || data.1 {
             ctx.clear_cursor();
             ctx.set_cursor(&druid::Cursor::Arrow);
             ctx.override_cursor(&druid::Cursor::Arrow);
@@ -189,13 +184,6 @@ fn footer_collapsed() -> impl Widget<App> {
 
           false
         })
-        .on_command(OVERRIDE_HOVER, |ctx, payload, data| {
-          data.1 = *payload;
-          data.0.inner = *payload;
-          ctx.request_update();
-          ctx.request_paint();
-        })
-        .with_hover_state(false)
     })
     .on_click(|ctx, _, _| ctx.submit_command(OPEN_STACK))
 }
@@ -235,19 +223,30 @@ fn footer_expanded() -> impl Widget<App> {
         .background(BACKGROUND)
         .rounded(6.0)
         .scope_with_hover_state(false, false, |scoped| {
-          scoped.env_scope(|env, data| {
-            env.set(
-              BACKGROUND,
-              if data.1 {
-                Color::GRAY.lighter_by(8)
-              } else {
-                Color::GRAY.lighter_by(4)
-              },
-            )
-          })
+          scoped
+            .env_scope(|env, data| {
+              env.set(
+                BACKGROUND,
+                if data.1 {
+                  Color::GRAY.lighter_by(8)
+                } else {
+                  Color::GRAY.lighter_by(4)
+                },
+              )
+            })
+            .on_event(|_, ctx, _, data| {
+              if ctx.is_hot() || data.1 {
+                ctx.clear_cursor();
+                ctx.set_cursor(&druid::Cursor::Arrow);
+                ctx.override_cursor(&druid::Cursor::Arrow);
+              }
+
+              false
+            })
         })
         .on_click(|_, data, _| {
-          data.settings.experimental_launch = !data.settings.experimental_launch
+          data.settings.experimental_launch = !data.settings.experimental_launch;
+          data.settings.save_async(&data.runtime)
         }),
     )
     .background(Color::GRAY.lighter_by(4))
@@ -256,29 +255,8 @@ fn footer_expanded() -> impl Widget<App> {
   Container::new(child)
     .rounded(4.0)
     .padding((0.0, 0.0, 0.0, -6.0))
-    .scope_with(|_| false, |widget| {
-      widget
-        .env_scope(move |env, _| {
-          env.set(druid::theme::TEXT_COLOR, Color::BLACK);
-        })
-        .lens(Map::new(
-          |data: &(State<App, bool>, bool)| {
-            let mut out = data.0.clone();
-            out.inner = data.1;
-            out
-          },
-          |data, state| data.0 = state,
-        ))
-        .on_event(|_, ctx, _, data| {
-          if ctx.is_hot() || data.0.inner || data.1 {
-            ctx.clear_cursor();
-            ctx.set_cursor(&druid::Cursor::Arrow);
-            ctx.override_cursor(&druid::Cursor::Arrow);
-          }
-
-          false
-        })
-        .with_hover_state(false)
+    .env_scope(move |env, _| {
+      env.set(druid::theme::TEXT_COLOR, Color::BLACK);
     })
 }
 
@@ -310,8 +288,7 @@ fn experimental_launch_row(active: bool) -> Flex<App> {
                 .padding((4.0, 0.0)),
             ),
         )
-        .with_background_color(druid::Color::TRANSPARENT)
-        .with_border_color(druid::Color::TRANSPARENT),
+        .with_offset((10.0, 10.0)),
     )
     .pipe(|row| {
       if active {

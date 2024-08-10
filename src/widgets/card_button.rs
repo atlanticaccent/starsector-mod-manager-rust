@@ -65,6 +65,7 @@ impl CardButton {
   ) -> impl Widget<T> {
     Self::button_unconstrained_with(inner, builder)
   }
+
   fn dropdown_maker<T: Data, W: Widget<T> + 'static>(
     inner: impl Fn(bool) -> W + 'static,
     width: f64,

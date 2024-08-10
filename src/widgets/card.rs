@@ -64,7 +64,7 @@ impl Card {
           ctx.request_paint();
         }),
     )
-    .with_hover_state(false)
+    .with_hover_state_opts(false, builder.set_cursor)
   }
 
   pub fn new<T: Data>(widget: impl Widget<T> + 'static) -> impl Widget<T> {
@@ -263,6 +263,7 @@ pub struct CardBuilder {
   background: Option<BrushOrPainter>,
   on_hover: Option<BrushOrPainter>,
   shadow_increase: Option<f64>,
+  set_cursor: bool,
 }
 
 enum BrushOrPainter {
@@ -289,6 +290,7 @@ impl Clone for CardBuilder {
       background: self.background.clone(),
       on_hover: self.on_hover.clone(),
       shadow_increase: self.shadow_increase,
+      set_cursor: self.set_cursor,
     }
   }
 }
@@ -303,6 +305,7 @@ impl CardBuilder {
       background: None,
       on_hover: None,
       shadow_increase: None,
+      set_cursor: true,
     }
   }
 
@@ -354,6 +357,12 @@ impl CardBuilder {
     };
 
     self.background = Some(background);
+
+    self
+  }
+
+  pub fn with_set_cursor(mut self, set_cursor: bool) -> Self {
+    self.set_cursor = set_cursor;
 
     self
   }
