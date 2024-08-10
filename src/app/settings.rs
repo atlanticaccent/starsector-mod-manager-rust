@@ -5,8 +5,7 @@ use druid::{
   lens::Map,
   text::ParseFormatter,
   widget::{
-    Button, Checkbox, Flex, Label, Painter, SizedBox, TextBox, TextBoxEvent, ValidationDelegate,
-    WidgetExt,
+    Checkbox, Flex, Label, Painter, SizedBox, TextBox, TextBoxEvent, ValidationDelegate, WidgetExt,
   },
   Data, Insets, Key, Lens, LensExt, Selector, Widget,
 };
@@ -49,6 +48,7 @@ pub struct Settings {
   #[data(eq)]
   pub last_browsed: Option<PathBuf>,
   pub git_warn: bool,
+  #[serde(default = "default_true")]
   pub experimental_launch: bool,
   pub experimental_resolution: Option<(u32, u32)>,
   #[serde(default = "default_true")]
@@ -104,14 +104,19 @@ impl Settings {
               1.,
             )
             .with_child(
-              Button::new("Browse...")
-                .controller(HoverController::default())
-                .on_click(|ctx, _, _| {
-                  ctx.submit_command_global(Selector::new("druid.builtin.textbox-cancel-editing"));
-                  ctx.submit_command_global(
-                    Settings::SELECTOR.with(SettingsCommand::SelectInstallDir),
-                  )
-                }),
+              CardButton::button_with(
+                |_| CardButton::button_text("Browse...").padding((4.0, 0.0)),
+                Card::builder()
+                  .with_background(druid::theme::BUTTON_DARK)
+                  .with_insets((0.0, 10.0))
+                  .with_border(0.5, druid::theme::BORDER_DARK),
+              )
+              .controller(HoverController::default())
+              .on_click(|ctx, _, _| {
+                ctx.submit_command_global(Selector::new("druid.builtin.textbox-cancel-editing"));
+                ctx
+                  .submit_command_global(Settings::SELECTOR.with(SettingsCommand::SelectInstallDir))
+              }),
             ),
         )
         .with_default_spacer()
@@ -196,15 +201,14 @@ impl Settings {
         .with_child(
           hoverable_text(Option::<druid::Color>::None)
             .constant("Open config.json".to_owned())
-            .on_click(|_, _, _| {
-              let _ = opener::open(Settings::path(false));
-            })
             .with_hover_state(false)
             .stack_tooltip_custom(Card::new(
               bolded("Requires application restart for changes to apply.").padding((7.0, 0.0)),
             ))
             .with_offset((10.0, 10.0))
-            .with_border_width(0.0)
+            .on_click(|_, _, _| {
+              let _ = opener::open(Settings::path(false));
+            })
             .align_right()
             .expand_width(),
         )
@@ -570,6 +574,11 @@ impl Settings {
     if let Err(e) = data.save() {
       eprintln!("{:?}", e)
     }
+  }
+
+  pub fn save_async(&self, handle: &tokio::runtime::Handle) {
+    let copy = self.clone();
+    handle.spawn_blocking(move || copy.save());
   }
 }
 
