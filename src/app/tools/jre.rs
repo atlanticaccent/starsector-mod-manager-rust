@@ -8,7 +8,8 @@ use anyhow::Context;
 use compress_tools::uncompress_archive;
 use druid::{
   im::Vector,
-  widget::{Either, Flex, Label, Radio, Spinner},
+  text::RichTextBuilder,
+  widget::{Either, Flex, Label, Radio, RawLabel, Spinner},
   Data, Lens, Selector, Widget, WidgetExt, WidgetId,
 };
 use druid_widget_nursery::{
@@ -30,7 +31,7 @@ use crate::{
   app::{
     controllers::AnimController,
     overlays::Popup,
-    util::{h2_fixed, LabelExt, ShadeColor, Tap as _, WidgetExtEx},
+    util::{h2_fixed, ShadeColor, Tap as _, WidgetExtEx},
   },
   widgets::card::Card,
 };
@@ -45,15 +46,59 @@ pub struct Swapper {
 
 impl Swapper {
   pub fn view() -> impl Widget<Self> {
+    const LINK_CLICKED: Selector = Selector::new("swapper.very_old.link");
+
+    let mut inactive_text = RichTextBuilder::new();
+    inactive_text.push(
+      "\
+      Starsector uses Java 7 by default, which is ",
+    );
+    inactive_text
+      .push("very old.")
+      .link(LINK_CLICKED)
+      .underline(true);
+    inactive_text.push(
+      " Replacing it with the newer version usually improves long term performance, memory usage \
+       and reliability.",
+    );
+    let inactive_text = inactive_text.build();
+    let mut active_text = RichTextBuilder::new();
+    active_text.push(
+      "\
+      Starsector uses Java 7 by default, which ",
+    );
+    active_text
+      .push("came out in 2011!")
+      .link(LINK_CLICKED)
+      .underline(true);
+    active_text.push(
+      " Replacing it with the newer version usually improves long term performance, memory usage \
+       and reliability.",
+    );
+    let active_text = active_text.build();
+
     tool_card().build(
       Flex::column()
         .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
         .with_child(h2_fixed("Java Runtime Swapper"))
-        .with_child(Label::wrapped(
-          "\
-            Starsector uses Java 7 by default. Replacing it with the newer Java 8 usually improves \
-           long term performance, memory usage and reliability.",
-        ))
+        .with_child(
+          RawLabel::new()
+            .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
+            .scope_with::<bool, _, _>(|_| false, {
+              let inactive_text = inactive_text.clone();
+              move |widget| {
+                widget.on_command(LINK_CLICKED, move |_, _, state| {
+                  state.inner = !state.inner;
+                  state.outer = if state.inner {
+                    active_text.clone()
+                  } else {
+                    inactive_text.clone()
+                  }
+                })
+              }
+            })
+            .scope_independent(move || inactive_text.clone()),
+        )
         .with_default_spacer()
         .with_child(
           Flex::row()
@@ -286,6 +331,7 @@ impl Swapper {
   Copy, Clone, Display, Serialize, Deserialize, PartialEq, Eq, Data, strum_macros::EnumIter,
 )]
 pub enum Flavour {
+  Miko,
   Coretto,
   Hotspot,
   Wisp,
@@ -367,24 +413,6 @@ impl Flavour {
       std::fs::rename(&stock_jre, get_backup_path(&stock_jre)?)?;
     }
     std::fs::rename(jre_8, &stock_jre)?;
-    // if !managed {
-    // } else {
-    //   if stock_jre.exists() {
-    //     if !std::fs::symlink_metadata(&stock_jre)?.is_symlink() {
-    //       std::fs::rename(&stock_jre, get_backup_path(&stock_jre)?)?;
-    //     } else {
-    //       #[cfg(target_os = "windows")]
-    //       std::fs::remove_dir(&stock_jre)?;
-    //       #[cfg(target_family = "unix")]
-    //       std::fs::remove_file(&stock_jre)?;
-    //     }
-    //   }
-
-    //   #[cfg(target_os = "windows")]
-    //   std::os::windows::fs::symlink_dir(jre_8, &stock_jre)?;
-    //   #[cfg(target_family = "unix")]
-    //   std::os::unix::fs::symlink(jre_8, &stock_jre)?;
-    // }
 
     Ok(false)
   }
@@ -395,6 +423,7 @@ impl Flavour {
       Flavour::Hotspot => consts::HOTSPOT,
       Flavour::Wisp => consts::WISP,
       Flavour::Azul => consts::AZUL,
+      Flavour::Miko => consts::MIKO,
       Flavour::Original => unimplemented!(),
     }
   }
@@ -541,6 +570,7 @@ mod consts {
     "https://cdn.azul.com/zulu/bin/zulu8.68.0.21-ca-jre8.0.362-win_x64.zip",
     FindBy::Bin,
   );
+  pub const MIKO: (&str, FindBy) = ("https://github.com/adoptium/temurin23-binaries/releases/download/jdk-23%2B7-ea-beta/OpenJDK-jdk_x64_windows_hotspot_ea_23-0-7.zip", FindBy::Bin);
 
   pub const JRE_PATH: &str = "jre";
 }
@@ -558,6 +588,7 @@ mod consts {
     "https://cdn.azul.com/zulu/bin/zulu8.68.0.21-ca-jre8.0.362-linux_x64.zip",
     FindBy::Bin,
   );
+  pub const MIKO: (&str, FindBy) = ("https://github.com/adoptium/temurin23-binaries/releases/download/jdk-23%2B9-ea-beta/OpenJDK-jdk_x64_linux_hotspot_23_9-ea.tar.gz", FindBy::Bin);
 
   pub const JRE_PATH: &str = "jre_linux";
 }
@@ -575,6 +606,7 @@ mod consts {
     "https://cdn.azul.com/zulu/bin/zulu8.68.0.21-ca-jre8.0.362-macosx_x64.zip",
     FindBy::Bin,
   );
+  pub const MIKO: (&str, FindBy) = ("0.0.0.0", FindBy::Bin);
 
   pub const JRE_PATH: &str = "Contents/Home";
 }
