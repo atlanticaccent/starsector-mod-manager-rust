@@ -8,7 +8,8 @@ use super::Popup;
 use crate::{
   app::{
     browser::Browser,
-    util::{h2_fixed, LabelExt, WidgetExtEx as _, BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
+    theme::{BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
+    util::{h2_fixed, LabelExt, WidgetExtEx as _},
     App,
   },
   widgets::card::Card,

@@ -5,7 +5,16 @@ use druid_widget_nursery::prism::Prism;
 use fake::Fake;
 use serde::{de::Visitor, Deserialize, Serialize};
 
-use crate::app::util;
+pub const ORANGE_KEY: Key<Color> = Key::new("theme.colour.orange");
+pub const BLUE_KEY: Key<Color> = Key::new("theme.colour.blue");
+pub const GREEN_KEY: Key<Color> = Key::new("theme.colour.green");
+pub const RED_KEY: Key<Color> = Key::new("theme.colour.red");
+pub const YELLOW_KEY: Key<Color> = Key::new("theme.colour.yellow");
+pub const ON_GREEN_KEY: Key<Color> = Key::new("theme.colour.on_green");
+pub const ON_RED_KEY: Key<Color> = Key::new("theme.colour.on_red");
+pub const ON_YELLOW_KEY: Key<Color> = Key::new("theme.colour.on_yellow");
+pub const ON_BLUE_KEY: Key<Color> = Key::new("theme.colour.on_blue");
+pub const ON_ORANGE_KEY: Key<Color> = Key::new("theme.colour.on_orange");
 
 pub const CHANGE_THEME: Selector<Themes> = Selector::new("app.theme.change");
 pub const SHADOW: Key<Color> = Key::new("custom_theme.shadow");
@@ -164,26 +173,17 @@ impl Theme {
     );
     env.set(theme::BORDER_DARK, border_dark);
     env.set(theme::BORDER_LIGHT, border_light);
-    env.set(util::BLUE_KEY, action.unwrap_or(Self::ACTION));
-    env.set(util::ON_BLUE_KEY, action_text.unwrap_or(Self::ACTION_TEXT));
-    env.set(util::GREEN_KEY, success.unwrap_or(Self::SUCCESS));
+    env.set(BLUE_KEY, action.unwrap_or(Self::ACTION));
+    env.set(ON_BLUE_KEY, action_text.unwrap_or(Self::ACTION_TEXT));
+    env.set(GREEN_KEY, success.unwrap_or(Self::SUCCESS));
+    env.set(ON_GREEN_KEY, success_text.unwrap_or(Self::SUCCESS_TEXT));
+    env.set(RED_KEY, error.unwrap_or(Self::ERROR));
+    env.set(ON_RED_KEY, error_text.unwrap_or(Self::ERROR_TEXT));
+    env.set(YELLOW_KEY, warning.unwrap_or(Self::WARNING));
+    env.set(ON_YELLOW_KEY, warning_text.unwrap_or(Self::WARNING_TEXT));
+    env.set(ORANGE_KEY, do_not_ignore.unwrap_or(Self::DO_NOT_IGNORE));
     env.set(
-      util::ON_GREEN_KEY,
-      success_text.unwrap_or(Self::SUCCESS_TEXT),
-    );
-    env.set(util::RED_KEY, error.unwrap_or(Self::ERROR));
-    env.set(util::ON_RED_KEY, error_text.unwrap_or(Self::ERROR_TEXT));
-    env.set(util::YELLOW_KEY, warning.unwrap_or(Self::WARNING));
-    env.set(
-      util::ON_YELLOW_KEY,
-      warning_text.unwrap_or(Self::WARNING_TEXT),
-    );
-    env.set(
-      util::ORANGE_KEY,
-      do_not_ignore.unwrap_or(Self::DO_NOT_IGNORE),
-    );
-    env.set(
-      util::ON_ORANGE_KEY,
+      ON_ORANGE_KEY,
       do_not_ignore_text.unwrap_or(Self::DO_NOT_IGNORE_TEXT),
     );
     if let Some(shadow) = shadow {

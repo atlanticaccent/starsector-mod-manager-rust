@@ -10,7 +10,8 @@ use webview_shared::ExtEventSinkExt;
 
 use super::{
   overlays::{LaunchResult, Popup},
-  util::{h2_fixed, LabelExt, Tap, ValueFormatter, BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
+  theme::{BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
+  util::{h2_fixed, LabelExt, Tap, ValueFormatter},
   App, SETTINGS, TOGGLE_ON,
 };
 use crate::{

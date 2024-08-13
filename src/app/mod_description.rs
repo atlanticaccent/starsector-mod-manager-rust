@@ -16,11 +16,11 @@ use super::{
   mod_entry::{ModMetadata, UpdateStatus, VersionComplex},
   mod_list::ModList,
   overlays::Popup,
+  theme::{BLUE_KEY, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_RED_KEY, RED_KEY},
   util::{
     bolded, h1, h2_fixed, h3, h3_fixed, hoverable_text, hoverable_text_opts, ident_arc,
     lensed_bold, Compute, FastImMap, LabelExt, LensExtExt, ShadeColor, WidgetExtEx, WithHoverState,
-    BLUE_KEY, CHEVRON_LEFT, DELETE, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_RED_KEY, RED_KEY,
-    SYSTEM_UPDATE, TOGGLE_ON,
+    CHEVRON_LEFT, DELETE, SYSTEM_UPDATE, TOGGLE_ON,
   },
   App, ViewModEntry as ModEntry, INFO,
 };

@@ -23,7 +23,7 @@ use druid::{
     Align, Axis, Controller, ControllerHost, DefaultScopePolicy, Either, Flex, Label, LabelText,
     LensScopeTransfer, LensWrap, Painter, RawLabel, Scope, ScopeTransfer, SizedBox,
   },
-  Color, Command, Data, Env, Event, EventCtx, ExtEventSink, FontWeight, Key, KeyOrValue, Lens,
+  Color, Command, Data, Env, Event, EventCtx, ExtEventSink, FontWeight, KeyOrValue, Lens,
   LensExt as _, MouseEvent, Point, RenderContext, Selector, Target, TimerToken, UnitPoint, Widget,
   WidgetExt, WidgetId,
 };
@@ -62,17 +62,6 @@ use super::{
   },
   overlays::Popup,
 };
-
-pub const ORANGE_KEY: Key<Color> = Key::new("util.colour.orange");
-pub const BLUE_KEY: Key<Color> = Key::new("util.colour.blue");
-pub const GREEN_KEY: Key<Color> = Key::new("util.colour.green");
-pub const RED_KEY: Key<Color> = Key::new("util.colour.red");
-pub const YELLOW_KEY: Key<Color> = Key::new("util.colour.yellow");
-pub const ON_GREEN_KEY: Key<Color> = Key::new("util.colour.on_green");
-pub const ON_RED_KEY: Key<Color> = Key::new("util.colour.on_red");
-pub const ON_YELLOW_KEY: Key<Color> = Key::new("util.colour.on_yellow");
-pub const ON_BLUE_KEY: Key<Color> = Key::new("util.colour.on_blue");
-pub const ON_ORANGE_KEY: Key<Color> = Key::new("util.colour.on_orange");
 
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {
@@ -555,11 +544,11 @@ impl From<(&GameVersion, &GameVersion)> for StarsectorVersionDiff {
 impl From<StarsectorVersionDiff> for KeyOrValue<Color> {
   fn from(status: StarsectorVersionDiff) -> Self {
     match status {
-      StarsectorVersionDiff::Major => RED_KEY.into(),
-      StarsectorVersionDiff::Minor => ORANGE_KEY.into(),
-      StarsectorVersionDiff::Patch => YELLOW_KEY.into(),
-      StarsectorVersionDiff::RC => BLUE_KEY.into(),
-      StarsectorVersionDiff::None => GREEN_KEY.into(),
+      StarsectorVersionDiff::Major => crate::theme::RED_KEY.into(),
+      StarsectorVersionDiff::Minor => crate::theme::ORANGE_KEY.into(),
+      StarsectorVersionDiff::Patch => crate::theme::YELLOW_KEY.into(),
+      StarsectorVersionDiff::RC => crate::theme::BLUE_KEY.into(),
+      StarsectorVersionDiff::None => crate::theme::GREEN_KEY.into(),
     }
   }
 }

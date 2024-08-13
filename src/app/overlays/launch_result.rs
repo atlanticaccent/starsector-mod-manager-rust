@@ -5,8 +5,9 @@ use druid::{
 
 use super::Popup;
 use crate::{
-  app::util::{h2_fixed, WidgetExtEx as _, BLUE_KEY, ON_BLUE_KEY},
+  app::util::{h2_fixed, WidgetExtEx as _},
   patch::table::{FixedFlexTable, TableRow},
+  theme::{BLUE_KEY, ON_BLUE_KEY},
   widgets::card::Card,
 };
 

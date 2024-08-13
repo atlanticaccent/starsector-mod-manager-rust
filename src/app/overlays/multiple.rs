@@ -13,13 +13,11 @@ use crate::{
   app::{
     installer::{HybridPath, INSTALL_FOUND_MULTIPLE},
     mod_entry::ModEntry,
-    util::{
-      bolded, h2_fixed, hoverable_text, ShadeColor, Tap as _, WidgetExtEx as _, BLUE_KEY,
-      ON_BLUE_KEY, ON_RED_KEY, RED_KEY,
-    },
+    util::{bolded, h2_fixed, hoverable_text, ShadeColor, Tap as _, WidgetExtEx as _},
     App,
   },
   patch::table::{FixedFlexTable, TableColumnWidth, TableRow},
+  theme::{BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
   widgets::card::Card,
 };
 

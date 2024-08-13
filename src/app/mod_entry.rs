@@ -26,11 +26,11 @@ use super::{
   controllers::{next_id, MaxSizeBox, SharedIdHoverState},
   mod_description::{notify_enabled, ModDescription},
   mod_list::{headings::Heading, ModList},
-  util::{
-    self, icons::*, LensExtExt, Tap, WidgetExtEx, WithHoverIdState as _, BLUE_KEY, GREEN_KEY,
-    ON_BLUE_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ON_RED_KEY, ON_YELLOW_KEY, ORANGE_KEY, RED_KEY,
-    YELLOW_KEY,
+  theme::{
+    BLUE_KEY, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ON_RED_KEY, ON_YELLOW_KEY,
+    ORANGE_KEY, RED_KEY, YELLOW_KEY,
   },
+  util::{self, icons::*, LensExtExt, Tap, WidgetExtEx, WithHoverIdState as _},
   App, SharedFromEnv,
 };
 use crate::{
@@ -481,7 +481,9 @@ impl ViewModEntry {
         Heading::Enabled | Heading::Score => unreachable!(),
       }
       .on_click(|ctx, data, _| {
-        ctx.submit_command(App::SELECTOR.with(AppCommands::UpdateModDescription(ModDescription::from_entry(data))));
+        ctx.submit_command(App::SELECTOR.with(AppCommands::UpdateModDescription(
+          ModDescription::from_entry(data),
+        )));
         ctx.submit_command(Nav::NAV_SELECTOR.with(NavLabel::ModDetails));
       })
       .boxed()

@@ -25,6 +25,7 @@ use self::{
   tools::Tools,
   util::{bold_text, icons::*, FastImMap, Release},
 };
+pub use crate::theme;
 use crate::{
   app::util::WidgetExtEx,
   nav_bar::{Nav, NavBar, NavLabel},
@@ -278,9 +279,9 @@ impl App {
                     ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::ThemeEditor, true)));
                     tabs.set_tab_index_by_label(NavLabel::ThemeEditor)
                   }
-                  label @ (NavLabel::Performance
-                  | NavLabel::Starmodder
-                  | NavLabel::Settings) => tabs.set_tab_index_by_label(label),
+                  label @ (NavLabel::Performance | NavLabel::Starmodder | NavLabel::Settings) => {
+                    tabs.set_tab_index_by_label(label)
+                  }
                   _ => eprintln!("Failed to open an item for a nav bar control"),
                 }
                 true

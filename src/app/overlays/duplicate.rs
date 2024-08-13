@@ -12,10 +12,8 @@ use crate::{
     mod_entry::ModEntry,
     mod_list::ModList,
     settings::Settings,
-    util::{
-      h2_fixed, LabelExt, ShadeColor as _, Tap, WidgetExtEx as _, BLUE_KEY, ON_BLUE_KEY,
-      ON_RED_KEY, RED_KEY,
-    },
+    theme::{BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
+    util::{h2_fixed, LabelExt, ShadeColor as _, Tap, WidgetExtEx as _},
     App,
   },
   widgets::card::Card,
