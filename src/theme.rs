@@ -305,7 +305,7 @@ const GATESAVE_BROOKLYN: Theme = Theme {
   background_dark: unwrap("#2e3939"),
   background_light: unwrap("#472a2a"),
   border_dark: unwrap("#060708"),
-  border_light: unwrap("#472a2a"),
+  border_light: unwrap("#947271"),
   action: None,
   action_text: None,
   success: None,
