@@ -1,12 +1,11 @@
 mod drive {
-  use std::sync::OnceLock;
+  use std::sync::LazyLock;
 
   use regex::Regex;
 
   fn extract_google_drive_id(url: &str) -> Option<&str> {
     // Define regex patterns for different Google Drive link formats
-    static PATTERNS: OnceLock<[Regex; 5]> = OnceLock::new();
-    let patterns = PATTERNS.get_or_init(|| {
+    static PATTERNS: LazyLock<[Regex; 5]> = LazyLock::new(|| {
       [
         Regex::new(r"https://drive\.google\.com/file/d/([^/]+)/?").unwrap(),
         Regex::new(r"https://drive\.google\.com/open\?id=([^&]+)").unwrap(),
@@ -17,7 +16,7 @@ mod drive {
     });
 
     // Iterate over the patterns and try to capture the ID
-    for pattern in patterns.iter() {
+    for pattern in PATTERNS.iter() {
       if let Some(captures) = pattern.captures(url) {
         if let Some(id) = captures.get(1) {
           return Some(id.as_str());
@@ -44,15 +43,14 @@ mod drive {
 }
 
 mod mediafire {
-  use std::{error::Error, sync::OnceLock};
+  use std::{error::Error, sync::LazyLock};
 
   use regex::Regex;
   use reqwest::blocking::get;
 
   fn extract_mediafire_id(url: &str) -> Option<&str> {
     // Define regex patterns for different MediaFire link formats
-    static PATTERNS: OnceLock<[Regex; 4]> = OnceLock::new();
-    let patterns = PATTERNS.get_or_init(|| {
+    static PATTERNS: LazyLock<[Regex; 4]> = LazyLock::new(|| {
       [
         Regex::new(r"https://www\.mediafire\.com/file/([^/]+)/?").unwrap(),
         Regex::new(r"https://www\.mediafire\.com/view/([^/]+)/?").unwrap(),
@@ -62,7 +60,7 @@ mod mediafire {
     });
 
     // Iterate over the patterns and try to capture the ID
-    for pattern in patterns.iter() {
+    for pattern in PATTERNS.iter() {
       if let Some(captures) = pattern.captures(url) {
         if let Some(id) = captures.get(1) {
           return Some(id.as_str());
