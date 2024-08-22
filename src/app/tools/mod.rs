@@ -5,6 +5,7 @@ use druid::{
   Data, Lens, Widget, WidgetExt,
 };
 use druid_widget_nursery::{FutureWidget, WidgetExt as _};
+use proc_macros::Invert;
 
 use self::{jre::Swapper, vmparams::VMParams};
 use super::{
@@ -16,7 +17,7 @@ use crate::widgets::card::{Card, CardBuilder};
 pub mod jre;
 pub mod vmparams;
 
-#[derive(Debug, Clone, Data, Lens)]
+#[derive(Debug, Clone, Data, Lens, Invert)]
 pub struct Tools {
   #[data(eq)]
   pub install_path: Option<PathBuf>,
@@ -81,6 +82,7 @@ impl Tools {
                   current_flavour,
                   cached_flavours: cached_flavours.clone(),
                   install_dir: install_dir.clone(),
+                  jre_23: false,
                 })
                 .boxed()
             },

@@ -11,7 +11,7 @@ use std::{
   ops::{Deref, DerefMut, Index, IndexMut},
   path::PathBuf,
   rc::Rc,
-  sync::{Arc, RwLock, Weak},
+  sync::{Arc, LazyLock, RwLock, Weak},
 };
 
 use druid::{
@@ -441,9 +441,9 @@ pub fn parse_game_version(
   Option<String>,
   Option<String>,
 ) {
-  lazy_static! {
-    static ref VERSION_REGEX: Regex = Regex::new(r"(?i)\.|a-rc|a").unwrap();
-  }
+  static VERSION_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\.|a-rc|a").unwrap());
+  static RELEASE_CANDIDATE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)a-rc").unwrap());
+
   let components: Vec<&str> = VERSION_REGEX
     .split(text)
     .filter(|c| !c.is_empty())
@@ -456,7 +456,7 @@ pub fn parse_game_version(
     }
     [minor, patch_rc] => {
       // text = format!("0.{}a-RC{}", minor, rc);
-      if text.contains("a-RC") {
+      if RELEASE_CANDIDATE.is_match(&patch_rc) {
         (
           Some("0".to_string()),
           Some(minor.to_string()),
@@ -474,7 +474,7 @@ pub fn parse_game_version(
     }
     [major, minor, patch_rc] if major == &"0" => {
       // text = format!("{}.{}a-RC{}", major, minor, rc);
-      if text.contains("a-RC") {
+      if RELEASE_CANDIDATE.is_match(&patch_rc) {
         (
           Some(major.to_string()),
           Some(minor.to_string()),
@@ -1713,4 +1713,14 @@ impl druid::text::Formatter<u32> for ValueFormatter {
 
 pub fn ident_arc<T: Data>() -> lens::InArc<lens::Identity> {
   lens::InArc::new::<T, T>(lens::Identity)
+}
+
+// dbg macro that returns ()
+#[macro_export]
+macro_rules! bang {
+  ($($x:tt)*) => {
+    {
+      dbg!($($x)*);
+    }
+  };
 }

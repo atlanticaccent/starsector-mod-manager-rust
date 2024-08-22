@@ -37,6 +37,8 @@ mod theme_editor;
 
 pub use theme_editor::*;
 
+pub const SET_JRE_23: Selector<bool> = Selector::new("settings.set_jre_23");
+
 #[derive(Clone, Data, Lens, Serialize, Deserialize, Default, Debug)]
 pub struct Settings {
   #[serde(skip)]
@@ -69,6 +71,8 @@ pub struct Settings {
   pub show_duplicate_warnings: bool,
   #[serde(default)]
   pub custom_theme: Theme,
+  #[serde(default)]
+  pub jre_23: bool,
 }
 
 fn default_headers() -> Vector<Heading> {

@@ -2,10 +2,12 @@ use std::{
   collections::VecDeque,
   io::Cursor,
   path::{Path, PathBuf},
+  sync::LazyLock,
 };
 
 use anyhow::Context;
 use compress_tools::uncompress_archive;
+use consts::MIKO_JDK_VER;
 use druid::{
   im::Vector,
   text::RichTextBuilder,
@@ -30,9 +32,13 @@ use super::{tool_card, vmparams::VMParams};
 use crate::{
   app::{
     controllers::AnimController,
+    mod_entry::GameVersion,
     overlays::Popup,
-    util::{h2_fixed, ShadeColor, Tap as _, WidgetExtEx},
+    settings::SET_JRE_23,
+    util::{h2_fixed, parse_game_version, ShadeColor, WidgetExtEx},
+    SharedFromEnv,
   },
+  bang, theme,
   widgets::card::Card,
 };
 
@@ -42,6 +48,7 @@ pub struct Swapper {
   pub cached_flavours: Vector<Flavour>,
   #[data(eq)]
   pub install_dir: PathBuf,
+  pub jre_23: bool,
 }
 
 impl Swapper {
@@ -58,7 +65,7 @@ impl Swapper {
       .link(LINK_CLICKED)
       .underline(true);
     inactive_text.push(
-      " Replacing it with the newer version usually improves long term performance, memory usage \
+      " Replacing it with a newer version usually improves long term performance, memory usage \
        and reliability.",
     );
     let inactive_text = inactive_text.build();
@@ -72,7 +79,7 @@ impl Swapper {
       .link(LINK_CLICKED)
       .underline(true);
     active_text.push(
-      " Replacing it with the newer version usually improves long term performance, memory usage \
+      " Replacing it with a newer version usually improves long term performance, memory usage \
        and reliability.",
     );
     let active_text = active_text.build();
@@ -106,9 +113,10 @@ impl Swapper {
               FlexTable::new()
                 .with_row(Self::swapper_row(Flavour::Original, "Original (Java 7)"))
                 .with_row(Self::swapper_row(
-                  Flavour::Wisp,
-                  "Archived Java 8 (Recommended)",
+                  Flavour::Miko(0),
+                  "Java 23 by Mikohime (New!)",
                 ))
+                .with_row(Self::swapper_row(Flavour::Wisp, "Archived Java 8"))
                 .with_row(Self::swapper_row(Flavour::Azul, "Azul Java 8")),
               2.,
             )
@@ -120,24 +128,54 @@ impl Swapper {
   }
 
   fn swapper_row(flavour: Flavour, label: &str) -> TableRow<Self> {
+    const DOWNLOAD_FAILED: Selector<Flavour> = Selector::new("jre.download.failed");
+
+    let empty_if_not = move |_: &Swapper, env: &druid::Env| {
+      static _0_97_A_RC_11: LazyLock<GameVersion> =
+        LazyLock::new(|| parse_game_version("0.97a-RC11"));
+
+      let game_version = &env.shared_data().game_version;
+
+      !flavour.is_miko() || Some(&*_0_97_A_RC_11) == game_version.as_ref()
+    };
+
     TableRow::new()
       .with_child(
         Radio::new(label, flavour)
           .lens(Swapper::current_flavour)
-          .on_change(move |ctx, _, data, _| {
+          .on_change(move |ctx, old, data, _| {
+            let old_flavour = old.current_flavour;
+            if flavour.is_miko() {
+              data.current_flavour = if old_flavour.is_miko() {
+                old_flavour
+              } else {
+                Flavour::Miko(old_flavour.into())
+              }
+            }
+
             ctx.submit_command(VMParams::SAVE_VMPARAMS);
             ctx.submit_command(Popup::OPEN_POPUP.with(Popup::custom(Self::swap_in_progress_popup)));
             let install_dir = data.install_dir.clone();
             let ext_ctx = ctx.get_external_handle();
             tokio::spawn(async move {
-              let res = if flavour == Flavour::Original {
-                revert_jre(install_dir).await
-              } else {
-                flavour.swap_jre(install_dir).await
+              // from miko to any - swap or revert
+              // from any to miko - no-op
+
+              // flavour is miko OR old_flavour is miko and discr is flavour
+              let res = match (flavour, old_flavour) {
+                (Flavour::Miko(discr), _) | (_, Flavour::Miko(discr))
+                  if discr == u8::from(flavour) =>
+                {
+                  let _ = ext_ctx.submit_command_global(SET_JRE_23, flavour.is_miko());
+                  Ok(true)
+                }
+                (Flavour::Original, _) => revert_jre(install_dir).await,
+                _ => flavour.swap_jre(install_dir).await,
               };
 
-              if res.is_ok() {
-                let _ = ext_ctx.submit_command_global(Popup::DISMISS, ());
+              let _ = ext_ctx.submit_command_global(Popup::DISMISS, ());
+              if res.is_err() {
+                let _ = ext_ctx.submit_command_global(DOWNLOAD_FAILED, flavour);
               }
             });
           })
@@ -145,7 +183,8 @@ impl Swapper {
             !(flavour == Flavour::Original
               || data.current_flavour == flavour
               || data.cached_flavours.contains(&flavour))
-          }),
+          })
+          .empty_if_not(empty_if_not),
       )
       .with_child({
         let id = WidgetId::next();
@@ -160,10 +199,9 @@ impl Swapper {
           },
           builder
             .clone()
-            .with_background(druid::Color::GRAY.lighter_by(3))
+            .with_background(druid::theme::BUTTON_DARK)
             .hoverable(|_| {
               Label::new("Downloaded")
-                .with_text_color(druid::Color::BLACK)
                 .env_scope(|env, _| {
                   env.set(
                     druid::theme::TEXT_SIZE_NORMAL,
@@ -182,9 +220,10 @@ impl Swapper {
             |data, _: &druid::Env| *data,
             builder
               .clone()
-              .with_background(druid::Color::from_hex_str("#31efb8").unwrap())
+              .with_background(theme::GREEN_KEY)
               .hoverable(|_| {
                 Label::new("Download")
+                  .with_text_color(theme::ON_GREEN_KEY)
                   .env_scope(|env, _| {
                     env.set(
                       druid::theme::TEXT_SIZE_NORMAL,
@@ -196,7 +235,7 @@ impl Swapper {
                   .padding((0., -2.5))
               }),
             builder
-              .with_background(druid::Color::from_hex_str("#31efb8").unwrap())
+              .with_background(theme::GREEN_KEY)
               .hoverable(move |_| {
                 Label::dynamic(|data: &f64, _| {
                   format!("Downloading{}", ".".repeat(data.floor() as usize))
@@ -225,7 +264,7 @@ impl Swapper {
                   );
                   env.set(
                     druid::theme::DISABLED_TEXT_COLOR,
-                    env.get(druid::theme::TEXT_COLOR),
+                    env.get(theme::ON_GREEN_KEY),
                   );
                 })
                 .align_horizontal(druid::UnitPoint::CENTER)
@@ -239,14 +278,21 @@ impl Swapper {
               *data = false;
             }
           })
+          .on_command(DOWNLOAD_FAILED, move |_, payload, data| {
+            if *payload == flavour {
+              *data = true;
+            }
+          })
           .scope_independent(|| true),
         )
         .fix_width(175.);
 
         const DOWNLOAD_COMPLETE: Selector<Flavour> = Selector::new("jre.download.complete");
         const DOWNLOAD_STARTED: Selector<Flavour> = Selector::new("jre.download.start");
-        if flavour != Flavour::Original {
-          button
+        match flavour {
+          Flavour::Miko(_) if cfg!(target_os = "macos") => button.invisible().disabled().boxed(),
+          Flavour::Original => button.invisible().disabled().boxed(),
+          _ => button
             .on_click(move |ctx, data, _| {
               let install_dir = data.install_dir.clone();
               let ext_ctx = ctx.get_external_handle();
@@ -262,6 +308,8 @@ impl Swapper {
                     dbg!(err);
                   }
                 }
+
+                // if flavour == Flavour::Miko {}
               });
               ctx.set_disabled(true);
               ctx.submit_command(DOWNLOAD_STARTED.with(flavour))
@@ -274,10 +322,9 @@ impl Swapper {
             .disabled_if(move |data: &Swapper, _| {
               data.current_flavour == flavour || data.cached_flavours.contains(&flavour)
             })
-            .boxed()
-        } else {
-          button.invisible().disabled().boxed()
+            .boxed(),
         }
+        .empty_if_not(empty_if_not)
       })
   }
 
@@ -295,14 +342,31 @@ impl Swapper {
       })
       .collect();
 
-    let current_jre = install_dir.join(consts::JRE_PATH);
+    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    if install_dir.join("Miko_Rouge.bat").exists() && install_dir.join(MIKO_JDK_VER).exists() {
+      available.push(Flavour::MIKO_DEFAULT)
+    }
 
-    let val: anyhow::Result<Flavour> = std::fs::read_to_string(current_jre.join(".moss"))
-      .map_err(anyhow::Error::new)
-      .and_then(|s| serde_json::from_str(&s).map_err(anyhow::Error::new));
+    let current = Swapper::get_actual_jre(&install_dir);
 
-    let current = val
-      .or_else(|_| {
+    available.push(current);
+
+    (current, available)
+  }
+
+  fn swap_in_progress_popup() -> Box<dyn Widget<()>> {
+    Spinner::new().fix_size(50., 50.).boxed()
+  }
+
+  fn get_actual_jre(install_dir: &Path) -> Flavour {
+    fn inner(install_dir: &Path) -> anyhow::Result<Flavour> {
+      let current_jre = install_dir.join(consts::JRE_PATH);
+
+      let val: anyhow::Result<Flavour> = std::fs::read_to_string(current_jre.join(".moss"))
+        .map_err(anyhow::Error::new)
+        .and_then(|s| serde_json::from_str(&s).map_err(anyhow::Error::new));
+
+      if let Err(err) = val {
         std::fs::read_to_string(current_jre.join("release"))
           .is_ok_and(|release| {
             release
@@ -314,24 +378,32 @@ impl Swapper {
           .ok_or(anyhow::anyhow!(
             "Could not parse release file in (assumed) Java 7 folder"
           ))
-      })
-      .unwrap_or(Flavour::Original);
+          .context(err)
+      } else {
+        val
+      }
+    }
 
-    available.push(current);
-
-    (current, available)
-  }
-
-  fn swap_in_progress_popup() -> Box<dyn Widget<()>> {
-    Spinner::new().fix_size(50., 50.).boxed()
+    inner(install_dir)
+      .inspect_err(|e| bang!(e))
+      .unwrap_or(Flavour::Original)
   }
 }
 
 #[derive(
-  Copy, Clone, Display, Serialize, Deserialize, PartialEq, Eq, Data, strum_macros::EnumIter,
+  Copy,
+  Clone,
+  Display,
+  Serialize,
+  Deserialize,
+  Eq,
+  Data,
+  strum_macros::EnumIter,
+  strum_macros::FromRepr,
 )]
+#[repr(u8)]
 pub enum Flavour {
-  Miko,
+  Miko(u8),
   Coretto,
   Hotspot,
   Wisp,
@@ -343,8 +415,14 @@ const ORIGINAL_JRE_BACKUP: &str = "jre7";
 const JRE_BACKUP: &str = "jre.bak";
 
 impl Flavour {
+  pub const MIKO_DEFAULT: Flavour = Flavour::Miko(0);
+
   async fn download(self, install_dir: PathBuf) -> Result<(), anyhow::Error> {
-    let cached_jre = install_dir.join(format!("jre_{}", self));
+    let cached_jre = install_dir.join(match self {
+      #[cfg(any(target_os = "linux", target_os = "windows"))]
+      Flavour::Miko(_) => MIKO_JDK_VER.to_owned(),
+      _ => format!("jre_{}", self),
+    });
 
     if !cached_jre.exists() {
       let tempdir = self.unpack(&install_dir).await?;
@@ -363,28 +441,23 @@ impl Flavour {
       std::fs::rename(jre_8, &cached_jre)?;
     }
 
+    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    if matches!(self, Flavour::Miko(_)) && !install_dir.join("mikohime").exists() {
+      let miko_dir = Flavour::get_miko_kit(&install_dir).await?;
+
+      Flavour::move_miko_kit(miko_dir.path()).await?;
+    }
+
     Ok(())
   }
 
   async fn swap_jre(self, root: PathBuf) -> anyhow::Result<bool> {
+    // TODO: special case on Miko
     let cached_jre = root.join(format!("jre_{}", self));
     let stock_jre = root.join(consts::JRE_PATH);
 
-    let already_installed = stock_jre
-      .join(".moss")
-      .pipe(|dot_file| -> anyhow::Result<bool> {
-        if dot_file.exists() {
-          let flavour: Flavour = serde_json::from_str(&std::fs::read_to_string(dot_file)?)?;
-
-          if flavour == self {
-            return Ok(true);
-          }
-        }
-
-        Ok(false)
-      });
-    if let Ok(true) = already_installed {
-      return already_installed;
+    if Swapper::get_actual_jre(&root) == self {
+      return Ok(true);
     }
 
     let tempdir: TempDir;
@@ -423,7 +496,7 @@ impl Flavour {
       Flavour::Hotspot => consts::HOTSPOT,
       Flavour::Wisp => consts::WISP,
       Flavour::Azul => consts::AZUL,
-      Flavour::Miko => consts::MIKO,
+      Flavour::Miko(_) => consts::MIKO_JDK,
       Flavour::Original => unimplemented!(),
     }
   }
@@ -499,6 +572,87 @@ impl Flavour {
       .await?
       .with_context(|| "Could not find JRE in given folder")
   }
+
+  #[cfg(any(target_os = "linux", target_os = "windows"))]
+  async fn get_miko_kit(root: &Path) -> anyhow::Result<TempDir> {
+    let url = consts::MIKO_KIT;
+
+    let tempdir = TempDir::new_in(root).context("Create tempdir")?;
+
+    let mut res = reqwest::get(url).await?;
+
+    let mut buf = Vec::new();
+    while let Some(bytes) = res.chunk().await? {
+      buf.append(&mut bytes.to_vec())
+    }
+
+    let path = root.join(tempdir.path());
+    let mut zip = zip::ZipArchive::new(Cursor::new(buf))?;
+
+    Handle::current()
+      .spawn_blocking(move || zip.extract(&path).context("Unpack zip"))
+      .await??;
+
+    Ok(tempdir)
+  }
+
+  #[cfg(any(target_os = "linux", target_os = "windows"))]
+  async fn move_miko_kit(miko_download: &Path) -> anyhow::Result<()> {
+    let root_dir = miko_download
+      .parent()
+      .ok_or(anyhow::anyhow!("Parent should not be missing"))?
+      .to_owned();
+
+    // I hate this
+    let install_files = miko_download.join("0. Files to put into starsector");
+
+    fn recursive_move(from: &Path, to: &Path) -> anyhow::Result<()> {
+      for entry in from.read_dir()? {
+        let entry = entry?;
+        let target = to.join(entry.file_name());
+
+        if !target.exists() || (!target.is_dir() && entry.path().is_dir()) {
+          std::fs::rename(entry.path(), &target)?
+        } else if entry.path().is_dir() {
+          recursive_move(&entry.path(), &target)?
+        }
+      }
+
+      Ok(())
+    }
+
+    Handle::current()
+      .spawn_blocking(move || recursive_move(&install_files, &root_dir))
+      .await??;
+
+    Ok(())
+  }
+
+  fn is_miko(&self) -> bool {
+    matches!(self, Flavour::Miko(_))
+  }
+}
+
+impl PartialEq for Flavour {
+  fn eq(&self, other: &Self) -> bool {
+    std::mem::discriminant(self) == std::mem::discriminant(other)
+  }
+}
+
+impl From<Flavour> for u8 {
+  fn from(value: Flavour) -> Self {
+    // SAFETY: Because `Self` is marked `repr(u8)`, its layout is a `repr(C)`
+    // `union` between `repr(C)` structs, each of which has the `u8`
+    // discriminant as its first field, so we can read the discriminant without
+    // offsetting the pointer.
+    unsafe { *<*const _>::from(&value).cast::<u8>() }
+  }
+}
+
+impl From<u8> for Flavour {
+  fn from(value: u8) -> Self {
+    Flavour::from_repr(value).unwrap_or(Flavour::Original)
+  }
 }
 
 fn get_backup_path(stock_jre: &Path) -> Result<PathBuf, anyhow::Error> {
@@ -528,6 +682,10 @@ fn get_backup_path(stock_jre: &Path) -> Result<PathBuf, anyhow::Error> {
 async fn revert_jre(root: PathBuf) -> anyhow::Result<bool> {
   let current_jre = root.join(consts::JRE_PATH);
   let original_backup = current_jre.with_file_name(ORIGINAL_JRE_BACKUP);
+
+  if Swapper::get_actual_jre(&root) == Flavour::Original {
+    return Ok(true);
+  }
 
   if original_backup.exists() {
     if current_jre.exists() {
@@ -570,7 +728,10 @@ mod consts {
     "https://cdn.azul.com/zulu/bin/zulu8.68.0.21-ca-jre8.0.362-win_x64.zip",
     FindBy::Bin,
   );
-  pub const MIKO: (&str, FindBy) = ("https://github.com/adoptium/temurin23-binaries/releases/download/jdk-23%2B7-ea-beta/OpenJDK-jdk_x64_windows_hotspot_ea_23-0-7.zip", FindBy::Bin);
+
+  pub const MIKO_JDK: (&str, FindBy) = ("https://github.com/adoptium/temurin23-binaries/releases/download/jdk-23%2B7-ea-beta/OpenJDK-jdk_x64_windows_hotspot_ea_23-0-7.zip", FindBy::Bin);
+  pub const MIKO_JDK_VER: &str = "jdk-23+7";
+  pub const MIKO_KIT: &str = "https://github.com/Yumeris/Mikohime_Repo/releases/download/26.4d/Mikohime_23_R26.4f_097a-RC11_win.zip";
 
   pub const JRE_PATH: &str = "jre";
 }
@@ -588,7 +749,10 @@ mod consts {
     "https://cdn.azul.com/zulu/bin/zulu8.68.0.21-ca-jre8.0.362-linux_x64.zip",
     FindBy::Bin,
   );
-  pub const MIKO: (&str, FindBy) = ("https://github.com/adoptium/temurin23-binaries/releases/download/jdk-23%2B9-ea-beta/OpenJDK-jdk_x64_linux_hotspot_23_9-ea.tar.gz", FindBy::Bin);
+
+  pub const MIKO_JDK: (&str, FindBy) = ("https://github.com/adoptium/temurin23-binaries/releases/download/jdk-23%2B9-ea-beta/OpenJDK-jdk_x64_linux_hotspot_23_9-ea.tar.gz", FindBy::Bin);
+  pub const MIKO_JDK_VER: &str = "jdk-23+9";
+  pub const MIKO_KIT: &str = "https://github.com/Yumeris/Mikohime_Repo/releases/download/26.4d/Kitsunebi_23_R26.4f_097a-RC11_linux.zip";
 
   pub const JRE_PATH: &str = "jre_linux";
 }
@@ -606,7 +770,9 @@ mod consts {
     "https://cdn.azul.com/zulu/bin/zulu8.68.0.21-ca-jre8.0.362-macosx_x64.zip",
     FindBy::Bin,
   );
-  pub const MIKO: (&str, FindBy) = ("0.0.0.0", FindBy::Bin);
+  pub const MIKO_JDK: (&str, FindBy) = ("0.0.0.0", FindBy::Bin);
+  pub const MIKO_JDK_VER: &str = "";
+  pub const MIKO_KIT: &str = "";
 
   pub const JRE_PATH: &str = "Contents/Home";
 }

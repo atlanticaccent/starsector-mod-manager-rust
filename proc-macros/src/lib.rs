@@ -1,8 +1,10 @@
+use std::collections::VecDeque;
+
 use proc_macro::TokenStream;
-use quote::{quote, ToTokens};
+use quote::{format_ident, quote, ToTokens};
 use syn::{
-  parse_macro_input, parse_quote, punctuated::Punctuated, DeriveInput, Expr, Meta, Path, Token,
-  TypeParam,
+  parse_macro_input, parse_quote, punctuated::Punctuated, Data, DeriveInput, Expr, Ident, Meta,
+  Path, Token, Type, TypeParam,
 };
 
 #[proc_macro_derive(Widget, attributes(widget))]
@@ -37,9 +39,8 @@ pub fn impl_widget(input: TokenStream) -> TokenStream {
   let mut paint = None;
   let mut widget_pod = None;
 
-  if let Some(attr) = attrs.get(0) {
+  if let Some(attr) = attrs.iter().find(|attr| attr.path().is_ident("widget")) {
     let list = attr.meta.require_list().unwrap();
-    assert!(list.path.is_ident("widget"));
     let args = list
       .parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
       .unwrap();
@@ -161,4 +162,102 @@ pub fn icon(item: TokenStream) -> TokenStream {
       #id
     );
   }.into()
+}
+
+#[proc_macro_derive(Invert)]
+pub fn impl_invert(input: TokenStream) -> TokenStream {
+  use heck::ToUpperCamelCase;
+
+  let DeriveInput {
+    ident,
+    generics,
+    data,
+    ..
+  } = parse_macro_input!(input);
+
+  let (_, type_generics, where_clause) = generics.split_for_impl();
+
+  let Data::Struct(strct) = data else {
+    panic!("Must be on a struct")
+  };
+
+  let (mut options, rem): (VecDeque<_>, _) = strct
+    .fields
+    .into_iter()
+    .map(|field| {
+      let extracted = extract_type_from_option(&field.ty).cloned();
+      (field, extracted)
+    })
+    .partition(|(_, extracted)| extracted.is_some());
+
+  // TODO: Either repeat following for all entries in options individually, _or_ only for fields named in attrs
+
+  // assert!(options.len() <= 1, "More than one field wrapped in Option");
+  let option = options.pop_front().expect("No fields wrapped in Option");
+  let option_ident = option.0.ident.unwrap();
+  let option_type = option.1.unwrap();
+
+  let (other_idents, other_types): (Vec<Ident>, Vec<Type>) = rem
+    .into_iter()
+    .chain(options.into_iter()) // TODO: remove this for future flexible version
+    .map(|(field, _)| (field.ident.unwrap(), field.ty))
+    .unzip();
+
+  let name = format_ident!(
+    "{}Inverse{}",
+    option_ident.to_string().to_upper_camel_case(),
+    ident
+  );
+
+  quote! {
+    pub struct #name #type_generics #where_clause {
+      #option_ident: #option_type,
+      #(#other_idents: #other_types),*
+    }
+  }
+  .into()
+}
+
+fn extract_type_from_option(ty: &syn::Type) -> Option<&syn::Type> {
+  use syn::{GenericArgument, Path, PathArguments, PathSegment};
+
+  fn extract_type_path(ty: &syn::Type) -> Option<&Path> {
+    match *ty {
+      syn::Type::Path(ref typepath) if typepath.qself.is_none() => Some(&typepath.path),
+      _ => None,
+    }
+  }
+
+  // TODO store (with lazy static) the vec of string
+  // TODO maybe optimization, reverse the order of segments
+  fn extract_option_segment(path: &Path) -> Option<&PathSegment> {
+    let idents_of_path = path
+      .segments
+      .iter()
+      .into_iter()
+      .fold(String::new(), |mut acc, v| {
+        acc.push_str(&v.ident.to_string());
+        acc.push('|');
+        acc
+      });
+    vec!["Option|", "std|option|Option|", "core|option|Option|"]
+      .into_iter()
+      .find(|s| &idents_of_path == *s)
+      .and_then(|_| path.segments.last())
+  }
+
+  extract_type_path(ty)
+    .and_then(|path| extract_option_segment(path))
+    .and_then(|path_seg| {
+      let type_params = &path_seg.arguments;
+      // It should have only on angle-bracketed param ("<String>"):
+      match *type_params {
+        PathArguments::AngleBracketed(ref params) => params.args.first(),
+        _ => None,
+      }
+    })
+    .and_then(|generic_arg| match *generic_arg {
+      GenericArgument::Type(ref ty) => Some(ty),
+      _ => None,
+    })
 }

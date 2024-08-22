@@ -63,7 +63,7 @@ pub struct ModList {
   pub mods: FastImMap<String, Arc<ModEntry>>,
   pub header: Header,
   pub search_text: String,
-  starsector_version: Option<GameVersion>,
+  pub starsector_version: Option<GameVersion>,
   install_state: InstallState,
   pub filter_state: FilterState,
   pub install_dir_available: bool,

@@ -7,6 +7,7 @@ use druid::{
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
 use mod_description::ENABLE_DEPENDENCIES;
+use mod_entry::GameVersion;
 use settings::ThemeEditor;
 use tokio::runtime::Handle;
 use util::Tap;
@@ -345,7 +346,8 @@ pub impl<W: Widget<App> + 'static> W {
 
 #[derive(Debug, Clone, Hash)]
 pub struct EnvSharedData {
-  show_discrepancy: bool,
+  pub show_discrepancy: bool,
+  pub game_version: Option<GameVersion>
 }
 
 impl<'a> From<&'a App> for std::sync::Arc<EnvSharedData> {
@@ -353,7 +355,7 @@ impl<'a> From<&'a App> for std::sync::Arc<EnvSharedData> {
     App {
       init: _,
       settings,
-      mod_list: _,
+      mod_list,
       active: _,
       runtime: _,
       widget_id: _,
@@ -368,6 +370,7 @@ impl<'a> From<&'a App> for std::sync::Arc<EnvSharedData> {
   ) -> Self {
     std::sync::Arc::new(EnvSharedData {
       show_discrepancy: settings.show_discrepancies,
+      game_version: mod_list.starsector_version.clone(),
     })
   }
 }
