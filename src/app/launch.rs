@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use druid::{
   widget::{Container, Either, Flex, Label, TextBox, ViewSwitcher},
@@ -132,7 +132,7 @@ pub(crate) fn launch_button() -> impl Widget<App> {
         .settings
         .install_dir
         .as_deref()
-        .is_some_and(std::path::Path::exists)
+        .is_some_and(Path::exists)
     })
 }
 
@@ -584,7 +584,7 @@ fn managed_starsector_launch(app: &mut App, ctx: &mut druid::EventCtx) {
 
 #[cfg(any(target_os = "windows", target_os = "linux"))]
 pub(crate) async fn launch(
-  install_dir: &PathBuf,
+  install_dir: &Path,
   experimental_launch: bool,
   resolution: (u32, u32),
 ) -> anyhow::Result<tokio::process::Child> {
@@ -631,7 +631,7 @@ pub(crate) async fn launch(
 
 #[cfg(target_os = "macos")]
 pub(crate) async fn launch(
-  install_dir: &std::path::Path,
+  install_dir: &Path,
   experimental_launch: bool,
   resolution: (u32, u32),
 ) -> anyhow::Result<tokio::process::Child> {
