@@ -3432,6 +3432,7 @@ name = "proc-macros"
 version = "0.1.0"
 dependencies = [
  "heck 0.5.0",
+ "itertools",
  "quote",
  "syn 2.0.48",
 ]

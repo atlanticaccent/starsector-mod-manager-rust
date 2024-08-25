@@ -3,8 +3,8 @@ use std::collections::VecDeque;
 use proc_macro::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 use syn::{
-  parse_macro_input, parse_quote, punctuated::Punctuated, Data, DeriveInput, Expr, Ident, Meta,
-  Path, Token, Type, TypeParam,
+  parse_macro_input, parse_quote, punctuated::Punctuated, Data, DeriveInput, Expr, Meta, Path,
+  Token, TypeParam,
 };
 
 #[proc_macro_derive(Widget, attributes(widget))]
@@ -164,56 +164,138 @@ pub fn icon(item: TokenStream) -> TokenStream {
   }.into()
 }
 
-#[proc_macro_derive(Invert)]
-pub fn impl_invert(input: TokenStream) -> TokenStream {
+#[allow(non_snake_case)]
+#[proc_macro_attribute]
+pub fn Invert(_: TokenStream, item: TokenStream) -> TokenStream {
   use heck::ToUpperCamelCase;
 
+  let derive_input: DeriveInput = parse_macro_input!(item);
+
   let DeriveInput {
+    attrs,
     ident,
     generics,
     data,
     ..
-  } = parse_macro_input!(input);
+  } = &derive_input;
 
-  let (_, type_generics, where_clause) = generics.split_for_impl();
+  let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
 
   let Data::Struct(strct) = data else {
     panic!("Must be on a struct")
   };
 
-  let (mut options, rem): (VecDeque<_>, _) = strct
+  let (options, rem): (VecDeque<_>, _) = strct
     .fields
-    .into_iter()
+    .iter()
     .map(|field| {
       let extracted = extract_type_from_option(&field.ty).cloned();
-      (field, extracted)
+      (field.clone(), extracted)
     })
     .partition(|(_, extracted)| extracted.is_some());
 
-  // TODO: Either repeat following for all entries in options individually, _or_ only for fields named in attrs
-
-  // assert!(options.len() <= 1, "More than one field wrapped in Option");
-  let option = options.pop_front().expect("No fields wrapped in Option");
-  let option_ident = option.0.ident.unwrap();
-  let option_type = option.1.unwrap();
-
-  let (other_idents, other_types): (Vec<Ident>, Vec<Type>) = rem
+  let impls: Vec<_> = options
+    .clone()
     .into_iter()
-    .chain(options.into_iter()) // TODO: remove this for future flexible version
-    .map(|(field, _)| (field.ident.unwrap(), field.ty))
-    .unzip();
+    .map(|(option, option_type)| {
+      let option_ident = option.ident.unwrap();
+      let option_type = option_type.unwrap();
+      let option_attrs = option.attrs;
 
-  let name = format_ident!(
-    "{}Inverse{}",
-    option_ident.to_string().to_upper_camel_case(),
-    ident
-  );
+      let field_iter = rem
+        .iter()
+        .chain(options.iter().filter(|opt| opt.0.ident.as_ref() != Some(&option_ident))) // TODO: remove this for future flexible version
+        .cloned()
+        .map(|(field, _)| (field.ident.unwrap(), field.ty, field.attrs));
+      let (other_idents, other_types, other_attrs): (Vec<_>, Vec<_>, Vec<_>) =
+        itertools::multiunzip(field_iter);
+
+      let name = format_ident!(
+        "{}Inverse{}",
+        option_ident.to_string().to_upper_camel_case(),
+        ident
+      );
+
+      let lens_mod = format_ident!("{}_lens", name);
+
+      quote! {
+        #(#attrs)*
+        pub struct #name #type_generics #where_clause {
+          #(#option_attrs)*
+          #option_ident: #option_type,
+          #(#(#other_attrs)* #other_idents: #other_types),*
+        }
+
+        impl #impl_generics From<&#ident> for Option<#name> #type_generics #where_clause {
+          fn from(val: &#ident) -> Option<#name> {
+            let #ident {
+              #option_ident,
+              #(#other_idents),*
+            } = val.clone();
+
+            #option_ident.map(|inner| {
+              #name {
+                #option_ident: inner,
+                #(#other_idents),*
+              }
+            })
+          }
+        }
+
+        impl #impl_generics std::convert::TryFrom<&Option<#name>> for #ident #type_generics #where_clause {
+          type Error = &'static str;
+
+          fn try_from(val: &Option<#name>) -> Result<#ident, Self::Error> {
+            let #name {
+              #option_ident: inner,
+              #(#other_idents),*
+            } = val.clone().ok_or("Inner was None")?;
+
+            Ok(#ident {
+              #option_ident: Some(inner),
+              #(#other_idents),*
+            })
+          }
+        }
+
+        #[allow(non_snake_case)]
+        pub mod #lens_mod {
+          #[allow(non_camel_case_types)]
+          #[derive(Debug, Clone, Copy)]
+          pub struct #lens_mod();
+
+          impl druid::lens::Lens<super::#ident, Option<super::#name>> for #lens_mod {
+            fn with<V, F: FnOnce(&Option<super::#name>) -> V>(&self, data: &super::#ident, f: F) -> V {
+              let inner: Option<super::#name> = data.into();
+              f(&inner)
+            }
+
+            fn with_mut<V, F: FnOnce(&mut Option<super::#name>) -> V>(&self, data: &mut super::#ident, f: F) -> V {
+              use std::convert::TryInto;
+              let mut inner: Option<super::#name> = (&*data).into();
+              let res = f(&mut inner);
+
+              if let Ok(inner) = (&inner).try_into() {
+                *data = inner;
+              }
+
+              res
+            }
+          }
+        }
+
+        impl #impl_generics #ident #type_generics #where_clause {
+          #[allow(non_upper_case_globals)]
+          pub const #name: #lens_mod::#lens_mod = #lens_mod::#lens_mod();
+        }
+      }
+    })
+    .collect();
 
   quote! {
-    pub struct #name #type_generics #where_clause {
-      #option_ident: #option_type,
-      #(#other_idents: #other_types),*
-    }
+    #derive_input
+
+    #(#impls)*
   }
   .into()
 }

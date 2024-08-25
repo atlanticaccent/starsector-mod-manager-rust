@@ -17,7 +17,8 @@ use crate::widgets::card::{Card, CardBuilder};
 pub mod jre;
 pub mod vmparams;
 
-#[derive(Debug, Clone, Data, Lens, Invert)]
+#[Invert]
+#[derive(Debug, Clone, Data, Lens)]
 pub struct Tools {
   #[data(eq)]
   pub install_path: Option<PathBuf>,

@@ -10,3 +10,4 @@ proc-macro = true
 syn = { workspace = true }
 quote = { workspace = true }
 heck = { workspace = true }
+itertools = { workspace = true }
