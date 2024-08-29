@@ -381,7 +381,7 @@ static XVERIFY_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 impl<T: VMParamsPath> VMParams<T> {
-  pub fn load(install_dir: impl AsRef<Path>) -> Result<VMParams<T>, LoadError> {
+  pub fn load(install_dir: impl AsRef<Path>, linked: bool) -> Result<VMParams<T>, LoadError> {
     use std::{fs, io::Read};
 
     let mut params_file =
@@ -391,14 +391,6 @@ impl<T: VMParamsPath> VMParams<T> {
     params_file
       .read_to_string(&mut params_string)
       .map_err(|_| LoadError::ReadError)?;
-
-    /* let verify_none = XVERIFY_REGEX
-    .captures(&params_string)
-    .is_some_and(|captures| {
-      captures
-        .get(1)
-        .is_some_and(|val| val.as_str().eq_ignore_ascii_case("none"))
-    }); */
 
     let (mut heap_init, mut heap_max, mut thread_stack_size) = (None, None, None);
     for param in params_string.split_ascii_whitespace() {
@@ -443,7 +435,7 @@ impl<T: VMParamsPath> VMParams<T> {
         heap_max,
         thread_stack_size,
         verify_none: true,
-        linked: false,
+        linked,
         _phantom: PhantomData,
       })
     } else {
@@ -587,7 +579,7 @@ mod test {
 
     let root = ROOT.as_path();
 
-    let vmparams = VMParams::<T>::load(root);
+    let vmparams = VMParams::<T>::load(root, false);
 
     assert!(vmparams.is_ok());
 
@@ -624,7 +616,7 @@ mod test {
       res.expect("Save edited vmparams");
 
       let edited_vmparams =
-        VMParams::<TempPath>::load(PathBuf::from("/")).expect("Load edited vmparams");
+        VMParams::<TempPath>::load(PathBuf::from("/"), false).expect("Load edited vmparams");
 
       assert!(edited_vmparams.heap_init.amount == 2048);
       assert!(edited_vmparams.heap_max.amount == 2048);

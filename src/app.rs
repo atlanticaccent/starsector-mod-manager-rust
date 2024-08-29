@@ -108,7 +108,8 @@ impl App {
       .map(|mut settings| {
         if let Some(install_dir) = settings.install_dir.clone() {
           settings.install_dir_buf = install_dir.to_string_lossy().to_string();
-          settings.vmparams = tools::vmparams::VMParams::load(install_dir).ok();
+          settings.vmparams =
+            tools::vmparams::VMParams::load(install_dir, settings.vmparams_linked).ok();
         }
         settings
       })
@@ -347,7 +348,7 @@ pub impl<W: Widget<App> + 'static> W {
 #[derive(Debug, Clone, Hash)]
 pub struct EnvSharedData {
   pub show_discrepancy: bool,
-  pub game_version: Option<GameVersion>
+  pub game_version: Option<GameVersion>,
 }
 
 impl<'a> From<&'a App> for std::sync::Arc<EnvSharedData> {

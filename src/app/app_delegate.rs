@@ -107,7 +107,7 @@ impl Delegate<App> for AppDelegate {
       if data.settings.install_dir != Some(new_install_dir.clone()) || data.settings.dirty {
         data.settings.install_dir_buf = new_install_dir.to_string_lossy().to_string();
         data.settings.install_dir = Some(new_install_dir.clone());
-        data.settings.vmparams = tools::vmparams::VMParams::load(new_install_dir).ok();
+        data.settings.vmparams = tools::vmparams::VMParams::load(new_install_dir, data.settings.vmparams_linked).ok();
 
         data.runtime.spawn(get_starsector_version(
           ctx.get_external_handle(),

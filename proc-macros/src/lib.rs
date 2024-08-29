@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 
+use heck::ToSnekCase;
 use proc_macro::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 use syn::{
@@ -204,19 +205,22 @@ pub fn Invert(_: TokenStream, item: TokenStream) -> TokenStream {
 
       let field_iter = rem
         .iter()
-        .chain(options.iter().filter(|opt| opt.0.ident.as_ref() != Some(&option_ident))) // TODO: remove this for future flexible version
+        .chain(options.iter().filter(|opt| opt.0.ident.as_ref() != Some(&option_ident)))
         .cloned()
         .map(|(field, _)| (field.ident.unwrap(), field.ty, field.attrs));
       let (other_idents, other_types, other_attrs): (Vec<_>, Vec<_>, Vec<_>) =
         itertools::multiunzip(field_iter);
 
+      let option_ident_str = option_ident.to_string();
+
       let name = format_ident!(
         "{}Inverse{}",
-        option_ident.to_string().to_upper_camel_case(),
+        option_ident_str.to_upper_camel_case(),
         ident
       );
 
-      let lens_mod = format_ident!("{}_lens", name);
+      let lens_mod = format_ident!("{}_lens", option_ident_str.to_snek_case());
+      let lens = format_ident!("invert_on_{}", option_ident_str.to_snek_case());
 
       quote! {
         #(#attrs)*
@@ -262,9 +266,9 @@ pub fn Invert(_: TokenStream, item: TokenStream) -> TokenStream {
         pub mod #lens_mod {
           #[allow(non_camel_case_types)]
           #[derive(Debug, Clone, Copy)]
-          pub struct #lens_mod();
+          pub struct #lens();
 
-          impl druid::lens::Lens<super::#ident, Option<super::#name>> for #lens_mod {
+          impl druid::lens::Lens<super::#ident, Option<super::#name>> for #lens {
             fn with<V, F: FnOnce(&Option<super::#name>) -> V>(&self, data: &super::#ident, f: F) -> V {
               let inner: Option<super::#name> = data.into();
               f(&inner)
@@ -286,7 +290,7 @@ pub fn Invert(_: TokenStream, item: TokenStream) -> TokenStream {
 
         impl #impl_generics #ident #type_generics #where_clause {
           #[allow(non_upper_case_globals)]
-          pub const #name: #lens_mod::#lens_mod = #lens_mod::#lens_mod();
+          pub const #lens: #lens_mod::#lens = #lens_mod::#lens();
         }
       }
     })
@@ -313,17 +317,17 @@ fn extract_type_from_option(ty: &syn::Type) -> Option<&syn::Type> {
   // TODO store (with lazy static) the vec of string
   // TODO maybe optimization, reverse the order of segments
   fn extract_option_segment(path: &Path) -> Option<&PathSegment> {
-    let idents_of_path = path
+    let idents_of_path: String = path
       .segments
       .iter()
       .into_iter()
-      .fold(String::new(), |mut acc, v| {
-        acc.push_str(&v.ident.to_string());
-        acc.push('|');
-        acc
-      });
-    vec!["Option|", "std|option|Option|", "core|option|Option|"]
-      .into_iter()
+      .map(|segment| format!("{}|", segment.ident))
+      .collect();
+
+    const PATHS: &[&str;3] = &["Option|", "std|option|Option|", "core|option|Option|"];
+
+    PATHS
+      .iter()
       .find(|s| &idents_of_path == *s)
       .and_then(|_| path.segments.last())
   }
