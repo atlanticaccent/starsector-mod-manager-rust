@@ -882,7 +882,42 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     self.lens(Constant(constant))
   }
 
-  fn scope<U: Data, In: Fn(U) -> T, L: Lens<T, U>>(
+  fn scope<U: Data, In: FnOnce(U) -> T>(
+    self,
+    make_state: In,
+    read: impl Fn(&mut T, &U) + 'static,
+    write: impl Fn(&T, &mut U) + 'static,
+  ) -> Scope<DefaultScopePolicy<In, FnTransfer<U, T>>, Self> {
+    Scope::from_function(
+      make_state,
+      FnTransfer {
+        read: Box::new(read),
+        write: Box::new(write),
+      },
+      self,
+    )
+  }
+
+  fn partial_scope<
+    P: Data,
+    U: Data,
+    F: FnOnce(U) -> T + 'static,
+    LS: Lens<T, P> + Clone + 'static,
+    LI: Lens<U, P> + Clone + 'static,
+  >(
+    self,
+    make_state: F,
+    lens_state: LS,
+    lens_in: LI,
+  ) -> Scope<DefaultScopePolicy<Box<dyn FnOnce(U) -> T>, PartialScopeTransfer<U, T>>, Self> {
+    Scope::from_function(
+      Box::new(make_state),
+      PartialScopeTransfer::new(lens_state, lens_in),
+      self,
+    )
+  }
+
+  fn lens_scope<U: Data, In: Fn(U) -> T, L: Lens<T, U>>(
     self,
     make_state: In,
     lens: L,
@@ -1403,39 +1438,43 @@ impl<K: Clone + Hash + Eq, V: Clone> Eq for FastImMap<K, V> where
 {
 }
 
-pub trait LensExtExt<A: ?Sized, B: ?Sized>: Lens<A, B> {
+pub trait LensExtExt<A: ?Sized, B: ?Sized>: Lens<A, B> + Sized {
   fn compute<Get, C>(self, get: Get) -> Then<Self, lens::Map<Get, fn(&mut B, C)>, B>
   where
     Get: Fn(&B) -> C,
-    Self: Sized,
   {
     self.map(get, |_, _| {})
   }
 
   fn cloned(self) -> Then<Self, lens::Map<fn(&B) -> B, fn(&mut B, B)>, B>
   where
-    Self: Sized,
     B: Clone,
   {
-    self.map(|a| a.clone(), |b, a| *b = a)
+    self.map(|a| a.clone(), |b, a| b.clone_from(&a))
   }
 
   fn owned<C>(self) -> Then<Self, lens::Map<fn(&B) -> C, fn(&mut B, C)>, B>
   where
-    Self: Sized,
     B: ToOwned<Owned = C> + Clone,
-    C: Borrow<B> + Clone,
+    C: Borrow<B>,
   {
     self.map(|b| b.to_owned(), |b, c| b.clone_from(c.borrow()))
   }
 
   fn debug<DBG>(self, dbg: DBG) -> Then<Self, Dbg<DBG>, B>
   where
-    Self: Sized,
     DBG: Fn(&B) + 'static,
     B: Clone,
   {
     self.then(Dbg(dbg))
+  }
+
+  fn convert<C>(self) -> Then<Self, Convert<B, C>, B>
+  where
+    B: From<C> + Clone,
+    C: From<B> + Data,
+  {
+    self.then(Convert::<B, C>::new())
   }
 }
 
@@ -1723,4 +1762,115 @@ macro_rules! bang {
       dbg!($($x)*);
     }
   };
+}
+
+// print macro that only runs in debug builds
+#[macro_export]
+macro_rules! d_println {
+  ($($arg:tt)*) => (#[cfg(debug_assertions)] println!($($arg)*));
+}
+
+// error print that only runs in debug builds
+#[macro_export]
+macro_rules! d_eprintln {
+  ($($arg:tt)*) => (#[cfg(debug_assertions)] eprintln!($($arg)*));
+}
+
+pub struct FnTransfer<In: Data, State: Data> {
+  read: Box<dyn Fn(&mut State, &In)>,
+  write: Box<dyn Fn(&State, &mut In)>,
+}
+
+impl<In: Data, State: Data> ScopeTransfer for FnTransfer<In, State> {
+  type In = In;
+  type State = State;
+
+  fn read_input(&self, state: &mut Self::State, input: &Self::In) {
+    (self.read)(state, input)
+  }
+
+  fn write_back_input(&self, state: &Self::State, input: &mut Self::In) {
+    (self.write)(state, input)
+  }
+}
+
+// TODO: macro that syncs fields with same names between two structs using
+// existing lens impls on tuples of lenses
+
+pub struct PartialScopeTransfer<In, State> {
+  read: Box<dyn Fn(&mut State, &In)>,
+  write: Box<dyn Fn(&State, &mut In)>,
+}
+
+impl<In, State> PartialScopeTransfer<In, State> {
+  pub fn new<Prt: Data>(
+    lens_state: impl Lens<State, Prt> + Clone + 'static,
+    lens_in: impl Lens<In, Prt> + Clone + 'static,
+  ) -> PartialScopeTransfer<In, State> {
+    PartialScopeTransfer {
+      read: {
+        let lens_state = lens_state.clone();
+        let lens_in = lens_in.clone();
+        Box::new(move |state: &mut State, data: &In| {
+          let partial = lens_in.with(data, |inner| inner.clone());
+          lens_state.with_mut(state, |inner| {
+            if !inner.same(&partial) {
+              *inner = partial
+            }
+          })
+        })
+      },
+      write: Box::new(move |state, data| {
+        let partial = lens_state.with(state, |inner| inner.clone());
+        lens_in.with_mut(data, |inner| {
+          if !inner.same(&partial) {
+            *inner = partial
+          }
+        })
+      }),
+    }
+  }
+}
+
+impl<In: Data, State: Data> ScopeTransfer for PartialScopeTransfer<In, State> {
+  type In = In;
+  type State = State;
+
+  fn read_input(&self, state: &mut State, data: &In) {
+    (self.read)(state, data)
+  }
+
+  fn write_back_input(&self, state: &State, data: &mut In) {
+    (self.write)(state, data)
+  }
+}
+
+#[derive(Clone)]
+pub struct Convert<T, U> {
+  outer: PhantomData<T>,
+  inner: PhantomData<U>,
+}
+
+impl<T, U> Convert<T, U> {
+  pub fn new() -> Self {
+    Self {
+      outer: PhantomData,
+      inner: PhantomData,
+    }
+  }
+}
+
+impl<T: From<U> + Clone, U: Data + From<T>> Lens<T, U> for Convert<T, U> {
+  fn with<V, F: FnOnce(&U) -> V>(&self, data: &T, f: F) -> V {
+    let data = data.clone().into();
+    f(&data)
+  }
+
+  fn with_mut<V, F: FnOnce(&mut U) -> V>(&self, data: &mut T, f: F) -> V {
+    let mut val = data.clone().into();
+    let res = f(&mut val);
+    *data = val.into();
+
+    res
+  }
 }

@@ -34,16 +34,16 @@ use crate::{
     controllers::AnimController,
     mod_entry::GameVersion,
     overlays::Popup,
-    settings::SET_JRE_23,
     util::{h2_fixed, parse_game_version, ShadeColor, WidgetExtEx},
     SharedFromEnv,
   },
-  bang, theme,
+  bang, d_println, theme,
   widgets::card::Card,
 };
 
-#[derive(Clone, Data, Lens)]
+#[derive(Debug, Clone, Data, Lens)]
 pub struct Swapper {
+  #[data(eq)]
   pub current_flavour: Flavour,
   pub cached_flavours: Vector<Flavour>,
   #[data(eq)]
@@ -113,7 +113,7 @@ impl Swapper {
               FlexTable::new()
                 .with_row(Self::swapper_row(Flavour::Original, "Original (Java 7)"))
                 .with_row(Self::swapper_row(
-                  Flavour::Miko(0),
+                  Flavour::Miko,
                   "Java 23 by Mikohime (New!)",
                 ))
                 .with_row(Self::swapper_row(Flavour::Wisp, "Archived Java 8"))
@@ -146,11 +146,13 @@ impl Swapper {
           .on_change(move |ctx, old, data, _| {
             let old_flavour = old.current_flavour;
             if flavour.is_miko() {
-              data.current_flavour = if old_flavour.is_miko() {
-                old_flavour
-              } else {
-                Flavour::Miko(old_flavour.into())
+              if !old_flavour.is_miko() {
+                data.jre_23 = true;
+                ctx.submit_command(VMParams::SAVE_VMPARAMS);
+                return;
               }
+            } else {
+              data.jre_23 = false
             }
 
             ctx.submit_command(VMParams::SAVE_VMPARAMS);
@@ -158,24 +160,15 @@ impl Swapper {
             let install_dir = data.install_dir.clone();
             let ext_ctx = ctx.get_external_handle();
             tokio::spawn(async move {
-              // from miko to any - swap or revert
-              // from any to miko - no-op
-
-              // flavour is miko OR old_flavour is miko and discr is flavour
-              let res = match (flavour, old_flavour) {
-                (Flavour::Miko(discr), _) | (_, Flavour::Miko(discr))
-                  if discr == u8::from(flavour) =>
-                {
-                  let _ = ext_ctx.submit_command_global(SET_JRE_23, flavour.is_miko());
-                  Ok(true)
-                }
-                (Flavour::Original, _) => revert_jre(install_dir).await,
+              let res = match flavour {
+                Flavour::Original => revert_jre(install_dir).await,
                 _ => flavour.swap_jre(install_dir).await,
               };
 
               let _ = ext_ctx.submit_command_global(Popup::DISMISS, ());
               if res.is_err() {
-                let _ = ext_ctx.submit_command_global(DOWNLOAD_FAILED, flavour);
+                // let _ = ext_ctx.submit_command_global(DOWNLOAD_FAILED,
+                // flavour);
               }
             });
           })
@@ -283,6 +276,11 @@ impl Swapper {
               *data = true;
             }
           })
+          .on_command(DOWNLOAD_COMPLETE, move |_, payload, data| {
+            if *payload == flavour {
+              *data = true;
+            }
+          })
           .scope_independent(|| true),
         )
         .fix_width(175.);
@@ -290,7 +288,7 @@ impl Swapper {
         const DOWNLOAD_COMPLETE: Selector<Flavour> = Selector::new("jre.download.complete");
         const DOWNLOAD_STARTED: Selector<Flavour> = Selector::new("jre.download.start");
         match flavour {
-          Flavour::Miko(_) if cfg!(target_os = "macos") => button.invisible().disabled().boxed(),
+          Flavour::Miko if cfg!(target_os = "macos") => button.invisible().disabled().boxed(),
           Flavour::Original => button.invisible().disabled().boxed(),
           _ => button
             .on_click(move |ctx, data, _| {
@@ -308,8 +306,6 @@ impl Swapper {
                     dbg!(err);
                   }
                 }
-
-                // if flavour == Flavour::Miko {}
               });
               ctx.set_disabled(true);
               ctx.submit_command(DOWNLOAD_STARTED.with(flavour))
@@ -343,8 +339,8 @@ impl Swapper {
       .collect();
 
     #[cfg(any(target_os = "linux", target_os = "windows"))]
-    if install_dir.join("Miko_Rouge.bat").exists() && install_dir.join(MIKO_JDK_VER).exists() {
-      available.push(Flavour::MIKO_DEFAULT)
+    if install_dir.join("Miko_R3.txt").exists() && install_dir.join(MIKO_JDK_VER).exists() {
+      available.push(Flavour::Miko)
     }
 
     let current = Swapper::get_actual_jre(&install_dir);
@@ -391,19 +387,20 @@ impl Swapper {
 }
 
 #[derive(
+  Debug,
   Copy,
   Clone,
   Display,
+  Data,
   Serialize,
   Deserialize,
+  PartialEq,
   Eq,
-  Data,
   strum_macros::EnumIter,
   strum_macros::FromRepr,
 )]
-#[repr(u8)]
 pub enum Flavour {
-  Miko(u8),
+  Miko,
   Coretto,
   Hotspot,
   Wisp,
@@ -415,12 +412,10 @@ const ORIGINAL_JRE_BACKUP: &str = "jre7";
 const JRE_BACKUP: &str = "jre.bak";
 
 impl Flavour {
-  pub const MIKO_DEFAULT: Flavour = Flavour::Miko(0);
-
   async fn download(self, install_dir: PathBuf) -> Result<(), anyhow::Error> {
     let cached_jre = install_dir.join(match self {
       #[cfg(any(target_os = "linux", target_os = "windows"))]
-      Flavour::Miko(_) => MIKO_JDK_VER.to_owned(),
+      Flavour::Miko => MIKO_JDK_VER.to_owned(),
       _ => format!("jre_{}", self),
     });
 
@@ -442,7 +437,7 @@ impl Flavour {
     }
 
     #[cfg(any(target_os = "linux", target_os = "windows"))]
-    if matches!(self, Flavour::Miko(_)) && !install_dir.join("mikohime").exists() {
+    if self.is_miko() && !install_dir.join("mikohime").exists() {
       let miko_dir = Flavour::get_miko_kit(&install_dir).await?;
 
       Flavour::move_miko_kit(miko_dir.path()).await?;
@@ -452,11 +447,11 @@ impl Flavour {
   }
 
   async fn swap_jre(self, root: PathBuf) -> anyhow::Result<bool> {
-    // TODO: special case on Miko
     let cached_jre = root.join(format!("jre_{}", self));
     let stock_jre = root.join(consts::JRE_PATH);
 
     if Swapper::get_actual_jre(&root) == self {
+      d_println!("Installed is already target flavour - no-op");
       return Ok(true);
     }
 
@@ -496,7 +491,7 @@ impl Flavour {
       Flavour::Hotspot => consts::HOTSPOT,
       Flavour::Wisp => consts::WISP,
       Flavour::Azul => consts::AZUL,
-      Flavour::Miko(_) => consts::MIKO_JDK,
+      Flavour::Miko => consts::MIKO_JDK,
       Flavour::Original => unimplemented!(),
     }
   }
@@ -603,6 +598,13 @@ impl Flavour {
       .ok_or(anyhow::anyhow!("Parent should not be missing"))?
       .to_owned();
 
+    let r3 = miko_download
+      .join("1. Pick VMParam Size Here")
+      .join("6GB (Discord Choice)")
+      .join("Miko_R3.txt");
+
+    std::fs::rename(r3, &root_dir.join("Miko_R3.txt"))?;
+
     // I hate this
     let install_files = miko_download.join("0. Files to put into starsector");
 
@@ -629,29 +631,7 @@ impl Flavour {
   }
 
   fn is_miko(&self) -> bool {
-    matches!(self, Flavour::Miko(_))
-  }
-}
-
-impl PartialEq for Flavour {
-  fn eq(&self, other: &Self) -> bool {
-    std::mem::discriminant(self) == std::mem::discriminant(other)
-  }
-}
-
-impl From<Flavour> for u8 {
-  fn from(value: Flavour) -> Self {
-    // SAFETY: Because `Self` is marked `repr(u8)`, its layout is a `repr(C)`
-    // `union` between `repr(C)` structs, each of which has the `u8`
-    // discriminant as its first field, so we can read the discriminant without
-    // offsetting the pointer.
-    unsafe { *<*const _>::from(&value).cast::<u8>() }
-  }
-}
-
-impl From<u8> for Flavour {
-  fn from(value: u8) -> Self {
-    Flavour::from_repr(value).unwrap_or(Flavour::Original)
+    matches!(self, Flavour::Miko)
   }
 }
 
@@ -684,6 +664,7 @@ async fn revert_jre(root: PathBuf) -> anyhow::Result<bool> {
   let original_backup = current_jre.with_file_name(ORIGINAL_JRE_BACKUP);
 
   if Swapper::get_actual_jre(&root) == Flavour::Original {
+    d_println!("Installed is already vanilla - no-op");
     return Ok(true);
   }
 

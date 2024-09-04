@@ -37,8 +37,6 @@ mod theme_editor;
 
 pub use theme_editor::*;
 
-pub const SET_JRE_23: Selector<bool> = Selector::new("settings.set_jre_23");
-
 #[derive(Clone, Data, Lens, Serialize, Deserialize, Default, Debug)]
 pub struct Settings {
   #[serde(skip)]
@@ -64,7 +62,7 @@ pub struct Settings {
   #[serde(default)]
   pub theme: Themes,
   #[serde(skip)]
-  pub vmparams: Option<VMParams>,
+  pub(crate) vmparams: Option<VMParams>,
   pub vmparams_linked: bool,
 
   #[serde(default = "default_true")]

@@ -72,26 +72,29 @@ impl Popup {
       .on_command(Popup::DISMISS_MATCHING, |_, matching, data| {
         data.popups.retain(|popup| !matching(popup));
       })
-      .scope_with(|_| (DataTimer::INVALID, Vector::new()), |scoped| {
-        scoped
-          .on_command(Popup::DELAYED_POPUP, |ctx, popups, data| {
-            let data = &mut data.inner;
-            data.0 = ctx.request_timer(std::time::Duration::from_nanos(1)).into();
-            data.1.append(popups.into());
-          })
-          .on_event(|_, _, event, data| {
-            let inner = &mut data.inner;
-            if let druid::Event::Timer(token) = event
-              && *token == *inner.0
-            {
-              data.outer.popups.extend(inner.1.clone());
+      .scope_with(
+        |_| (DataTimer::INVALID, Vector::new()),
+        |scoped| {
+          scoped
+            .on_command(Popup::DELAYED_POPUP, |ctx, popups, data| {
+              let data = &mut data.inner;
+              data.0 = ctx.request_timer(std::time::Duration::from_nanos(1)).into();
+              data.1.append(popups.into());
+            })
+            .on_event(|_, _, event, data| {
+              let inner = &mut data.inner;
+              if let druid::Event::Timer(token) = event
+                && *token == *inner.0
+              {
+                data.outer.popups.extend(inner.1.clone());
 
-              true
-            } else {
-              false
-            }
-          })
-      })
+                true
+              } else {
+                false
+              }
+            })
+        },
+      )
       .on_change(|_, old, data: &mut App, _| {
         if !old.settings.show_duplicate_warnings && !data.settings.show_duplicate_warnings {
           data
@@ -159,6 +162,12 @@ impl Popup {
   }
 
   pub fn dismiss_matching(matching: impl Fn(&Popup) -> bool + Send + Sync + 'static) -> Command {
-    Self::DISMISS_MATCHING.with(Arc::new(matching))
+    Self::DISMISS_MATCHING.with(Self::wrap_dismiss_matching(matching))
+  }
+
+  pub fn wrap_dismiss_matching<F: Fn(&Popup) -> bool + Send + Sync + 'static>(
+    matching: F,
+  ) -> Arc<dyn Fn(&Popup) -> bool + Send + Sync> {
+    Arc::new(matching) as Arc<dyn Fn(&Popup) -> bool + Send + Sync>
   }
 }

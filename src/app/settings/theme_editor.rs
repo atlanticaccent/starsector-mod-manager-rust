@@ -275,7 +275,7 @@ fn optional_row(
             }
           }
         })
-        .scope(
+        .lens_scope(
           |data| (data.clone(), data.is_some()),
           lens!((Option<ExtColor>, bool), 0),
         )

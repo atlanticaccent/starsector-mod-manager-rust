@@ -349,6 +349,7 @@ pub impl<W: Widget<App> + 'static> W {
 pub struct EnvSharedData {
   pub show_discrepancy: bool,
   pub game_version: Option<GameVersion>,
+  // TODO: last known mouse position? check ViewStateChanged
 }
 
 impl<'a> From<&'a App> for std::sync::Arc<EnvSharedData> {

@@ -382,7 +382,7 @@ fn resolution_options() -> Box<dyn Widget<App>> {
     )
     .align_horizontal(druid::UnitPoint::CENTER)
     .on_added(|_, ctx, _, _| RootStack::dismiss(ctx))
-    .scope(|data| (data.clone(), true), druid::lens!((App, bool), 0))
+    .lens_scope(|data| (data.clone(), true), druid::lens!((App, bool), 0))
     .boxed()
 }
 
@@ -558,19 +558,22 @@ fn managed_starsector_launch(app: &mut App, ctx: &mut druid::EventCtx) {
 
     let experimental_launch = app.settings.experimental_launch;
     let experimental_resolution = app.settings.experimental_resolution;
+    let miko = app.settings.jre_23;
     let ext_ctx = ctx.get_external_handle();
     app.runtime.spawn(async move {
       let res = launch(
         &install_dir,
         experimental_launch,
         experimental_resolution.unwrap(),
+        miko,
       )
       .and_then(|child| child.wait_with_output().map_err(Into::into))
       .await;
 
-      let matches: std::sync::Arc<dyn Fn(&Popup) -> bool + Send + Sync> =
-        std::sync::Arc::new(|popup| matches!(popup, Popup::Custom(_)));
-      let _ = ext_ctx.submit_command_global(Popup::DISMISS_MATCHING, matches);
+      let _ = ext_ctx.submit_command_global(
+        Popup::DISMISS_MATCHING,
+        Popup::wrap_dismiss_matching(|popup| matches!(popup, Popup::Custom(_))),
+      );
       if let Err(err) = res {
         let _ = ext_ctx.submit_command_global(
           Popup::OPEN_POPUP,
@@ -587,6 +590,7 @@ pub(crate) async fn launch(
   install_dir: &Path,
   experimental_launch: bool,
   resolution: (u32, u32),
+  miko: bool,
 ) -> anyhow::Result<tokio::process::Child> {
   use tokio::{fs::read_to_string, process::Command};
 

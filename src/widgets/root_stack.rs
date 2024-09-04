@@ -72,7 +72,7 @@ impl RootStack {
           on_dismiss(ctx)
         }
       })
-      .scope(
+      .lens_scope(
         |app| {
           (
             app,

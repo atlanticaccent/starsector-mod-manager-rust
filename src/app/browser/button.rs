@@ -28,7 +28,7 @@ pub fn button_unconstrained<T: Data, W: Widget<T> + 'static>(
       || button_styling(inner(true).lens(druid::lens!((T, bool), 0))),
     )
     .on_click(|_, data, _| data.1 = true)
-    .scope(|data| (data, false), druid::lens!((T, bool), 0))
+    .lens_scope(|data| (data, false), druid::lens!((T, bool), 0))
 }
 
 pub fn button<T: Data, W: Widget<T> + 'static>(

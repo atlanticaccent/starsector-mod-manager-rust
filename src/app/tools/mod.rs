@@ -1,15 +1,19 @@
 use std::path::PathBuf;
 
+use derive_more::derive::{From, Into};
 use druid::{
   widget::{Flex, Maybe, SizedBox, ViewSwitcher},
-  Data, Lens, Widget, WidgetExt,
+  Data, Lens, LensExt, Widget, WidgetExt,
 };
 use druid_widget_nursery::{FutureWidget, WidgetExt as _};
 use proc_macros::Invert;
 
 use self::{jre::Swapper, vmparams::VMParams};
 use super::settings::Settings;
-use crate::widgets::card::{Card, CardBuilder};
+use crate::{
+  app::util::{Convert, LensExtExt, WidgetExtEx},
+  widgets::card::{Card, CardBuilder},
+};
 
 pub mod jre;
 pub mod vmparams;
@@ -18,8 +22,8 @@ pub mod vmparams;
 #[derive(Debug, Clone, Data, Lens)]
 pub struct Tools {
   #[data(eq)]
-  pub install_path: Option<PathBuf>,
-  pub vmparams: Option<VMParams>,
+  pub install_dir: Option<PathBuf>,
+  pub(crate) vmparams: Option<VMParams>,
   vmparams_linked: bool,
   jre_23: bool,
 }
@@ -27,21 +31,6 @@ pub struct Tools {
 impl Tools {
   pub fn settings_sync() -> impl Lens<Settings, Tools> {
     druid::lens::Map::new(|settings| settings.into(), assign_settings)
-  }
-
-  fn swapper_sync(
-    current_flavour: jre::Flavour,
-    cached_flavours: druid::im::Vector<jre::Flavour>,
-  ) -> impl Lens<InstallPathInverseTools, Swapper> {
-    druid::lens::Map::new(
-      move |tools: &InstallPathInverseTools| Swapper {
-        current_flavour,
-        cached_flavours: cached_flavours.clone(),
-        install_dir: tools.install_path.clone(),
-        jre_23: tools.jre_23,
-      },
-      |tools, swapper| tools.jre_23 = swapper.jre_23,
-    )
   }
 
   pub fn view() -> impl Widget<Self> {
@@ -62,25 +51,41 @@ impl Tools {
   }
 
   fn jre_swapper() -> impl Widget<Self> {
-    #[derive(Clone, Data)]
+    #[derive(Clone, Data, From, Into, Default)]
     struct PathWrapper(#[data(eq)] PathBuf);
 
     ViewSwitcher::new(
-      |data: &Option<InstallPathInverseTools>, _| {
+      |data: &Option<InstallDirInverseTools>, _| {
         data
           .as_ref()
-          .map(|inner| PathWrapper(inner.install_path.clone()))
+          .map(|inner| PathWrapper(inner.install_dir.clone()))
       },
       |_, _, _| {
         Maybe::or_empty(|| {
           FutureWidget::new(
-            |data: &InstallPathInverseTools, _| Swapper::get_cached_jres(data.install_path.clone()),
+            |data: &InstallDirInverseTools, _| Swapper::get_cached_jres(data.install_dir.clone()),
             SizedBox::empty(),
             |res, _, _| {
               let (current_flavour, cached_flavours) = *res;
               let cached_flavours: druid::im::Vector<_> = cached_flavours.into();
+
               Swapper::view()
-                .lens(Tools::swapper_sync(current_flavour, cached_flavours))
+                .partial_scope(
+                  move |tools: InstallDirInverseTools| Swapper {
+                    current_flavour,
+                    cached_flavours,
+                    install_dir: tools.install_dir.clone(),
+                    jre_23: tools.jre_23,
+                  },
+                  (
+                    Swapper::install_dir.then(Convert::<PathBuf, PathWrapper>::new()),
+                    Swapper::jre_23,
+                  ),
+                  (
+                    InstallDirInverseTools::install_dir.convert::<PathWrapper>(),
+                    InstallDirInverseTools::jre_23,
+                  ),
+                )
                 .boxed()
             },
           )
@@ -88,11 +93,11 @@ impl Tools {
         .boxed()
       },
     )
-    .lens(Tools::invert_on_install_path)
+    .lens(Tools::invert_on_install_dir)
   }
 
   fn write_vmparams(&self) {
-    if let Some(install) = self.install_path.as_ref()
+    if let Some(install) = self.install_dir.as_ref()
       && let Some(vmparams) = &self.vmparams
     {
       vmparams.save(install).expect("Save vmparams edit")
@@ -103,7 +108,7 @@ impl Tools {
 impl<'a> From<&'a Settings> for Tools {
   fn from(settings: &'a Settings) -> Self {
     Self {
-      install_path: settings.install_dir.clone(),
+      install_dir: settings.install_dir.clone(),
       vmparams: settings.vmparams.clone(),
       vmparams_linked: settings.vmparams_linked,
       jre_23: settings.jre_23,
@@ -114,7 +119,7 @@ impl<'a> From<&'a Settings> for Tools {
 fn assign_settings(
   settings: &mut Settings,
   Tools {
-    install_path: _,
+    install_dir: _,
     vmparams,
     vmparams_linked,
     jre_23,

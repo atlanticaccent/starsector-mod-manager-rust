@@ -115,7 +115,7 @@ impl ModRepo {
       },
     )
     .on_notification(REBUILD, |_, _, data| data.1 += 1)
-    .scope(|data| (data, 0), lens!((Option<ModRepo>, u32), 0))
+    .lens_scope(|data| (data, 0), lens!((Option<ModRepo>, u32), 0))
     .lens(App::mod_repo)
   }
 
@@ -278,8 +278,7 @@ impl ModRepo {
             },
           ))
           .on_change(|_, _, repo, _| {
-            let sort_by = &repo.sort_by;
-            repo.items.sort_by(|a, b| sort_by.comparator(a, b))
+            repo.sort_items_by(repo.sort_by)
           })
           .prism(OptionSome)
           .lens(App::mod_repo)
@@ -311,7 +310,7 @@ impl ModRepo {
           Metadata::Score
         };
         repo.sort_by = sort_by;
-        repo.items.sort_by(|a, b| sort_by.comparator(a, b));
+        repo.sort_items_by(sort_by)
       })
   }
 
@@ -442,9 +441,7 @@ impl ModRepo {
 
     let mut repo: ModRepo = serde_json::from_slice(&bytes)?;
 
-    repo
-      .items
-      .sort_by(|a, b| Metadata::default().comparator(a, b));
+    repo.sort_items_by(Metadata::default());
 
     Ok(repo)
   }
@@ -496,6 +493,16 @@ impl ModRepo {
     }
 
     d.deserialize_seq(ItemVisitor)
+  }
+
+  fn sort_items_by(&mut self, sort_by: Metadata) {
+    let already_sorted = self
+      .items
+      .iter()
+      .is_sorted_by(|a, b| sort_by.comparator(&a, &b).is_le());
+    if !already_sorted {
+      self.items.sort_by(|a, b| sort_by.comparator(a, b))
+    }
   }
 }
 

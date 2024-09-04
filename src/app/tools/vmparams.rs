@@ -1,8 +1,9 @@
 use std::{
   fmt::Display,
+  fs::{File, OpenOptions},
   iter::Peekable,
   marker::PhantomData,
-  path::{Path, PathBuf},
+  path::Path,
   str::Chars,
   sync::LazyLock,
 };
@@ -28,7 +29,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Data, Lens)]
-pub struct VMParams<T: VMParamsPath = VMParamsPathDefault> {
+pub(crate) struct VMParams<T: VMParamsPath = VMParamsPathDefault> {
   pub heap_init: Value,
   pub heap_max: Value,
   pub thread_stack_size: Value,
@@ -99,7 +100,7 @@ impl VMParams {
                       })
                       .invisible_if(|(_, data), _| *data)
                       .disabled_if(|(_, data), _| *data)
-                      .scope(|unit| (unit, false), lens!((Unit, bool), 0))
+                      .lens_scope(|unit| (unit, false), lens!((Unit, bool), 0))
                       .lens(Value::unit),
                   )
                   .lens(VMParams::heap_init),
@@ -169,7 +170,7 @@ impl VMParams {
                       })
                       .invisible_if(|(_, data), _| *data)
                       .disabled_if(|(_, data), _| *data)
-                      .scope(|unit| (unit, false), lens!((Unit, bool), 0))
+                      .lens_scope(|unit| (unit, false), lens!((Unit, bool), 0))
                       .lens(Value::unit),
                   )
                   .lens(VMParams::heap_max)
@@ -357,21 +358,29 @@ impl Display for Unit {
   }
 }
 
-pub trait VMParamsPath {
-  fn path() -> PathBuf {
-    #[cfg(target_os = "windows")]
-    return PathBuf::from(r"./vmparams");
-    #[cfg(target_os = "macos")]
-    return PathBuf::from("./Contents/MacOS/starsector_mac.sh");
-    #[cfg(target_os = "linux")]
-    return PathBuf::from("./starsector.sh");
-  }
+// TODO: if Miko different path
+
+pub(crate) trait VMParamsPath {
+  type Path: AsRef<Path>;
+
+  fn path() -> Self::Path;
 }
 
 #[derive(Debug, Clone, Data)]
 pub struct VMParamsPathDefault;
 
-impl VMParamsPath for VMParamsPathDefault {}
+impl VMParamsPath for VMParamsPathDefault {
+  type Path = &'static str;
+
+  fn path() -> &'static str {
+    #[cfg(target_os = "windows")]
+    return "vmparams";
+    #[cfg(target_os = "macos")]
+    return "Contents/MacOS/starsector_mac.sh";
+    #[cfg(target_os = "linux")]
+    return "starsector.sh";
+  }
+}
 
 static XVERIFY_REGEX: LazyLock<Regex> = LazyLock::new(|| {
   RegexBuilder::new(r"-xverify(?::([^\s]+))?")
@@ -444,20 +453,37 @@ impl<T: VMParamsPath> VMParams<T> {
   }
 
   pub fn save(&self, install_dir: impl AsRef<Path>) -> Result<(), SaveError> {
-    use std::{
-      fs,
-      io::{Read, Write},
-    };
+    let install_dir = install_dir.as_ref();
+    let params_file = OpenOptions::new()
+      .read(true)
+      .write(true)
+      .open(install_dir.join(T::path()))
+      .map_err(|_| SaveError::Format)?;
 
-    let mut params_file =
-      fs::File::open(install_dir.as_ref().join(T::path())).map_err(|_| SaveError::Format)?;
+    self.write_vmparams(params_file, false)?;
+
+    let miko_r3 = install_dir.join("R3_Miko.txt");
+    if miko_r3.exists() {
+      let params_file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(miko_r3)
+        .map_err(|_| SaveError::Format)?;
+      self.write_vmparams(params_file, true)?;
+    }
+
+    Ok(())
+  }
+
+  fn write_vmparams(&self, mut params_file: File, miko: bool) -> Result<(), SaveError> {
+    use std::io::{Read, Seek, Write};
 
     let mut params_string = String::new();
     params_file
       .read_to_string(&mut params_string)
       .map_err(|_| SaveError::Format)?;
 
-    let write_verify_manually = if self.verify_none {
+    let write_verify_manually = if self.verify_none && !miko {
       let mut replaced = false;
       XVERIFY_REGEX.replace(&params_string, |_: &Captures| {
         replaced = true;
@@ -467,7 +493,6 @@ impl<T: VMParamsPath> VMParams<T> {
     } else {
       false
     };
-    // dbg!(write_verify_manually);
 
     let mut output = String::new();
     let mut input_iter = params_string.chars().peekable();
@@ -516,10 +541,11 @@ impl<T: VMParamsPath> VMParams<T> {
       }
     }
 
-    let mut file =
-      fs::File::create(install_dir.as_ref().join(T::path())).map_err(|_| SaveError::File)?;
+    params_file.set_len(0).map_err(|_| SaveError::File)?;
+    params_file.sync_all().map_err(|_| SaveError::File)?;
+    params_file.rewind().map_err(|_| SaveError::File)?;
 
-    file
+    params_file
       .write_all(output.as_bytes())
       .map_err(|_| SaveError::Write)
   }
@@ -569,6 +595,8 @@ mod test {
   struct TempPath;
 
   impl VMParamsPath for TempPath {
+    type Path = PathBuf;
+
     fn path() -> PathBuf {
       TEST_FILE.path().to_path_buf()
     }
@@ -630,6 +658,8 @@ mod test {
     struct Windows;
 
     impl VMParamsPath for Windows {
+      type Path = PathBuf;
+
       fn path() -> PathBuf {
         PathBuf::from("./vmparams_windows")
       }
@@ -643,6 +673,8 @@ mod test {
     struct Linux;
 
     impl VMParamsPath for Linux {
+      type Path = PathBuf;
+
       fn path() -> PathBuf {
         PathBuf::from("./vmparams_linux")
       }
@@ -656,6 +688,8 @@ mod test {
     struct MacOS;
 
     impl VMParamsPath for MacOS {
+      type Path = PathBuf;
+
       fn path() -> PathBuf {
         PathBuf::from("./vmparams_macos")
       }
@@ -669,6 +703,8 @@ mod test {
     struct Azul;
 
     impl VMParamsPath for Azul {
+      type Path = PathBuf;
+
       fn path() -> PathBuf {
         PathBuf::from("./vmparams_windows")
       }
