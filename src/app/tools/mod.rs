@@ -65,9 +65,12 @@ impl Tools {
           FutureWidget::new(
             |data: &InstallDirInverseTools, _| Swapper::get_cached_jres(data.install_dir.clone()),
             SizedBox::empty(),
-            |res, _, _| {
-              let (current_flavour, cached_flavours) = *res;
+            |res, data, _| {
+              let (mut current_flavour, cached_flavours) = *res;
               let cached_flavours: druid::im::Vector<_> = cached_flavours.into();
+              if data.jre_23 && cached_flavours.contains(&jre::Flavour::Miko) {
+                current_flavour = jre::Flavour::Miko;
+              }
 
               Swapper::view()
                 .partial_scope(
