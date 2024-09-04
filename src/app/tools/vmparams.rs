@@ -20,9 +20,7 @@ use strum_macros::EnumIter;
 use super::tool_card;
 use crate::{
   app::{
-    util::{
-      h2_fixed, LoadError, SaveError, ShadeColor, ValueFormatter, WidgetExtEx, WithHoverState as _,
-    },
+    util::{h2_fixed, LoadError, ShadeColor, ValueFormatter, WidgetExtEx, WithHoverState as _},
     ARROW_DROP_DOWN, ARROW_LEFT, LINK, LINK_OFF,
   },
   widgets::{card::Card, root_stack::RootStack},
@@ -452,36 +450,29 @@ impl<T: VMParamsPath> VMParams<T> {
     }
   }
 
-  pub fn save(&self, install_dir: impl AsRef<Path>) -> Result<(), SaveError> {
+  pub fn save(&self, install_dir: impl AsRef<Path>) -> anyhow::Result<()> {
     let install_dir = install_dir.as_ref();
     let params_file = OpenOptions::new()
       .read(true)
       .write(true)
-      .open(install_dir.join(T::path()))
-      .map_err(|_| SaveError::Format)?;
+      .open(install_dir.join(T::path()))?;
 
     self.write_vmparams(params_file, false)?;
 
-    let miko_r3 = install_dir.join("R3_Miko.txt");
+    let miko_r3 = install_dir.join("Miko_R3.txt");
     if miko_r3.exists() {
-      let params_file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .open(miko_r3)
-        .map_err(|_| SaveError::Format)?;
+      let params_file = OpenOptions::new().read(true).write(true).open(miko_r3)?;
       self.write_vmparams(params_file, true)?;
     }
 
     Ok(())
   }
 
-  fn write_vmparams(&self, mut params_file: File, miko: bool) -> Result<(), SaveError> {
+  fn write_vmparams(&self, mut params_file: File, miko: bool) -> anyhow::Result<()> {
     use std::io::{Read, Seek, Write};
 
     let mut params_string = String::new();
-    params_file
-      .read_to_string(&mut params_string)
-      .map_err(|_| SaveError::Format)?;
+    params_file.read_to_string(&mut params_string)?;
 
     let write_verify_manually = if self.verify_none && !miko {
       let mut replaced = false;
@@ -520,13 +511,13 @@ impl<T: VMParamsPath> VMParams<T> {
           output.push_str(&key);
           if key.eq_ignore_ascii_case("xms") {
             VMParams::<T>::advance(&mut input_iter)?;
-            output.push_str(&self.heap_init.to_string())
+            output.push_str(&self.heap_init.to_string().to_ascii_lowercase())
           } else if key.eq_ignore_ascii_case("xmx") {
             VMParams::<T>::advance(&mut input_iter)?;
-            output.push_str(&self.heap_max.to_string())
+            output.push_str(&self.heap_max.to_string().to_ascii_lowercase())
           } else if key.eq_ignore_ascii_case("xss") {
             VMParams::<T>::advance(&mut input_iter)?;
-            output.push_str(&self.thread_stack_size.to_string())
+            output.push_str(&self.thread_stack_size.to_string().to_ascii_lowercase())
           }
         }
       } else if write_verify_manually && ch == 'j' {
@@ -541,13 +532,11 @@ impl<T: VMParamsPath> VMParams<T> {
       }
     }
 
-    params_file.set_len(0).map_err(|_| SaveError::File)?;
-    params_file.sync_all().map_err(|_| SaveError::File)?;
-    params_file.rewind().map_err(|_| SaveError::File)?;
+    params_file.set_len(0)?;
+    params_file.sync_all()?;
+    params_file.rewind()?;
 
-    params_file
-      .write_all(output.as_bytes())
-      .map_err(|_| SaveError::Write)
+    params_file.write_all(output.as_bytes()).map_err(Into::into)
   }
 
   /**
@@ -555,7 +544,7 @@ impl<T: VMParamsPath> VMParams<T> {
    * consume - if the pattern is not met throw error.
    * Pattern is [any number of digits][k | K | m | M | g | G][space | EOF]
    */
-  fn advance(iter: &mut Peekable<Chars>) -> Result<(), SaveError> {
+  fn advance(iter: &mut Peekable<Chars>) -> anyhow::Result<()> {
     let mut count = 0;
     while let Some(ch) = iter.peek() {
       if ch.is_numeric() {
@@ -569,11 +558,14 @@ impl<T: VMParamsPath> VMParams<T> {
     if count > 0
       && let Some(ch) = iter.next()
       && ['k', 'm', 'g'].iter().any(|t| t.eq_ignore_ascii_case(&ch))
-      && let Some(' ') | None = iter.peek()
+      && iter.peek().map(|c| c.is_whitespace()).unwrap_or_default()
     {
       Ok(())
     } else {
-      Err(SaveError::Format)
+      anyhow::bail!(
+        "No digits in chunk - must match /\\d+[k|m|g]/ but was {}",
+        iter.collect::<String>()
+      )
     }
   }
 }
