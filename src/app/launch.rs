@@ -1,11 +1,11 @@
-use std::path::Path;
+use std::{path::Path, process::Output};
 
 use druid::{
   widget::{Container, Either, Flex, Label, TextBox, ViewSwitcher},
   Color, Data, Key, LensExt, Selector, Widget, WidgetExt,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
-use futures::TryFutureExt;
+use tokio::process::Command;
 use webview_shared::ExtEventSinkExt;
 
 use super::{
@@ -564,10 +564,9 @@ fn managed_starsector_launch(app: &mut App, ctx: &mut druid::EventCtx) {
       let res = launch(
         &install_dir,
         experimental_launch,
-        experimental_resolution.unwrap(),
+        experimental_resolution,
         miko,
       )
-      .and_then(|child| child.wait_with_output().map_err(Into::into))
       .await;
 
       let _ = ext_ctx.submit_command_global(
@@ -589,48 +588,173 @@ fn managed_starsector_launch(app: &mut App, ctx: &mut druid::EventCtx) {
 pub(crate) async fn launch(
   install_dir: &Path,
   experimental_launch: bool,
-  resolution: (u32, u32),
+  resolution: Option<(u32, u32)>,
   miko: bool,
-) -> anyhow::Result<tokio::process::Child> {
-  use tokio::{fs::read_to_string, process::Command};
+) -> anyhow::Result<std::process::Output> {
+  use tokio::fs::read_to_string;
 
   Ok(if experimental_launch {
-    #[cfg(target_os = "windows")]
-    let vmparams_path = install_dir.join("vmparams");
-    #[cfg(target_os = "linux")]
-    let vmparams_path = install_dir.join("starsector.sh");
+    let resolution = resolution.unwrap();
 
-    let args_raw = read_to_string(vmparams_path).await?;
-    let args: Vec<&str> = args_raw.split_ascii_whitespace().skip(1).collect();
+    let vmparams_path = install_dir.join(match miko {
+      true => "Miko_R3.txt",
+      #[cfg(target_os = "windows")]
+      false => "vmparams",
+      #[cfg(target_os = "linux")]
+      false => "starsector.sh",
+    });
 
-    #[cfg(target_os = "windows")]
-    let executable = install_dir.join("jre/bin/java.exe");
-    #[cfg(target_os = "linux")]
-    let executable = install_dir.join("jre_linux/bin/java");
+    let executable = install_dir.join(match miko {
+      #[cfg(target_os = "windows")]
+      true => "jdk-23+7/bin/java.exe",
+      #[cfg(target_os = "windows")]
+      false => "jre/bin/java.exe",
+      #[cfg(target_os = "linux")]
+      true => "jdk-23+9/bin/java",
+      #[cfg(target_os = "linux")]
+      false => "jre_linux/bin/java",
+    });
 
     #[cfg(target_os = "windows")]
     let current_dir = install_dir.join("starsector-core");
     #[cfg(target_os = "linux")]
     let current_dir = install_dir.clone();
 
+    #[cfg(target_os = "windows")]
+    if let output @ Ok(_) = elevated_windows_launch(
+      &current_dir,
+      &executable,
+      Some((
+        &vmparams_path,
+        format!(
+          "-DlaunchDirect=true -DstartRes={}x{} -DstartFS=false -DstartSound=true",
+          resolution.0, resolution.1
+        ),
+      )),
+    )
+    .await
+    {
+      return output;
+    }
+
+    let args = read_to_string(&vmparams_path).await?.replacen(
+      r#"-Djava.library.path="..\\mikohime/windows""#,
+      r"-Djava.library.path=..\\mikohime/windows",
+      1,
+    );
+
     Command::new(executable)
       .current_dir(current_dir)
-      .args([
+      .args(&[
         "-DlaunchDirect=true",
         &format!("-DstartRes={}x{}", resolution.0, resolution.1),
         "-DstartFS=false",
         "-DstartSound=true",
       ])
-      .args(args)
+      .args(
+        args
+          .split_ascii_whitespace()
+          .skip(if !miko { 1 } else { 0 }),
+      )
       .spawn()?
+      .wait_with_output()
+      .await?
   } else {
-    #[cfg(target_os = "windows")]
-    let executable = install_dir.join("starsector.exe");
-    #[cfg(target_os = "linux")]
-    let executable = install_dir.join("starsector.sh");
+    let executable = install_dir.join(match miko {
+      #[cfg(target_os = "windows")]
+      true => "Miko_Rouge.bat",
+      #[cfg(target_os = "windows")]
+      false => "starsector.exe",
+      #[cfg(target_os = "linux")]
+      true => "Kitsunebi.sh",
+      #[cfg(target_os = "linux")]
+      false => "starsector.sh",
+    });
 
-    Command::new(executable).current_dir(install_dir).spawn()?
+    #[cfg(target_os = "windows")]
+    if let output @ Ok(_) = elevated_windows_launch(&install_dir, &executable, None).await {
+      return output;
+    }
+
+    Command::new(executable)
+      .current_dir(install_dir)
+      .spawn()?
+      .wait_with_output()
+      .await?
   })
+}
+
+#[cfg(target_os = "windows")]
+async fn elevated_windows_launch(
+  current_dir: &Path,
+  executable: &Path,
+  vmparams: Option<(&Path, String)>,
+) -> Result<Output, anyhow::Error> {
+  use std::{ffi::*, iter::FromIterator};
+
+  use itertools::Itertools;
+  use tokio::io::AsyncWriteExt;
+
+  use crate::d_println;
+
+  let (vmparams_path, additional_params) = vmparams.unzip();
+
+  let mut pwsh = Command::new("powershell.exe");
+  pwsh.stdin(std::process::Stdio::piped());
+
+  let mut process = pwsh.spawn()?;
+  let mut stdin = process
+    .stdin
+    .take()
+    .ok_or(anyhow::anyhow!("Failed to retrieve powershell input"))?;
+
+  let base = indoc::formatdoc! {r#"
+      {}
+      try {{
+        Start-Process -Wait -Verb RunAs -WorkingDirectory % -FilePath % {}{} | Write-Null
+      }} catch {{
+        if ($_.Exception.GetType().Name -eq "InvalidOperationException")
+        {{
+          throw "Failed to elevate"
+        }}
+        throw $_
+      }}
+    "#,
+    if vmparams_path.is_some() { "$miko = Get-Content -Path %" } else { "" },
+    if vmparams_path.is_some() { "-ArgumentList $miko " } else { "" },
+    additional_params.unwrap_or_default()
+  };
+
+  let dummy = OsStr::new("");
+  let paths = [current_dir.as_os_str(), executable.as_os_str()];
+  let commands = base.split('%').map(OsStr::new).interleave_shortest(
+    vmparams_path
+      .map(Path::as_os_str)
+      .into_iter()
+      .chain(IntoIterator::into_iter(paths).chain(std::iter::repeat(dummy))),
+  );
+  let os_str = OsString::from_iter(commands);
+
+  tokio::spawn(async move {
+    stdin.write_all(os_str.as_encoded_bytes()).await?;
+
+    stdin.write(OsStr::new("\n").as_encoded_bytes()).await
+  })
+  .await??;
+
+  let output = process.wait_with_output().await?;
+
+  if !output.status.success() {
+    if std::str::from_utf8(&output.stderr).map_or(false, |err| err.contains("Failed to elevate")) {
+      d_println!("User declined UAC prompt")
+      // remove miko options that require admin?
+    } else {
+      d_println!("{:?}", output.stderr)
+    }
+    anyhow::bail!("Failed to elevate through powershell")
+  }
+
+  Ok(output)
 }
 
 #[cfg(target_os = "macos")]

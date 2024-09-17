@@ -93,6 +93,9 @@ http = { workspace = true }
 async-trait = { workspace = true }
 derive_more = { workspace = true, features = ["from", "into"] }
 
+[target.'cfg(target_os = "windows")'.dependencies]
+indoc = { workspace = true }
+
 [target.'cfg(target_os = "linux")'.dependencies]
 native-dialog = "0.6.3"
 gtk = { version = "0.18.0" }
@@ -214,6 +217,7 @@ http = "1.1.0"
 async-trait = "0.1.81"
 heck = "0.5.0"
 derive_more = "1.0"
+indoc = "2.0"
 
 # [patch.'https://github.com/atlanticaccent/druid-widget-nursery']
 # druid-widget-nursery = { path = "../druid-widget-nursery" }
