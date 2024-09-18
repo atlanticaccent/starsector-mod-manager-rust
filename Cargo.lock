@@ -1083,7 +1083,7 @@ dependencies = [
 [[package]]
 name = "druid-widget-nursery"
 version = "0.1.0"
-source = "git+https://github.com/atlanticaccent/druid-widget-nursery#77991b55913727d5af5fcf459c5911e2c0c520f9"
+source = "git+https://github.com/atlanticaccent/druid-widget-nursery#59d31edffe3ee32ec0ca7a9c23ab5e91b11aa336"
 dependencies = [
  "druid",
  "druid-material-icons",
@@ -1101,7 +1101,7 @@ dependencies = [
 [[package]]
 name = "druid-widget-nursery-derive"
 version = "0.1.0"
-source = "git+https://github.com/atlanticaccent/druid-widget-nursery#77991b55913727d5af5fcf459c5911e2c0c520f9"
+source = "git+https://github.com/atlanticaccent/druid-widget-nursery#59d31edffe3ee32ec0ca7a9c23ab5e91b11aa336"
 dependencies = [
  "proc-macro2",
  "quote",
