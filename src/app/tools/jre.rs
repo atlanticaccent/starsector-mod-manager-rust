@@ -7,7 +7,6 @@ use std::{
 
 use anyhow::Context;
 use compress_tools::uncompress_archive;
-use consts::MIKO_JDK_VER;
 use druid::{
   im::Vector,
   text::RichTextBuilder,
@@ -110,14 +109,20 @@ impl Swapper {
         .with_child(
           Flex::row()
             .with_flex_child(
-              FlexTable::new()
-                .with_row(Self::swapper_row(Flavour::Original, "Original (Java 7)"))
-                .with_row(Self::swapper_row(
+              {
+                let table = FlexTable::new()
+                  .with_row(Self::swapper_row(Flavour::Original, "Original (Java 7)"));
+
+                #[cfg(not(target_os = "macos"))]
+                let table = table.with_row(Self::swapper_row(
                   Flavour::Miko,
                   "Java 23 by Mikohime (New!)",
-                ))
-                .with_row(Self::swapper_row(Flavour::Wisp, "Archived Java 8"))
-                .with_row(Self::swapper_row(Flavour::Azul, "Azul Java 8")),
+                ));
+
+                table
+                  .with_row(Self::swapper_row(Flavour::Wisp, "Archived Java 8"))
+                  .with_row(Self::swapper_row(Flavour::Azul, "Azul Java 8"))
+              },
               2.,
             )
             .with_flex_spacer(1.)
@@ -288,7 +293,6 @@ impl Swapper {
         const DOWNLOAD_COMPLETE: Selector<Flavour> = Selector::new("jre.download.complete");
         const DOWNLOAD_STARTED: Selector<Flavour> = Selector::new("jre.download.start");
         match flavour {
-          Flavour::Miko if cfg!(target_os = "macos") => button.invisible().disabled().boxed(),
           Flavour::Original => button.invisible().disabled().boxed(),
           _ => button
             .on_click(move |ctx, data, _| {
@@ -338,8 +342,8 @@ impl Swapper {
       })
       .collect();
 
-    #[cfg(any(target_os = "linux", target_os = "windows"))]
-    if install_dir.join("Miko_R3.txt").exists() && install_dir.join(MIKO_JDK_VER).exists() {
+    #[cfg(not(target_os = "macos"))]
+    if install_dir.join("Miko_R3.txt").exists() && install_dir.join(consts::MIKO_JDK_VER).exists() {
       available.push(Flavour::Miko)
     }
 
@@ -400,6 +404,7 @@ impl Swapper {
   strum_macros::FromRepr,
 )]
 pub enum Flavour {
+  #[cfg(not(target_os = "macos"))]
   Miko,
   Coretto,
   Hotspot,
@@ -414,8 +419,8 @@ const JRE_BACKUP: &str = "jre.bak";
 impl Flavour {
   async fn download(self, install_dir: PathBuf) -> Result<(), anyhow::Error> {
     let cached_jre = install_dir.join(match self {
-      #[cfg(any(target_os = "linux", target_os = "windows"))]
-      Flavour::Miko => MIKO_JDK_VER.to_owned(),
+      #[cfg(not(target_os = "macos"))]
+      Flavour::Miko => consts::MIKO_JDK_VER.to_owned(),
       _ => format!("jre_{}", self),
     });
 
@@ -436,7 +441,7 @@ impl Flavour {
       std::fs::rename(jre_8, &cached_jre)?;
     }
 
-    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    #[cfg(not(target_os = "macos"))]
     if self.is_miko() && !install_dir.join("mikohime").exists() {
       let miko_dir = Flavour::get_miko_kit(&install_dir).await?;
 
@@ -491,6 +496,7 @@ impl Flavour {
       Flavour::Hotspot => consts::HOTSPOT,
       Flavour::Wisp => consts::WISP,
       Flavour::Azul => consts::AZUL,
+      #[cfg(not(target_os = "macos"))]
       Flavour::Miko => consts::MIKO_JDK,
       Flavour::Original => unimplemented!(),
     }
@@ -568,7 +574,7 @@ impl Flavour {
       .with_context(|| "Could not find JRE in given folder")
   }
 
-  #[cfg(any(target_os = "linux", target_os = "windows"))]
+  #[cfg(not(target_os = "macos"))]
   async fn get_miko_kit(root: &Path) -> anyhow::Result<TempDir> {
     let url = consts::MIKO_KIT;
 
@@ -591,7 +597,7 @@ impl Flavour {
     Ok(tempdir)
   }
 
-  #[cfg(any(target_os = "linux", target_os = "windows"))]
+  #[cfg(not(target_os = "macos"))]
   async fn move_miko_kit(miko_download: &Path) -> anyhow::Result<()> {
     let root_dir = miko_download
       .parent()
@@ -631,7 +637,10 @@ impl Flavour {
   }
 
   fn is_miko(&self) -> bool {
-    matches!(self, Flavour::Miko)
+    #[cfg(not(target_os = "macos"))]
+    return matches!(self, Flavour::Miko);
+    #[cfg(target_os = "macos")]
+    return false;
   }
 }
 
@@ -751,9 +760,6 @@ mod consts {
     "https://cdn.azul.com/zulu/bin/zulu8.68.0.21-ca-jre8.0.362-macosx_x64.zip",
     FindBy::Bin,
   );
-  pub const MIKO_JDK: (&str, FindBy) = ("0.0.0.0", FindBy::Bin);
-  pub const MIKO_JDK_VER: &str = "";
-  pub const MIKO_KIT: &str = "";
 
   pub const JRE_PATH: &str = "Contents/Home";
 }

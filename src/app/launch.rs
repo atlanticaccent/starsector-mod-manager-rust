@@ -584,8 +584,8 @@ fn managed_starsector_launch(app: &mut App, ctx: &mut druid::EventCtx) {
   }
 }
 
-#[cfg(any(target_os = "windows", target_os = "linux"))]
-pub(crate) async fn launch(
+#[cfg(not(target_os = "macos"))]
+async fn launch(
   install_dir: &Path,
   experimental_launch: bool,
   resolution: Option<(u32, u32)>,
@@ -637,11 +637,7 @@ pub(crate) async fn launch(
       return output;
     }
 
-    let args = read_to_string(&vmparams_path).await?.replacen(
-      r#"-Djava.library.path="..\\mikohime/windows""#,
-      r"-Djava.library.path=..\\mikohime/windows",
-      1,
-    );
+    let args = read_to_string(&vmparams_path).await?;
 
     Command::new(executable)
       .current_dir(current_dir)
@@ -654,6 +650,11 @@ pub(crate) async fn launch(
       .args(
         args
           .split_ascii_whitespace()
+          .map(|arg| if arg == r#"-Djava.library.path="..\\mikohime/windows""# {
+            r"-Djava.library.path=..\\mikohime/windows"
+          } else {
+            arg
+          })
           .skip(if !miko { 1 } else { 0 }),
       )
       .spawn()?
@@ -758,15 +759,17 @@ async fn elevated_windows_launch(
 }
 
 #[cfg(target_os = "macos")]
-pub(crate) async fn launch(
+async fn launch(
   install_dir: &Path,
   experimental_launch: bool,
-  resolution: (u32, u32),
-) -> anyhow::Result<tokio::process::Child> {
+  resolution: Option<(u32, u32)>,
+  _: bool,
+) -> anyhow::Result<Output> {
   use anyhow::Context;
-  use tokio::process::Command;
 
-  Ok(if experimental_launch {
+  if experimental_launch {
+    let resolution = resolution.unwrap();
+
     Command::new(install_dir.join("Contents/MacOS/starsector_macos.sh"))
       .current_dir(install_dir.join("Contents/MacOS"))
       .env(
@@ -777,10 +780,17 @@ pub(crate) async fn launch(
         ),
       )
       .spawn()?
+      .wait_with_output()
+      .await
   } else {
     let executable = install_dir.parent().context("Get install_dir parent")?;
     let current_dir = executable.parent().context("Get install_dir parent")?;
 
-    Command::new(executable).current_dir(current_dir).spawn()?
-  })
+    Command::new(executable)
+      .current_dir(current_dir)
+      .spawn()?
+      .wait_with_output()
+      .await
+  }
+  .context("Failed to launch Starsector")
 }
