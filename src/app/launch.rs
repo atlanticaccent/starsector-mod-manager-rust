@@ -591,9 +591,10 @@ async fn launch(
   resolution: Option<(u32, u32)>,
   miko: bool,
 ) -> anyhow::Result<std::process::Output> {
+  use anyhow::Context;
   use tokio::fs::read_to_string;
 
-  Ok(if experimental_launch {
+  if experimental_launch {
     let resolution = resolution.unwrap();
 
     let vmparams_path = install_dir.join(match miko {
@@ -650,16 +651,20 @@ async fn launch(
       .args(
         args
           .split_ascii_whitespace()
-          .map(|arg| if arg == r#"-Djava.library.path="..\\mikohime/windows""# {
-            r"-Djava.library.path=..\\mikohime/windows"
-          } else {
-            arg
+          .filter(|arg| {
+            *arg != "-XX:+UseLargePages" && *arg != "-XX:+UseLargePagesIndividualAllocation"
+          })
+          .map(|arg| {
+            if arg == r#"-Djava.library.path="..\\mikohime/windows""# {
+              r"-Djava.library.path=..\\mikohime/windows"
+            } else {
+              arg
+            }
           })
           .skip(if !miko { 1 } else { 0 }),
       )
       .spawn()?
       .wait_with_output()
-      .await?
   } else {
     let executable = install_dir.join(match miko {
       #[cfg(target_os = "windows")]
@@ -677,12 +682,14 @@ async fn launch(
       return output;
     }
 
+    // remove miko options that require admin?
     Command::new(executable)
       .current_dir(install_dir)
       .spawn()?
       .wait_with_output()
-      .await?
-  })
+  }
+  .await
+  .context("Failed to execute child Starsector process")
 }
 
 #[cfg(target_os = "windows")]
@@ -712,7 +719,7 @@ async fn elevated_windows_launch(
   let base = indoc::formatdoc! {r#"
       {}
       try {{
-        Start-Process -Wait -Verb RunAs -WorkingDirectory % -FilePath % {}{} | Write-Null
+        Start-Process -Wait -Verb RunAs -WorkingDirectory % -FilePath % {}
       }} catch {{
         if ($_.Exception.GetType().Name -eq "InvalidOperationException")
         {{
@@ -721,9 +728,13 @@ async fn elevated_windows_launch(
         throw $_
       }}
     "#,
-    if vmparams_path.is_some() { "$miko = Get-Content -Path %" } else { "" },
-    if vmparams_path.is_some() { "-ArgumentList $miko " } else { "" },
-    additional_params.unwrap_or_default()
+    vmparams_path.map(|_| indoc::formatdoc! {"
+        $miko = Get-Content -Path %
+        $miko = ($miko[0..($miko.Length-2)]) + \"{}\" + $miko[-1]
+      ",
+      additional_params.unwrap_or_default()
+    }).as_deref().unwrap_or_default(),
+    if vmparams_path.is_some() { " -ArgumentList $miko " } else { "" },
   };
 
   let dummy = OsStr::new("");
@@ -748,7 +759,6 @@ async fn elevated_windows_launch(
   if !output.status.success() {
     if std::str::from_utf8(&output.stderr).map_or(false, |err| err.contains("Failed to elevate")) {
       d_println!("User declined UAC prompt")
-      // remove miko options that require admin?
     } else {
       d_println!("{:?}", output.stderr)
     }
