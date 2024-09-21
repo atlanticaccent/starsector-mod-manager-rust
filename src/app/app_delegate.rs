@@ -70,17 +70,15 @@ impl Delegate<App> for AppDelegate {
             data.runtime.spawn_blocking(move || {
               #[cfg(not(target_os = "linux"))]
               let res = rfd::FileDialog::new()
-                .add_filter(
-                  "Archives",
-                  &["zip", "7z", "7zip", "rar", "rar4", "rar5", "tar"],
-                )
+                .add_filter("Archives", &[
+                  "zip", "7z", "7zip", "rar", "rar4", "rar5", "tar",
+                ])
                 .pick_files();
               #[cfg(target_os = "linux")]
               let res = native_dialog::FileDialog::new()
-                .add_filter(
-                  "Archives",
-                  &["zip", "7z", "7zip", "rar", "rar4", "rar5", "tar"],
-                )
+                .add_filter("Archives", &[
+                  "zip", "7z", "7zip", "rar", "rar4", "rar5", "tar",
+                ])
                 .show_open_multiple_file()
                 .ok();
 
@@ -107,7 +105,8 @@ impl Delegate<App> for AppDelegate {
       if data.settings.install_dir != Some(new_install_dir.clone()) || data.settings.dirty {
         data.settings.install_dir_buf = new_install_dir.to_string_lossy().to_string();
         data.settings.install_dir = Some(new_install_dir.clone());
-        data.settings.vmparams = tools::vmparams::VMParams::load(new_install_dir, data.settings.vmparams_linked).ok();
+        data.settings.vmparams =
+          tools::vmparams::VMParams::load(new_install_dir, data.settings.vmparams_linked).ok();
 
         data.runtime.spawn(get_starsector_version(
           ctx.get_external_handle(),

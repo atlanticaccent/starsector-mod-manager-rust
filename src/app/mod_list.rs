@@ -37,7 +37,9 @@ use super::{
 };
 use crate::{
   app::util::LoadBalancer,
-  patch::table::{ComplexTableColumnWidth, FlexTable, TableCellVerticalAlignment, TableColumnWidth, TableData},
+  patch::table::{
+    ComplexTableColumnWidth, FlexTable, TableCellVerticalAlignment, TableColumnWidth, TableData,
+  },
   widgets::card::Card,
 };
 
@@ -71,21 +73,20 @@ pub struct ModList {
 }
 
 impl ModList {
-  pub const OVERWRITE: Selector<(PathBuf, HybridPath, RawModEntry)> =
-    Selector::new("mod_list.install.overwrite");
   pub const AUTO_UPDATE: Selector<ModEntry> = Selector::new("mod_list.install.auto_update");
-  pub const SEARCH_UPDATE: Selector<bool> = Selector::new("mod_list.filter.search.update");
-  pub const FILTER_UPDATE: Selector<(Filters, bool)> = Selector::new("mod_list.filter.update");
-  pub const FILTER_RESET: Selector = Selector::new("mod_list.filter.reset");
   pub const DUPLICATE: Selector<(ModEntry, ModEntry)> =
     Selector::new("mod_list.submit_entry.duplicate");
-
+  pub const FILTER_RESET: Selector = Selector::new("mod_list.filter.reset");
+  pub const FILTER_UPDATE: Selector<(Filters, bool)> = Selector::new("mod_list.filter.update");
+  pub const INSERT_MOD: Selector<RawModEntry> = Selector::new("mod_list.mods.insert");
+  pub const OVERWRITE: Selector<(PathBuf, HybridPath, RawModEntry)> =
+    Selector::new("mod_list.install.overwrite");
   pub const REBUILD: Selector = Selector::new("mod_list.table.rebuild");
   pub const REBUILD_NEXT_PASS: Selector = Selector::new("mod_list.table.rebuild_next_pass");
+  pub const SEARCH_UPDATE: Selector<bool> = Selector::new("mod_list.filter.search.update");
   pub const UPDATE_COLUMN_WIDTH: Selector<(usize, f64)> =
     Selector::new("mod_list.column.update_width");
   const UPDATE_TABLE_SORT: Selector = Selector::new("mod_list.table.update_sorting");
-  pub const INSERT_MOD: Selector<RawModEntry> = Selector::new("mod_list.mods.insert");
   const UPDATE_VERSION_CHECKER: Selector<HashMap<String, Option<ModVersionMeta>>> =
     Selector::new("mod_list.mods.update_version_checker");
 
@@ -657,8 +658,8 @@ impl<I: AsRef<str>> Index<I> for ModList {
 }
 
 impl TableData for ModList {
-  type Row = ModEntry;
   type Column = Heading;
+  type Row = ModEntry;
 
   fn keys(&self) -> impl Iterator<Item = String> {
     ModList::sorted_vals(

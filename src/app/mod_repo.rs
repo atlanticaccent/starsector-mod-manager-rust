@@ -277,9 +277,7 @@ impl ModRepo {
               }
             },
           ))
-          .on_change(|_, _, repo, _| {
-            repo.sort_items_by(repo.sort_by)
-          })
+          .on_change(|_, _, repo, _| repo.sort_items_by(repo.sort_by))
           .prism(OptionSome)
           .lens(App::mod_repo)
           .padding((7.0, 0.0))
@@ -857,15 +855,12 @@ pub enum ModSource {
 
 impl Display for ModSource {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.write_fmt(format_args!(
-      "{}",
-      match self {
-        ModSource::Forum | ModSource::ModdingSubforum => "Fractal Mod Forums",
-        ModSource::Discord => "Discord",
-        ModSource::NexusMods => "Nexus Mods",
-        ModSource::Index => "Fractal Mod Index",
-      }
-    ))
+    f.write_fmt(format_args!("{}", match self {
+      ModSource::Forum | ModSource::ModdingSubforum => "Fractal Mod Forums",
+      ModSource::Discord => "Discord",
+      ModSource::NexusMods => "Nexus Mods",
+      ModSource::Index => "Fractal Mod Index",
+    }))
   }
 }
 
@@ -886,16 +881,13 @@ pub enum UrlSource {
 
 impl Display for UrlSource {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.write_fmt(format_args!(
-      "{}",
-      match self {
-        UrlSource::Forum => "Fractal Mod Forums",
-        UrlSource::Discord => "Discord",
-        UrlSource::NexusMods => "Nexus Mods",
-        UrlSource::DirectDownload => "Raw Url",
-        UrlSource::DownloadPage => "Other",
-      }
-    ))
+    f.write_fmt(format_args!("{}", match self {
+      UrlSource::Forum => "Fractal Mod Forums",
+      UrlSource::Discord => "Discord",
+      UrlSource::NexusMods => "Nexus Mods",
+      UrlSource::DirectDownload => "Raw Url",
+      UrlSource::DownloadPage => "Other",
+    }))
   }
 }
 
@@ -934,15 +926,12 @@ impl Metadata {
 
 impl Display for Metadata {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.write_fmt(format_args!(
-      "{}",
-      match self {
-        Self::Name => "Name",
-        Self::Created => "Created At",
-        Self::Updated => "Updated At",
-        Self::Authors => "Author(s)",
-        Self::Score => unimplemented!(),
-      }
-    ))
+    f.write_fmt(format_args!("{}", match self {
+      Self::Name => "Name",
+      Self::Created => "Created At",
+      Self::Updated => "Updated At",
+      Self::Authors => "Author(s)",
+      Self::Score => unimplemented!(),
+    }))
   }
 }

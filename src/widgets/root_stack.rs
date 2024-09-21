@@ -74,14 +74,11 @@ impl RootStack {
       })
       .lens_scope(
         |app| {
-          (
-            app,
-            RootStack {
-              widget_maker: None,
-              position: StackChildPosition::new(),
-              on_dismiss: None,
-            },
-          )
+          (app, RootStack {
+            widget_maker: None,
+            position: StackChildPosition::new(),
+            on_dismiss: None,
+          })
         },
         lens!((App, RootStack), 0),
       )

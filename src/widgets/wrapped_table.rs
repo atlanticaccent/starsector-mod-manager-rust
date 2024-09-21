@@ -225,8 +225,8 @@ impl<T: WrapData, W: 'static> Data for RowDataImpl<T, W> {
 }
 
 impl<T: WrapData, W: Widget<T> + 'static> RowData for RowDataImpl<T, W> {
-  type Id = usize;
   type Column = usize;
+  type Id = usize;
 
   fn id(&self) -> Self::Id {
     self.row.get()
@@ -309,8 +309,8 @@ impl<T: WrapData, W: 'static> Data for TableDataImpl<T, W> {
 }
 
 impl<T: WrapData, W: Widget<T> + 'static> TableData for TableDataImpl<T, W> {
-  type Row = RowDataImpl<T, W>;
   type Column = usize;
+  type Row = RowDataImpl<T, W>;
 
   fn keys(&self) -> impl Iterator<Item = <Self::Row as crate::patch::table::RowData>::Id> {
     0..self.height()

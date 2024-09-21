@@ -32,17 +32,15 @@ impl<W: Widget<App>> Controller<App, W> for InstallController {
                   data.runtime.spawn_blocking(move || {
                     #[cfg(not(target_os = "linux"))]
                     let res = rfd::FileDialog::new()
-                      .add_filter(
-                        "Archives",
-                        &["zip", "7z", "7zip", "rar", "rar4", "rar5", "tar"],
-                      )
+                      .add_filter("Archives", &[
+                        "zip", "7z", "7zip", "rar", "rar4", "rar5", "tar",
+                      ])
                       .pick_files();
                     #[cfg(target_os = "linux")]
                     let res = native_dialog::FileDialog::new()
-                      .add_filter(
-                        "Archives",
-                        &["zip", "7z", "7zip", "rar", "rar4", "rar5", "tar"],
-                      )
+                      .add_filter("Archives", &[
+                        "zip", "7z", "7zip", "rar", "rar4", "rar5", "tar",
+                      ])
                       .show_open_multiple_file()
                       .ok();
 

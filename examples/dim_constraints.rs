@@ -1,4 +1,7 @@
-use druid::{widget::{Axis, Label}, AppLauncher, Color, Widget, WidgetExt, WindowDesc};
+use druid::{
+  widget::{Axis, Label},
+  AppLauncher, Color, Widget, WidgetExt, WindowDesc,
+};
 use moss::{
   app::{
     controllers::{next_id, LayoutRepeater, SharedConstraint},
@@ -25,13 +28,29 @@ fn ui_builder() -> impl Widget<()> {
     FixedFlexTable::new()
       .with_row(
         TableRow::new()
-          .with_child(SharedConstraint::new(Label::wrapped("foo").background(Color::BLUE), 0, Axis::Vertical))
-          .with_child(SharedConstraint::new(Label::wrapped(LONG_TEXT).background(Color::OLIVE), 0, Axis::Vertical)),
+          .with_child(SharedConstraint::new(
+            Label::wrapped("foo").background(Color::BLUE),
+            0,
+            Axis::Vertical,
+          ))
+          .with_child(SharedConstraint::new(
+            Label::wrapped(LONG_TEXT).background(Color::OLIVE),
+            0,
+            Axis::Vertical,
+          )),
       )
       .with_row(
         TableRow::new()
-          .with_child(SharedConstraint::new(Label::wrapped("bar").background(Color::TEAL), 0, Axis::Vertical))
-          .with_child(SharedConstraint::new(Label::wrapped("baz").background(Color::GREEN), 1, Axis::Vertical)),
+          .with_child(SharedConstraint::new(
+            Label::wrapped("bar").background(Color::TEAL),
+            0,
+            Axis::Vertical,
+          ))
+          .with_child(SharedConstraint::new(
+            Label::wrapped("baz").background(Color::GREEN),
+            1,
+            Axis::Vertical,
+          )),
       ),
   )
 }

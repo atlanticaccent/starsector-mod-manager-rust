@@ -21,8 +21,8 @@ pub trait RowData: Data {
 }
 
 impl<T: RowData> RowData for Arc<T> {
-  type Id = T::Id;
   type Column = T::Column;
+  type Id = T::Id;
 
   fn id(&self) -> Self::Id {
     self.deref().id()
@@ -51,8 +51,8 @@ pub trait TableData: Data + Index<<Self::Row as RowData>::Id, Output = Self::Row
 pub type WidgetFactoryRow = Vector<Arc<dyn Fn() -> Box<dyn Widget<()>>>>;
 
 impl RowData for (usize, WidgetFactoryRow) {
-  type Id = usize;
   type Column = usize;
+  type Id = usize;
 
   fn id(&self) -> Self::Id {
     self.0
@@ -66,8 +66,8 @@ impl RowData for (usize, WidgetFactoryRow) {
 pub type WidgetFactoryTable = Vector<(usize, WidgetFactoryRow)>;
 
 impl TableData for WidgetFactoryTable {
-  type Row = (usize, WidgetFactoryRow);
   type Column = usize;
+  type Row = (usize, WidgetFactoryRow);
 
   fn keys(&self) -> impl Iterator<Item = <Self::Row as RowData>::Id> {
     0..self.len()
@@ -87,8 +87,8 @@ impl TableData for WidgetFactoryTable {
 }
 
 impl RowData for () {
-  type Id = usize;
   type Column = usize;
+  type Id = usize;
 
   fn id(&self) -> Self::Id {
     0
@@ -100,8 +100,8 @@ impl RowData for () {
 }
 
 impl TableData for [(); 0] {
-  type Row = ();
   type Column = usize;
+  type Row = ();
 
   fn keys(&self) -> impl Iterator<Item = <Self::Row as RowData>::Id> {
     0..0

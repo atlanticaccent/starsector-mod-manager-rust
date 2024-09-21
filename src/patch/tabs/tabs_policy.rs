@@ -52,11 +52,11 @@ impl<T: Data> Data for StaticTabsForked<T> {
 }
 
 impl<T: Data> TabsPolicy for StaticTabsForked<T> {
-  type Key = usize;
-  type Input = T;
   type BodyWidget = Box<dyn Widget<T>>;
-  type LabelWidget = SizedBox<T>;
   type Build = Vec<InitialTab<T>>;
+  type Input = T;
+  type Key = usize;
+  type LabelWidget = SizedBox<T>;
 
   fn tabs_changed(&self, _old_data: &T, _data: &T) -> bool {
     false

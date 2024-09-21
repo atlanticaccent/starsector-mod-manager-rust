@@ -139,8 +139,8 @@ impl<T: TableData> Default for FlexTable<T> {
 }
 
 impl<T: TableData> FlexTable<T> {
-  pub const ROW_IDX: Key<u64> = Key::new("druid_widget_nursery_fork.flex_table.row_number");
   pub const COL_IDX: Key<u64> = Key::new("druid_widget_nursery_fork.flex_table.col_number");
+  pub const ROW_IDX: Key<u64> = Key::new("druid_widget_nursery_fork.flex_table.row_number");
   pub const TOTAL_COLUMNS: Key<u64> =
     Key::new("druid_widget_nursery_fork.flex_table.total_columns");
 

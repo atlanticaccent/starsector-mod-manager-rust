@@ -439,71 +439,74 @@ fn toolbar() -> SizedBox<BrowserInner> {
 fn bookmarks() -> druid::widget::Padding<BrowserInner, impl Widget<BrowserInner>> {
   button(|hovered| bookmarks_heading_button::<BrowserInner>(hovered))
     .fix_width(BOOKMARK_WIDTH)
-    .scope_with(|_| (true, DataTimer::INVALID), |widget| {
-      const RE_ENABLE: Selector = Selector::new("browser.bookmarks.toggle");
+    .scope_with(
+      |_| (true, DataTimer::INVALID),
+      |widget| {
+        const RE_ENABLE: Selector = Selector::new("browser.bookmarks.toggle");
 
-      widget
-        .invisible_if(|data, _| !data.inner.0)
-        .on_command(RE_ENABLE, |ctx, _, data| {
-          data.inner.0 = !data.inner.0;
-          data.outer.force_hidden = false;
-          data.inner.1 = ctx
-            .request_timer(std::time::Duration::from_millis(50))
-            .into();
-        })
-        .on_event(|_, ctx, event, data| {
-          if let druid::Event::Timer(token) = event
-            && *token == *data.inner.1
-          {
-            data.inner.1 = DataTimer::INVALID;
-            data.outer.set_visible(true);
-            ctx.request_paint();
+        widget
+          .invisible_if(|data, _| !data.inner.0)
+          .on_command(RE_ENABLE, |ctx, _, data| {
+            data.inner.0 = !data.inner.0;
+            data.outer.force_hidden = false;
+            data.inner.1 = ctx
+              .request_timer(std::time::Duration::from_millis(50))
+              .into();
+          })
+          .on_event(|_, ctx, event, data| {
+            if let druid::Event::Timer(token) = event
+              && *token == *data.inner.1
+            {
+              data.inner.1 = DataTimer::INVALID;
+              data.outer.set_visible(true);
+              ctx.request_paint();
+              data.outer.screenshot(ctx.get_external_handle());
+              true
+            } else {
+              false
+            }
+          })
+          .on_click(|ctx, data, env| {
+            let background = env.get(druid::theme::BACKGROUND_LIGHT);
+            data.inner.0 = false;
             data.outer.screenshot(ctx.get_external_handle());
-            true
-          } else {
-            false
-          }
-        })
-        .on_click(|ctx, data, env| {
-          let background = env.get(druid::theme::BACKGROUND_LIGHT);
-          data.inner.0 = false;
-          data.outer.screenshot(ctx.get_external_handle());
-          data.outer.set_visible(false);
-          data.outer.force_hidden = true;
-          RootStack::show(
-            ctx,
-            ctx.window_origin(),
-            move || {
-              button_unconstrained(move |hovered| {
-                Flex::column()
-                  .with_child(bookmarks_heading_button(hovered))
-                  .with_default_spacer()
-                  .with_child(bookmark_button(
-                    "Forum Mod Index",
-                    "https://fractalsoftworks.com/forum/index.php?topic=177.0",
-                    background,
-                  ))
-                  .with_default_spacer()
-                  .with_child(bookmark_button(
-                    "Mods Sub-forum",
-                    "https://fractalsoftworks.com/forum/index.php?board=8.0",
-                    background,
-                  ))
-                  .with_default_spacer()
-                  .with_child(bookmark_button(
-                    "Modding Sub-forum",
-                    "https://fractalsoftworks.com/forum/index.php?board=3.0",
-                    background,
-                  ))
-              })
-              .fix_width(BOOKMARK_WIDTH)
-              .on_click(|ctx, _, _| ctx.submit_command(RootStack::DISMISS))
-              .boxed()
-            },
-            Some(|ctx: &mut druid::EventCtx| ctx.submit_command(RE_ENABLE)),
-          )
-        })
-    })
+            data.outer.set_visible(false);
+            data.outer.force_hidden = true;
+            RootStack::show(
+              ctx,
+              ctx.window_origin(),
+              move || {
+                button_unconstrained(move |hovered| {
+                  Flex::column()
+                    .with_child(bookmarks_heading_button(hovered))
+                    .with_default_spacer()
+                    .with_child(bookmark_button(
+                      "Forum Mod Index",
+                      "https://fractalsoftworks.com/forum/index.php?topic=177.0",
+                      background,
+                    ))
+                    .with_default_spacer()
+                    .with_child(bookmark_button(
+                      "Mods Sub-forum",
+                      "https://fractalsoftworks.com/forum/index.php?board=8.0",
+                      background,
+                    ))
+                    .with_default_spacer()
+                    .with_child(bookmark_button(
+                      "Modding Sub-forum",
+                      "https://fractalsoftworks.com/forum/index.php?board=3.0",
+                      background,
+                    ))
+                })
+                .fix_width(BOOKMARK_WIDTH)
+                .on_click(|ctx, _, _| ctx.submit_command(RootStack::DISMISS))
+                .boxed()
+              },
+              Some(|ctx: &mut druid::EventCtx| ctx.submit_command(RE_ENABLE)),
+            )
+          })
+      },
+    )
     .padding((0.0, 5.0))
 }
 

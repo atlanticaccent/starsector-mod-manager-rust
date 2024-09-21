@@ -380,8 +380,8 @@ struct FixedRow<T: Data> {
 }
 
 impl<T: Data> RowData for FixedRow<T> {
-  type Id = usize;
   type Column = usize;
+  type Id = usize;
 
   fn id(&self) -> Self::Id {
     0
@@ -410,8 +410,8 @@ impl<T: Data> Index<usize> for FixedTable<T> {
 }
 
 impl<T: Data> TableData for FixedTable<T> {
-  type Row = FixedRow<T>;
   type Column = <Self::Row as RowData>::Column;
+  type Row = FixedRow<T>;
 
   fn keys(&self) -> impl Iterator<Item = <Self::Row as RowData>::Id> {
     0..self.len

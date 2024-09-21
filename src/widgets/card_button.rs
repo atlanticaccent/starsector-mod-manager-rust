@@ -124,24 +124,27 @@ impl CardButton {
 
     Self::button_with(base, builder)
       .fix_width(width)
-      .scope_with(|_| false, move |widget| {
-        if let Some(alt) = alt_stack_activation {
-          alt(widget, dropdown, id).boxed()
-        } else {
-          widget
-            .on_click(move |ctx, data, _| {
-              Self::trigger_dropdown_manually(ctx, dropdown.clone(), id, data)
-            })
-            .boxed()
-        }
-        .invisible_if(|data, _| data.inner)
-        .disabled_if(|data, _| data.inner)
-        .on_command(DROPDOWN_DISMISSED, |_, _, data| data.inner = false)
-        .with_id(id)
-        .on_command(crate::app::overlays::Popup::IS_EMPTY, |_, _, data| {
-          data.inner = false
-        })
-      })
+      .scope_with(
+        |_| false,
+        move |widget| {
+          if let Some(alt) = alt_stack_activation {
+            alt(widget, dropdown, id).boxed()
+          } else {
+            widget
+              .on_click(move |ctx, data, _| {
+                Self::trigger_dropdown_manually(ctx, dropdown.clone(), id, data)
+              })
+              .boxed()
+          }
+          .invisible_if(|data, _| data.inner)
+          .disabled_if(|data, _| data.inner)
+          .on_command(DROPDOWN_DISMISSED, |_, _, data| data.inner = false)
+          .with_id(id)
+          .on_command(crate::app::overlays::Popup::IS_EMPTY, |_, _, data| {
+            data.inner = false
+          })
+        },
+      )
   }
 
   pub fn trigger_dropdown_manually<T: Data>(

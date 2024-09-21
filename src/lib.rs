@@ -19,14 +19,15 @@
 extern crate webview_subsystem;
 
 pub mod app;
+pub mod formatter;
 pub mod nav_bar;
 #[allow(dead_code)]
 pub mod patch;
 pub mod theme;
 #[allow(dead_code)]
 pub mod widgets;
-pub mod formatter;
 
 pub use app::EnvSharedData;
 
-pub const ENV_STATE: druid::Key<std::sync::Arc<EnvSharedData>> = druid::Key::new("global.env_shared_state");
+pub const ENV_STATE: druid::Key<std::sync::Arc<EnvSharedData>> =
+  druid::Key::new("global.env_shared_state");

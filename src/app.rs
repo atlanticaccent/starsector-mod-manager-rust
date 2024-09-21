@@ -79,29 +79,28 @@ pub struct App {
 }
 
 impl App {
-  const SELECTOR: Selector<app_delegate::AppCommands> = Selector::new("app.update.commands");
-  const OPEN_FILE: Selector<Option<Vec<PathBuf>>> = Selector::new("app.open.multiple");
-  const OPEN_FOLDER: Selector<Option<PathBuf>> = Selector::new("app.open.folder");
-  pub const ENABLE: Selector<()> = Selector::new("app.enable");
-  const DUMB_UNIVERSAL_ESCAPE: Selector<()> = Selector::new("app.universal_escape");
-  const REFRESH: Selector<()> = Selector::new("app.mod_list.refresh");
+  const CONFIRM_DELETE_MOD: Selector<ModEntry> = Selector::new("app.mod_entry.delete");
   const DISABLE: Selector<()> = Selector::new("app.disable");
-  const UPDATE_AVAILABLE: Selector<anyhow::Result<Release>> = Selector::new("app.update.available");
-  const SELF_UPDATE: Selector<()> = Selector::new("app.update.perform");
-  const RESTART: Selector<PathBuf> = Selector::new("app.update.restart");
+  const DUMB_UNIVERSAL_ESCAPE: Selector<()> = Selector::new("app.universal_escape");
+  pub const ENABLE: Selector<()> = Selector::new("app.enable");
+  const FOUND_MULTIPLE: Selector<(HybridPath, Vec<PathBuf>)> =
+    Selector::new("app.install.found_multiple");
   const LOG_ERROR: Selector<(String, String)> = Selector::new("app.mod.install.fail");
   const LOG_MESSAGE: Selector<String> = Selector::new("app.mod.install.start");
   const LOG_OVERWRITE: Selector<(StringOrPath, HybridPath, ModEntry)> =
     Selector::new("app.mod.install.overwrite");
+  const OPEN_FILE: Selector<Option<Vec<PathBuf>>> = Selector::new("app.open.multiple");
+  const OPEN_FOLDER: Selector<Option<PathBuf>> = Selector::new("app.open.folder");
   pub const OPEN_WEBVIEW: Selector<Option<String>> = Selector::new("app.webview.open");
-  const CONFIRM_DELETE_MOD: Selector<ModEntry> = Selector::new("app.mod_entry.delete");
+  const REFRESH: Selector<()> = Selector::new("app.mod_list.refresh");
   const REMOVE_DOWNLOAD_BAR: Selector<i64> = Selector::new("app.download.bar.remove");
-  const FOUND_MULTIPLE: Selector<(HybridPath, Vec<PathBuf>)> =
-    Selector::new("app.install.found_multiple");
-
-  const TOGGLE_NAV_BAR: Selector = Selector::new("app.nav_bar.collapse");
   const REPLACE_MODS: Selector<SingleUse<FastImMap<String, ModEntry>>> =
     Selector::new("app.mod_list.replace");
+  const RESTART: Selector<PathBuf> = Selector::new("app.update.restart");
+  const SELECTOR: Selector<app_delegate::AppCommands> = Selector::new("app.update.commands");
+  const SELF_UPDATE: Selector<()> = Selector::new("app.update.perform");
+  const TOGGLE_NAV_BAR: Selector = Selector::new("app.nav_bar.collapse");
+  const UPDATE_AVAILABLE: Selector<anyhow::Result<Release>> = Selector::new("app.update.available");
 
   pub fn new(runtime: Handle) -> Self {
     let settings = settings::Settings::load()

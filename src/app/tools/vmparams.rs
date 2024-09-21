@@ -37,8 +37,8 @@ pub(crate) struct VMParams<T: VMParamsPath = VMParamsPathDefault> {
 }
 
 impl VMParams {
-  const TOGGLE_UNIT_DROP: Selector<bool> = Selector::new("vmparams.toggle_unit_dropdown");
   pub const SAVE_VMPARAMS: Selector = Selector::new("vmparams.save");
+  const TOGGLE_UNIT_DROP: Selector<bool> = Selector::new("vmparams.toggle_unit_dropdown");
 
   pub fn view() -> impl Widget<Self> {
     tool_card()
@@ -344,15 +344,11 @@ pub enum Unit {
 
 impl Display for Unit {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-    write!(
-      f,
-      "{}",
-      match self {
-        Unit::Giga => "G",
-        Unit::Mega => "M",
-        Unit::Kilo => "K",
-      }
-    )
+    write!(f, "{}", match self {
+      Unit::Giga => "G",
+      Unit::Mega => "M",
+      Unit::Kilo => "K",
+    })
   }
 }
 

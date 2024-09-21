@@ -195,9 +195,9 @@ impl<T: Default> ModEntry<T> {
 }
 
 impl ModEntry {
-  pub const REPLACE: Selector<ModEntry> = Selector::new("MOD_ENTRY_REPLACE");
-  pub const AUTO_UPDATE: Selector<ModEntry> = Selector::new("mod_list.update.auto");
   pub const ASK_DELETE_MOD: Selector<ModEntry> = Selector::new("mod_entry.delete");
+  pub const AUTO_UPDATE: Selector<ModEntry> = Selector::new("mod_list.update.auto");
+  pub const REPLACE: Selector<ModEntry> = Selector::new("MOD_ENTRY_REPLACE");
 
   fn parse_version_checker(path: &Path, id: &str) -> Option<ModVersionMeta> {
     let mut no_comments = String::new();
@@ -637,8 +637,8 @@ impl<'a> From<&'a ViewModEntry> for ModEntry {
 }
 
 impl RowData for ViewModEntry {
-  type Id = String;
   type Column = super::mod_list::headings::Heading;
+  type Id = String;
 
   fn id(&self) -> String {
     self.id.clone()
@@ -853,7 +853,6 @@ pub struct ModMetadata {
 
 impl ModMetadata {
   const FILE_NAME: &'static str = ".moss";
-
   pub const SUBMIT_MOD_METADATA: Selector<(String, ModMetadata)> =
     Selector::new("mod_metadata.submit");
 
