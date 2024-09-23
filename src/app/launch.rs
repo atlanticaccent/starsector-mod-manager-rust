@@ -587,116 +587,121 @@ fn managed_starsector_launch(app: &mut App, ctx: &mut druid::EventCtx) {
 #[cfg(not(target_os = "macos"))]
 async fn launch(
   install_dir: &Path,
-  experimental_launch: bool,
+  direct_launch: bool,
   resolution: Option<(u32, u32)>,
   miko: bool,
 ) -> anyhow::Result<std::process::Output> {
   use anyhow::Context;
   use tokio::fs::read_to_string;
 
-  if experimental_launch {
-    let resolution = resolution.unwrap();
+  // miko/windows_linux/experimental_launch
+  // if miko and windows exec manual
+  // if !miko+experimental+windows exec manual
+  // if !miko+!experimental+windows exec vanilla
+  // if experimental+linux manual
+  // if !experimental+linux vanilla
 
-    let vmparams_path = install_dir.join(match miko {
-      true => "Miko_R3.txt",
-      #[cfg(target_os = "windows")]
-      false => "vmparams",
-      #[cfg(target_os = "linux")]
-      false => "starsector.sh",
-    });
-
-    let executable = install_dir.join(match miko {
-      #[cfg(target_os = "windows")]
-      true => "jdk-23+7/bin/java.exe",
-      #[cfg(target_os = "windows")]
-      false => "jre/bin/java.exe",
-      #[cfg(target_os = "linux")]
-      true => "jdk-23+9/bin/java",
-      #[cfg(target_os = "linux")]
-      false => "jre_linux/bin/java",
-    });
-
+  let vmparams_path = install_dir.join(match miko {
+    true => "Miko_R3.txt",
     #[cfg(target_os = "windows")]
-    let current_dir = install_dir.join("starsector-core");
+    false => "vmparams",
     #[cfg(target_os = "linux")]
-    let current_dir = install_dir.clone();
+    false => "starsector.sh",
+  });
 
-    #[cfg(target_os = "windows")]
-    if let output @ Ok(_) = elevated_windows_launch(
-      &current_dir,
-      &executable,
-      Some((
-        &vmparams_path,
+  let vmparams_string = read_to_string(&vmparams_path).await?;
+
+  let res_string = resolution
+    .filter(|_| direct_launch)
+    .map(|resolution| format!("-DstartRes={}x{}", resolution.0, resolution.1));
+
+  let init_args = res_string.iter().flat_map(|res_string| {
+    [
+      "-DlaunchDirect=true",
+      res_string,
+      "-DstartFS=false",
+      "-DstartSound=true",
+    ]
+  });
+
+  let split_args = vmparams_string
+    .split_ascii_whitespace()
+    .skip(if !miko { 1 } else { 0 });
+
+  #[cfg(target_os = "windows")]
+  let split_args = split_args.filter_map(|arg| {
+    (!miko).then_some(arg).or_else(|| {
+      (arg != "-XX:+UseLargePages" && arg != "-XX:+UseLargePagesIndividualAllocation").then(|| {
+        (arg == r#"-Djava.library.path="..\\mikohime/windows""#)
+          .then_some(r"-Djava.library.path=..\\mikohime/windows")
+          .unwrap_or(arg)
+      })
+    })
+  });
+
+  let args = init_args.chain(split_args);
+
+  #[cfg(target_os = "windows")]
+  let (exe, working_dir) = (
+    install_dir.join(match miko {
+      true => "jdk-23+7/bin/java.exe",
+      false if direct_launch => "jre/bin/java.exe",
+      false => "starsector.exe",
+    }),
+    (miko || direct_launch).then(|| install_dir.join("starsector-core")),
+  );
+
+  #[cfg(target_os = "linux")]
+  let (exe, working_dir) = (
+    install_dir.join(match direct_launch {
+      true if miko => "jdk-23+9/bin/java",
+      true => "jre_linux/bin/java",
+      false if miko => "Kitsunebi.sh",
+      false => "starsector.sh",
+    }),
+    None,
+  );
+
+  let working_dir = working_dir.as_deref().unwrap_or(install_dir);
+
+  #[cfg(target_os = "windows")]
+  if miko
+    && let output @ Ok(_) = elevated_windows_launch(
+      working_dir,
+      &exe,
+      &vmparams_path,
+      direct_launch.then(|| {
         format!(
-          "-DlaunchDirect=true -DstartRes={}x{} -DstartFS=false -DstartSound=true",
-          resolution.0, resolution.1
-        ),
-      )),
+          "-DlaunchDirect=true {} -DstartFS=false -DstartSound=true",
+          res_string.as_deref().unwrap_or_default()
+        )
+      }),
     )
     .await
-    {
-      return output;
-    }
-
-    let args = read_to_string(&vmparams_path).await?;
-
-    Command::new(executable)
-      .current_dir(current_dir)
-      .args(&[
-        "-DlaunchDirect=true",
-        &format!("-DstartRes={}x{}", resolution.0, resolution.1),
-        "-DstartFS=false",
-        "-DstartSound=true",
-      ])
-      .args(
-        args
-          .split_ascii_whitespace()
-          .filter(|arg| {
-            *arg != "-XX:+UseLargePages" && *arg != "-XX:+UseLargePagesIndividualAllocation"
-          })
-          .map(|arg| {
-            if arg == r#"-Djava.library.path="..\\mikohime/windows""# {
-              r"-Djava.library.path=..\\mikohime/windows"
-            } else {
-              arg
-            }
-          })
-          .skip(if !miko { 1 } else { 0 }),
-      )
-      .spawn()?
-      .wait_with_output()
-  } else {
-    let executable = install_dir.join(match miko {
-      #[cfg(target_os = "windows")]
-      true => "Miko_Rouge.bat",
-      #[cfg(target_os = "windows")]
-      false => "starsector.exe",
-      #[cfg(target_os = "linux")]
-      true => "Kitsunebi.sh",
-      #[cfg(target_os = "linux")]
-      false => "starsector.sh",
-    });
-
-    #[cfg(target_os = "windows")]
-    if let output @ Ok(_) = elevated_windows_launch(&install_dir, &executable, None).await {
-      return output;
-    }
-
-    // remove miko options that require admin?
-    Command::new(executable)
-      .current_dir(install_dir)
-      .spawn()?
-      .wait_with_output()
+  {
+    return output;
   }
-  .await
-  .context("Failed to execute child Starsector process")
+
+  let mut command = Command::new(exe);
+
+  if direct_launch {
+    command.args(args);
+  }
+
+  command
+    .current_dir(working_dir)
+    .spawn()?
+    .wait_with_output()
+    .await
+    .context("Failed to execute child Starsector process")
 }
 
 #[cfg(target_os = "windows")]
 async fn elevated_windows_launch(
-  current_dir: &Path,
+  working_dir: &Path,
   executable: &Path,
-  vmparams: Option<(&Path, String)>,
+  vmparams: &Path,
+  extra_params: Option<String>,
 ) -> Result<Output, anyhow::Error> {
   use std::{ffi::*, iter::FromIterator};
 
@@ -704,8 +709,6 @@ async fn elevated_windows_launch(
   use tokio::io::AsyncWriteExt;
 
   use crate::d_println;
-
-  let (vmparams_path, additional_params) = vmparams.unzip();
 
   let mut pwsh = Command::new("powershell.exe");
   pwsh.stdin(std::process::Stdio::piped());
@@ -717,9 +720,10 @@ async fn elevated_windows_launch(
     .ok_or(anyhow::anyhow!("Failed to retrieve powershell input"))?;
 
   let base = indoc::formatdoc! {r#"
+      $miko = Get-Content -Path %
       {}
       try {{
-        Start-Process -Wait -Verb RunAs -WorkingDirectory % -FilePath % {}
+        Start-Process -Wait -Verb RunAs -WorkingDirectory % -FilePath % -ArgumentList $miko 
       }} catch {{
         if ($_.Exception.GetType().Name -eq "InvalidOperationException")
         {{
@@ -728,23 +732,19 @@ async fn elevated_windows_launch(
         throw $_
       }}
     "#,
-    vmparams_path.map(|_| indoc::formatdoc! {"
-        $miko = Get-Content -Path %
-        $miko = ($miko[0..($miko.Length-2)]) + \"{}\" + $miko[-1]
-      ",
-      additional_params.unwrap_or_default()
-    }).as_deref().unwrap_or_default(),
-    if vmparams_path.is_some() { " -ArgumentList $miko " } else { "" },
+    extra_params.map(|params| format!("$miko = ($miko[0..($miko.Length-2)]) + \"{}\" + $miko[-1]", params)).as_deref().unwrap_or_default(),
   };
 
   let dummy = OsStr::new("");
-  let paths = [current_dir.as_os_str(), executable.as_os_str()];
-  let commands = base.split('%').map(OsStr::new).interleave_shortest(
-    vmparams_path
-      .map(Path::as_os_str)
-      .into_iter()
-      .chain(IntoIterator::into_iter(paths).chain(std::iter::repeat(dummy))),
-  );
+  let paths = [
+    vmparams.as_os_str(),
+    working_dir.as_os_str(),
+    executable.as_os_str(),
+  ];
+  let commands = base
+    .split('%')
+    .map(OsStr::new)
+    .interleave_shortest(IntoIterator::into_iter(paths).chain(std::iter::repeat(dummy)));
   let os_str = OsString::from_iter(commands);
 
   tokio::spawn(async move {
