@@ -250,13 +250,13 @@ const fn unwrap(color: &'static str) -> ExtColor {
   Debug,
 )]
 pub enum Themes {
+  Light,
   #[default]
+  Dark,
+
+  Gates,
   Retro,
   Legacy,
-  Troutman,
-  Gates,
-  #[strum(serialize = "Ward Two")]
-  WardTwo,
 
   Custom,
 }
@@ -264,41 +264,62 @@ pub enum Themes {
 impl From<Themes> for Theme {
   fn from(theme: Themes) -> Self {
     match theme {
+      Themes::Light => LIGHT,
+      Themes::Dark => DARK,
+
+      Themes::Gates => GATES_AVE_BROOKLYN,
       Themes::Retro => RETRO,
       Themes::Legacy => LEGACY,
-      Themes::Troutman => TROUTMANST_BROOKLYN,
-      Themes::Gates => GATESAVE_BROOKLYN,
-      Themes::WardTwo => WARDTWO_MA,
 
       Themes::Custom => unimplemented!(),
     }
   }
 }
 
-// https://www.dayroselane.com/hydrants/details/40_704692_-73_924656
-const TROUTMANST_BROOKLYN: Theme = Theme {
-  text: Some(unwrap("#36717e")),
-  button_dark: Some(unwrap("#3b0e14")),
-  button_light: Some(unwrap("#3b0e14")),
-  background_dark: unwrap("#050405"),
-  background_light: unwrap("#1f1c1d"),
-  border_dark: unwrap("#4a6d92"),
-  border_light: unwrap("#5c7c8c"),
-  action: None,
-  action_text: None,
-  success: None,
-  success_text: None,
-  error: None,
-  error_text: None,
-  warning: None,
-  warning_text: None,
-  do_not_ignore: None,
-  do_not_ignore_text: None,
-  shadow: Some(unwrap("#d0c5a7")),
+const LIGHT: Theme = Theme {
+  text: Some(unwrap("#171d1eff")),
+  button_dark: Some(unwrap("#e9eff0ff")),
+  button_light: Some(unwrap("#e3e9eaff")),
+  background_dark: unwrap("#dbe4e6ff"),
+  background_light: unwrap("#f5fafbff"),
+  border_dark: unwrap("#bfc8caff"),
+  border_light: unwrap("#6f797aff"),
+  action: Some(unwrap("#006874ff")),
+  action_text: Some(unwrap("#ffffffff")),
+  success: Some(unwrap("#3c6838ff")),
+  success_text: Some(unwrap("#ffffffff")),
+  error: Some(unwrap("#ba1a1aff")),
+  error_text: Some(unwrap("#ffffffff")),
+  warning: Some(unwrap("#775a0bff")),
+  warning_text: Some(unwrap("#ffffffff")),
+  do_not_ignore: Some(unwrap("#8d4e2aff")),
+  do_not_ignore_text: Some(unwrap("#ffffffff")),
+  shadow: Some(unwrap("#000000ff")),
+};
+
+const DARK: Theme = Theme {
+  text: Some(unwrap("#DEE3E5")),
+  button_dark: Some(unwrap("#1B2122")),
+  button_light: Some(unwrap("#252B2C")),
+  background_dark: unwrap("#0E1415"),
+  background_light: unwrap("#343A3B"),
+  border_dark: unwrap("#3F484A"),
+  border_light: unwrap("#899294"),
+  action: Some(unwrap("#82D3E0")),
+  action_text: Some(unwrap("#00363D")),
+  success: Some(unwrap("#A2D399")),
+  success_text: Some(unwrap("#0C390E")),
+  error: Some(unwrap("#FFB4AB")),
+  error_text: Some(unwrap("#690005")),
+  warning: Some(unwrap("#E4C36C")),
+  warning_text: Some(unwrap("#3D2E00")),
+  do_not_ignore: Some(unwrap("#FFB68F")),
+  do_not_ignore_text: Some(unwrap("#532201")),
+  shadow: Some(unwrap("#DEE3E5")),
 };
 
 // https://www.dayroselane.com/hydrants/details/40_699769_-73_912078
-const GATESAVE_BROOKLYN: Theme = Theme {
+const GATES_AVE_BROOKLYN: Theme = Theme {
   text: Some(unwrap("#c5ac76")),
   button_dark: Some(unwrap("#4d6263")),
   button_light: Some(unwrap("#4d6263")),
@@ -317,28 +338,6 @@ const GATESAVE_BROOKLYN: Theme = Theme {
   do_not_ignore: None,
   do_not_ignore_text: None,
   shadow: Some(unwrap("#d0c5a7")),
-};
-
-// https://www.dayroselane.com/hydrants/details/42_377487_-71_101188
-const WARDTWO_MA: Theme = Theme {
-  text: Some(unwrap("#ca9582")),
-  button_dark: Some(unwrap("#343836")),
-  button_light: Some(unwrap("#343836")),
-  background_dark: unwrap("#350f0f"),
-  background_light: unwrap("#443530"),
-  border_dark: unwrap("#b19f99"),
-  border_light: unwrap("#9a5d41"),
-  action: None,
-  action_text: None,
-  success: None,
-  success_text: None,
-  error: None,
-  error_text: None,
-  warning: None,
-  warning_text: None,
-  do_not_ignore: None,
-  do_not_ignore_text: None,
-  shadow: Some(unwrap("#b08584")),
 };
 
 const LEGACY: Theme = Theme {
