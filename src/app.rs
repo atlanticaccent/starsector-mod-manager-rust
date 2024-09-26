@@ -6,29 +6,24 @@ use druid::{
   Data, Lens, LensExt, Selector, SingleUse, Widget, WidgetExt, WidgetId,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
-use mod_description::ENABLE_DEPENDENCIES;
-use mod_entry::GameVersion;
-use settings::ThemeEditor;
 use tokio::runtime::Handle;
-use util::Tap;
 use webview_shared::PROJECT;
 
-use self::{
-  browser::Browser,
-  controllers::{AppController, HoverController, ModListController},
-  installer::{HybridPath, StringOrPath},
-  mod_description::ModDescription,
-  mod_entry::{ModEntry, UpdateStatus, ViewModEntry},
-  mod_list::ModList,
-  mod_repo::ModRepo,
-  overlays::Popup,
-  settings::Settings,
-  tools::Tools,
-  util::{bold_text, icons::*, FastImMap, Release},
-};
 pub use crate::theme;
 use crate::{
-  app::util::WidgetExtEx,
+  app::{
+    browser::Browser,
+    controllers::{AppController, HoverController, ModListController, REMOVE_POINTER},
+    installer::{HybridPath, StringOrPath},
+    mod_description::{ModDescription, ENABLE_DEPENDENCIES},
+    mod_entry::{GameVersion, ModEntry, UpdateStatus, ViewModEntry},
+    mod_list::ModList,
+    mod_repo::ModRepo,
+    overlays::Popup,
+    settings::{Settings, ThemeEditor},
+    tools::Tools,
+    util::{bold_text, icons::*, FastImMap, Release, Tap, WidgetExtEx, HOVER_STATE_CHANGE},
+  },
   nav_bar::{Nav, NavBar, NavLabel},
   patch::{
     tabs::tab::{InitialTab, Tabs, TabsPolicy},
@@ -242,6 +237,9 @@ impl App {
           |widget| {
             widget
               .on_command2(Nav::NAV_SELECTOR, |tabs, ctx, label, state| {
+                ctx.submit_command(HOVER_STATE_CHANGE);
+                ctx.submit_command(REMOVE_POINTER);
+
                 let tabs = tabs.wrapped_mut();
                 let rebuild = &mut state.inner;
                 state.outer.current_tab = label.clone();

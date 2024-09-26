@@ -57,39 +57,47 @@ impl NavBar {
                 .padding((4., 0.)),
             )
             .with_child(
-              hoverable_text_opts(Option::<Color>::None, |w| w.with_text_size(20.), &[])
-                .lens(Compute::new(|data: &Nav| data.label.to_string()))
-                .controller(HoverController::default())
-                .on_click(|ctx, data, _| {
-                  if !data.root {
-                    ctx.submit_command(Nav::NAV_SELECTOR.with(data.linked.unwrap_or(data.label)));
-                    ctx.submit_command(
-                      NavBar::RECURSE_SET_EXPANDED.with(data.linked.unwrap_or(data.label)),
-                    );
-                  }
-                })
-                .else_if(
-                  |data, _| data.label == NavLabel::Profiles,
-                  Flex::row()
-                    .with_child(Label::raw().with_text_size(20.).lens(Compute::new(
-                      |data: &Nav| {
+              hoverable_text_opts(
+                Option::<Color>::None,
+                |w| w.with_text_size(20.),
+                &[],
+                &[],
+                false,
+              )
+              .lens(Compute::new(|data: &Nav| data.label.to_string()))
+              .controller(HoverController::default())
+              .on_click(|ctx, data, _| {
+                if !data.root {
+                  ctx.submit_command(Nav::NAV_SELECTOR.with(data.linked.unwrap_or(data.label)));
+                  ctx.submit_command(
+                    NavBar::RECURSE_SET_EXPANDED.with(data.linked.unwrap_or(data.label)),
+                  );
+                }
+              })
+              .else_if(
+                |data, _| data.label == NavLabel::Profiles,
+                Flex::row()
+                  .with_child(
+                    Label::raw()
+                      .with_text_size(20.)
+                      .lens(Compute::new(|data: &Nav| {
                         let mut builder = RichTextBuilder::new();
                         builder.push(data.label.as_ref()).strikethrough(true);
 
                         builder.build()
-                      },
-                    )))
-                    .with_child(
-                      Icon::new(*HOURGLASS_TOP).with_color(druid::theme::DISABLED_TEXT_COLOR),
+                      })),
+                  )
+                  .with_child(
+                    Icon::new(*HOURGLASS_TOP).with_color(druid::theme::DISABLED_TEXT_COLOR),
+                  )
+                  .env_scope(|env, _| {
+                    env.set(
+                      druid::theme::DISABLED_TEXT_COLOR,
+                      env.get(druid::theme::DISABLED_TEXT_COLOR).darker_by(6),
                     )
-                    .env_scope(|env, _| {
-                      env.set(
-                        druid::theme::DISABLED_TEXT_COLOR,
-                        env.get(druid::theme::DISABLED_TEXT_COLOR).darker_by(6),
-                      )
-                    })
-                    .disabled(),
-                ),
+                  })
+                  .disabled(),
+              ),
             )
             .cross_axis_alignment(druid::widget::CrossAxisAlignment::Center)
             .padding((4., 6.))

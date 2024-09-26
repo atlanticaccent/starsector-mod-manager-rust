@@ -2,6 +2,8 @@ use std::{cell::Cell, rc::Rc};
 
 use druid::{widget::Controller, Cursor, Data, Selector, Widget, WidgetId};
 
+use crate::app::util::EventExt;
+
 pub type SharedHoverState = Rc<Cell<bool>>;
 
 pub trait HoverState: Data {
@@ -19,6 +21,7 @@ impl HoverState for Rc<Cell<bool>> {
     self.replace(state);
   }
 }
+
 #[derive(Clone, Data, Debug)]
 pub struct SharedIdHoverState(#[data(ignore)] pub WidgetId, pub Rc<Cell<bool>>);
 
@@ -34,21 +37,34 @@ impl Default for SharedIdHoverState {
   }
 }
 
-pub struct HoverController<T: HoverState>(pub T);
+pub struct HoverController<T: HoverState = bool> {
+  pub state: T,
+  dismiss_on_click: bool,
+}
 
 impl<T: HoverState> HoverController<T> {
+  pub fn new(state: T, dismiss_on_click: bool) -> Self {
+    Self {
+      state,
+      dismiss_on_click,
+    }
+  }
+
   fn set(&mut self, state: bool) {
-    self.0.set(state)
+    self.state.set(state)
   }
 }
 
-impl HoverController<bool> {
-  pub fn default() -> Self {
-    Self(false)
+impl Default for HoverController<bool> {
+  fn default() -> Self {
+    Self {
+      state: false,
+      dismiss_on_click: false,
+    }
   }
 }
 
-const REMOVE_POINTER: Selector = Selector::new("hover_controller.remove_pointer");
+pub const REMOVE_POINTER: Selector = Selector::new("hover_controller.remove_pointer");
 
 impl<T: Data, W: Widget<T>, S: HoverState> Controller<T, W> for HoverController<S> {
   fn event(
@@ -68,11 +84,13 @@ impl<T: Data, W: Widget<T>, S: HoverState> Controller<T, W> for HoverController<
         ctx.clear_cursor()
       }
       ctx.request_paint();
-    } else if let druid::Event::Command(cmd) = event
-      && cmd.is(REMOVE_POINTER)
+    } else if (self.dismiss_on_click && event.as_mouse_up().is_some())
+      || event.is_cmd(REMOVE_POINTER)
     {
       self.set(false);
-      ctx.clear_cursor()
+      ctx.clear_cursor();
+      ctx.request_update();
+      ctx.request_paint();
     }
     child.event(ctx, event, data, env)
   }

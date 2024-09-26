@@ -42,7 +42,11 @@ use tokio::{select, sync::mpsc};
 
 use crate::{
   app::{
-    controllers::{ExtensibleController, HoverController, OnEvent, OnNotif},
+    controllers::{
+      next_id, ConstraintId, DelayedPainter, ExtensibleController, HeightLinkerShared,
+      HoverController, HoverState, InvisibleIf, LayoutRepeater, LinkedHeights, OnEvent, OnHover,
+      OnNotif, SharedConstraint, SharedIdHoverState,
+    },
     mod_entry::{GameVersion, ModEntry, ModVersionMeta},
   },
   patch::click::Click,
@@ -55,13 +59,7 @@ pub(crate) mod web_client;
 pub use icons::*;
 pub use web_client::*;
 
-use super::{
-  controllers::{
-    next_id, ConstraintId, DelayedPainter, HeightLinkerShared, HoverState, InvisibleIf,
-    LayoutRepeater, LinkedHeights, OnHover, SharedConstraint, SharedIdHoverState,
-  },
-  overlays::Popup,
-};
+use super::overlays::Popup;
 
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {
@@ -720,16 +718,17 @@ impl<X, Y> Default for DummyTransfer<X, Y> {
 pub fn hoverable_text(
   colour: Option<impl Into<KeyOrValue<Color>> + 'static>,
 ) -> impl Widget<String> {
-  hoverable_text_opts(colour, identity, &[])
+  hoverable_text_opts(colour, identity, &[], &[], false)
 }
 
 pub fn hoverable_text_opts<W: Widget<RichText> + 'static>(
   colour: Option<impl Into<KeyOrValue<Color>> + 'static>,
   mut modify: impl FnMut(RawLabel<RichText>) -> W,
-  attrs: &[Attribute],
+  attrs: &'static [Attribute],
+  hover_attrs: &'static [Attribute],
+  set_cursor: bool,
 ) -> impl Widget<String> {
   let colour = colour.map(Into::into);
-  let attrs = Vec::from(attrs);
 
   let label: RawLabel<RichText> = RawLabel::new()
     .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
@@ -738,14 +737,20 @@ pub fn hoverable_text_opts<W: Widget<RichText> + 'static>(
   let wrapped = modify(label);
 
   wrapped
-    .scope_with_hover_state(false, false, |widget| {
+    .scope_with_hover_state(false, set_cursor, move |widget| {
       widget.lens(Compute::new(move |(text, hovered): &(RichText, bool)| {
         let mut text = text
           .clone()
           .with_attribute(0..text.len(), Attribute::Underline(*hovered));
 
-        for attr in attrs.clone() {
-          text.add_attribute(0..text.len(), attr)
+        for attr in attrs {
+          text.add_attribute(0..text.len(), attr.clone())
+        }
+
+        if *hovered {
+          for attr in hover_attrs {
+            text.add_attribute(0..text.len(), attr.clone())
+          }
         }
 
         (text, *hovered)
@@ -787,6 +792,13 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
    */
   fn empty_if_not(self, f: impl Fn(&T, &Env) -> bool + 'static) -> Either<T> {
     Either::new(f, self, SizedBox::empty())
+  }
+
+  /**
+   * Displays alternative when closure returns true
+   */
+  fn empty_if(self, f: impl Fn(&T, &Env) -> bool + 'static) -> Either<T> {
+    Either::new(f, SizedBox::empty(), self)
   }
 
   fn else_if(
@@ -1053,6 +1065,8 @@ pub struct State<Outer, Inner> {
 
 impl<T: Data, W: Widget<T> + 'static> WidgetExtEx<T, W> for W {}
 
+pub const HOVER_STATE_CHANGE: Selector = Selector::new("util.hover_state.change");
+
 pub trait WithHoverState<S: HoverState + Data + Clone, T: Data, W: Widget<(T, S)> + 'static>:
   Widget<(T, S)> + Sized + 'static
 {
@@ -1061,8 +1075,6 @@ pub trait WithHoverState<S: HoverState + Data + Clone, T: Data, W: Widget<(T, S)
   }
 
   fn with_hover_state_opts(self, state: S, set_cursor: bool) -> Box<dyn Widget<T>> {
-    const HOVER_STATE_CHANGE: Selector = Selector::new("util.hover_state.change");
-
     let id = WidgetId::next();
 
     Scope::from_lens(
@@ -1074,7 +1086,7 @@ pub trait WithHoverState<S: HoverState + Data + Clone, T: Data, W: Widget<(T, S)
             && !ctx.is_disabled()
           {
             if set_cursor {
-              ctx.set_cursor(&druid::Cursor::Pointer);
+              ctx.override_cursor(&druid::Cursor::Pointer);
             }
             data.1.set(true);
             ctx.request_update();
@@ -1122,7 +1134,7 @@ pub trait WithHoverIdState<T: Data, W: Widget<(T, SharedIdHoverState)> + 'static
     set_cursor: bool,
   ) -> Box<dyn Widget<T>> {
     const HOVER_STATE_CHANGE_FOR_ID: Selector<(WidgetId, bool)> =
-      Selector::new("util.hover_state.change");
+      Selector::new("util.hover_state.change_for_id");
 
     let id = state.0;
     Scope::from_lens(
@@ -1872,5 +1884,32 @@ impl<T: From<U> + Clone, U: Data + From<T>> Lens<T, U> for Convert<T, U> {
     *data = val.into();
 
     res
+  }
+}
+
+#[extend::ext(name = EventExt)]
+pub impl Event {
+  fn get_cmd<T: 'static>(&self, selector: Selector<T>) -> Option<&T> {
+    if let Event::Command(cmd) = self {
+      cmd.get(selector)
+    } else {
+      None
+    }
+  }
+
+  fn is_cmd<T: 'static>(&self, selector: Selector<T>) -> bool {
+    if let Event::Command(cmd) = self {
+      cmd.is(selector)
+    } else {
+      false
+    }
+  }
+
+  fn as_mouse_up(&self) -> Option<&MouseEvent> {
+    if let Event::MouseUp(mouse) = self {
+      Some(mouse)
+    } else {
+      None
+    }
   }
 }

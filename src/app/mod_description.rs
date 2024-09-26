@@ -4,27 +4,27 @@ use chrono::{DateTime, Local};
 use druid::{
   im::{vector, Vector},
   lens::{Constant, Map},
-  widget::{Flex, Label, List, Maybe, ZStack},
+  widget::{Flex, Label, List, Maybe, Painter, ZStack},
   Color, Data, Key, KeyOrValue, Lens, LensExt, Selector, UnitPoint, Widget, WidgetExt,
 };
 use druid_widget_nursery::{material_icons::Icon, Mask, WidgetExt as _};
 use itertools::Itertools;
 
-use super::{
-  app_delegate::AppCommands,
-  controllers::Rotated,
-  mod_entry::{ModMetadata, UpdateStatus, VersionComplex},
-  mod_list::ModList,
-  overlays::Popup,
-  theme::{BLUE_KEY, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_RED_KEY, RED_KEY},
-  util::{
-    bolded, h1, h2_fixed, h3, h3_fixed, hoverable_text, hoverable_text_opts, ident_arc,
-    lensed_bold, Compute, FastImMap, LabelExt, LensExtExt, ShadeColor, WidgetExtEx, WithHoverState,
-    CHEVRON_LEFT, DELETE, SYSTEM_UPDATE, TOGGLE_ON,
-  },
-  App, ViewModEntry as ModEntry, INFO,
-};
 use crate::{
+  app::{
+    app_delegate::AppCommands,
+    controllers::{HoverController, Rotated, REMOVE_POINTER},
+    mod_entry::{ModMetadata, UpdateStatus, VersionComplex},
+    mod_list::ModList,
+    overlays::Popup,
+    theme::{self, BLUE_KEY, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_RED_KEY, RED_KEY},
+    util::{
+      bolded, h1, h2_fixed, h3, h3_fixed, hoverable_text_opts, ident_arc, lensed_bold, Compute,
+      FastImMap, LabelExt, LensExtExt, ShadeColor, WidgetExtEx, WithHoverState, CHEVRON_LEFT,
+      DELETE, HOVER_STATE_CHANGE, SYSTEM_UPDATE, TOGGLE_ON,
+    },
+    App, ViewModEntry as ModEntry, INFO,
+  },
   nav_bar::{Nav, NavLabel},
   widgets::card::Card,
 };
@@ -56,7 +56,7 @@ impl ModDescription {
   pub const DEP_MAP: Key<std::sync::Arc<FastImMap<String, UpdateStatus>>> =
     Key::new("mod_description.dep_map");
   const DEP_TEXT_COLOR: Key<Color> = Key::new("mod_description.dependencies.link_colour");
-  const DEP_TEXT_SHADOW_COLOR: Key<Color> = Key::new("mod_description.dependencies.link_bg_colour");
+  const DEP_TEXT_BG_COLOR: Key<Color> = Key::new("mod_description.dependencies.link_bg_colour");
 
   const NOTIF_OPEN_DEP: Selector<String> = Selector::new("mod_description.dependencies.open");
 
@@ -128,7 +128,9 @@ impl ModDescription {
             crumbs,
           })
         }
-        ctx.set_handled()
+        ctx.submit_command(HOVER_STATE_CHANGE);
+        ctx.submit_command(REMOVE_POINTER);
+        ctx.set_handled();
       })
   }
 
@@ -260,7 +262,7 @@ impl ModDescription {
                   .with_corner_radius(6.0)
                   .with_shadow_length(2.0)
                   .with_shadow_increase(2.0)
-                  .with_border(2.0, Key::new("enabled_card.border"))
+                  .with_border(3.5, Key::new("enabled_card.border"))
                   .hoverable(|_| {
                     Flex::row()
                       .with_child(
@@ -305,7 +307,7 @@ impl ModDescription {
                   .with_corner_radius(6.0)
                   .with_shadow_length(2.0)
                   .with_shadow_increase(2.0)
-                  .with_border(2.0, Key::<druid::Color>::new("enabled_card.border"))
+                  .with_border(3.5, Key::<druid::Color>::new("enabled_card.border"))
                   .hoverable(|_| {
                     Flex::row()
                       .with_child(Icon::new(*SYSTEM_UPDATE).padding((5.0, 0.0, -5.0, 0.0)))
@@ -345,7 +347,7 @@ impl ModDescription {
                   .with_corner_radius(6.0)
                   .with_shadow_length(2.0)
                   .with_shadow_increase(2.0)
-                  .with_border(2.0, druid::Color::WHITE.darker())
+                  .with_border(3.5, druid::Color::WHITE.darker())
                   .with_background(druid::Color::BLACK.lighter().lighter())
                   .hoverable(|_| {
                     Flex::row()
@@ -457,56 +459,51 @@ impl ModDescription {
             Flex::column()
               .with_child(h2_fixed("Dependencies"))
               .with_child(List::new(|| {
-                ZStack::new(
-                  hoverable_text_opts(
-                    Some(ModDescription::DEP_TEXT_SHADOW_COLOR),
-                    identity,
-                    const {
-                      &[druid::text::Attribute::Weight(
-                        druid::text::FontWeight::SEMI_BOLD,
-                      )]
-                    },
-                  )
-                  .padding(2.0),
-                )
-                .with_aligned_child(
-                  hoverable_text_opts(
-                    Some(ModDescription::DEP_TEXT_COLOR),
-                    identity,
-                    const {
-                      &[druid::text::Attribute::Weight(
-                        druid::text::FontWeight::SEMI_BOLD,
-                      )]
-                    },
-                  ),
-                  UnitPoint::TOP_LEFT,
+                hoverable_text_opts(
+                  Some(ModDescription::DEP_TEXT_BG_COLOR),
+                  identity,
+                  &[druid::text::Attribute::Weight(
+                    druid::text::FontWeight::SEMI_BOLD,
+                  )],
+                  &[druid::text::Attribute::TextColor(druid::KeyOrValue::Key(
+                    ModDescription::DEP_TEXT_COLOR,
+                  ))],
+                  true,
                 )
                 .lens(Compute::new(ToString::to_string))
+                .background(Painter::new(|ctx, _, env| {
+                  use druid::RenderContext;
+
+                  let size = ctx.size();
+                  if ctx.is_hot() {
+                    ctx.fill(size.to_rect(), &env.get(ModDescription::DEP_TEXT_BG_COLOR))
+                  }
+                }))
                 .env_scope(|env, dep: &super::mod_entry::Dependency| {
                   let dep_map = env.get(ModDescription::DEP_MAP);
                   let status = dep_map.get(&dep.id);
 
-                  let text_color = status
-                    .map(UpdateStatus::as_text_colour)
-                    .unwrap_or_else(|| druid::theme::TEXT_COLOR.into());
+                  let text_color = status.map_or_else(
+                    || druid::theme::TEXT_COLOR.into(),
+                    UpdateStatus::as_text_colour,
+                  );
                   env.set(ModDescription::DEP_TEXT_COLOR, text_color.resolve(env));
 
-                  let shadow_color = status
-                    .map(KeyOrValue::<Color>::from)
-                    .unwrap_or_else(|| Color::TRANSPARENT.into());
-                  env.set(
-                    ModDescription::DEP_TEXT_SHADOW_COLOR,
-                    shadow_color.resolve(env),
+                  let bg_color = status.map_or_else(
+                    || druid::theme::BACKGROUND_LIGHT.into(),
+                    KeyOrValue::<Color>::from,
                   );
+                  env.set(ModDescription::DEP_TEXT_BG_COLOR, bg_color.resolve(env));
                 })
                 .on_click(|ctx, data, _| {
                   ctx.submit_notification(ModDescription::NOTIF_OPEN_DEP.with(data.id.clone()));
                 })
+                .controller(HoverController::new(false, true))
               }))
               .with_default_spacer()
               .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-              .empty_if_not(
-                |data: &std::sync::Arc<Vec<super::mod_entry::Dependency>>, _| !data.is_empty(),
+              .empty_if(
+                |data: &std::sync::Arc<Vec<super::mod_entry::Dependency>>, _| data.is_empty(),
               )
               .lens(ModEntry::dependencies),
           )
@@ -534,10 +531,29 @@ impl ModDescription {
           .with_spacer(4.0)
           .with_child(
             Maybe::or_empty(|| {
-              hoverable_text(Some(Color::rgb8(0x00, 0x7B, 0xFF)))
-                .on_click(|ctx, data, _| ctx.submit_command(OPEN_IN_BROWSER.with(data.clone())))
+              hoverable_text_opts(
+                Some(theme::BLUE_KEY),
+                identity,
+                &[druid::text::Attribute::Weight(
+                  druid::text::FontWeight::SEMI_BOLD,
+                )],
+                &[druid::text::Attribute::TextColor(druid::KeyOrValue::Key(
+                  theme::ON_BLUE_KEY,
+                ))],
+                true,
+              )
+              .on_click(|ctx, data, _| ctx.submit_command(OPEN_IN_BROWSER.with(data.clone())))
             })
-            .lens(Compute::new(ModEntry::fractal_link)),
+            .lens(Compute::new(ModEntry::fractal_link))
+            .background(Painter::new(|ctx, _, env| {
+              use druid::RenderContext;
+
+              let size = ctx.size();
+              if ctx.is_hot() {
+                ctx.fill(size.to_rect(), &env.get(theme::BLUE_KEY))
+              }
+            }))
+            .controller(HoverController::new(false, true)),
           )
           .with_default_spacer()
           .with_child(
@@ -546,10 +562,29 @@ impl ModDescription {
           .with_spacer(4.0)
           .with_child(
             Maybe::or_empty(|| {
-              hoverable_text(Some(Color::rgb8(0x00, 0x7B, 0xFF)))
-                .on_click(|ctx, data, _| ctx.submit_command(OPEN_IN_BROWSER.with(data.clone())))
+              hoverable_text_opts(
+                Some(theme::BLUE_KEY),
+                identity,
+                &[druid::text::Attribute::Weight(
+                  druid::text::FontWeight::SEMI_BOLD,
+                )],
+                &[druid::text::Attribute::TextColor(druid::KeyOrValue::Key(
+                  theme::ON_BLUE_KEY,
+                ))],
+                true,
+              )
+              .on_click(|ctx, data, _| ctx.submit_command(OPEN_IN_BROWSER.with(data.clone())))
             })
-            .lens(Compute::new(ModEntry::nexus_link)),
+            .lens(Compute::new(ModEntry::nexus_link))
+            .background(Painter::new(|ctx, _, env| {
+              use druid::RenderContext;
+
+              let size = ctx.size();
+              if ctx.is_hot() {
+                ctx.fill(size.to_rect(), &env.get(theme::BLUE_KEY))
+              }
+            }))
+            .controller(HoverController::new(false, true)),
           )
           .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
           .must_fill_main_axis(true)

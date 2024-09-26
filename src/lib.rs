@@ -14,9 +14,6 @@
 #![feature(const_collections_with_hasher)]
 #![feature(cfg_match)]
 #![allow(clippy::new_ret_no_self)]
-#![allow(clippy::type_complexity)]
-
-extern crate webview_subsystem;
 
 pub mod app;
 pub mod formatter;

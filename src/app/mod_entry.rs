@@ -825,7 +825,7 @@ impl From<&UpdateStatus> for KeyOrValue<Color> {
       UpdateStatus::Major(_) => ORANGE_KEY.into(),
       UpdateStatus::Minor(_) => YELLOW_KEY.into(),
       UpdateStatus::Patch(_) => BLUE_KEY.into(),
-      UpdateStatus::Discrepancy(_) => Color::from_hex_str("810181").unwrap().into(),
+      UpdateStatus::Discrepancy(_) => Color::from_hex_str("#810181").unwrap().into(),
       UpdateStatus::Error => RED_KEY.into(),
       UpdateStatus::UpToDate => GREEN_KEY.into(),
     }
@@ -838,7 +838,7 @@ impl UpdateStatus {
       UpdateStatus::Major(_) => ON_ORANGE_KEY.into(),
       UpdateStatus::Minor(_) => ON_YELLOW_KEY.into(),
       UpdateStatus::Patch(_) => ON_BLUE_KEY.into(),
-      UpdateStatus::Discrepancy(_) => Color::from_hex_str("ffd6f7").unwrap().into(),
+      UpdateStatus::Discrepancy(_) => Color::from_hex_str("#ffd6f7").unwrap().into(),
       UpdateStatus::Error => ON_RED_KEY.into(),
       UpdateStatus::UpToDate => ON_GREEN_KEY.into(),
     }
