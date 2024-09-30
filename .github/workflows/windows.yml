@@ -5,7 +5,7 @@ on:
     branches:
       - release
     tags:
-      - '*'
+      - "*"
   pull_request:
     branches:
       - release
@@ -22,36 +22,27 @@ jobs:
       SCCACHE_GHA_ENABLED: "true"
       RUSTC_WRAPPER: "sccache"
     steps:
-      - uses: actions/checkout@v2
-
       - name: Run sccache-cache
-        uses: mozilla-actions/sccache-action@v0.0.3
+        uses: mozilla-actions/sccache-action@v0.0.6
+
+      - uses: actions/checkout@v4
 
       - name: Setup vcpkg cache
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: 64ca152891d6ab135c6c27881e7eb0ac2fa15bba
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-
       - name: Setup vcpkg
         run: |
           (cargo install cargo-vcpkg || true)
           cargo vcpkg --verbose build
 
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release
+      - name: Build
+        run: cargo build --release
       - name: Test
-        uses: actions-rs/cargo@v1
-        timeout-minutes: 10
-        with:
-          command: test
-          args: --release --no-fail-fast -- --nocapture
-      - uses: actions/upload-artifact@v2
+        run: cargo test --release --no-fail-fast -- --nocapture
+
+      - uses: actions/upload-artifact@v4
         with:
           name: windows
           path: target/release/moss.exe
