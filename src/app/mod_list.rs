@@ -209,9 +209,24 @@ impl ModList {
                             }
 
                             true
+                          })
+                          .on_command(App::ENABLE, |_, ctx, _, _| {
+                            ctx.children_changed();
+                            true
+                          })
+                          .on_lifecycle(|table, ctx, event, data, env| {
+                            if let druid::LifeCycle::BuildFocusChain = event
+                              && !ctx.is_disabled()
+                            {
+                              table.lifecycle(
+                                ctx,
+                                &druid::LifeCycle::DisabledChanged(false),
+                                data,
+                                env,
+                              );
+                            }
                           }),
                       )
-                      // .in_layout_repeater()
                       .scroll()
                       .vertical()
                       .expand_width(),
@@ -573,9 +588,8 @@ impl ModList {
           search_text.is_empty() || {
             let id_score = best_match(search_text, &entry.id).map(|m| m.score());
             let name_score = best_match(search_text, &entry.name).map(|m| m.score());
-            let author_score =
-              best_match(search_text, entry.author.as_deref().unwrap_or_default())
-                .map(|m| m.score());
+            let author_score = best_match(search_text, entry.author.as_deref().unwrap_or_default())
+              .map(|m| m.score());
 
             id_score.is_some() || name_score.is_some() || author_score.is_some()
           }

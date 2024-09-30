@@ -218,3 +218,6 @@ indoc = "2.0"
 
 # [patch.'https://github.com/atlanticaccent/druid-widget-nursery']
 # druid-widget-nursery = { path = "../druid-widget-nursery" }
+
+# [patch.'https://github.com/atlanticaccent/druid']
+# druid = { path = "../druid/druid" }
