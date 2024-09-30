@@ -1,4 +1,4 @@
-use std::{fmt::Display, sync::Arc};
+use std::{fmt::Display, rc::Rc};
 
 use druid::{
   im::Vector,
@@ -26,7 +26,7 @@ impl NavBar {
   pub const SET_OVERRIDE: Selector<(NavLabel, bool)> = Selector::new("nav_bar.override");
   pub const REMOVE_OVERRIDE: Selector<NavLabel> = Selector::new("nav_bar.remove_override");
 
-  pub fn new<T: Data>(nav: Nav, default: NavLabel) -> impl Widget<T> {
+  #[must_use] pub fn new<T: Data>(nav: Nav, default: NavLabel) -> impl Widget<T> {
     Scope::from_function(
       move |_| nav,
       DummyTransfer::default(),
@@ -52,7 +52,7 @@ impl NavBar {
                     } else {
                       Color::TRANSPARENT
                     },
-                  )
+                  );
                 })
                 .padding((4., 0.)),
             )
@@ -94,7 +94,7 @@ impl NavBar {
                     env.set(
                       druid::theme::DISABLED_TEXT_COLOR,
                       env.get(druid::theme::DISABLED_TEXT_COLOR).darker_by(6),
-                    )
+                    );
                   })
                   .disabled(),
               ),
@@ -107,7 +107,7 @@ impl NavBar {
                 data.set_ancestors_expanded(*label);
               }
               ctx.request_update();
-              ctx.set_handled()
+              ctx.set_handled();
             }),
           SizedBox::empty()
             .border(theme::BORDER_DARK, 1.)
@@ -124,10 +124,10 @@ impl NavBar {
     .with_indent(|data: &Nav| if data.depth > 1 { 16. } else { 0. })
     .on_added(move |_, ctx, _, _| ctx.submit_command(NavBar::RECURSE_SET_EXPANDED.with(default)))
     .on_command(Self::SET_OVERRIDE, |_, (label, override_), data| {
-      data.set_override(*label, Some(*override_))
+      data.set_override(*label, Some(*override_));
     })
     .on_command(Self::REMOVE_OVERRIDE, |_, target, data| {
-      data.set_override(*target, None)
+      data.set_override(*target, None);
     })
   }
 }
@@ -139,7 +139,7 @@ pub struct Nav {
   #[data(ignore)]
   pub command: Command,
   pub expanded: bool,
-  pub children: Vector<Arc<Nav>>,
+  pub children: Vector<Rc<Nav>>,
   pub root: bool,
   pub depth: usize,
   #[data(eq)]
@@ -181,7 +181,7 @@ impl From<NavLabel> for String {
 impl Nav {
   pub const NAV_SELECTOR: Selector<NavLabel> = Selector::new("nav_bar.switch");
 
-  pub fn new(label: NavLabel) -> Self {
+  #[must_use] pub fn new(label: NavLabel) -> Self {
     Self {
       label,
       command: Nav::NAV_SELECTOR.with(label),
@@ -202,14 +202,14 @@ impl Nav {
       .map(|mut nav| {
         nav.depth = self.depth + 1;
         nav.increment_children_depth();
-        Arc::new(nav)
+        Rc::new(nav)
       })
       .collect();
 
     self
   }
 
-  pub fn linked_to(mut self, label: NavLabel) -> Self {
+  #[must_use] pub fn linked_to(mut self, label: NavLabel) -> Self {
     self.linked = Some(label);
 
     self
@@ -217,9 +217,9 @@ impl Nav {
 
   fn increment_children_depth(&mut self) {
     for child in self.children.iter_mut() {
-      let child = Arc::get_mut(child).unwrap();
+      let child = Rc::get_mut(child).unwrap();
       child.depth += 1;
-      child.increment_children_depth()
+      child.increment_children_depth();
     }
   }
 
@@ -232,7 +232,7 @@ impl Nav {
     let mut expand = false;
     for idx in 0..self.children_count() {
       self.for_child_mut(idx, |child: &mut Nav, _| {
-        expand |= child.set_ancestors_expanded(label)
+        expand |= child.set_ancestors_expanded(label);
       });
     }
 
@@ -240,19 +240,19 @@ impl Nav {
     expand
   }
 
-  pub fn as_root(mut self) -> Self {
+  #[must_use] pub fn as_root(mut self) -> Self {
     self.root = true;
 
     self
   }
 
-  pub fn is_always_open(mut self) -> Self {
+  #[must_use] pub fn is_always_open(mut self) -> Self {
     self.always_open = true;
 
     self
   }
 
-  pub fn separator() -> Self {
+  #[must_use] pub fn separator() -> Self {
     Self {
       label: NavLabel::Separator,
       command: Selector::NOOP.with(()),
@@ -267,7 +267,7 @@ impl Nav {
     }
   }
 
-  pub fn overridden(mut self, override_: bool) -> Self {
+  #[must_use] pub fn overridden(mut self, override_: bool) -> Self {
     self.override_ = Some(override_);
 
     self
@@ -279,7 +279,7 @@ impl Nav {
       return;
     }
     for idx in 0..self.children_count() {
-      self.for_child_mut(idx, |child, _| child.set_override(target, override_))
+      self.for_child_mut(idx, |child, _| child.set_override(target, override_));
     }
   }
 }
@@ -309,7 +309,7 @@ impl TreeNode for Nav {
     let mut new = orig.as_ref().clone();
     cb(&mut new, index);
     if !orig.as_ref().same(&new) {
-      self.children.set(index, Arc::new(new));
+      self.children.set(index, Rc::new(new));
     }
   }
 }

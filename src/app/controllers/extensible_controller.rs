@@ -24,7 +24,7 @@ impl<T, W: Widget<T>> Default for ExtensibleController<T, W> {
 }
 
 impl<T, W: Widget<T>> ExtensibleController<T, W> {
-  pub fn new() -> Self {
+  #[must_use] pub fn new() -> Self {
     Self {
       on_change: Vec::new(),
       on_command: Vec::new(),
@@ -138,7 +138,7 @@ impl<T: Data, W: Widget<T>> Controller<T, W> for ExtensibleController<T, W> {
     env: &Env,
   ) {
     for handler in &mut self.on_lifecycle {
-      handler(child, ctx, event, data, env)
+      handler(child, ctx, event, data, env);
     }
     if let druid::LifeCycle::WidgetAdded = event {
       for handler in &mut self.on_added {
@@ -146,6 +146,6 @@ impl<T: Data, W: Widget<T>> Controller<T, W> for ExtensibleController<T, W> {
       }
     }
 
-    child.lifecycle(ctx, event, data, env)
+    child.lifecycle(ctx, event, data, env);
   }
 }

@@ -11,21 +11,25 @@ use druid_widget_nursery::{
 
 use crate::app::{util::WidgetExtEx as _, App};
 
+type WidgetMaker = Rc<Box<dyn Fn() -> Box<dyn Widget<crate::app::App>>>>;
+
+type DismissCallback = Rc<Box<dyn Fn(&mut EventCtx)>>;
+
 #[derive(Clone, Data, Lens)]
 pub struct RootStack {
-  pub(crate) widget_maker: Option<Rc<Box<dyn Fn() -> Box<dyn Widget<crate::app::App>>>>>,
-  pub(crate) on_dismiss: Option<Rc<Box<dyn Fn(&mut EventCtx)>>>,
+  pub(crate) widget_maker: Option<WidgetMaker>,
+  pub(crate) on_dismiss: Option<DismissCallback>,
   pub(crate) position: StackChildPosition,
 }
 
+type RootStackConstructor = SingleUse<(
+  Point,
+  Box<dyn Fn() -> Box<dyn Widget<App>>>,
+  Option<Box<dyn Fn(&mut EventCtx)>>,
+)>;
+
 impl RootStack {
-  pub(crate) const SHOW: Selector<
-    SingleUse<(
-      Point,
-      Box<dyn Fn() -> Box<dyn Widget<App>>>,
-      Option<Box<dyn Fn(&mut EventCtx)>>,
-    )>,
-  > = Selector::new("root_stack.new");
+  pub(crate) const SHOW: Selector<RootStackConstructor> = Selector::new("root_stack.new");
   pub(crate) const DISMISS: Selector = Selector::new("root_stack.dismiss");
 
   pub fn new(widget: impl Widget<App> + 'static) -> impl Widget<App> {
@@ -36,7 +40,7 @@ impl RootStack {
           .on_click(|ctx, data, _| {
             data.1.widget_maker = None;
             if let Some(on_dismiss) = data.1.on_dismiss.take() {
-              on_dismiss(ctx)
+              on_dismiss(ctx);
             }
           }),
       )
@@ -66,10 +70,10 @@ impl RootStack {
           data.0.block_next_root_stack = false;
         }
       })
-      .on_command(Self::DISMISS, |ctx, _, data| {
+      .on_command(Self::DISMISS, |ctx, (), data| {
         data.1.widget_maker = None;
         if let Some(on_dismiss) = data.1.on_dismiss.take() {
-          on_dismiss(ctx)
+          on_dismiss(ctx);
         }
       })
       .lens_scope(
@@ -94,10 +98,10 @@ impl RootStack {
       point,
       Box::new(widget_maker),
       on_dismiss.map(|fun| Box::new(fun) as Box<dyn Fn(&mut EventCtx)>),
-    ))))
+    ))));
   }
 
   pub fn dismiss(ctx: &mut impl CommandCtx) {
-    ctx.submit_command(Self::DISMISS)
+    ctx.submit_command(Self::DISMISS);
   }
 }

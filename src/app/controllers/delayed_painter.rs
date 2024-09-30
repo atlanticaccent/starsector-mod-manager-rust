@@ -24,7 +24,7 @@ impl<T: Data, W: Widget<T> + 'static> Widget<T> for DelayedPainter<T, W> {
     data: &mut T,
     env: &druid::widget::prelude::Env,
   ) {
-    self.widget.borrow_mut().event(ctx, event, data, env)
+    self.widget.borrow_mut().event(ctx, event, data, env);
   }
 
   fn lifecycle(
@@ -34,7 +34,7 @@ impl<T: Data, W: Widget<T> + 'static> Widget<T> for DelayedPainter<T, W> {
     data: &T,
     env: &druid::widget::prelude::Env,
   ) {
-    self.widget.borrow_mut().lifecycle(ctx, event, data, env)
+    self.widget.borrow_mut().lifecycle(ctx, event, data, env);
   }
 
   fn update(
@@ -44,7 +44,7 @@ impl<T: Data, W: Widget<T> + 'static> Widget<T> for DelayedPainter<T, W> {
     data: &T,
     env: &druid::widget::prelude::Env,
   ) {
-    self.widget.borrow_mut().update(ctx, data, env)
+    self.widget.borrow_mut().update(ctx, data, env);
   }
 
   fn layout(
@@ -67,7 +67,7 @@ impl<T: Data, W: Widget<T> + 'static> Widget<T> for DelayedPainter<T, W> {
     let data = data.clone();
     let env = env.clone();
     ctx.paint_with_z_index(self.z_index, move |ctx| {
-      widget.borrow_mut().paint(ctx, &data, &env)
+      widget.borrow_mut().paint(ctx, &data, &env);
     });
   }
 }

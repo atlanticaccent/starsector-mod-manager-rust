@@ -57,7 +57,7 @@ impl ConfirmDelete {
                   .on_click(move |ctx, _, _| {
                     ctx.submit_command(Popup::DISMISS);
                     ctx.submit_command(App::CONFIRM_DELETE_MOD.with(entry.clone()));
-                    ctx.submit_command(Nav::NAV_SELECTOR.with(crate::nav_bar::NavLabel::Mods))
+                    ctx.submit_command(Nav::NAV_SELECTOR.with(crate::nav_bar::NavLabel::Mods));
                   }),
               )
               .with_child(

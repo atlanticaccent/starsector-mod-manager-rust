@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::rc::Rc;
 
 use druid::{
   widget::{Either, Flex, Label},
@@ -82,7 +82,7 @@ impl RemoteUpdate {
                 .on_event(|_, _, event, data| {
                   if let druid::Event::Timer(token) = event {
                     if data == token {
-                      *data = DataTimer::INVALID
+                      *data = DataTimer::INVALID;
                     }
                   }
                   false
@@ -134,9 +134,9 @@ impl RemoteUpdate {
                   .on_click(move |ctx, data: &mut App, _| {
                     ctx.submit_command(Popup::DISMISS);
                     let old = data.mod_list.mods.get_mut(&mod_id).unwrap();
-                    let new = Arc::make_mut(old);
+                    let new = Rc::make_mut(old);
                     new.view_state.updating = true;
-                    let new = Arc::new(new.clone());
+                    let new = Rc::new(new.clone());
                     data.mod_list.mods[&mod_id] = new;
                     data.runtime.spawn(
                       installer::Payload::Download {

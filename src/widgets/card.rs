@@ -22,6 +22,7 @@ impl Card {
   pub const CARD_INSET: f64 = 12.5;
   pub const DEFAULT_INSETS: (f64, f64) = (0.0, 14.0);
 
+  #[must_use]
   pub fn builder() -> CardBuilder {
     CardBuilder::new()
   }
@@ -34,16 +35,16 @@ impl Card {
     F: Fn() -> W,
   {
     Self::hoverable_distinct(
-      || widget_maker(),
-      || widget_maker(),
-      CardBuilder::new().with_insets(insets),
+      &widget_maker,
+      &widget_maker,
+      &CardBuilder::new().with_insets(insets),
     )
   }
 
   pub fn hoverable_distinct<T: Data, W1: Widget<T> + 'static, W2: Widget<T> + 'static, F, FH>(
     unhovered: F,
     hovered: FH,
-    builder: CardBuilder,
+    builder: &CardBuilder,
   ) -> Box<dyn Widget<T>>
   where
     F: Fn() -> W1,
@@ -142,10 +143,10 @@ impl Card {
       {
         ctx.with_save(|ctx| {
           ctx.clip(rounded_rect);
-          background.paint(ctx, data, env)
+          background.paint(ctx, data, env);
         });
       } else {
-        ctx.fill(rounded_rect, &env.get(theme::BACKGROUND_LIGHT))
+        ctx.fill(rounded_rect, &env.get(theme::BACKGROUND_LIGHT));
       }
 
       if let Some((width, key)) = border {
@@ -154,7 +155,7 @@ impl Card {
           .inset(-insets)
           .inset(-(width / 2.0))
           .to_rounded_rect(corner_radius - width);
-        ctx.stroke(shape, &key, width)
+        ctx.stroke(shape, &key, width);
       }
     })
   }
@@ -315,18 +316,21 @@ impl CardBuilder {
     self
   }
 
+  #[must_use]
   pub fn with_corner_radius(mut self, corner_radius: f64) -> Self {
     self.corner_radius = corner_radius;
 
     self
   }
 
+  #[must_use]
   pub fn with_shadow_length(mut self, shadow_length: f64) -> Self {
     self.shadow_length = Some(shadow_length);
 
     self
   }
 
+  #[must_use]
   pub fn with_shadow_increase(mut self, shadow_length_increase: f64) -> Self {
     self.shadow_increase = Some(shadow_length_increase);
 
@@ -342,7 +346,7 @@ impl CardBuilder {
   pub fn with_hover_background(mut self, background: impl Into<BackgroundBrush<()>>) -> Self {
     let background = match background.into() {
       BackgroundBrush::Painter(painter) => BrushOrPainter::Painter(Rc::new(RefCell::new(painter))),
-      brush @ _ => BrushOrPainter::Brush(brush),
+      brush => BrushOrPainter::Brush(brush),
     };
 
     self.on_hover = Some(background);
@@ -353,7 +357,7 @@ impl CardBuilder {
   pub fn with_background(mut self, background: impl Into<BackgroundBrush<()>>) -> Self {
     let background = match background.into() {
       BackgroundBrush::Painter(painter) => BrushOrPainter::Painter(Rc::new(RefCell::new(painter))),
-      brush @ _ => BrushOrPainter::Brush(brush),
+      brush => BrushOrPainter::Brush(brush),
     };
 
     self.background = Some(background);
@@ -361,6 +365,7 @@ impl CardBuilder {
     self
   }
 
+  #[must_use]
   pub fn with_set_cursor(mut self, set_cursor: bool) -> Self {
     self.set_cursor = set_cursor;
 
@@ -395,7 +400,7 @@ impl CardBuilder {
     F: Fn() -> W1,
     FH: Fn() -> W2,
   {
-    Card::hoverable_distinct(unhovered, hovered, self)
+    Card::hoverable_distinct(unhovered, hovered, &self)
   }
 
   pub fn stacked_button<
@@ -444,7 +449,7 @@ impl CardBuilder {
     brush.map(|brush| match brush {
       BrushOrPainter::Painter(cell) => {
         BackgroundBrush::Painter(Painter::new(move |ctx, _, env| {
-          cell.borrow_mut().paint(ctx, &(), env)
+          cell.borrow_mut().paint(ctx, &(), env);
         }))
       }
       BrushOrPainter::Brush(brush) => Self::partial_brush_clone(&brush),

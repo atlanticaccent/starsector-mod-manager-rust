@@ -27,7 +27,7 @@ use crate::{
   },
   widgets::{
     card::Card,
-    card_button::{CardButton, ScopedStackCardButton},
+    card_button::{AltStackOption, CardButton, ScopedStackCardButton},
     root_stack::RootStack,
   },
 };
@@ -38,7 +38,7 @@ const OPEN_STACK: Selector = Selector::new("launch_button.stack.open");
 
 const ROW_HEIGHT: f64 = 64.0;
 
-const RESOLUTIONS: &'static [(u32, u32)] = &[
+const RESOLUTIONS: &[(u32, u32)] = &[
   (3840, 2160),
   (3440, 1440),
   (2560, 1600),
@@ -77,7 +77,7 @@ pub(crate) fn launch_button() -> impl Widget<App> {
           .with_child(footer_collapsed())
           .env_scope(move |env, _| {
             env.set(OLD_TEXT_COLOR, env.get(druid::theme::TEXT_COLOR));
-            env.set(druid::theme::TEXT_COLOR, druid::Color::WHITE.darker())
+            env.set(druid::theme::TEXT_COLOR, druid::Color::WHITE.darker());
           })
       },
       |_| {
@@ -86,7 +86,7 @@ pub(crate) fn launch_button() -> impl Widget<App> {
           .with_child(footer_expanded())
           .env_scope(move |env, _| {
             env.set(OLD_TEXT_COLOR, env.get(druid::theme::TEXT_COLOR));
-            env.set(druid::theme::TEXT_COLOR, druid::Color::WHITE.darker())
+            env.set(druid::theme::TEXT_COLOR, druid::Color::WHITE.darker());
           })
           .expand_width()
           .on_click(|ctx, _, _| ctx.submit_command(crate::widgets::root_stack::RootStack::DISMISS))
@@ -95,8 +95,8 @@ pub(crate) fn launch_button() -> impl Widget<App> {
         |widget: ScopedStackCardButton<App>,
          dropdown: std::rc::Rc<dyn Fn() -> Box<dyn Widget<App>>>,
          id| {
-          widget.on_command(OPEN_STACK, move |ctx, _, data| {
-            CardButton::trigger_dropdown_manually(ctx, dropdown.clone(), id, data)
+          widget.on_command(OPEN_STACK, move |ctx, (), data| {
+            CardButton::trigger_dropdown_manually(ctx, dropdown.clone(), id, data);
           })
         },
       ),
@@ -105,15 +105,15 @@ pub(crate) fn launch_button() -> impl Widget<App> {
     .on_event(|_, ctx, event, _| {
       if let druid::Event::MouseMove(mouse) = event {
         let bottom_y = ctx.size().height - mouse.pos.y;
-        if bottom_y >= 7.0 && bottom_y <= 14.0 {
+        if (7.0..=14.0).contains(&bottom_y) {
           ctx.submit_command(OVERRIDE_HOVER.with(true));
           ctx.clear_cursor();
           ctx.override_cursor(&druid::Cursor::Arrow);
         } else {
           if bottom_y < 7.0 {
-            ctx.submit_command(OVERRIDE_HOVER.with(false))
+            ctx.submit_command(OVERRIDE_HOVER.with(false));
           }
-          ctx.clear_cursor()
+          ctx.clear_cursor();
         }
       }
 
@@ -121,8 +121,8 @@ pub(crate) fn launch_button() -> impl Widget<App> {
     })
     .on_click2(|ctx, mouse, _, _| {
       let bottom_y = ctx.size().height - mouse.pos.y;
-      if bottom_y >= 7.0 && bottom_y <= 14.0 {
-        ctx.submit_command(OPEN_STACK)
+      if (7.0..=14.0).contains(&bottom_y) {
+        ctx.submit_command(OPEN_STACK);
       }
     })
     .expand_width()
@@ -168,7 +168,7 @@ fn footer_collapsed() -> impl Widget<App> {
             env.set(BACKGROUND, Color::GRAY.lighter_by(4));
             env.set(druid::theme::TEXT_COLOR, Color::BLACK);
           } else {
-            env.set(BACKGROUND, Color::BLACK.interpolate_with(Color::GRAY, 1))
+            env.set(BACKGROUND, Color::BLACK.interpolate_with(Color::GRAY, 1));
           };
         })
         .on_command(OVERRIDE_HOVER, |ctx, payload, data| {
@@ -233,7 +233,7 @@ fn footer_expanded() -> impl Widget<App> {
                 } else {
                   Color::GRAY.lighter_by(4)
                 },
-              )
+              );
             })
             .on_event(|_, ctx, _, data| {
               if ctx.is_hot() || data.1 {
@@ -247,7 +247,7 @@ fn footer_expanded() -> impl Widget<App> {
         })
         .on_click(|_, data, _| {
           data.settings.experimental_launch = !data.settings.experimental_launch;
-          data.settings.save_async(&data.runtime)
+          data.settings.save_async(&data.runtime);
         }),
     )
     .background(Color::GRAY.lighter_by(4))
@@ -356,7 +356,7 @@ fn resolution_options() -> Box<dyn Widget<App>> {
                 .on_click(|ctx, _, _| {
                   ctx.submit_command(Popup::dismiss_matching(|pop| {
                     matches!(pop, Popup::AppCustom(_))
-                  }))
+                  }));
                 })
                 .env_scope(|env, _| env.set(druid::theme::TEXT_COLOR, env.get(ON_RED_KEY))),
               )
@@ -404,7 +404,7 @@ fn preset_resolution() -> impl Widget<App> {
             move |_| {
               Flex::row()
                 .with_child(ViewSwitcher::new(
-                  |data: &Option<(u32, u32)>, _| data.clone(),
+                  |data: &Option<(u32, u32)>, _| *data,
                   |_, current_res, _| {
                     let res;
                     CardButton::button_text(if let Some((x, y)) = current_res {
@@ -427,7 +427,7 @@ fn preset_resolution() -> impl Widget<App> {
               .with_child(
                 Flex::row()
                   .with_child(ViewSwitcher::new(
-                    |data: &Option<(u32, u32)>, _| data.clone(),
+                    |data: &Option<(u32, u32)>, _| *data,
                     |_, current_res, _| {
                       let res;
                       CardButton::button_text(if let Some((x, y)) = current_res {
@@ -445,7 +445,7 @@ fn preset_resolution() -> impl Widget<App> {
               )
               .with_spacer(5.0)
               .tap(|col| {
-                for res in RESOLUTIONS.iter() {
+                for res in RESOLUTIONS {
                   let (x, y) = res;
                   col.add_child(
                     Label::new(format!("{x} x {y}"))
@@ -462,13 +462,13 @@ fn preset_resolution() -> impl Widget<App> {
                             } else {
                               Color::TRANSPARENT
                             },
-                          )
+                          );
                         })
                       })
                       .on_click(move |_, data: &mut Option<(u32, u32)>, _| {
                         data.replace(*res);
                       }),
-                  )
+                  );
                 }
               })
               .on_click(|ctx, _, _| RootStack::dismiss(ctx))
@@ -478,7 +478,7 @@ fn preset_resolution() -> impl Widget<App> {
               })
               .lens(App::settings)
           },
-          CardButton::stack_none(),
+          AltStackOption::None,
           130.0,
         ),
     )
@@ -626,15 +626,17 @@ async fn launch(
 
   let split_args = vmparams_string
     .split_ascii_whitespace()
-    .skip(if !miko { 1 } else { 0 });
+    .skip(usize::from(!miko));
 
   #[cfg(target_os = "windows")]
   let split_args = split_args.filter_map(|arg| {
     (!miko).then_some(arg).or_else(|| {
       (arg != "-XX:+UseLargePages" && arg != "-XX:+UseLargePagesIndividualAllocation").then(|| {
-        (arg == r#"-Djava.library.path="..\\mikohime/windows""#)
-          .then_some(r"-Djava.library.path=..\\mikohime/windows")
-          .unwrap_or(arg)
+        if arg == r#"-Djava.library.path="..\\mikohime/windows""# {
+          r"-Djava.library.path=..\\mikohime/windows"
+        } else {
+          arg
+        }
       })
     })
   });
@@ -703,7 +705,7 @@ async fn elevated_windows_launch(
   vmparams: &Path,
   extra_params: Option<String>,
 ) -> Result<Output, anyhow::Error> {
-  use std::{ffi::*, iter::FromIterator};
+  use std::ffi::{OsStr, OsString};
 
   use itertools::Itertools;
   use tokio::io::AsyncWriteExt;
@@ -732,7 +734,7 @@ async fn elevated_windows_launch(
         throw $_
       }}
     "#,
-    extra_params.map(|params| format!("$miko = ($miko[0..($miko.Length-2)]) + \"{}\" + $miko[-1]", params)).as_deref().unwrap_or_default(),
+    extra_params.map(|params| format!("$miko = ($miko[0..($miko.Length-2)]) + \"{params}\" + $miko[-1]")).as_deref().unwrap_or_default(),
   };
 
   let dummy = OsStr::new("");
@@ -745,7 +747,7 @@ async fn elevated_windows_launch(
     .split('%')
     .map(OsStr::new)
     .interleave_shortest(IntoIterator::into_iter(paths).chain(std::iter::repeat(dummy)));
-  let os_str = OsString::from_iter(commands);
+  let os_str: OsString = commands.collect();
 
   tokio::spawn(async move {
     stdin.write_all(os_str.as_encoded_bytes()).await?;
@@ -758,9 +760,9 @@ async fn elevated_windows_launch(
 
   if !output.status.success() {
     if std::str::from_utf8(&output.stderr).map_or(false, |err| err.contains("Failed to elevate")) {
-      d_println!("User declined UAC prompt")
+      d_println!("User declined UAC prompt");
     } else {
-      d_println!("{:?}", output.stderr)
+      d_println!("{:?}", output.stderr);
     }
     anyhow::bail!("Failed to elevate through powershell")
   }

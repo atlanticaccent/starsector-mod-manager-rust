@@ -1,9 +1,9 @@
 use std::{
   collections::HashMap,
   hash::Hash,
-  iter::FromIterator,
   ops::{Deref, Index},
   path::{Path, PathBuf},
+  rc::Rc,
   sync::Arc,
 };
 
@@ -36,7 +36,7 @@ use super::{
   App,
 };
 use crate::{
-  app::util::LoadBalancer,
+  app::util::{LensExtExt, LoadBalancer},
   patch::table::{
     ComplexTableColumnWidth, FlexTable, TableCellVerticalAlignment, TableColumnWidth, TableData,
   },
@@ -62,7 +62,7 @@ const CONTROL_WIDTH: f64 = 175.0;
 
 #[derive(Clone, Data, Lens)]
 pub struct ModList {
-  pub mods: FastImMap<String, Arc<ModEntry>>,
+  pub mods: FastImMap<String, Rc<ModEntry>>,
   pub header: Header,
   pub search_text: String,
   pub starsector_version: Option<GameVersion>,
@@ -71,6 +71,8 @@ pub struct ModList {
   pub install_dir_available: bool,
   pub refreshing: bool,
 }
+
+type RawModMap = FastImMap<String, RawModEntry>;
 
 impl ModList {
   pub const AUTO_UPDATE: Selector<ModEntry> = Selector::new("mod_list.install.auto_update");
@@ -90,6 +92,7 @@ impl ModList {
   const UPDATE_VERSION_CHECKER: Selector<HashMap<String, Option<ModVersionMeta>>> =
     Selector::new("mod_list.mods.update_version_checker");
 
+  #[must_use]
   pub fn new(headings: Vector<Heading>) -> Self {
     Self {
       mods: FastImMap::new(),
@@ -97,19 +100,18 @@ impl ModList {
       search_text: String::new(),
       starsector_version: None,
       install_state: InstallState::default(),
-      filter_state: Default::default(),
+      filter_state: FilterState::default(),
       install_dir_available: false,
       refreshing: false,
     }
   }
 
   pub fn replace_mods(&mut self, mods: FastImMap<String, RawModEntry>) {
-    *self.mods = druid::im::HashMap::from_iter(
-      mods
-        .inner()
-        .into_iter()
-        .map(|(id, entry)| (id, Arc::new(ModEntry::from(entry)))),
-    );
+    *self.mods = mods
+      .inner()
+      .into_iter()
+      .map(|(id, entry)| (id, Rc::new(ModEntry::from(entry))))
+      .collect();
   }
 
   pub fn view() -> impl Widget<Self> {
@@ -133,11 +135,11 @@ impl ModList {
                   .on_change(|ctx, old, data, _| {
                     if !old.same(data) {
                       if data.search_text.is_empty() {
-                        data.header.sort_by = (Heading::Name, true)
+                        data.header.sort_by = (Heading::Name, true);
                       } else {
-                        data.header.sort_by = (Heading::Score, true)
+                        data.header.sort_by = (Heading::Score, true);
                       };
-                      ctx.submit_command(Self::UPDATE_TABLE_SORT)
+                      ctx.submit_command(Self::UPDATE_TABLE_SORT);
                     }
                   }),
               )
@@ -157,9 +159,9 @@ impl ModList {
                         let rect = ctx.size().to_rect();
 
                         if env.try_get(FlexTable::<ModList>::ROW_IDX).unwrap_or(0) % 2 == 0 {
-                          ctx.fill(rect, &env.get(theme::BACKGROUND_DARK))
+                          ctx.fill(rect, &env.get(theme::BACKGROUND_DARK));
                         } else {
-                          ctx.fill(rect, &env.get(theme::BACKGROUND_LIGHT))
+                          ctx.fill(rect, &env.get(theme::BACKGROUND_LIGHT));
                         }
                       }))
                       .with_column_width(TableColumnWidth::Fixed(Header::ENABLED_WIDTH))
@@ -169,13 +171,13 @@ impl ModList {
                       .controller(
                         ExtensibleController::new()
                           .on_command(Self::UPDATE_COLUMN_WIDTH, Self::column_resized)
-                          .on_command(Self::UPDATE_TABLE_SORT, |_, ctx, _payload, _data| {
-                            Self::update_sorting(ctx, _payload, _data)
+                          .on_command(Self::UPDATE_TABLE_SORT, |_, ctx, payload, data| {
+                            Self::update_sorting(ctx, payload, data)
                           })
                           .on_command(ModMetadata::SUBMIT_MOD_METADATA, Self::metadata_submitted)
                           .on_command(Self::FILTER_UPDATE, Self::on_filter_change)
                           .on_command(Self::FILTER_RESET, Self::on_filter_reset)
-                          .on_command(Self::REBUILD, |table, ctx, _, _| {
+                          .on_command(Self::REBUILD, |table, ctx, (), _| {
                             table.clear();
                             ctx.children_changed();
                             ctx.request_update();
@@ -187,7 +189,7 @@ impl ModList {
                           .on_command(Self::INSERT_MOD, |_, ctx, entry, data| {
                             data
                               .mods
-                              .insert(entry.id.clone(), Arc::new(entry.clone().into()));
+                              .insert(entry.id.clone(), Rc::new(entry.clone().into()));
                             ctx.request_update();
                             true
                           })
@@ -195,8 +197,8 @@ impl ModList {
                             for (id, remote_version) in payload {
                               if let Some(entry) = data.mods.get(id) {
                                 let mut entry = entry.clone();
-                                let entry_ref = Arc::make_mut(&mut entry);
-                                entry_ref.remote_version = remote_version.clone();
+                                let entry_ref = Rc::make_mut(&mut entry);
+                                entry_ref.remote_version.clone_from(remote_version);
                                 entry_ref.update_status = Some(UpdateStatus::from((
                                   entry_ref.version_checker.as_ref().unwrap(),
                                   &entry_ref.remote_version,
@@ -253,7 +255,7 @@ impl ModList {
       .mask_default()
       .dynamic(|data, _| data.refreshing)
       .with_text_mask("")
-      .on_command(App::REFRESH, |_, _, data| {
+      .on_command(App::REFRESH, |_, (), data| {
         data.refreshing = true;
       })
       .on_command(App::REPLACE_MODS, Self::replace_mods_command_handler)
@@ -281,7 +283,7 @@ impl ModList {
     ModList::mods
       .deref()
       .index(id)
-      .then(ModEntry::manager_metadata.in_arc())
+      .then(ModEntry::manager_metadata.in_rc())
       .put(data, metadata.clone());
 
     false
@@ -299,7 +301,7 @@ impl ModList {
       if widths.len() < column_count {
         widths.resize_with(column_count, || {
           ComplexTableColumnWidth::Simple(TableColumnWidth::Flex(1.0))
-        })
+        });
       }
       widths[payload.0] = ComplexTableColumnWidth::Simple(TableColumnWidth::Fixed(payload.1 - 1.0));
 
@@ -341,12 +343,13 @@ impl ModList {
           .filter_map(|v| v.enabled.then_some(v.id.clone()))
           .collect();
         if let Err(err) = EnabledMods::from(enabled).save(install_dir) {
-          eprintln!("{:?}", err)
+          eprintln!("{err:?}");
         };
       }
     }
   }
 
+  #[allow(clippy::trivially_copy_pass_by_ref)]
   fn on_filter_change(
     _table: &mut FlexTable<ModList>,
     ctx: &mut EventCtx,
@@ -363,10 +366,11 @@ impl ModList {
     false
   }
 
+  #[allow(clippy::trivially_copy_pass_by_ref)]
   fn on_filter_reset(
     _table: &mut FlexTable<ModList>,
     ctx: &mut EventCtx,
-    _: &(),
+    (): &(),
     data: &mut ModList,
   ) -> bool {
     data.filter_state.active_filters.clear();
@@ -377,15 +381,15 @@ impl ModList {
   }
 
   pub fn parse_mod_folder(
-    root_dir: PathBuf,
-    ext_ctx: ExtEventSink,
-  ) -> Result<FastImMap<String, RawModEntry>, (FastImMap<String, RawModEntry>, Vec<Vec<RawModEntry>>)>
-  {
-    static BALANCER: LoadBalancer<
+    root_dir: &Path,
+    ext_ctx: &ExtEventSink,
+  ) -> Result<RawModMap, (RawModMap, Vec<Vec<RawModEntry>>)> {
+    type VersionCheckBalancer = LoadBalancer<
       (String, Option<ModVersionMeta>),
       HashMap<String, Option<ModVersionMeta>>,
       HashMap<String, Option<ModVersionMeta>>,
-    > = LoadBalancer::new(ModList::UPDATE_VERSION_CHECKER);
+    >;
+    static BALANCER: VersionCheckBalancer = LoadBalancer::new(ModList::UPDATE_VERSION_CHECKER);
 
     let handle = tokio::runtime::Handle::current();
 
@@ -402,10 +406,8 @@ impl ModList {
       vec![]
     };
 
-    let dir_iter = if let Ok(iter) = std::fs::read_dir(mod_dir) {
-      iter
-    } else {
-      return Ok(Default::default());
+    let Ok(dir_iter) = std::fs::read_dir(mod_dir) else {
+      return Ok(FastImMap::default());
     };
     let enabled_mods_iter = enabled_mods.par_iter();
 
@@ -413,7 +415,7 @@ impl ModList {
     let barrier = Arc::new(tokio::sync::Semaphore::new(0));
     let mods = dir_iter
       .par_bridge()
-      .filter_map(|entry| entry.ok())
+      .filter_map(std::result::Result::ok)
       .filter(|entry| {
         if let Ok(file_type) = entry.file_type() {
           file_type.is_dir()
@@ -460,7 +462,7 @@ impl ModList {
           }
           Err(err) => {
             eprintln!("Failed to get mod info for mod at: {:?}", entry.path());
-            eprintln!("With err: {:?}", err);
+            eprintln!("With err: {err:?}");
             None
           }
         },
@@ -471,7 +473,7 @@ impl ModList {
 
     for entry in mods {
       if let Some(bucket) = bucket_map.get_mut(&entry.id) {
-        bucket.push(entry)
+        bucket.push(entry);
       } else {
         bucket_map.insert(entry.id.clone(), vec![entry]);
       }
@@ -487,7 +489,11 @@ impl ModList {
       .map(|(id, mut bucket)| (id, bucket.swap_remove(0)))
       .collect();
 
-    if !duplicates.is_empty() {
+    if duplicates.is_empty() {
+      barrier.close();
+
+      Ok(out)
+    } else {
       let duplicates = duplicates
         .into_iter()
         .map(|(_, bucket)| bucket)
@@ -500,16 +506,13 @@ impl ModList {
       barrier.close();
 
       Err((out, duplicates))
-    } else {
-      barrier.close();
-
-      Ok(out)
     }
   }
 
   pub async fn parse_mod_folder_async(root_dir: PathBuf, ext_ctx: ExtEventSink) {
     let ext_ctx_tmp = ext_ctx.clone();
-    let map = tokio::task::spawn_blocking(|| Self::parse_mod_folder(root_dir, ext_ctx_tmp)).await;
+    let map =
+      tokio::task::spawn_blocking(move || Self::parse_mod_folder(&root_dir, &ext_ctx_tmp)).await;
 
     let (mods, duplicates) = match map {
       Ok(Ok(mods)) => (mods, None),
@@ -521,7 +524,7 @@ impl ModList {
     };
     if let Err(err) = ext_ctx.submit_command_global(super::App::REPLACE_MODS, SingleUse::new(mods))
     {
-      eprintln!("{} | {err}", line!())
+      eprintln!("{} | {err}", line!());
     }
     if let Some(duplicates) = duplicates {
       let _ = ext_ctx.submit_command_global(
@@ -534,11 +537,12 @@ impl ModList {
     }
   }
 
+  #[must_use]
   pub fn sorted_vals(
-    mods: FastImMap<String, Arc<ModEntry>>,
-    header: Header,
-    search_text: String,
-    filters: Vec<Filters>,
+    mods: &FastImMap<String, Rc<ModEntry>>,
+    header: &Header,
+    search_text: &str,
+    filters: &[&Filters],
   ) -> Vec<String> {
     comemo::evict(20);
 
@@ -547,34 +551,33 @@ impl ModList {
 
   #[memoize]
   fn sorted_vals_memo(
-    mods: FastImMap<String, Arc<ModEntry>>,
-    header: Header,
-    search_text: String,
-    filters: Vec<Filters>,
+    mods: &FastImMap<String, Rc<ModEntry>>,
+    header: &Header,
+    search_text: &str,
+    filters: &[&Filters],
   ) -> Vec<String> {
     Self::sorted_vals_inner(mods, header, search_text, filters)
   }
 
+  #[must_use]
   pub fn sorted_vals_inner(
-    mods: FastImMap<String, Arc<ModEntry>>,
-    header: Header,
-    search_text: String,
-    filters: Vec<Filters>,
+    mods: &FastImMap<String, Rc<ModEntry>>,
+    header: &Header,
+    search_text: &str,
+    filters: &[&Filters],
   ) -> Vec<String> {
     let mut ids: Vec<_> = mods
       .values()
       .filter_map(|entry| {
         let search = if let Heading::Score = header.sort_by.0 {
-          if !search_text.is_empty() {
-            let id_score = best_match(&search_text, &entry.id).map(|m| m.score());
-            let name_score = best_match(&search_text, &entry.name).map(|m| m.score());
+          search_text.is_empty() || {
+            let id_score = best_match(search_text, &entry.id).map(|m| m.score());
+            let name_score = best_match(search_text, &entry.name).map(|m| m.score());
             let author_score =
-              best_match(&search_text, entry.author.as_deref().unwrap_or_default())
+              best_match(search_text, entry.author.as_deref().unwrap_or_default())
                 .map(|m| m.score());
 
             id_score.is_some() || name_score.is_some() || author_score.is_some()
-          } else {
-            true
           }
         } else {
           true
@@ -613,10 +616,10 @@ impl ModList {
           .ok_or_else(|| entry.name.clone())
       }),
       Heading::Score => sort!(ids, |entry: &ModEntry| {
-        let id_score = best_match(&search_text, &entry.id).map(|m| m.score());
-        let name_score = best_match(&search_text, &entry.name).map(|m| m.score());
+        let id_score = best_match(search_text, &entry.id).map(|m| m.score());
+        let name_score = best_match(search_text, &entry.name).map(|m| m.score());
         let author_score =
-          best_match(&search_text, entry.author.as_deref().unwrap_or_default()).map(|m| m.score());
+          best_match(search_text, entry.author.as_deref().unwrap_or_default()).map(|m| m.score());
 
         id_score
           .max(name_score)
@@ -643,7 +646,7 @@ impl ModList {
     };
 
     if header.sort_by.1 {
-      ids.reverse()
+      ids.reverse();
     }
     ids
   }
@@ -662,20 +665,15 @@ impl TableData for ModList {
   type Row = ModEntry;
 
   fn keys(&self) -> impl Iterator<Item = String> {
-    ModList::sorted_vals(
-      self.mods.clone(),
-      self.header.clone(),
-      self.search_text.clone(),
-      self.filter_state.active_filters.iter().cloned().collect(),
-    )
-    .into_iter()
+    let filters: Vec<&Filters> = self.filter_state.active_filters.iter().collect();
+    ModList::sorted_vals(&self.mods, &self.header, &self.search_text, &filters).into_iter()
   }
 
   fn columns(&self) -> impl Iterator<Item = Self::Column> {
     [Heading::Enabled]
       .iter()
       .chain(self.header.headings.iter())
-      .cloned()
+      .copied()
   }
 
   fn with_mut(
@@ -683,8 +681,8 @@ impl TableData for ModList {
     idx: <Self::Row as crate::patch::table::RowData>::Id,
     mutate: impl FnOnce(&mut Self::Row),
   ) {
-    let entry = Arc::make_mut(&mut self.mods[&idx]);
-    mutate(entry)
+    let entry = Rc::make_mut(&mut self.mods[&idx]);
+    mutate(entry);
   }
 }
 
@@ -695,6 +693,7 @@ pub struct EnabledMods {
 }
 
 impl EnabledMods {
+  #[must_use]
   pub fn empty() -> Self {
     Self {
       enabled_mods: Vec::new(),
@@ -749,7 +748,7 @@ pub enum Filters {
 }
 
 impl Filters {
-  fn as_fn(&self) -> impl FnMut(&ModEntry) -> bool {
+  fn as_fn(self) -> impl FnMut(&ModEntry) -> bool {
     match self {
       Filters::Enabled => |entry: &ModEntry| !entry.enabled,
       Filters::Disabled => |entry: &ModEntry| entry.enabled,

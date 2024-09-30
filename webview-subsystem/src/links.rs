@@ -30,15 +30,8 @@ mod drive {
 
   pub(super) fn convert_to_direct_download_link(url: &str) -> Option<String> {
     // Extract the Google Drive ID
-    if let Some(id) = extract_google_drive_id(url) {
-      // Construct the direct download link
-      Some(format!(
-        "https://drive.google.com/uc?export=download&id={}",
-        id
-      ))
-    } else {
-      None
-    }
+    extract_google_drive_id(url)
+      .map(|id| format!("https://drive.google.com/uc?export=download&id={id}"))
   }
 }
 
@@ -87,7 +80,7 @@ mod mediafire {
 
   pub(super) fn convert_to_direct_download_link(url: &str) -> Result<String, Box<dyn Error>> {
     // Check if the URL is a valid MediaFire link
-    if let Some(_) = extract_mediafire_id(url) {
+    if extract_mediafire_id(url).is_some() {
       fetch_direct_download_link(url)
     } else {
       Err("Invalid MediaFire URL".into())

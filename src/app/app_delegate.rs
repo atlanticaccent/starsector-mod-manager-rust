@@ -49,6 +49,7 @@ impl Delegate<App> for AppDelegate {
     }
   }
 
+  #[allow(clippy::too_many_lines)]
   fn command(
     &mut self,
     ctx: &mut DelegateCtx,
@@ -122,9 +123,9 @@ impl Delegate<App> for AppDelegate {
         data.settings.dirty = false;
 
         if data.settings.save().is_err() {
-          eprintln!("Failed to save settings")
+          eprintln!("Failed to save settings");
         };
-        data.mod_list.install_dir_available = true
+        data.mod_list.install_dir_available = true;
       }
       return Handled::No;
     } else if let Some(entry) = cmd.get(ModList::AUTO_UPDATE) {
@@ -165,8 +166,8 @@ impl Delegate<App> for AppDelegate {
                 .and_then(|url| {
                   url
                     .path_segments()
-                    .and_then(|segments| segments.last())
-                    .map(|s| s.to_string())
+                    .and_then(std::iter::Iterator::last)
+                    .map(std::string::ToString::to_string)
                 })
                 .unwrap_or_else(|| uri.clone())
                 .to_string();
@@ -183,7 +184,7 @@ impl Delegate<App> for AppDelegate {
               let download_dir = PROJECT.cache_dir().to_path_buf();
               let mut persist_path = download_dir.join(&file_name);
               if persist_path.exists() {
-                persist_path = download_dir.join(format!("{}({})", file_name, random::<u8>()))
+                persist_path = download_dir.join(format!("{}({})", file_name, random::<u8>()));
               }
               if let Err(err) = download.persist(&persist_path) {
                 if err.error.kind() == std::io::ErrorKind::CrossesDevices {
@@ -231,7 +232,7 @@ impl Delegate<App> for AppDelegate {
         data.mod_list.mods.remove(&entry.id);
         data.active = None;
       } else {
-        eprintln!("Failed to delete mod")
+        eprintln!("Failed to delete mod");
       }
     } else if let Some((_timestamp, _url)) = cmd.get(DOWNLOAD_STARTED) {
       // data
@@ -350,7 +351,7 @@ impl Delegate<App> for AppDelegate {
             .as_ref()
             .is_some_and(|p| p.exists())
           {
-            delayed_popups.push(Popup::SelectInstall)
+            delayed_popups.push(Popup::SelectInstall);
           }
           delayed_popups.append(&mut self.startup_popups);
 
@@ -363,7 +364,7 @@ impl Delegate<App> for AppDelegate {
         ctx.submit_command(App::DUMB_UNIVERSAL_ESCAPE);
       }
       Event::MouseDown(ref mouse) => {
-        ctx.submit_command(InstallOptions::DISMISS.with(mouse.window_pos))
+        ctx.submit_command(InstallOptions::DISMISS.with(mouse.window_pos));
       }
       _ => {}
     }

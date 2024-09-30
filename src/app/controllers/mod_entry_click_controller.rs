@@ -34,7 +34,7 @@ impl<W: Widget<ModEntry>> Controller<ModEntry, W> for ModEntryClickController {
                 let entry = data.clone();
                 move |_, _, _| {
                   if let Err(err) = opener::open(entry.path.clone()) {
-                    eprintln!("{}", err)
+                    eprintln!("{err}");
                   }
                 }
               }))
@@ -50,10 +50,10 @@ impl<W: Widget<ModEntry>> Controller<ModEntry, W> for ModEntryClickController {
                             "{}{}",
                             ModDescription::FRACTAL_URL,
                             fractal_id
-                          )))
+                          )));
                         },
                       ),
-                    )
+                    );
                   }
                 }
                 if let Some(nexus_id) = data.version_checker.as_ref().map(|v| v.nexus_id.clone()) {
@@ -64,9 +64,9 @@ impl<W: Widget<ModEntry>> Controller<ModEntry, W> for ModEntryClickController {
                           "{}{}",
                           ModDescription::NEXUS_URL,
                           nexus_id
-                        )))
+                        )));
                       },
-                    ))
+                    ));
                   }
                 }
 
@@ -77,7 +77,7 @@ impl<W: Widget<ModEntry>> Controller<ModEntry, W> for ModEntryClickController {
                 move |ctx, _, _| ctx.submit_command(ModEntry::ASK_DELETE_MOD.with(entry.clone()))
               }));
 
-            ctx.show_context_menu::<App>(menu, ctx.to_window(mouse_event.pos))
+            ctx.show_context_menu::<App>(menu, ctx.to_window(mouse_event.pos));
           }
           ctx.request_paint();
         }

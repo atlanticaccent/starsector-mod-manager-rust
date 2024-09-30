@@ -92,34 +92,13 @@ pub fn init_webview(
         let uri = if let Ok(res) = client.head(&uri).send() {
           let final_url = res.url().to_string();
 
-          fn mime_type_is_archive(mime: Mime) -> bool {
-            match mime.subtype().as_str() {
-              // 7-zip
-              "x-7z-compressed"
-              // Tarball and friends
-              | "x-tar"
-              | "x-gtar"
-              | "x-bzip"
-              | "x-bzip2"
-              // Zip
-              | "x-zip-compressed"
-              | "zip"
-              // Rar
-              | "vnd.rar"
-              | "x-rar-compressed" => {
-                return true;
-              }
-              _ => false
-            }
-          }
-
           if let Some(mime) = res
             .headers()
             .get(reqwest::header::CONTENT_TYPE)
             .and_then(|h| h.to_str().ok())
             .and_then(|c| Mime::from_str(c).ok())
           {
-            if mime_type_is_archive(mime) {
+            if mime_type_is_archive(&mime) {
               let _ =
                 ext_ctx.submit_command_global(WEBVIEW_EVENT, WebviewEvent::AskDownload(final_url));
               return false;
@@ -129,7 +108,7 @@ pub fn init_webview(
           if let Ok(parsed_url) = Url::parse(&final_url) {
             let mime_guess = mime_guess::from_path(parsed_url.path());
             if let Some(mime) = mime_guess.first() {
-              if mime_type_is_archive(mime) {
+              if mime_type_is_archive(&mime) {
                 let _ = ext_ctx
                   .submit_command_global(WEBVIEW_EVENT, WebviewEvent::AskDownload(final_url));
                 return false;
@@ -179,7 +158,7 @@ pub fn init_webview(
     })
     .build()?;
 
-  #[cfg(all(debug_assertions, /* not(target_os = "macos") */))]
+  #[cfg(debug_assertions)]
   webview.open_devtools();
 
   let webview = Rc::new(webview);
@@ -187,4 +166,25 @@ pub fn init_webview(
   let _ = webview_ref.set(webview.clone());
 
   Ok(webview)
+}
+
+fn mime_type_is_archive(mime: &Mime) -> bool {
+  match mime.subtype().as_str() {
+    // 7-zip
+    "x-7z-compressed"
+    // Tarball and friends
+    | "x-tar"
+    | "x-gtar"
+    | "x-bzip"
+    | "x-bzip2"
+    // Zip
+    | "x-zip-compressed"
+    | "zip"
+    // Rar
+    | "vnd.rar"
+    | "x-rar-compressed" => {
+      true
+    }
+    _ => false
+  }
 }

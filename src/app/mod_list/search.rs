@@ -12,7 +12,7 @@ use crate::{
 pub struct Search;
 
 impl Search {
-  pub fn view() -> impl Widget<String> {
+  #[must_use] pub fn view() -> impl Widget<String> {
     Card::new(
       Stack::new()
         .with_child(
@@ -30,7 +30,7 @@ impl Search {
               env.set(
                 druid::theme::TEXT_COLOR,
                 env.get(druid::theme::TEXT_COLOR).with_alpha(0.5),
-              )
+              );
             })
             .invisible_if(|data: &String, _| data.is_empty())
             .suppress_event(|event| matches!(event, druid::Event::MouseMove(_)))
@@ -51,13 +51,13 @@ impl Search {
           .to_rect()
           .with_origin(ctx.to_window((0.0, 0.0).into()));
         if !hitbox.contains(*point) && ctx.has_focus() {
-          ctx.resign_focus()
+          ctx.resign_focus();
         }
       },
     )
-    .on_command(crate::app::App::DUMB_UNIVERSAL_ESCAPE, |ctx, _, _| {
+    .on_command(crate::app::App::DUMB_UNIVERSAL_ESCAPE, |ctx, (), _| {
       if ctx.has_focus() {
-        ctx.resign_focus()
+        ctx.resign_focus();
       }
     })
     .on_key_up(druid::keyboard_types::Key::Enter, |ctx, _| {

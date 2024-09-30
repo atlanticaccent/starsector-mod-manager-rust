@@ -33,14 +33,14 @@ impl<W> Rotated<W> {
   }
 
   fn affine(&self, child_size: Size, my_size: Size) -> Affine {
-    let a = ((self.quarter_turns % 4) as f64) * PI / 2.0;
+    let a = f64::from(self.quarter_turns % 4) * PI / 2.0;
 
     Affine::translate(Vec2::new(my_size.width / 2., my_size.height / 2.))
       * Affine::rotate(a)
       * Affine::translate(Vec2::new(-child_size.width / 2., -child_size.height / 2.))
   }
 
-  fn translate_mouse_event(&self, inverse: Affine, me: &MouseEvent) -> MouseEvent {
+  fn translate_mouse_event(inverse: Affine, me: &MouseEvent) -> MouseEvent {
     let mut me = me.clone();
     me.pos = inverse * me.pos;
     me
@@ -53,25 +53,25 @@ impl<T, W: Widget<T>> Widget<T> for Rotated<W> {
       match event {
         MouseMove(me) => self.child.event(
           ctx,
-          &Event::MouseMove(self.translate_mouse_event(inverse, me)),
+          &Event::MouseMove(Self::translate_mouse_event(inverse, me)),
           data,
           env,
         ),
         MouseDown(me) => self.child.event(
           ctx,
-          &Event::MouseDown(self.translate_mouse_event(inverse, me)),
+          &Event::MouseDown(Self::translate_mouse_event(inverse, me)),
           data,
           env,
         ),
         MouseUp(me) => self.child.event(
           ctx,
-          &Event::MouseUp(self.translate_mouse_event(inverse, me)),
+          &Event::MouseUp(Self::translate_mouse_event(inverse, me)),
           data,
           env,
         ),
         Wheel(me) => self.child.event(
           ctx,
-          &Event::Wheel(self.translate_mouse_event(inverse, me)),
+          &Event::Wheel(Self::translate_mouse_event(inverse, me)),
           data,
           env,
         ),
@@ -81,11 +81,11 @@ impl<T, W: Widget<T>> Widget<T> for Rotated<W> {
   }
 
   fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &T, env: &Env) {
-    self.child.lifecycle(ctx, event, data, env)
+    self.child.lifecycle(ctx, event, data, env);
   }
 
   fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, data: &T, env: &Env) {
-    self.child.update(ctx, old_data, data, env)
+    self.child.update(ctx, old_data, data, env);
   }
 
   fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {
@@ -102,7 +102,7 @@ impl<T, W: Widget<T>> Widget<T> for Rotated<W> {
     if let Some((transform, _)) = self.transforms {
       ctx.with_save(|ctx| {
         ctx.transform(transform);
-        self.child.paint(ctx, data, env)
+        self.child.paint(ctx, data, env);
       });
     }
   }

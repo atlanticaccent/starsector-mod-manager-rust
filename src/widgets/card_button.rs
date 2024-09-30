@@ -12,20 +12,28 @@ use crate::{
   widgets::card::Card,
 };
 
+pub trait AltStackActivator<T> = Fn(
+  ScopedStackCardButton<T>,
+  Rc<dyn Fn() -> Box<dyn Widget<App>> + 'static>,
+  WidgetId,
+) -> ScopedStackCardButton<T>;
+
+pub type AltStackOption<T> = Option<impl AltStackActivator<T>>;
+
 pub struct CardButton;
 
 impl CardButton {
-  pub const fn stack_none<T: Data>() -> Option<
-    fn(
-      ScopedStackCardButton<T>,
-      Rc<dyn Fn() -> Box<dyn Widget<App>> + 'static>,
-      WidgetId,
-    ) -> ScopedStackCardButton<T>,
-  > {
-    None
+  const fn stack_none<T: Data>() -> AltStackOption<T> {
+    Option::<
+      fn(
+        ScopedStackCardButton<T>,
+        Rc<dyn Fn() -> Box<dyn Widget<App>> + 'static>,
+        WidgetId,
+      ) -> ScopedStackCardButton<T>,
+    >::None
   }
 
-  pub fn button_text<T: Data>(text: &str) -> impl Widget<T> {
+  #[must_use] pub fn button_text<T: Data>(text: &str) -> impl Widget<T> {
     bold_text(
       text,
       druid::theme::TEXT_SIZE_NORMAL,
@@ -132,16 +140,16 @@ impl CardButton {
           } else {
             widget
               .on_click(move |ctx, data, _| {
-                Self::trigger_dropdown_manually(ctx, dropdown.clone(), id, data)
+                Self::trigger_dropdown_manually(ctx, dropdown.clone(), id, data);
               })
               .boxed()
           }
           .invisible_if(|data, _| data.inner)
           .disabled_if(|data, _| data.inner)
-          .on_command(DROPDOWN_DISMISSED, |_, _, data| data.inner = false)
+          .on_command(DROPDOWN_DISMISSED, |_, (), data| data.inner = false)
           .with_id(id)
-          .on_command(crate::app::overlays::Popup::IS_EMPTY, |_, _, data| {
-            data.inner = false
+          .on_command(crate::app::overlays::Popup::IS_EMPTY, |_, (), data| {
+            data.inner = false;
           })
         },
       )
@@ -159,7 +167,7 @@ impl CardButton {
       ctx.window_origin(),
       move || (dropdown)(),
       Some(move |ctx: &mut druid::EventCtx| ctx.submit_command(DROPDOWN_DISMISSED.to(id))),
-    )
+    );
   }
 }
 

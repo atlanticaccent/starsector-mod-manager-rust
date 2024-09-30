@@ -51,7 +51,7 @@ impl Overwrite {
           )))
           .with_child(Label::new(match &conflict {
             StringOrPath::String(id) => {
-              format!("A mod with ID {} alread exists.", id)
+              format!("A mod with ID {id} alread exists.")
             }
             StringOrPath::Path(path) => format!(
               "Found a folder at the path {} when trying to install {}.",

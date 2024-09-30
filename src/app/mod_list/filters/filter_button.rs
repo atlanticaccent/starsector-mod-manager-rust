@@ -17,7 +17,7 @@ use crate::{
 pub struct FilterButton;
 
 impl FilterButton {
-  pub fn inner<T: Data>() -> Flex<T> {
+  #[must_use] pub fn inner<T: Data>() -> Flex<T> {
     Flex::column().with_child(
       Flex::row()
         .with_child(bold_text(
@@ -63,7 +63,7 @@ impl FilterButton {
               .height(46.0),
           )
           .padding((0.0, 4.0, 6.0, 0.0))
-          .lens(FilterState::active_filters.compute(|v| v.is_empty())),
+          .lens(FilterState::active_filters.compute(std::collections::HashSet::is_empty)),
       )
       .with_positioned_child(
         Card::builder()

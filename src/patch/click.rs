@@ -21,6 +21,8 @@ use druid::{
   Widget,
 };
 
+pub trait OnClick<T> = Fn(&mut EventCtx, &MouseEvent, &mut T, &Env);
+
 /// A clickable [`Controller`] widget. Pass this and a child widget to a
 /// [`ControllerHost`] to make the child interactive. More conveniently, this is
 /// available as an `on_click` method via [`WidgetExt`]'.
@@ -39,12 +41,12 @@ use druid::{
 /// [`LifeCycle::HotChanged`]: ../enum.LifeCycle.html#variant.HotChanged
 pub struct Click<T> {
   /// A closure that will be invoked when the child widget is clicked.
-  action: Box<dyn Fn(&mut EventCtx, &MouseEvent, &mut T, &Env)>,
+  action: Box<dyn OnClick<T>>,
 }
 
 impl<T: Data> Click<T> {
   /// Create a new clickable [`Controller`] widget.
-  pub fn new(action: impl Fn(&mut EventCtx, &MouseEvent, &mut T, &Env) + 'static) -> Self {
+  pub fn new(action: impl OnClick<T> + 'static) -> Self {
     Click {
       action: Box::new(action),
     }

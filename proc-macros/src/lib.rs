@@ -20,15 +20,15 @@ pub fn impl_widget(input: TokenStream) -> TokenStream {
   let widget_bound: TypeParam = parse_quote!(W: druid::Widget<T>);
   if let Some(data) = generics
     .type_params_mut()
-    .find(|param| param.ident.to_string() == "T")
+    .find(|param| param.ident == "T")
   {
     data.bounds.extend(data_bound.bounds);
   }
   if let Some(widget) = generics
     .type_params_mut()
-    .find(|param| param.ident.to_string() == "W")
+    .find(|param| param.ident == "W")
   {
-    widget.bounds.extend(widget_bound.bounds)
+    widget.bounds.extend(widget_bound.bounds);
   }
   let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
@@ -53,7 +53,7 @@ pub fn impl_widget(input: TokenStream) -> TokenStream {
           let ident = expr_path.path.require_ident().unwrap();
           ident.to_token_stream()
         }
-        Expr::Lit(lit) => lit.to_token_stream(),
+        Expr::Lit(literal) => literal.to_token_stream(),
         _ => panic!(
           "Must be literal naming a method on Self {:?}",
           name_val.value
@@ -62,34 +62,24 @@ pub fn impl_widget(input: TokenStream) -> TokenStream {
 
       match &name_val.path {
         path if path.is_ident("event") => {
-          if value.to_string() == "event" {
-            panic!("`event` method implementation cannot be named `event`")
-          }
-          event = Some(quote! {self.#value(ctx, event, data, env)})
+          assert_ne!(value.to_string(), "event", "`event` method implementation cannot be named `event`");
+          event = Some(quote! {self.#value(ctx, event, data, env)});
         }
         path if path.is_ident("lifecycle") => {
-          if value.to_string() == "lifecycle" {
-            panic!("`lifecycle` method implementation cannot be named `lifecycle`")
-          }
-          lifecycle = Some(quote! {self.#value(ctx, event, data, env)})
+          assert_ne!(value.to_string(), "lifecycle", "`lifecycle` method implementation cannot be named `lifecycle`");
+          lifecycle = Some(quote! {self.#value(ctx, event, data, env)});
         }
         path if path.is_ident("update") => {
-          if value.to_string() == "update" {
-            panic!("`update` method implementation cannot be named `update`")
-          }
-          update = Some(quote! {self.#value(ctx, old_data, data, env)})
+          assert_ne!(value.to_string(), "update", "`update` method implementation cannot be named `update`");
+          update = Some(quote! {self.#value(ctx, old_data, data, env)});
         }
         path if path.is_ident("layout") => {
-          if value.to_string() == "layout" {
-            panic!("`layout` method implementation cannot be named `layout`")
-          }
-          layout = Some(quote! {self.#value(ctx, bc, data, env)})
+          assert_ne!(value.to_string(), "layout", "`layout` method implementation cannot be named `layout`");
+          layout = Some(quote! {self.#value(ctx, bc, data, env)});
         }
         path if path.is_ident("paint") => {
-          if value.to_string() == "paint" {
-            panic!("`paint` method implementation cannot be named `paint`")
-          }
-          paint = Some(quote! {self.#value(ctx, data, env)})
+          assert_ne!(value.to_string(), "paint", "`paint` method implementation cannot be named `paint`");
+          paint = Some(quote! {self.#value(ctx, data, env)});
         }
         path if path.is_ident("widget_pod") => widget_pod = Some(quote! {self.#value}),
         _ => panic!("Must be one of `event`, `lifecycle`, `update`, `layout` or `paint`."),

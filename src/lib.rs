@@ -13,7 +13,16 @@
 #![feature(test)]
 #![feature(const_collections_with_hasher)]
 #![feature(cfg_match)]
+#![feature(trait_alias)]
+#![feature(type_alias_impl_trait)]
+
 #![allow(clippy::new_ret_no_self)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::return_self_not_must_use)]
+#![allow(clippy::missing_panics_doc)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::struct_excessive_bools)]
+#![allow(clippy::if_not_else)]
 
 pub mod app;
 pub mod formatter;

@@ -12,7 +12,7 @@ pub trait HoverState: Data {
 
 impl HoverState for bool {
   fn set(&mut self, state: bool) {
-    *self = state
+    *self = state;
   }
 }
 
@@ -33,7 +33,7 @@ impl HoverState for SharedIdHoverState {
 
 impl Default for SharedIdHoverState {
   fn default() -> Self {
-    Self(WidgetId::next(), Default::default())
+    Self(WidgetId::next(), Rc::default())
   }
 }
 
@@ -51,7 +51,7 @@ impl<T: HoverState> HoverController<T> {
   }
 
   fn set(&mut self, state: bool) {
-    self.state.set(state)
+    self.state.set(state);
   }
 }
 
@@ -81,7 +81,7 @@ impl<T: Data, W: Widget<T>, S: HoverState> Controller<T, W> for HoverController<
         ctx.set_cursor(&Cursor::Pointer);
       } else {
         self.set(false);
-        ctx.clear_cursor()
+        ctx.clear_cursor();
       }
       ctx.request_paint();
     } else if (self.dismiss_on_click && event.as_mouse_up().is_some())
@@ -92,7 +92,7 @@ impl<T: Data, W: Widget<T>, S: HoverState> Controller<T, W> for HoverController<
       ctx.request_update();
       ctx.request_paint();
     }
-    child.event(ctx, event, data, env)
+    child.event(ctx, event, data, env);
   }
 
   fn lifecycle(
@@ -104,9 +104,9 @@ impl<T: Data, W: Widget<T>, S: HoverState> Controller<T, W> for HoverController<
     env: &druid::Env,
   ) {
     if let druid::LifeCycle::HotChanged(false) = event {
-      ctx.submit_command(REMOVE_POINTER)
+      ctx.submit_command(REMOVE_POINTER);
     }
 
-    child.lifecycle(ctx, event, data, env)
+    child.lifecycle(ctx, event, data, env);
   }
 }

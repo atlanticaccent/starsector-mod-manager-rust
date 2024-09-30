@@ -18,7 +18,7 @@ use super::{
 };
 use crate::{
   app::{
-    browser::button::{button, button_text, button_unconstrained},
+    browser::controls::{button, button_text, button_unconstrained},
     controllers::ExtensibleController,
     util::ShadeColor,
     ARROW_LEFT, ARROW_RIGHT, BOOKMARK, BOOKMARK_BORDER, REFRESH,
@@ -28,7 +28,7 @@ use crate::{
   widgets::{card::Card, root_stack::RootStack},
 };
 
-mod button;
+mod controls;
 
 #[derive(Data, Clone, Lens, Default)]
 pub struct Browser {
@@ -83,7 +83,7 @@ impl Browser {
             move |ctx, browser: &BrowserInner, _| {
               if let Some(incoming_image) = &browser.image {
                 let image = incoming_image.deref().to_image(ctx.render_ctx);
-                saved_image = Some((image, incoming_image.size()))
+                saved_image = Some((image, incoming_image.size()));
               }
 
               if let Some((image, size)) = saved_image.as_ref() {
@@ -137,11 +137,11 @@ impl Browser {
                 browser.set_visible(true);
                 false
               })
-              .on_command(Browser::WEBVIEW_HIDE, |_, _, _, data| {
+              .on_command(Browser::WEBVIEW_HIDE, |_, _, (), data| {
                 data.set_visible(false);
                 true
               })
-              .on_command(Browser::WEBVIEW_SHOW, |_, _, _, data| {
+              .on_command(Browser::WEBVIEW_SHOW, |_, _, (), data| {
                 data.set_visible(true);
                 true
               })
@@ -157,19 +157,19 @@ impl Browser {
                     Popup::OPEN_NEXT,
                     Popup::DELAYED_POPUP, => {
                       data.force_hidden = true;
-                      data.set_visible(false)
+                      data.set_visible(false);
                     }
-                  })
+                  });
                 }
                 true
               })
-              .on_command(Popup::IS_EMPTY, |_, ctx, _, data| {
+              .on_command(Popup::IS_EMPTY, |_, ctx, (), data| {
                 if data.tab_open {
                   data.force_hidden = false;
                   data.set_visible(true);
                   ctx.request_update();
                   ctx.request_paint();
-                  data.screenshot(ctx.get_external_handle())
+                  data.screenshot(ctx.get_external_handle());
                 }
                 true
               })
@@ -184,7 +184,7 @@ impl Browser {
                     {
                       browser.image = Some(Rc::new(image));
                     } else if browser.is_visible() {
-                      browser.screenshot(ctx.get_external_handle())
+                      browser.screenshot(ctx.get_external_handle());
                     }
                   }
                   ctx.request_update();
@@ -200,27 +200,27 @@ impl Browser {
     .lens(Browser::inner)
     .on_command(Nav::NAV_SELECTOR, |ctx, payload, data| {
       if *payload == NavLabel::WebBrowser && data.inner.is_none() {
-        ctx.submit_command(INIT_WEBVIEW)
+        ctx.submit_command(INIT_WEBVIEW);
       }
     })
-    .on_command2(INIT_WEBVIEW, |_, ctx, _, data| {
+    .on_command2(INIT_WEBVIEW, |_, ctx, (), data| {
       let res = init_webview(ctx, data);
 
       match res {
         Ok(webview) => {
           let inner = BrowserInner {
             webview,
-            visible: Default::default(),
+            visible: Rc::default(),
             image: None,
             mega_file: None,
-            screenshot_in_progress: Default::default(),
+            screenshot_in_progress: Rc::default(),
             tab_open: true,
             force_hidden: false,
             load_in_progress: true,
           };
           inner.set_visible(true);
           data.inner = Some(inner);
-          ctx.submit_command(Browser::WEBVIEW_SHOW)
+          ctx.submit_command(Browser::WEBVIEW_SHOW);
         }
         Err(err) => eprintln!("webview build error: {err:?}"),
       }
@@ -230,7 +230,7 @@ impl Browser {
     })
     .on_command2(super::App::OPEN_WEBVIEW, |_, ctx, payload, data| {
       ctx.submit_command(Nav::NAV_SELECTOR.with(NavLabel::WebBrowser));
-      data.url = payload.clone();
+      data.url.clone_from(payload);
       true
     })
     .expand()
@@ -260,12 +260,12 @@ impl Browser {
         inner.force_hidden = true;
         inner.load_in_progress = false;
         ctx.submit_command(Browser::WEBVIEW_HIDE);
-        ctx.submit_command(Popup::OPEN_POPUP.with(Popup::browser_install(uri.clone())))
+        ctx.submit_command(Popup::OPEN_POPUP.with(Popup::browser_install(uri.clone())));
       }
       WebviewEvent::Download(uri) => {
-        let _ = inner.reload();
+        inner.reload();
         inner.load_in_progress = false;
-        ctx.submit_command(WEBVIEW_INSTALL.with(InstallType::Uri(uri.clone())))
+        ctx.submit_command(WEBVIEW_INSTALL.with(InstallType::Uri(uri.clone())));
       }
       WebviewEvent::CancelDownload => {
         inner.load_in_progress = false;
@@ -274,7 +274,7 @@ impl Browser {
         let _ = webview.load_url(uri).inspect_err(|e| eprintln!("{e}"));
       }
       WebviewEvent::BlobReceived(uri) => {
-        *mega_file = Some(Default::default());
+        *mega_file = Some(Rc::default());
         webview
           .evaluate_script(&format!(
             r#"
@@ -282,7 +282,7 @@ impl Browser {
                 /**
                 * @type Blob
                 */
-                let blob = URL.getObjectURLDict()['{}']
+                let blob = URL.getObjectURLDict()['{uri}']
                   || Object.values(URL.getObjectURLDict())[0]
 
                 var increment = 2 ** 20;
@@ -304,8 +304,7 @@ impl Browser {
                 reader.onloadend = func;
                 reader.readAsDataURL(blob.slice(index, increment))
               }})();
-            "#,
-            uri
+            "#
           ))
           .expect("Eval script");
       }
@@ -316,7 +315,7 @@ impl Browser {
               let split = chunk.split(',').nth(1);
               if let Some(split) = split {
                 if let Ok(decoded) = decode(split) {
-                  data.borrow_mut().extend(decoded)
+                  data.borrow_mut().extend(decoded);
                 }
               }
             }
@@ -430,14 +429,14 @@ fn toolbar() -> SizedBox<BrowserInner> {
     .env_scope(|env, data| {
       if data.load_in_progress {
         const TEXT: druid::Key<druid::Color> = druid::theme::TEXT_COLOR;
-        env.set(TEXT, env.get(TEXT).lighter_by(8))
+        env.set(TEXT, env.get(TEXT).lighter_by(8));
       }
     })
     .expand_width()
 }
 
 fn bookmarks() -> druid::widget::Padding<BrowserInner, impl Widget<BrowserInner>> {
-  button(|hovered| bookmarks_heading_button::<BrowserInner>(hovered))
+  button(bookmarks_heading_button::<BrowserInner>)
     .fix_width(BOOKMARK_WIDTH)
     .scope_with(
       |_| (true, DataTimer::INVALID),
@@ -446,7 +445,7 @@ fn bookmarks() -> druid::widget::Padding<BrowserInner, impl Widget<BrowserInner>
 
         widget
           .invisible_if(|data, _| !data.inner.0)
-          .on_command(RE_ENABLE, |ctx, _, data| {
+          .on_command(RE_ENABLE, |ctx, (), data| {
             data.inner.0 = !data.inner.0;
             data.outer.force_hidden = false;
             data.inner.1 = ctx
@@ -503,7 +502,7 @@ fn bookmarks() -> druid::widget::Padding<BrowserInner, impl Widget<BrowserInner>
                 .boxed()
               },
               Some(|ctx: &mut druid::EventCtx| ctx.submit_command(RE_ENABLE)),
-            )
+            );
           })
       },
     )
@@ -592,7 +591,7 @@ impl BrowserInner {
             Ok(())
           };
           if let Err(e) = func() {
-            eprintln!("{e:?}")
+            eprintln!("{e:?}");
           }
         })
         .inspect_err(|e| eprintln!("{e:?}"))

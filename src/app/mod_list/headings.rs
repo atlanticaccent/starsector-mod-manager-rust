@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
-use super::{util::icons::*, ModList};
+use super::{util::icons::{ARROW_DROP_DOWN, ARROW_DROP_UP, UNFOLD_MORE}, ModList};
 use crate::{app::util::LabelExt, patch::split::Split};
 
 #[derive(
@@ -47,11 +47,11 @@ pub enum Heading {
 }
 
 impl Heading {
-  pub fn visible(&self) -> bool {
+  #[must_use] pub fn visible(&self) -> bool {
     matches!(self, Heading::Enabled | Heading::Score)
   }
 
-  pub fn complete(list: &Vector<Heading>) -> bool {
+  #[must_use] pub fn complete(list: &Vector<Heading>) -> bool {
     Heading::iter()
       .filter(|h| !h.visible())
       .all(|h| list.contains(&h))
@@ -81,7 +81,7 @@ impl Header {
     Heading::GameVersion,
   ];
 
-  pub fn new(headings: Vector<Heading>) -> Self {
+  #[must_use] pub fn new(headings: Vector<Heading>) -> Self {
     Self {
       ratios: Self::calculate_ratios(headings.len()),
       headings,
@@ -96,7 +96,7 @@ impl Header {
       .collect()
   }
 
-  pub fn view() -> impl Widget<Header> {
+  #[must_use] pub fn view() -> impl Widget<Header> {
     fn recursive_split(idx: usize, titles: &Vector<Heading>) -> impl Widget<Header> {
       if idx < titles.len() - 2 {
         Split::columns(
@@ -134,30 +134,30 @@ impl Header {
       },
     )
     .on_command(Header::SWAP_HEADINGS, |_, (idx, jdx), header| {
-      header.headings.swap(*idx, *jdx)
+      header.headings.swap(*idx, *jdx);
     })
     .on_command(Header::ADD_HEADING, |ctx, heading, header| {
       header.headings.push_back(*heading);
       header.ratios = Self::calculate_ratios(header.headings.len());
       for (idx, ratio) in header.ratios.iter().enumerate() {
-        ctx.submit_command(ModList::UPDATE_COLUMN_WIDTH.with((idx + 1, *ratio)))
+        ctx.submit_command(ModList::UPDATE_COLUMN_WIDTH.with((idx + 1, *ratio)));
       }
       ctx.submit_command(crate::app::controllers::HeightLinker::HEIGHT_LINKER_RESET_ALL);
-      ctx.submit_command(ModList::REBUILD_NEXT_PASS)
+      ctx.submit_command(ModList::REBUILD_NEXT_PASS);
     })
     .on_command(Header::REMOVE_HEADING, |ctx, heading, header| {
       header.headings.retain(|existing| existing != heading);
       if header.sort_by.0 == *heading
         && let Some(new_sort) = header.headings.iter().find(|h| h.visible())
       {
-        header.sort_by.0 = *new_sort
+        header.sort_by.0 = *new_sort;
       }
       header.ratios = Self::calculate_ratios(header.headings.len());
       for (idx, ratio) in header.ratios.iter().enumerate() {
-        ctx.submit_command(ModList::UPDATE_COLUMN_WIDTH.with((idx + 1, *ratio)))
+        ctx.submit_command(ModList::UPDATE_COLUMN_WIDTH.with((idx + 1, *ratio)));
       }
       ctx.submit_command(crate::app::controllers::HeightLinker::HEIGHT_LINKER_RESET_ALL);
-      ctx.submit_command(ModList::REBUILD_NEXT_PASS)
+      ctx.submit_command(ModList::REBUILD_NEXT_PASS);
     })
   }
 }
@@ -207,16 +207,16 @@ fn heading_builder(title: Heading) -> impl Widget<Header> {
     .background(Painter::new(|ctx, _, env| {
       let border_rect = ctx.size().to_rect().inset(-1.5);
       if ctx.is_hot() {
-        ctx.stroke(border_rect, &env.get(druid::theme::BORDER_LIGHT), 3.)
+        ctx.stroke(border_rect, &env.get(druid::theme::BORDER_LIGHT), 3.);
       }
     }))
     .on_click(move |ctx, data: &mut Header, _| {
       if data.sort_by.0 == title {
         data.sort_by.1 = !data.sort_by.1;
       } else {
-        data.sort_by = (title, false)
+        data.sort_by = (title, false);
       }
-      ctx.submit_command(ModList::UPDATE_TABLE_SORT)
+      ctx.submit_command(ModList::UPDATE_TABLE_SORT);
     })
 }
 
@@ -243,6 +243,6 @@ impl<W: Widget<Header>> Controller<Header, W> for ResizeController {
       ctx.submit_command(ModList::UPDATE_COLUMN_WIDTH.with((self.id, size.width)));
     }
 
-    child.lifecycle(ctx, event, data, env)
+    child.lifecycle(ctx, event, data, env);
   }
 }

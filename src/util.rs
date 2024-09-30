@@ -43,9 +43,9 @@ use tokio::{select, sync::mpsc};
 use crate::{
   app::{
     controllers::{
-      next_id, ConstraintId, DelayedPainter, ExtensibleController, HeightLinkerShared,
-      HoverController, HoverState, InvisibleIf, LayoutRepeater, LinkedHeights, OnEvent, OnHover,
-      OnNotif, SharedConstraint, SharedIdHoverState,
+      next_id, BoxedOnEvent, ConstraintId, DelayedPainter, ExtensibleController,
+      HeightLinkerShared, HoverController, HoverState, InvisibleIf, LayoutRepeater, LinkedHeights,
+      OnEvent, OnHover, OnNotif, SharedConstraint, SharedIdHoverState,
     },
     mod_entry::{GameVersion, ModEntry, ModVersionMeta},
   },
@@ -84,7 +84,7 @@ pub enum SaveError {
   Format,
 }
 
-pub fn get_quoted_version(
+#[must_use] pub fn get_quoted_version(
   starsector_version: &(
     Option<String>,
     Option<String>,
@@ -100,9 +100,9 @@ pub fn get_quoted_version(
       minor.clone().unwrap_or_default(),
       patch
         .clone()
-        .map_or_else(|| "".to_string(), |p| format!(".{}", p)),
+        .map_or_else(String::new, |p| format!(".{p}")),
       rc.clone()
-        .map_or_else(|| "".to_string(), |rc| format!("a-RC{}", rc))
+        .map_or_else(String::new, |rc| format!("a-RC{rc}"))
     )),
   }
 }
@@ -132,14 +132,14 @@ pub trait LabelExt<T: Data> {
     Label::new(label).with_line_break_mode(druid::widget::LineBreaking::WordWrap)
   }
 
-  fn stringify() -> Label<T>
+  #[must_use] fn stringify() -> Label<T>
   where
     T: ToString,
   {
     Label::new(|t: &T, _: &Env| t.to_string())
   }
 
-  fn stringify_wrapped() -> Label<T>
+  #[must_use] fn stringify_wrapped() -> Label<T>
   where
     T: ToString,
   {
@@ -235,14 +235,14 @@ pub async fn get_master_version(
       {
         (id, Ok(remote))
       } else {
-        (id, Err(format!("Parse error. Payload:\n{}", remote)))
+        (id, Err(format!("Parse error. Payload:\n{remote}")))
       }
     }
   };
 
   if let Some(ext_sink) = ext_sink {
     if let Err(err) = ext_sink.submit_command(MASTER_VERSION_RECEIVED, payload, Target::Auto) {
-      eprintln!("Failed to submit remote version data {}", err);
+      eprintln!("Failed to submit remote version data {err}");
     }
     None
   } else {
@@ -251,17 +251,17 @@ pub async fn get_master_version(
 }
 
 async fn send_request(client: &ClientWithMiddleware, url: String) -> Result<String, String> {
-  let request = client.get(url).build().map_err(|e| format!("{:?}", e))?;
+  let request = client.get(url).build().map_err(|e| format!("{e:?}"))?;
 
   client
     .execute(request)
     .await
-    .map_err(|e| format!("{:?}", e))?
+    .map_err(|e| format!("{e:?}"))?
     .error_for_status()
-    .map_err(|e| format!("{:?}", e))?
+    .map_err(|e| format!("{e:?}"))?
     .text()
     .await
-    .map_err(|e| format!("{:?}", e))
+    .map_err(|e| format!("{e:?}"))
 }
 
 pub fn bold_text<T: Data>(
@@ -282,19 +282,19 @@ pub fn bold_text<T: Data>(
     )))
 }
 
-pub fn h1_fixed<T: Data>(text: &str) -> impl Widget<T> {
+#[must_use] pub fn h1_fixed<T: Data>(text: &str) -> impl Widget<T> {
   bold_text(text, 24., FontWeight::BOLD, theme::TEXT_COLOR)
 }
 
-pub fn h2_fixed<T: Data>(text: &str) -> impl Widget<T> {
+#[must_use] pub fn h2_fixed<T: Data>(text: &str) -> impl Widget<T> {
   bold_text(text, 20., FontWeight::SEMI_BOLD, theme::TEXT_COLOR)
 }
 
-pub fn h3_fixed<T: Data>(text: &str) -> impl Widget<T> {
+#[must_use] pub fn h3_fixed<T: Data>(text: &str) -> impl Widget<T> {
   bold_text(text, 18., FontWeight::MEDIUM, theme::TEXT_COLOR)
 }
 
-pub fn bolded<T: Data>(text: &str) -> impl Widget<T> {
+#[must_use] pub fn bolded<T: Data>(text: &str) -> impl Widget<T> {
   bold_text(
     text,
     theme::TEXT_SIZE_NORMAL,
@@ -322,15 +322,15 @@ pub fn lensed_bold<T: Data + AsRef<str>>(
     }))
 }
 
-pub fn h1<T: Data + AsRef<str>>() -> impl Widget<T> {
+#[must_use] pub fn h1<T: Data + AsRef<str>>() -> impl Widget<T> {
   lensed_bold(24., FontWeight::BOLD, theme::TEXT_COLOR)
 }
 
-pub fn h2<T: Data + AsRef<str>>() -> impl Widget<T> {
+#[must_use] pub fn h2<T: Data + AsRef<str>>() -> impl Widget<T> {
   lensed_bold(20., FontWeight::SEMI_BOLD, theme::TEXT_COLOR)
 }
 
-pub fn h3<T: Data + AsRef<str>>() -> impl Widget<T> {
+#[must_use] pub fn h3<T: Data + AsRef<str>>() -> impl Widget<T> {
   lensed_bold(18., FontWeight::MEDIUM, theme::TEXT_COLOR)
 }
 
@@ -409,7 +409,7 @@ pub async fn get_starsector_version(ext_ctx: ExtEventSink, install_dir: PathBuf)
           .and_then(|m| {
             String::from_utf8(m.as_bytes().to_vec()).map_err(|_| LoadError::FormatError)
           })
-      })
+      });
   };
 
   let parsed = res.map(|text| parse_game_version(&text));
@@ -418,7 +418,7 @@ pub async fn get_starsector_version(ext_ctx: ExtEventSink, install_dir: PathBuf)
     .submit_command(GET_INSTALLED_STARSECTOR, parsed, Target::Auto)
     .is_err()
   {
-    eprintln!("Failed to submit starsector version back to main thread")
+    eprintln!("Failed to submit starsector version back to main thread");
   };
 }
 
@@ -450,40 +450,40 @@ pub fn parse_game_version(
   match components.as_slice() {
     [major, minor] if major == &"0" => {
       // text = format!("{}.{}a", major, minor);
-      (Some(major.to_string()), Some(minor.to_string()), None, None)
+      (Some((*major).to_string()), Some((*minor).to_string()), None, None)
     }
     [minor, patch_rc] => {
       // text = format!("0.{}a-RC{}", minor, rc);
-      if RELEASE_CANDIDATE.is_match(&patch_rc) {
+      if RELEASE_CANDIDATE.is_match(patch_rc) {
         (
           Some("0".to_string()),
-          Some(minor.to_string()),
+          Some((*minor).to_string()),
           None,
-          Some(patch_rc.to_string()),
+          Some((*patch_rc).to_string()),
         )
       } else {
         (
           Some("0".to_string()),
-          Some(minor.to_string()),
-          Some(patch_rc.to_string()),
+          Some((*minor).to_string()),
+          Some((*patch_rc).to_string()),
           None,
         )
       }
     }
     [major, minor, patch_rc] if major == &"0" => {
       // text = format!("{}.{}a-RC{}", major, minor, rc);
-      if RELEASE_CANDIDATE.is_match(&patch_rc) {
+      if RELEASE_CANDIDATE.is_match(patch_rc) {
         (
-          Some(major.to_string()),
-          Some(minor.to_string()),
+          Some((*major).to_string()),
+          Some((*minor).to_string()),
           None,
-          Some(patch_rc.to_string()),
+          Some((*patch_rc).to_string()),
         )
       } else {
         (
-          Some(major.to_string()),
-          Some(minor.to_string()),
-          Some(patch_rc.to_string()),
+          Some((*major).to_string()),
+          Some((*minor).to_string()),
+          Some((*patch_rc).to_string()),
           None,
         )
       }
@@ -492,18 +492,18 @@ pub fn parse_game_version(
       // text = format!("0.{}.{}a-RC{}", minor, patch, rc);
       (
         Some("0".to_string()),
-        Some(minor.to_string()),
-        Some(patch.to_string()),
-        Some(rc.to_string()),
+        Some((*minor).to_string()),
+        Some((*patch).to_string()),
+        Some((*rc).to_string()),
       )
     }
     [major, minor, patch, rc] if major == &"0" => {
       // text = format!("{}.{}.{}a-RC{}", major, minor, patch, rc);
       (
-        Some(major.to_string()),
-        Some(minor.to_string()),
-        Some(patch.to_string()),
-        Some(rc.to_string()),
+        Some((*major).to_string()),
+        Some((*minor).to_string()),
+        Some((*patch).to_string()),
+        Some((*rc).to_string()),
       )
     }
     _ => {
@@ -569,23 +569,23 @@ impl<T, W: Widget<T>> Controller<T, W> for DragWindowController {
     match event {
       Event::MouseDown(me) if me.buttons.has_left() => {
         ctx.set_active(true);
-        self.init_pos = Some(me.window_pos)
+        self.init_pos = Some(me.window_pos);
       }
       Event::MouseMove(me) if ctx.is_active() && me.buttons.has_left() => {
         if let Some(init_pos) = self.init_pos {
           let within_window_change = me.window_pos.to_vec2() - init_pos.to_vec2();
           let old_pos = ctx.window().get_position();
           let new_pos = old_pos + within_window_change;
-          ctx.window().set_position(new_pos)
+          ctx.window().set_position(new_pos);
         }
       }
       Event::MouseUp(_me) if ctx.is_active() => {
         self.init_pos = None;
-        ctx.set_active(false)
+        ctx.set_active(false);
       }
       _ => (),
     }
-    child.event(ctx, event, data, env)
+    child.event(ctx, event, data, env);
   }
 }
 
@@ -619,7 +619,7 @@ pub async fn get_latest_manager() -> anyhow::Result<Release> {
   }
 }
 
-pub fn default_true() -> bool {
+#[must_use] pub fn default_true() -> bool {
   true
 }
 
@@ -643,7 +643,7 @@ impl Default for IndyToggleState {
   }
 }
 
-pub fn button_painter<T: Data>() -> Painter<T> {
+#[must_use] pub fn button_painter<T: Data>() -> Painter<T> {
   Painter::new(|ctx, _, env| {
     let is_active = ctx.is_active() && !ctx.is_disabled();
     let is_hot = ctx.is_hot();
@@ -678,15 +678,15 @@ pub fn button_painter<T: Data>() -> Painter<T> {
 pub trait CommandExt: CommandCtx {
   fn submit_command_global(&mut self, cmd: impl Into<Command>) {
     let cmd: Command = cmd.into();
-    self.submit_command(cmd.to(Target::Global))
+    self.submit_command(cmd.to(Target::Global));
   }
 
   fn display_popup(&mut self, popup: Popup) {
-    self.submit_command(Popup::OPEN_POPUP.with(popup))
+    self.submit_command(Popup::OPEN_POPUP.with(popup));
   }
 
   fn queue_popup(&mut self, popup: Popup) {
-    self.submit_command(Popup::QUEUE_POPUP.with(popup))
+    self.submit_command(Popup::QUEUE_POPUP.with(popup));
   }
 }
 
@@ -744,12 +744,12 @@ pub fn hoverable_text_opts<W: Widget<RichText> + 'static>(
           .with_attribute(0..text.len(), Attribute::Underline(*hovered));
 
         for attr in attrs {
-          text.add_attribute(0..text.len(), attr.clone())
+          text.add_attribute(0..text.len(), attr.clone());
         }
 
         if *hovered {
           for attr in hover_attrs {
-            text.add_attribute(0..text.len(), attr.clone())
+            text.add_attribute(0..text.len(), attr.clone());
           }
         }
 
@@ -762,11 +762,11 @@ pub fn hoverable_text_opts<W: Widget<RichText> + 'static>(
 }
 
 pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
-  fn on_notification<CT: 'static>(
+  fn on_notification<CT: 'static, F: Fn(&mut EventCtx, &CT, &mut T) + 'static>(
     self,
     selector: Selector<CT>,
-    handler: impl Fn(&mut EventCtx, &CT, &mut T) + 'static,
-  ) -> ControllerHost<Self, OnNotif<CT, T>> {
+    handler: F,
+  ) -> ControllerHost<Self, OnNotif<CT, T, F>> {
     self.controller(OnNotif::new(selector, handler))
   }
 
@@ -780,10 +780,10 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
   /**
    * Sets the event as handled if the callback returns true
    */
-  fn on_event(
+  fn on_event<F: Fn(&mut W, &mut EventCtx, &Event, &mut T) -> bool + 'static>(
     self,
-    f: impl Fn(&mut W, &mut EventCtx, &Event, &mut T) -> bool + 'static,
-  ) -> ControllerHost<Self, OnEvent<T, W>> {
+    f: F,
+  ) -> ControllerHost<Self, OnEvent<T, W, F>> {
     ControllerHost::new(self, OnEvent::new(f))
   }
 
@@ -809,12 +809,10 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     Either::new(f, other, self)
   }
 
-  /**
-  Execute closure when command is received, with mutable access to the child
-  widget.
-  * Must return bool indicating if the event should be propgated to the
-  child - true to propagate, false to not.
-  */
+  /// Execute closure when command is received, with mutable access to the child
+  /// widget.
+  /// * Must return bool indicating if the event should be propgated to the
+  ///   child - true to propagate, false to not.
   fn on_command2<CT: 'static>(
     self,
     selector: Selector<CT>,
@@ -829,12 +827,10 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     )
   }
 
-  /**
-  Execute closure when command is received, with mutable access to the child
-  widget.
-  * Must return bool indicating if the event should be propgated to the
-  child - true to propagate, false to not.
-  */
+  /// Execute closure when command is received, with mutable access to the child
+  /// widget.
+  /// * Must return bool indicating if the event should be propgated to the
+  ///   child - true to propagate, false to not.
   fn on_command3<CT: 'static>(
     self,
     selector: Selector<CT>,
@@ -854,7 +850,7 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     height_linker: &mut Option<HeightLinkerShared>,
   ) -> LinkedHeights<T, Self> {
     if let Some(linker) = height_linker {
-      LinkedHeights::new(self, linker.clone())
+      LinkedHeights::new(self, linker)
     } else {
       let (widget, linker) = LinkedHeights::new_with_linker(self);
       height_linker.replace(linker);
@@ -863,14 +859,14 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     }
   }
 
-  fn link_height_unwrapped(self, height_linker: HeightLinkerShared) -> LinkedHeights<T, Self> {
+  fn link_height_unwrapped(self, height_linker: &HeightLinkerShared) -> LinkedHeights<T, Self> {
     LinkedHeights::new(self, height_linker)
   }
 
   fn on_hover(
     self,
     handler: impl Fn(&mut W, &mut EventCtx, &mut T) -> bool + 'static,
-  ) -> ControllerHost<Self, OnHover<T, W>> {
+  ) -> ControllerHost<Self, BoxedOnEvent<T, W>> {
     ControllerHost::new(self, OnHover::new(handler))
   }
 
@@ -899,15 +895,8 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     make_state: In,
     read: impl Fn(&mut T, &U) + 'static,
     write: impl Fn(&T, &mut U) + 'static,
-  ) -> Scope<DefaultScopePolicy<In, FnTransfer<U, T>>, Self> {
-    Scope::from_function(
-      make_state,
-      FnTransfer {
-        read: Box::new(read),
-        write: Box::new(write),
-      },
-      self,
-    )
+  ) -> impl Widget<U> {
+    Scope::from_function(make_state, FnTransfer::new(read, write), self)
   }
 
   fn partial_scope<
@@ -921,7 +910,7 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     make_state: F,
     lens_state: LS,
     lens_in: LI,
-  ) -> Scope<DefaultScopePolicy<Box<dyn FnOnce(U) -> T>, PartialScopeTransfer<U, T>>, Self> {
+  ) -> impl Widget<U> {
     Scope::from_function(
       Box::new(make_state),
       PartialScopeTransfer::new(lens_state, lens_in),
@@ -937,17 +926,9 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     Scope::from_lens(make_state, lens, self)
   }
 
-  fn scope_independent<U: Data, In: Fn() -> T + 'static>(
-    self,
-    make_state: In,
-  ) -> LensWrap<
-    U,
-    (),
-    Then<druid::lens::Identity, druid::lens::Unit, U>,
-    Scope<DefaultScopePolicy<Box<dyn Fn(()) -> T>, LensScopeTransfer<lens::Unit, (), T>>, Self>,
-  > {
+  fn scope_independent<U: Data, In: Fn() -> T + 'static>(self, make_state: In) -> impl Widget<U> {
     Scope::from_lens(
-      Box::new(move |_| make_state()) as Box<dyn Fn(()) -> T>,
+      Box::new(move |()| make_state()) as Box<dyn Fn(()) -> T>,
       lens::Unit,
       self,
     )
@@ -973,8 +954,8 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     self,
     key: keyboard_types::Key,
     func: impl Fn(&mut EventCtx, &mut T) -> bool + 'static,
-  ) -> ControllerHost<Self, OnEvent<T, W>> {
-    self.on_event(move |_, ctx, event, data| {
+  ) -> ControllerHost<Self, BoxedOnEvent<T, W>> {
+    self.on_event(Box::new(move |_, ctx, event, data| {
       if let Event::KeyUp(key_event) = event
         && key_event.key == key
       {
@@ -982,14 +963,14 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
       } else {
         false
       }
-    })
+    }))
   }
 
   fn suppress_event(
     self,
     matches: impl Fn(&Event) -> bool + 'static,
-  ) -> ControllerHost<Self, OnEvent<T, W>> {
-    self.on_event(move |_, _, event, _| matches(event))
+  ) -> ControllerHost<Self, BoxedOnEvent<T, W>> {
+    self.on_event(Box::new(move |_, _, event, _| matches(event)))
   }
 
   fn disabled(self) -> impl Widget<T> {
@@ -1096,7 +1077,7 @@ pub trait WithHoverState<S: HoverState + Data + Clone, T: Data, W: Widget<(T, S)
           {
             data.1.set(false);
             if set_cursor {
-              ctx.clear_cursor()
+              ctx.clear_cursor();
             }
           }
           ctx.request_update();
@@ -1107,7 +1088,7 @@ pub trait WithHoverState<S: HoverState + Data + Clone, T: Data, W: Widget<(T, S)
         .controller(
           ExtensibleController::new().on_lifecycle(move |_, ctx, event, _, _| {
             if let druid::LifeCycle::HotChanged(false) = event {
-              ctx.submit_command(HOVER_STATE_CHANGE.to(id))
+              ctx.submit_command(HOVER_STATE_CHANGE.to(id));
             }
           }),
         ),
@@ -1160,7 +1141,7 @@ pub trait WithHoverIdState<T: Data, W: Widget<(T, SharedIdHoverState)> + 'static
               if *state {
                 ctx.set_cursor(&druid::Cursor::Pointer);
               } else {
-                ctx.clear_cursor()
+                ctx.clear_cursor();
               }
             }
             ctx.request_update();
@@ -1171,7 +1152,7 @@ pub trait WithHoverIdState<T: Data, W: Widget<(T, SharedIdHoverState)> + 'static
         .controller(
           ExtensibleController::new().on_lifecycle(move |_, ctx, event, _, _| {
             if let druid::LifeCycle::HotChanged(state) = event {
-              ctx.submit_command(HOVER_STATE_CHANGE_FOR_ID.with((id, *state)))
+              ctx.submit_command(HOVER_STATE_CHANGE_FOR_ID.with((id, *state)));
             }
           }),
         ),
@@ -1291,9 +1272,7 @@ impl<T: Any + Send, U: Any + Send, SINK: Default + Collection<T, U> + Send>
       tx
     } else {
       drop(sender);
-      let mut sender = if let Ok(tx) = self.tx.try_write() {
-        tx
-      } else {
+      let Ok(mut sender) = self.tx.try_write() else {
         return self.sender(ext_ctx);
       };
       let (tx, mut rx) = mpsc::unbounded_channel::<T>();
@@ -1307,20 +1286,17 @@ impl<T: Any + Send, U: Any + Send, SINK: Default + Collection<T, U> + Send>
         loop {
           select! {
             message = rx.recv() => {
-              match message {
-                Some(message) => {
-                  sink.insert(message);
-                },
-                None => {
-                  if !sink.is_empty() {
-                    let vals = sink.drain();
-                    let _ = ext_ctx.submit_command(selector, vals, Target::Auto);
-                  }
-                  break
-                },
+              if let Some(message) = message {
+                sink.insert(message);
+              } else {
+                if !sink.is_empty() {
+                  let vals = sink.drain();
+                  let _ = ext_ctx.submit_command(selector, vals, Target::Auto);
+                }
+                break
               }
             },
-            _ = &mut sleep => {
+            () = &mut sleep => {
               if !sink.is_empty() {
                 let vals = sink.drain();
                 let _ = ext_ctx.submit_command(selector, vals, Target::Auto);
@@ -1342,11 +1318,11 @@ impl<T: Any + Send, U: Any + Send, SINK: Default + Collection<T, U> + Send>
 pub struct FastImMap<K, V>(druid::im::HashMap<K, V, ahash::RandomState>);
 
 impl<K, V> FastImMap<K, V> {
-  pub fn new() -> Self {
+  #[must_use] pub fn new() -> Self {
     Self(druid::im::HashMap::with_hasher(ahash::RandomState::new()))
   }
 
-  pub fn inner(self) -> druid::im::HashMap<K, V, ahash::RandomState> {
+  #[must_use] pub fn inner(self) -> druid::im::HashMap<K, V, ahash::RandomState> {
     self.0
   }
 }
@@ -1365,7 +1341,7 @@ where
   druid::im::HashMap<K, V, ahash::RandomState>: Hash,
 {
   fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-    self.deref().hash(state)
+    self.deref().hash(state);
   }
 }
 
@@ -1403,7 +1379,7 @@ impl<KB: Hash + Eq + ?Sized, K: Clone + Hash + Eq + Borrow<KB>, V: Clone> IndexM
 
 impl<K: Clone + Eq + Hash + 'static, V: Clone + Data + 'static> Data for FastImMap<K, V> {
   fn same(&self, other: &Self) -> bool {
-    self.is_submap_by(&**other, |other, val| other.same(val))
+    self.is_submap_by(&**other, druid::Data::same)
   }
 }
 
@@ -1451,26 +1427,26 @@ impl<K: Clone + Hash + Eq, V: Clone> Eq for FastImMap<K, V> where
 }
 
 pub trait LensExtExt<A: ?Sized, B: ?Sized>: Lens<A, B> + Sized {
-  fn compute<Get, C>(self, get: Get) -> Then<Self, lens::Map<Get, fn(&mut B, C)>, B>
+  fn compute<Get, C>(self, get: Get) -> impl Lens<A, C>
   where
     Get: Fn(&B) -> C,
   {
     self.map(get, |_, _| {})
   }
 
-  fn cloned(self) -> Then<Self, lens::Map<fn(&B) -> B, fn(&mut B, B)>, B>
+  fn cloned(self) -> impl Lens<A, B>
   where
     B: Clone,
   {
-    self.map(|a| a.clone(), |b, a| b.clone_from(&a))
+    self.map(std::clone::Clone::clone, |b, a| b.clone_from(&a))
   }
 
-  fn owned<C>(self) -> Then<Self, lens::Map<fn(&B) -> C, fn(&mut B, C)>, B>
+  fn owned<C>(self) -> impl Lens<A, C>
   where
     B: ToOwned<Owned = C> + Clone,
     C: Borrow<B>,
   {
-    self.map(|b| b.to_owned(), |b, c| b.clone_from(c.borrow()))
+    self.map(std::borrow::ToOwned::to_owned, |b, c| b.clone_from(c.borrow()))
   }
 
   fn debug<DBG>(self, dbg: DBG) -> Then<Self, Dbg<DBG>, B>
@@ -1487,6 +1463,14 @@ pub trait LensExtExt<A: ?Sized, B: ?Sized>: Lens<A, B> + Sized {
     C: From<B> + Data,
   {
     self.then(Convert::<B, C>::new())
+  }
+
+  fn in_rc(self) -> InRc<Self>
+  where
+    A: Clone,
+    B: Data,
+  {
+    InRc::new(self)
   }
 }
 
@@ -1584,7 +1568,7 @@ impl IsSome {
   }
 }
 
-pub fn option_ptr_cmp<T>(this: &Option<Rc<T>>, other: &Option<Rc<T>>) -> bool {
+#[must_use] pub fn option_ptr_cmp<T>(this: &Option<Rc<T>>, other: &Option<Rc<T>>) -> bool {
   if let Some(this) = this
     && let Some(other) = other
   {
@@ -1642,7 +1626,7 @@ impl<T, U> Prism<T, U> for PrismBox<T, U> {
   }
 
   fn put(&self, data: &mut T, inner: U) {
-    self.0.put(data, inner)
+    self.0.put(data, inner);
   }
 }
 
@@ -1762,8 +1746,12 @@ impl druid::text::Formatter<u32> for ValueFormatter {
   }
 }
 
-pub fn ident_arc<T: Data>() -> lens::InArc<lens::Identity> {
+#[must_use] pub fn ident_arc<T: Data>() -> lens::InArc<lens::Identity> {
   lens::InArc::new::<T, T>(lens::Identity)
+}
+
+#[must_use] pub fn ident_rc<T: Data>() -> InRc<lens::Identity> {
+  InRc::new::<T, T>(lens::Identity)
 }
 
 // dbg macro that returns ()
@@ -1788,21 +1776,46 @@ macro_rules! d_eprintln {
   ($($arg:tt)*) => (#[cfg(debug_assertions)] eprintln!($($arg)*));
 }
 
-pub struct FnTransfer<In: Data, State: Data> {
-  read: Box<dyn Fn(&mut State, &In)>,
-  write: Box<dyn Fn(&State, &mut In)>,
+pub trait TransferRead<State, In> = Fn(&mut State, &In);
+pub trait TransferWrite<State, In> = Fn(&State, &mut In);
+
+pub struct FnTransfer<
+  In: Data,
+  State: Data,
+  R: TransferRead<State, In>,
+  W: TransferWrite<State, In>,
+> {
+  read: R,
+  write: W,
+  _read: PhantomData<In>,
+  _write: PhantomData<State>,
 }
 
-impl<In: Data, State: Data> ScopeTransfer for FnTransfer<In, State> {
+impl<In: Data, State: Data, R: TransferRead<State, In>, W: TransferWrite<State, In>>
+  FnTransfer<In, State, R, W>
+{
+  pub fn new(read: R, write: W) -> Self {
+    Self {
+      read,
+      write,
+      _read: PhantomData,
+      _write: PhantomData,
+    }
+  }
+}
+
+impl<In: Data, State: Data, R: TransferRead<State, In>, W: TransferWrite<State, In>> ScopeTransfer
+  for FnTransfer<In, State, R, W>
+{
   type In = In;
   type State = State;
 
   fn read_input(&self, state: &mut Self::State, input: &Self::In) {
-    (self.read)(state, input)
+    (self.read)(state, input);
   }
 
   fn write_back_input(&self, state: &Self::State, input: &mut Self::In) {
-    (self.write)(state, input)
+    (self.write)(state, input);
   }
 }
 
@@ -1810,8 +1823,8 @@ impl<In: Data, State: Data> ScopeTransfer for FnTransfer<In, State> {
 // existing lens impls on tuples of lenses
 
 pub struct PartialScopeTransfer<In, State> {
-  read: Box<dyn Fn(&mut State, &In)>,
-  write: Box<dyn Fn(&State, &mut In)>,
+  read: Box<dyn TransferRead<State, In>>,
+  write: Box<dyn TransferWrite<State, In>>,
 }
 
 impl<In, State> PartialScopeTransfer<In, State> {
@@ -1824,21 +1837,21 @@ impl<In, State> PartialScopeTransfer<In, State> {
         let lens_state = lens_state.clone();
         let lens_in = lens_in.clone();
         Box::new(move |state: &mut State, data: &In| {
-          let partial = lens_in.with(data, |inner| inner.clone());
+          let partial = lens_in.with(data, std::clone::Clone::clone);
           lens_state.with_mut(state, |inner| {
             if !inner.same(&partial) {
-              *inner = partial
+              *inner = partial;
             }
-          })
+          });
         })
       },
       write: Box::new(move |state, data| {
-        let partial = lens_state.with(state, |inner| inner.clone());
+        let partial = lens_state.with(state, std::clone::Clone::clone);
         lens_in.with_mut(data, |inner| {
           if !inner.same(&partial) {
-            *inner = partial
+            *inner = partial;
           }
-        })
+        });
       }),
     }
   }
@@ -1849,11 +1862,11 @@ impl<In: Data, State: Data> ScopeTransfer for PartialScopeTransfer<In, State> {
   type State = State;
 
   fn read_input(&self, state: &mut State, data: &In) {
-    (self.read)(state, data)
+    (self.read)(state, data);
   }
 
   fn write_back_input(&self, state: &State, data: &mut In) {
-    (self.write)(state, data)
+    (self.write)(state, data);
   }
 }
 
@@ -1863,12 +1876,18 @@ pub struct Convert<T, U> {
   inner: PhantomData<U>,
 }
 
-impl<T, U> Convert<T, U> {
-  pub fn new() -> Self {
+impl<T, U> Default for Convert<T, U> {
+  fn default() -> Self {
     Self {
       outer: PhantomData,
       inner: PhantomData,
     }
+  }
+}
+
+impl<T, U> Convert<T, U> {
+  #[must_use] pub fn new() -> Self {
+    Self::default()
   }
 }
 
@@ -1911,5 +1930,47 @@ pub impl Event {
     } else {
       None
     }
+  }
+}
+
+/// A `Lens` that exposes data within an `Arc` with copy-on-write semantics
+///
+/// A copy is only made in the event that a different value is written.
+#[derive(Debug, Copy, Clone)]
+pub struct InRc<L> {
+  inner: L,
+}
+
+impl<L> InRc<L> {
+  /// Adapt a lens to operate on an `Arc`
+  ///
+  /// See also `LensExt::in_arc`
+  pub fn new<A, B>(inner: L) -> Self
+  where
+    A: Clone,
+    B: Data,
+    L: Lens<A, B>,
+  {
+    Self { inner }
+  }
+}
+
+impl<A, B, L> Lens<Rc<A>, B> for InRc<L>
+where
+  A: Clone,
+  B: Data,
+  L: Lens<A, B>,
+{
+  fn with<V, F: FnOnce(&B) -> V>(&self, data: &Rc<A>, f: F) -> V {
+    self.inner.with(data, f)
+  }
+
+  fn with_mut<V, F: FnOnce(&mut B) -> V>(&self, data: &mut Rc<A>, f: F) -> V {
+    let mut temp = self.inner.with(data, std::clone::Clone::clone);
+    let v = f(&mut temp);
+    if self.inner.with(data, |x| !x.same(&temp)) {
+      self.inner.with_mut(Rc::make_mut(data), |x| *x = temp);
+    }
+    v
   }
 }

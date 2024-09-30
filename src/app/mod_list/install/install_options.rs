@@ -16,7 +16,7 @@ pub struct InstallOptions;
 impl InstallOptions {
   pub const DISMISS: Selector<Point> = Selector::new("install_options.dismiss");
 
-  pub fn view() -> impl Widget<InstallState> {
+  #[must_use] pub fn view() -> impl Widget<InstallState> {
     let text = |text| {
       bold_text(
         text,
@@ -50,7 +50,7 @@ impl InstallOptions {
               .horizontal()
               .on_click(|ctx, data: &mut InstallState, _| {
                 data.open = false;
-                ctx.submit_command(App::SELECTOR.with(AppCommands::PickFile(true)))
+                ctx.submit_command(App::SELECTOR.with(AppCommands::PickFile(true)));
               }),
             )
             .with_child(
@@ -66,7 +66,7 @@ impl InstallOptions {
               .link_height_with(&mut width_linker)
               .on_click(|ctx, data, _| {
                 data.open = false;
-                ctx.submit_command(App::SELECTOR.with(AppCommands::PickFile(false)))
+                ctx.submit_command(App::SELECTOR.with(AppCommands::PickFile(false)));
               }),
             ),
         )
@@ -79,7 +79,7 @@ impl InstallOptions {
           .size()
           .to_rect()
           .with_origin(ctx.to_window((0.0, 0.0).into()));
-        data.open = hitbox.contains(*payload)
+        data.open = hitbox.contains(*payload);
       })
       .fix_width(super::INSTALL_WIDTH)
   }

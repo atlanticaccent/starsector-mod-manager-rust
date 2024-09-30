@@ -42,7 +42,7 @@ impl HeightLinker {
     Selector::new("height_linker.command");
   pub const HEIGHT_LINKER_RESET_ALL: Selector = Selector::new("height_linker.reset.all");
 
-  pub fn new() -> Self {
+  #[must_use] pub fn new() -> Self {
     Self {
       linked: 0,
       resolved: 0,
@@ -52,16 +52,16 @@ impl HeightLinker {
     }
   }
 
-  pub fn axis(mut self, axis: Axis) -> Self {
+  #[must_use] pub fn axis(mut self, axis: Axis) -> Self {
     self.axis = axis;
     self
   }
 
-  pub fn new_shared() -> HeightLinkerShared {
+  #[must_use] pub fn new_shared() -> HeightLinkerShared {
     Self::new().shared()
   }
 
-  pub fn shared(self) -> HeightLinkerShared {
+  #[must_use] pub fn shared(self) -> HeightLinkerShared {
     Rc::new(RefCell::new(self))
   }
 
@@ -82,11 +82,11 @@ impl HeightLinker {
   fn reset(&mut self, ctx: &mut impl CommandCtx) {
     self.resolved = 0;
     self.max = f64::NEG_INFINITY;
-    ctx.submit_command(Self::HEIGHT_LINKER_CMD.with((self.id, HeightLinkerCmd::ResetHeight)))
+    ctx.submit_command(Self::HEIGHT_LINKER_CMD.with((self.id, HeightLinkerCmd::ResetHeight)));
   }
 
   pub fn set_id(&mut self, id: WidgetId) {
-    self.id = id
+    self.id = id;
   }
 }
 
@@ -101,7 +101,7 @@ pub struct LinkedHeights<T: Data, W: Widget<T>> {
 }
 
 impl<T: Data, W: Widget<T>> LinkedHeights<T, W> {
-  pub fn new(widget: W, height_linker: HeightLinkerShared) -> Self {
+  pub fn new(widget: W, height_linker: &HeightLinkerShared) -> Self {
     let mut borrow = height_linker.borrow_mut();
     borrow.linked += 1;
     let axis = borrow.axis;
@@ -117,7 +117,7 @@ impl<T: Data, W: Widget<T>> LinkedHeights<T, W> {
   pub fn new_with_linker(widget: W) -> (Self, HeightLinkerShared) {
     let linker = HeightLinker::new_shared();
 
-    let this = Self::new(widget, linker.clone());
+    let this = Self::new(widget, &linker);
 
     (this, linker)
   }
@@ -142,11 +142,11 @@ impl<T: Data, W: Widget<T>> LinkedHeights<T, W> {
           match cmd {
             HeightLinkerCmd::SetHeight(height) => {
               self.constraint = Some(*height);
-              ctx.request_layout()
+              ctx.request_layout();
             }
             HeightLinkerCmd::ResetHeight => {
               self.constraint = None;
-              ctx.request_layout()
+              ctx.request_layout();
             }
           }
         }
@@ -157,10 +157,10 @@ impl<T: Data, W: Widget<T>> LinkedHeights<T, W> {
         linker.linked = 0;
         linker.resolved = 0;
         linker.max = f64::NEG_INFINITY;
-        ctx.request_layout()
+        ctx.request_layout();
       }
     }
-    self.widget.event(ctx, event, data, env)
+    self.widget.event(ctx, event, data, env);
   }
 
   fn layout_impl(
@@ -181,7 +181,7 @@ impl<T: Data, W: Widget<T>> LinkedHeights<T, W> {
       unconstrained_value = self
         .widget
         .widget_mut()
-        .compute_max_intrinsic(self.axis, ctx, bc, data, env)
+        .compute_max_intrinsic(self.axis, ctx, bc, data, env);
     }
 
     let mut linker = self.height_linker.borrow_mut();
@@ -208,7 +208,7 @@ impl<T: Data, W: Widget<T>> LinkedHeights<T, W> {
         size = Some(self.widget.layout(ctx, &child_bc, data, env));
       }
       if linker.resolved() {
-        linker.reset(ctx)
+        linker.reset(ctx);
       } else {
         linker.increment_resolved(ctx, unconstrained_value);
       }

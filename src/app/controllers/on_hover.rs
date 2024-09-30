@@ -1,23 +1,16 @@
-use druid::widget::{prelude::*, Controller};
+use druid::{EventCtx, Widget};
 
-pub struct OnHover<T, W: Widget<T>> {
-  handler: Box<dyn Fn(&mut W, &mut EventCtx, &mut T) -> bool>,
-}
+use crate::app::controllers::{BoxedOnEvent, OnEvent};
+
+pub struct OnHover;
 
 #[allow(dead_code)]
-impl<T, W: Widget<T>> OnHover<T, W> {
-  pub fn new(handler: impl Fn(&mut W, &mut EventCtx, &mut T) -> bool + 'static) -> Self {
-    Self {
-      handler: Box::new(handler),
-    }
-  }
-}
-
-impl<T: Data, W: Widget<T>> Controller<T, W> for OnHover<T, W> {
-  fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
-    if ctx.is_hot() && (self.handler)(child, ctx, data) {
-      ctx.set_handled();
-    }
-    child.event(ctx, event, data, env);
+impl OnHover {
+  pub fn new<T, W: Widget<T>>(
+    handler: impl Fn(&mut W, &mut EventCtx, &mut T) -> bool + 'static,
+  ) -> BoxedOnEvent<T, W> {
+    OnEvent::new(Box::new(move |widget, ctx, _, data| {
+      handler(widget, ctx, data)
+    }))
   }
 }

@@ -73,7 +73,7 @@ impl From<Color> for ExtColor {
 impl Display for ExtColor {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     let (r, g, b, a) = self.0.as_rgba8();
-    write!(f, "#{:02x}{:02x}{:02x}{:02x}", r, g, b, a)
+    write!(f, "#{r:02x}{g:02x}{b:02x}{a:02x}")
   }
 }
 
@@ -157,7 +157,7 @@ impl Theme {
     } = self;
 
     if let Some(text) = text {
-      env.set(theme::TEXT_COLOR, text)
+      env.set(theme::TEXT_COLOR, text);
     }
     if let Some(button_dark) = button_dark {
       env.set(theme::BUTTON_DARK, button_dark);
@@ -187,7 +187,7 @@ impl Theme {
       do_not_ignore_text.unwrap_or(Self::DO_NOT_IGNORE_TEXT),
     );
     if let Some(shadow) = shadow {
-      env.set(SHADOW, shadow)
+      env.set(SHADOW, shadow);
     }
 
     let mut font = env.get(druid::theme::UI_FONT);
@@ -195,7 +195,7 @@ impl Theme {
     env.set(druid::theme::UI_FONT, font);
   }
 
-  pub fn random() -> Self {
+  #[must_use] pub fn random() -> Self {
     let color_faker = fake::faker::color::en::HexColor();
     let gen = || ExtColor::from(Color::from_hex_str(&color_faker.fake::<String>()).unwrap());
 

@@ -132,6 +132,6 @@ impl<T, W: Widget<T>> Controller<T, W> for TooltipController {
       }
       self.state = TooltipState::Fresh;
     }
-    child.lifecycle(ctx, event, data, env)
+    child.lifecycle(ctx, event, data, env);
   }
 }

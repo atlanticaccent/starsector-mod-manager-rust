@@ -54,7 +54,7 @@ impl SelectInstall {
                         ));
                         ctx.submit_command_global(
                           Settings::SELECTOR.with(SettingsCommand::SelectInstallDir),
-                        )
+                        );
                       }),
                   ),
               ),

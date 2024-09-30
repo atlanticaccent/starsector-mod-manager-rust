@@ -36,7 +36,7 @@ type TabBarPod<TP> = WidgetPod<TabsState<TP>, Box<dyn Widget<TabsState<TP>>>>;
 type TabIndex = usize;
 type Nanos = u64;
 
-/// Information about a tab that may be used by the TabPolicy to
+/// Information about a tab that may be used by the `TabPolicy` to
 /// drive the visual presentation and behaviour of its label
 pub struct TabInfo<Input> {
   /// Name of the tab
@@ -46,7 +46,7 @@ pub struct TabInfo<Input> {
 }
 
 impl<Input> TabInfo<Input> {
-  /// Create a new TabInfo
+  /// Create a new `TabInfo`
   pub fn new(name: impl Into<LabelText<Input>>, can_close: bool) -> Self {
     TabInfo {
       name: name.into(),
@@ -76,8 +76,8 @@ pub trait TabsPolicy: Data {
 
   /// The information required to build up this policy.
   /// This is to support policies where at least some tabs are provided up front
-  /// during widget construction. If the Build type implements the AddTab
-  /// trait, the add_tab and with_tab methods will be available on the Tabs
+  /// during widget construction. If the Build type implements the `AddTab`
+  /// trait, the `add_tab` and `with_tab` methods will be available on the Tabs
   /// instance to allow the It can be filled in with () by implementations
   /// that do not require it.
   type Build;
@@ -97,8 +97,8 @@ pub trait TabsPolicy: Data {
   fn tab_body(&self, key: Self::Key, data: &Self::Input) -> Self::BodyWidget;
 
   /// Label widget for the tab.
-  /// Usually implemented with a call to default_make_label ( can't default here
-  /// because Self::LabelWidget isn't determined)
+  /// Usually implemented with a call to `default_make_label` ( can't default here
+  /// because `Self::LabelWidget` isn't determined)
   fn tab_label(
     &self,
     key: Self::Key,
@@ -111,8 +111,8 @@ pub trait TabsPolicy: Data {
   fn close_tab(&self, key: Self::Key, data: &mut Self::Input) {}
 
   #[allow(unused_variables)]
-  /// Construct an instance of this TabsFromData from its Build type.
-  /// The main use case for this is StaticTabs, where the tabs are provided by
+  /// Construct an instance of this `TabsFromData` from its Build type.
+  /// The main use case for this is `StaticTabs`, where the tabs are provided by
   /// the app developer up front.
   fn build(build: Self::Build) -> Self {
     panic!("TabsPolicy::Build called on a policy that does not support incremental building")
@@ -120,7 +120,7 @@ pub trait TabsPolicy: Data {
 
   /// A default implementation for make label, if you do not wish to construct a
   /// custom widget.
-  fn default_make_label(info: TabInfo<Self::Input>) -> Label<Self::Input> {
+  #[must_use] fn default_make_label(info: TabInfo<Self::Input>) -> Label<Self::Input> {
     Label::new(info.name).with_text_color(theme::FOREGROUND_LIGHT)
   }
 
@@ -129,8 +129,8 @@ pub trait TabsPolicy: Data {
   }
 }
 
-/// AddTabs is an extension to TabsPolicy.
-/// If a policy implements AddTab, then the add_tab and with_tab methods will be
+/// `AddTabs` is an extension to `TabsPolicy`.
+/// If a policy implements `AddTab`, then the `add_tab` and `with_tab` methods will be
 /// available on the Tabs instance.
 pub trait AddTab: TabsPolicy {
   /// Add a tab to the build type.
@@ -152,7 +152,7 @@ pub struct TabsState<TP: TabsPolicy> {
 }
 
 impl<TP: TabsPolicy> TabsState<TP> {
-  /// Create a new TabsState
+  /// Create a new `TabsState`
   pub fn new(inner: TP::Input, selected: usize, policy: TP) -> Self {
     TabsState {
       inner,
@@ -173,14 +173,14 @@ struct TabBar<TP: TabsPolicy> {
 }
 
 impl<TP: TabsPolicy> TabBar<TP> {
-  /// Create a new TabBar widget.
+  /// Create a new `TabBar` widget.
   fn new(axis: Axis, edge: TabsEdge) -> Self {
     TabBar {
       axis,
       edge,
       tabs: vec![],
       hot: None,
-      phantom_tp: Default::default(),
+      phantom_tp: PhantomData,
     }
   }
 
@@ -288,11 +288,11 @@ impl<TP: TabsPolicy> Widget<TabsState<TP>> for TabBar<TP> {
     }
 
     if event.should_propagate_to_hidden() {
-      for (_, tab) in self.tabs.iter_mut() {
+      for (_, tab) in &mut self.tabs {
         tab.event(ctx, event, data, env);
       }
     } else {
-      self.tabs[data.selected].1.event(ctx, event, data, env)
+      self.tabs[data.selected].1.event(ctx, event, data, env);
     }
   }
 
@@ -309,11 +309,11 @@ impl<TP: TabsPolicy> Widget<TabsState<TP>> for TabBar<TP> {
     }
 
     if event.should_propagate_to_hidden() {
-      for (_, tab) in self.tabs.iter_mut() {
-        tab.lifecycle(ctx, event, data, env)
+      for (_, tab) in &mut self.tabs {
+        tab.lifecycle(ctx, event, data, env);
       }
     } else {
-      self.tabs[data.selected].1.lifecycle(ctx, event, data, env)
+      self.tabs[data.selected].1.lifecycle(ctx, event, data, env);
     }
   }
 
@@ -324,8 +324,8 @@ impl<TP: TabsPolicy> Widget<TabsState<TP>> for TabBar<TP> {
     data: &TabsState<TP>,
     env: &Env,
   ) {
-    for (_, tab) in self.tabs.iter_mut() {
-      tab.update(ctx, data, env)
+    for (_, tab) in &mut self.tabs {
+      tab.update(ctx, data, env);
     }
 
     if data.policy.tabs_changed(&old_data.inner, &data.inner) {
@@ -345,7 +345,7 @@ impl<TP: TabsPolicy> Widget<TabsState<TP>> for TabBar<TP> {
   ) -> Size {
     let mut major: f64 = 0.;
     let mut minor: f64 = 0.;
-    for (_, tab) in self.tabs.iter_mut() {
+    for (_, tab) in &mut self.tabs {
       let size = tab.layout(ctx, bc, data, env);
       tab.set_origin(ctx, self.axis.pack(major, 0.).into());
       major += self.axis.major(size);
@@ -390,7 +390,7 @@ impl<TP: TabsPolicy> Widget<TabsState<TP>> for TabBar<TP> {
           ),
           &highlight,
           hl_thickness,
-        )
+        );
       }
     }
   }
@@ -440,7 +440,7 @@ impl TabsTransitionState {
   }
 }
 
-fn ensure_for_tabs<Content, TP: TabsPolicy + ?Sized>(
+fn ensure_for_tabs<Content, TP: TabsPolicy>(
   contents: &mut Vec<(TP::Key, Content)>,
   policy: &TP,
   data: &TP::Input,
@@ -449,14 +449,14 @@ fn ensure_for_tabs<Content, TP: TabsPolicy + ?Sized>(
   let mut existing_by_key: HashMap<TP::Key, Content> = contents.drain(..).collect();
 
   let mut existing_idx = Vec::new();
-  for key in policy.tabs(data).into_iter() {
+  for key in policy.tabs(data) {
     let next = if let Some(child) = existing_by_key.remove(&key) {
       existing_idx.push(contents.len());
       child
     } else {
       f(policy, key.clone())
     };
-    contents.push((key.clone(), next))
+    contents.push((key.clone(), next));
   }
   existing_idx
 }
@@ -478,7 +478,7 @@ impl<TP: TabsPolicy> TabsBody<TP> {
       axis,
       transition,
       transition_state: None,
-      phantom_tp: Default::default(),
+      phantom_tp: PhantomData,
     }
   }
 
@@ -592,7 +592,7 @@ impl<TP: TabsPolicy> Widget<TabsState<TP>> for TabsBody<TP> {
     if let Some(init) = init {
       for idx in init {
         if let Some(child) = Self::child(&mut self.children, idx) {
-          child.update(ctx, &data.inner, env)
+          child.update(ctx, &data.inner, env);
         }
       }
     } else {
@@ -631,13 +631,13 @@ impl<TP: TabsPolicy> Widget<TabsState<TP>> for TabsBody<TP> {
         ctx.with_save(|ctx| {
           ctx.transform(trans.previous_transform(axis, major));
           prev.paint_raw(ctx, &data.inner, env);
-        })
+        });
       }
       if let Some(ref mut child) = Self::child(children, data.selected) {
         ctx.with_save(|ctx| {
           ctx.transform(trans.selected_transform(axis, major));
           child.paint_raw(ctx, &data.inner, env);
-        })
+        });
       }
     } else if let Some(ref mut child) = Self::child(&mut self.children, data.selected) {
       child.paint_raw(ctx, &data.inner, env);
@@ -750,11 +750,11 @@ enum TabsContent<TP: TabsPolicy> {
 
 /// A tabs widget.
 ///
-/// The tabs can be provided up front, using Tabs::new() and
-/// add_tab()/with_tab().
+/// The tabs can be provided up front, using `Tabs::new()` and
+/// `add_tab()/with_tab()`.
 ///
-/// Or, the tabs can be derived from the input data by implementing TabsPolicy,
-/// and providing it to Tabs::from_policy()
+/// Or, the tabs can be derived from the input data by implementing `TabsPolicy`,
+/// and providing it to `Tabs::from_policy()`
 ///
 /// ```
 /// use druid::widget::{Tabs, Label, WidgetExt};
@@ -781,8 +781,8 @@ impl<TP: TabsPolicy> Tabs<TP> {
   fn of_content(content: TabsContent<TP>) -> Self {
     Tabs {
       axis: Axis::Horizontal,
-      edge: Default::default(),
-      transition: Default::default(),
+      edge: TabsEdge::default(),
+      transition: TabsTransition::default(),
       content,
     }
   }
@@ -824,7 +824,7 @@ impl<TP: TabsPolicy> Tabs<TP> {
     self
   }
 
-  /// Available when the policy implements AddTab - e.g StaticTabs.
+  /// Available when the policy implements `AddTab` - e.g `StaticTabs`.
   /// Return this Tabs widget with the named tab added.
   pub fn with_tab(
     mut self,
@@ -845,7 +845,7 @@ impl<TP: TabsPolicy> Tabs<TP> {
     self
   }
 
-  /// Available when the policy implements AddTab - e.g StaticTabs.
+  /// Available when the policy implements `AddTab` - e.g `StaticTabs`.
   /// Return this Tabs widget with the named tab added.
   pub fn add_tab(
     &mut self,
@@ -855,7 +855,7 @@ impl<TP: TabsPolicy> Tabs<TP> {
     TP: AddTab,
   {
     if let TabsContent::Building { tabs, .. } = &mut self.content {
-      TP::add_tab(tabs, name, child)
+      TP::add_tab(tabs, name, child);
     }
   }
 
@@ -877,7 +877,7 @@ impl<TP: TabsPolicy> Tabs<TP> {
     match &mut self.content {
       TabsContent::Running { scope, .. } => {
         if let Some(state) = scope.widget_mut().state_mut() {
-          state.selected = idx
+          state.selected = idx;
         }
       }
       TabsContent::Building { index, .. } | TabsContent::Complete { index, .. } => {
@@ -920,7 +920,7 @@ impl<T: Data> Tabs<StaticTabsForked<T>> {
     if let TabsContent::Running { scope, .. } = &mut self.content {
       if let Some(state) = scope.widget_mut().state_mut() {
         let idx = state.policy.label_idx(label.as_ref());
-        state.selected = idx
+        state.selected = idx;
       }
     }
   }
@@ -954,7 +954,7 @@ impl<TP: TabsPolicy> Widget<TP::Input> for Tabs<TP> {
       };
     }
     if let TabsContent::Running { scope } = &mut self.content {
-      scope.lifecycle(ctx, event, data, env)
+      scope.lifecycle(ctx, event, data, env);
     }
   }
 
@@ -982,7 +982,7 @@ impl<TP: TabsPolicy> Widget<TP::Input> for Tabs<TP> {
 
   fn paint(&mut self, ctx: &mut PaintCtx, data: &TP::Input, env: &Env) {
     if let TabsContent::Running { scope } = &mut self.content {
-      scope.paint(ctx, data, env)
+      scope.paint(ctx, data, env);
     }
   }
 }

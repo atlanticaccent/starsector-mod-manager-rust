@@ -1,4 +1,4 @@
-use std::{convert::identity, ops::Not, path::PathBuf};
+use std::{ops::Not, path::PathBuf};
 
 use druid::{
   im::Vector,
@@ -19,7 +19,7 @@ use super::{
   mod_list::headings::{Header, Heading},
   tools::vmparams::VMParams,
   util::{
-    bolded, button_painter, default_true, h2_fixed, hoverable_text, icons::*, lensed_bold,
+    bolded, button_painter, default_true, h2_fixed, hoverable_text, icons::{ADD_CIRCLE, ADD_CIRCLE_OUTLINE, ARROW_LEFT, ARROW_RIGHT, CHEVRON_LEFT, CHEVRON_RIGHT, CLOSE}, lensed_bold,
     CommandExt, LabelExt, LoadError, SaveError, Tap, WidgetExtEx, WithHoverState,
   },
   App,
@@ -29,7 +29,7 @@ use crate::{
   nav_bar::Nav,
   theme::{Theme, Themes},
   widgets::{
-    card::Card, card_button::CardButton, root_stack::RootStack, wrapped_table::WrappedTable,
+    card::Card, card_button::{AltStackOption, CardButton}, root_stack::RootStack, wrapped_table::WrappedTable,
   },
 };
 
@@ -117,7 +117,7 @@ impl Settings {
               .on_click(|ctx, _, _| {
                 ctx.submit_command_global(Selector::new("druid.builtin.textbox-cancel-editing"));
                 ctx
-                  .submit_command_global(Settings::SELECTOR.with(SettingsCommand::SelectInstallDir))
+                  .submit_command_global(Settings::SELECTOR.with(SettingsCommand::SelectInstallDir));
               }),
             ),
         )
@@ -183,7 +183,7 @@ impl Settings {
             .stacked_button(
               |_| Self::theme_picker_heading(true, 7.0),
               |_| Self::theme_picker_expanded(Themes::iter()),
-              CardButton::stack_none(),
+              AltStackOption::None,
               150.0,
             )
             .lens(Settings::theme),
@@ -193,7 +193,7 @@ impl Settings {
           hoverable_text(Option::<druid::Color>::None)
             .constant("Edit Custom Theme".to_owned())
             .on_click(|ctx, _, _| {
-              ctx.submit_command(Nav::NAV_SELECTOR.with(crate::nav_bar::NavLabel::ThemeEditor))
+              ctx.submit_command(Nav::NAV_SELECTOR.with(crate::nav_bar::NavLabel::ThemeEditor));
             })
             .with_hover_state(false)
             .empty_if_not(|data, _| data == &Themes::Custom)
@@ -246,7 +246,7 @@ impl Settings {
                   move |ctx, data: &mut Vector<Heading>, env| {
                     let idx = map_id(env);
                     data.swap(idx - 1, idx);
-                    ctx.submit_command(Header::SWAP_HEADINGS.with((idx - 1, idx)))
+                    ctx.submit_command(Header::SWAP_HEADINGS.with((idx - 1, idx)));
                   }
                 })
                 .disabled_if({
@@ -295,7 +295,7 @@ impl Settings {
                   move |ctx, data: &mut Vector<Heading>, env| {
                     let idx = map_id(env);
                     data.swap(idx, idx + 1);
-                    ctx.submit_command(Header::SWAP_HEADINGS.with((idx, idx + 1)))
+                    ctx.submit_command(Header::SWAP_HEADINGS.with((idx, idx + 1)));
                   }
                 })
                 .disabled_if({
@@ -315,14 +315,14 @@ impl Settings {
         )
         .padding(2.)
         .lens(Map::new(
-          |data: &Vector<Option<Heading>>| data.iter().cloned().filter_map(identity).collect(),
+          |data: &Vector<Option<Heading>>| data.iter().copied().flatten().collect(),
           |data, opts: Vector<Heading>| {
             let incomplete = !Heading::complete(&opts);
             *data = opts
               .into_iter()
               .map(Some)
               .chain(incomplete.then_some(None))
-              .collect::<Vector<Option<Heading>>>()
+              .collect::<Vector<Option<Heading>>>();
           },
         ))
         .else_if(
@@ -356,7 +356,7 @@ impl Settings {
                     .padding((0., 5., 0., 5.))
                 },
                 Self::add_column_dropdown,
-                CardButton::stack_none(),
+                AltStackOption::None,
                 250.0,
               )
           },
@@ -367,12 +367,12 @@ impl Settings {
       |headings| {
         headings
           .iter()
-          .cloned()
+          .copied()
           .map(Some)
           .chain(Heading::complete(headings).not().then_some(None))
           .collect::<Vector<Option<Heading>>>()
       },
-      |headings, synth| *headings = synth.into_iter().filter_map(identity).collect(),
+      |headings, synth| *headings = synth.into_iter().flatten().collect(),
     ))
   }
 
@@ -399,7 +399,7 @@ impl Settings {
             if data.1 {
               let path = ctx.size().to_rect().inset(-0.5).to_rounded_rect(3.);
 
-              ctx.stroke(path, &druid::Color::BLACK, 1.)
+              ctx.stroke(path, &druid::Color::BLACK, 1.);
             }
           }))
           .with_hover_state(false)
@@ -441,7 +441,7 @@ impl Settings {
           )
           .on_click(move |ctx, data: &mut Vector<Heading>, _| {
             data.push_back(heading);
-            ctx.submit_command(Header::ADD_HEADING.with(heading))
+            ctx.submit_command(Header::ADD_HEADING.with(heading));
           })
           .disabled_if(move |data, _| data.contains(&heading))
           .empty_if_not(move |data, _| !data.contains(&heading)),
@@ -467,9 +467,9 @@ impl Settings {
       .with_flex_spacer(1.0);
 
     if collapsed {
-      row.add_child(Icon::new(*CHEVRON_LEFT))
+      row.add_child(Icon::new(*CHEVRON_LEFT));
     } else {
-      row.add_child(Rotated::new(Icon::new(*CHEVRON_RIGHT), 1))
+      row.add_child(Rotated::new(Icon::new(*CHEVRON_RIGHT), 1));
     }
 
     row.padding(padding.into())
@@ -501,7 +501,7 @@ impl Settings {
                           } else {
                             druid::Color::TRANSPARENT
                           },
-                        )
+                        );
                       })
                   })
                   .on_click(move |_, data, _| {
@@ -509,7 +509,7 @@ impl Settings {
                   }),
               )
               .empty_if_not(move |data, _| data != &theme),
-          )
+          );
         }
       })
       .lens(App::settings.then(Settings::theme))
@@ -568,13 +568,13 @@ impl Settings {
     _env: &druid::Env,
   ) {
     if let Err(e) = data.save() {
-      eprintln!("{:?}", e)
+      eprintln!("{e:?}");
     }
   }
 
   fn save_on_command<P>(_ctx: &mut druid::EventCtx, _: &P, data: &mut Self) {
     if let Err(e) = data.save() {
-      eprintln!("{:?}", e)
+      eprintln!("{e:?}");
     }
   }
 
@@ -598,11 +598,11 @@ impl ValidationDelegate for InstallDirDelegate {
       if path.exists() {
         ctx.submit_command(Settings::SELECTOR.with(SettingsCommand::UpdateInstallDir(
           PathBuf::from(current_text),
-        )))
+        )));
       }
     }
     if let TextBoxEvent::Invalid(_) = event {
-      ctx.submit_command(Selector::new("druid.builtin.textbox-cancel-editing"))
+      ctx.submit_command(Selector::new("druid.builtin.textbox-cancel-editing"));
     }
   }
 }

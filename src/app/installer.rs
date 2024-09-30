@@ -32,7 +32,7 @@ use crate::app::{mod_entry::ModEntry, util::LoadBalancer};
 #[derive(Clone)]
 pub enum Payload {
   Initial(Vec<HybridPath>),
-  Resumed(ModEntry, HybridPath, PathBuf),
+  Resumed(Box<ModEntry>, HybridPath, PathBuf),
   Download {
     mod_id: String,
     remote_version: ModVersionMeta,
@@ -65,7 +65,7 @@ impl Payload {
         }
       }
       Payload::Resumed(entry, path, existing) => {
-        handles.spawn(async move { handle_delete(ext_ctx.clone(), entry, path, existing).await });
+        handles.spawn(async move { handle_delete(ext_ctx.clone(), *entry, path, existing).await });
       }
       Payload::Download {
         mod_id,
@@ -86,19 +86,19 @@ async fn handle_path(
   installed: Arc<Vec<String>>,
 ) -> anyhow::Result<()> {
   let path = source.get_path_copy();
-  let file_name = path
-    .file_name()
-    .map(|f| f.to_string_lossy().to_string())
-    .unwrap_or_else(|| String::from("unknown"));
+  let file_name = path.file_name().map_or_else(
+    || String::from("unknown"),
+    |f| f.to_string_lossy().to_string(),
+  );
 
   let mod_folder = if path.is_file() {
-    let decompress = task::spawn_blocking(move || decompress(path))
+    let decompress = task::spawn_blocking(move || decompress(&path))
       .await
       .expect("Run decompression");
     match decompress {
       Ok(temp) => HybridPath::Temp(Arc::new(temp), file_name.clone(), None),
       Err(err) => {
-        println!("{:?}", err);
+        println!("{err:?}");
         ext_ctx
           .submit_command(
             INSTALL,
@@ -214,7 +214,7 @@ async fn handle_path(
       ext_ctx
         .submit_command(
           INSTALL,
-          ChannelMessage::Error(file_name, format!("Failed to find mod, err: {}", err)),
+          ChannelMessage::Error(file_name, format!("Failed to find mod, err: {err}")),
           Target::Auto,
         )
         .expect("Send error over async channel");
@@ -224,10 +224,10 @@ async fn handle_path(
   }
 }
 
-pub fn decompress(path: PathBuf) -> anyhow::Result<TempDir> {
-  let source = std::fs::File::open(&path)?;
+pub fn decompress(path: &Path) -> anyhow::Result<TempDir> {
+  let source = std::fs::File::open(path)?;
   let temp_dir = tempdir()?;
-  let mime_type = infer::get_from_path(&path)?
+  let mime_type = infer::get_from_path(path)?
     .ok_or(InstallError::Mime)?
     .mime_type();
 
@@ -338,7 +338,7 @@ fn copy_dir_recursive(to: &Path, from: &Path) -> io::Result<()> {
     if entry.file_type()?.is_dir() {
       copy_dir_recursive(&to.join(entry.file_name()), &entry.path())?;
     } else if entry.file_type()?.is_file() {
-      copy(entry.path(), &to.join(entry.file_name()))?;
+      copy(entry.path(), to.join(entry.file_name()))?;
     }
   }
 
@@ -392,7 +392,7 @@ async fn handle_auto(
   match download(url.clone(), ext_ctx.clone()).await {
     Ok(file) => {
       let path = file.path().to_path_buf();
-      let decompress = task::spawn_blocking(move || decompress(path))
+      let decompress = task::spawn_blocking(move || decompress(&path))
         .await
         .expect("Run decompression");
       match decompress {
@@ -406,7 +406,9 @@ async fn handle_auto(
             && let Ok(mod_info) = ModEntry::from_file(&path, mod_metadata)
           {
             let hybrid = HybridPath::Temp(temp, source, Some(path));
-            if &mod_info.version_checker.as_ref().unwrap().version != target_version {
+            if &mod_info.version_checker.as_ref().unwrap().version == target_version {
+              handle_delete(ext_ctx, mod_info, hybrid, old_path).await?;
+            } else {
               ext_ctx
                 .submit_command(
                   INSTALL,
@@ -417,8 +419,6 @@ async fn handle_auto(
                   Target::Auto,
                 )
                 .expect("Send error over async channel");
-            } else {
-              handle_delete(ext_ctx, mod_info, hybrid, old_path).await?;
             }
           } else {
             ext_ctx
@@ -431,7 +431,7 @@ async fn handle_auto(
           }
         }
         Err(err) => {
-          println!("{:?}", err);
+          println!("{err:?}");
           ext_ctx
             .submit_command(
               INSTALL,
@@ -462,11 +462,9 @@ pub async fn download(
 ) -> Result<tempfile::NamedTempFile, InstallError> {
   static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
 
-  static UPDATE_BALANCER: LoadBalancer<
-    (i64, String, f64),
-    Vec<(i64, String, f64)>,
-    HashMap<i64, (i64, String, f64)>,
-  > = LoadBalancer::new(DOWNLOAD_PROGRESS);
+  type UpdateBalancer =
+    LoadBalancer<(i64, String, f64), Vec<(i64, String, f64)>, HashMap<i64, (i64, String, f64)>>;
+  static UPDATE_BALANCER: UpdateBalancer = LoadBalancer::new(DOWNLOAD_PROGRESS);
 
   let mut file = tempfile::NamedTempFile::new()?;
   let client = reqwest::ClientBuilder::default()
@@ -481,18 +479,20 @@ pub async fn download(
     .get(reqwest::header::CONTENT_DISPOSITION)
     .and_then(|v| v.to_str().ok())
     .and_then(|v| v.rsplit_once("filename="))
-    .map(|(_, filename)| filename.to_string())
-    .unwrap_or_else(|| {
-      Url::parse(&url)
-        .ok()
-        .and_then(|url| {
-          url
-            .path_segments()
-            .and_then(|segments| segments.last())
-            .map(|s| s.to_string())
-        })
-        .unwrap_or(url)
-    });
+    .map_or_else(
+      || {
+        Url::parse(&url)
+          .ok()
+          .and_then(|url| {
+            url
+              .path_segments()
+              .and_then(std::iter::Iterator::last)
+              .map(std::string::ToString::to_string)
+          })
+          .unwrap_or(url)
+      },
+      |(_, filename)| filename.to_string(),
+    );
 
   let tx = UPDATE_BALANCER.sender(ext_ctx.clone());
 
@@ -502,7 +502,7 @@ pub async fn download(
   let total = res.content_length();
   let mut current_total = 0.0;
   while let Some(chunk) = res.chunk().await? {
-    file.write(&chunk)?;
+    file.write_all(&chunk)?;
     if let Some(total) = total {
       current_total += chunk.len() as f64;
       let _ = tx.send((start, name.clone(), (current_total / total as f64)));
@@ -510,7 +510,7 @@ pub async fn download(
   }
 
   let _ = tx.send((start, name, 1.0)).inspect_err(|e| {
-    eprintln!("err: {:?}", e);
+    eprintln!("err: {e:?}");
   });
 
   Ok(file)
@@ -523,14 +523,15 @@ pub enum HybridPath {
 }
 
 impl HybridPath {
+  #[must_use]
   pub fn get_path_copy(&self) -> PathBuf {
     match self {
-      HybridPath::PathBuf(ref path) => path.clone(),
-      HybridPath::Temp(_, _, Some(ref path)) => path.clone(),
+      HybridPath::PathBuf(ref path) | HybridPath::Temp(_, _, Some(ref path)) => path.clone(),
       HybridPath::Temp(ref arc, _, None) => arc.path().to_path_buf(),
     }
   }
 
+  #[must_use]
   pub fn with_path(mut self, path: &PathBuf) -> Self {
     match &mut self {
       HybridPath::PathBuf(inner) => inner.clone_from(path),
@@ -542,6 +543,7 @@ impl HybridPath {
     self
   }
 
+  #[must_use]
   pub fn source(&self) -> Cow<str> {
     match self {
       HybridPath::PathBuf(path) => path.to_string_lossy(),
@@ -615,8 +617,8 @@ mod test {
 
   fn fill_folder_with_n_mods<const N: usize>(path: impl Deref<Target = Path>) {
     for i in 0..N {
-      fs::create_dir(path.join(format!("{}", i))).expect("Create fake mod dir");
-      fs::File::create(path.join(format!("{}", i)).join("mod_info.json"))
+      fs::create_dir(path.join(format!("{i}"))).expect("Create fake mod dir");
+      fs::File::create(path.join(format!("{i}")).join("mod_info.json"))
         .expect("Create fake mod_info.json");
     }
   }
@@ -670,7 +672,7 @@ mod test {
     }
 
     assert!(iter.next().is_none());
-    assert_eq!(path_set.len(), 5)
+    assert_eq!(path_set.len(), 5);
   }
 
   #[test]
@@ -702,6 +704,6 @@ mod test {
     }
 
     assert!(iter.next().is_none());
-    assert_eq!(path_set.len(), 4)
+    assert_eq!(path_set.len(), 4);
   }
 }

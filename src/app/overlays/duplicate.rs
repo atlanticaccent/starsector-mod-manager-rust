@@ -56,7 +56,7 @@ impl Duplicate {
                     dupe.clone(),
                     duplicates.clone().tap(|v| v.remove(idx)),
                   )),
-              )
+              );
             }
 
             column.add_child(table);
@@ -114,7 +114,7 @@ impl Duplicate {
                       .valign_centre()
                   })
                   .env_scope(|env, _| {
-                    env.set(druid::theme::TEXT_COLOR, druid::Color::WHITE.darker())
+                    env.set(druid::theme::TEXT_COLOR, druid::Color::WHITE.darker());
                   })
                   .fix_height(42.0)
                   .padding((0.0, 2.0))
@@ -124,7 +124,7 @@ impl Duplicate {
                     } else {
                       ctx.submit_command(Popup::dismiss_matching(|popup| {
                         matches!(popup, Popup::Duplicate(_))
-                      }))
+                      }));
                     }
                   }),
               )
@@ -155,7 +155,7 @@ fn dupe_row(dupe: &ModEntry) -> impl Widget<App> {
       TableRow::new()
         .with_child(Label::new("Last modified:"))
         .with_child(Label::new(
-          if let Ok(Ok(time)) = meta.as_ref().map(|meta| meta.modified()) {
+          if let Ok(Ok(time)) = meta.as_ref().map(std::fs::Metadata::modified) {
             DateTime::<Local>::from(time).format("%F:%R").to_string()
           } else {
             "Failed to retrieve last modified".to_owned()

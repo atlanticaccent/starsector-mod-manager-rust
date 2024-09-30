@@ -23,9 +23,13 @@ pub trait WrapData: Data {
   type OwnedId: Eq + Clone + ToString + Debug;
   type Value;
 
-  fn ids<'a>(&'a self) -> impl Iterator<Item = <Self::Id<'a> as ToOwned>::Owned>;
+  fn ids(&self) -> impl Iterator<Item = <Self::Id<'_> as ToOwned>::Owned>;
 
   fn len(&self) -> usize;
+
+  fn is_empty(&self) -> bool {
+    self.len() == 0
+  }
 }
 
 impl<K: Clone + Hash + Eq + Display + Debug + 'static, V: Data> WrapData for FastImMap<K, V>
@@ -36,7 +40,7 @@ where
   type OwnedId = K;
   type Value = V;
 
-  fn ids<'a>(&'a self) -> impl Iterator<Item = K> {
+  fn ids(&self) -> impl Iterator<Item = K> {
     self.keys().cloned()
   }
 
@@ -50,7 +54,7 @@ impl<T: Data> WrapData for Vector<T> {
   type OwnedId = usize;
   type Value = T;
 
-  fn ids<'a>(&'a self) -> impl Iterator<Item = usize> {
+  fn ids(&self) -> impl Iterator<Item = usize> {
     0..self.len()
   }
 
@@ -120,7 +124,7 @@ impl<T: WrapData, W: Widget<T> + 'static> Widget<T> for WrappedTable<T, W> {
     }
 
     self.table.event(ctx, event, &mut wrapped, env);
-    *data = wrapped.data.data
+    *data = wrapped.data.data;
   }
 
   fn lifecycle(
@@ -136,12 +140,12 @@ impl<T: WrapData, W: Widget<T> + 'static> Widget<T> for WrappedTable<T, W> {
     if let druid::LifeCycle::WidgetAdded = event {
       self.columns = data.len();
 
-      ctx.request_layout()
+      ctx.request_layout();
     }
 
     self
       .table
-      .lifecycle(ctx, event, &self.data_wrapper(data), env)
+      .lifecycle(ctx, event, &self.data_wrapper(data), env);
   }
 
   fn update(&mut self, ctx: &mut druid::UpdateCtx, old_data: &T, data: &T, env: &druid::Env) {
@@ -150,7 +154,7 @@ impl<T: WrapData, W: Widget<T> + 'static> Widget<T> for WrappedTable<T, W> {
     self.table.update(ctx, &old_wrapper, &wrapper, env);
     if self.skip_paint {
       self.skip_paint = false;
-      ctx.request_layout()
+      ctx.request_layout();
     }
   }
 
@@ -187,7 +191,7 @@ impl<T: WrapData, W: Widget<T> + 'static> Widget<T> for WrappedTable<T, W> {
 
   fn paint(&mut self, ctx: &mut druid::PaintCtx, data: &T, env: &druid::Env) {
     if !self.skip_paint {
-      self.table.paint(ctx, &self.data_wrapper(data), env)
+      self.table.paint(ctx, &self.data_wrapper(data), env);
     }
   }
 }
@@ -267,7 +271,7 @@ impl<T: WrapData, W> TableDataImpl<T, W> {
     } else {
       let mut height = len / self.width;
       if len % self.width > 0 {
-        height += 1
+        height += 1;
       }
 
       height
@@ -294,7 +298,7 @@ impl<T: WrapData, W> IndexMut<usize> for TableDataImpl<T, W> {
 impl<T: WrapData, W> Clone for TableDataImpl<T, W> {
   fn clone(&self) -> Self {
     Self {
-      width: self.width.clone(),
+      width: self.width,
       data: self.data.clone(),
     }
   }
@@ -321,7 +325,7 @@ impl<T: WrapData, W: Widget<T> + 'static> TableData for TableDataImpl<T, W> {
   }
 
   fn with_mut(&mut self, _: <Self::Row as RowData>::Id, mutate: impl FnOnce(&mut Self::Row)) {
-    mutate(&mut self.data)
+    mutate(&mut self.data);
   }
 }
 

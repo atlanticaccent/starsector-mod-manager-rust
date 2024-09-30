@@ -68,7 +68,7 @@ impl<W: Widget<App>> Controller<App, W> for InstallController {
                 }
               }));
 
-            ctx.show_context_menu::<App>(menu, ctx.to_window(mouse_event.pos))
+            ctx.show_context_menu::<App>(menu, ctx.to_window(mouse_event.pos));
           }
           ctx.request_paint();
         }

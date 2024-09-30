@@ -2,12 +2,10 @@ use std::collections::VecDeque;
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{parse_macro_input, Data, DeriveInput};
+use syn::{parse_macro_input, Data, DeriveInput, Ident, ImplGenerics, TypeGenerics, WhereClause};
 
 #[allow(non_snake_case)]
 pub fn Invert(item: TokenStream) -> TokenStream {
-  use heck::{ToSnekCase, ToUpperCamelCase};
-
   let derive_input: DeriveInput = parse_macro_input!(item);
 
   let DeriveInput {
@@ -41,24 +39,22 @@ pub fn Invert(item: TokenStream) -> TokenStream {
       let option_type = option_type.unwrap();
       let option_attrs = option.attrs;
 
-      let field_iter = rem
-        .iter()
-        .chain(options.iter().filter(|opt| opt.0.ident.as_ref() != Some(&option_ident)))
-        .cloned()
-        .map(|(field, _)| (field.ident.unwrap(), field.ty, field.attrs));
-      let (other_idents, other_types, other_attrs): (Vec<_>, Vec<_>, Vec<_>) =
-        itertools::multiunzip(field_iter);
+      let (other_idents, other_types, other_attrs) =
+        split_field_data(&rem, &options, &option_ident);
 
-      let option_ident_str = option_ident.to_string();
+      let (name, lens_mod, lens) = generate_idents(&option_ident, ident);
 
-      let name = format_ident!(
-        "{}Inverse{}",
-        option_ident_str.to_upper_camel_case(),
-        ident
+      let conversions = generate_conversions(
+        ident,
+        &name,
+        &impl_generics,
+        &type_generics,
+        where_clause,
+        &option_ident,
+        &other_idents,
       );
 
-      let lens_mod = format_ident!("{}_lens", option_ident_str.to_snek_case());
-      let lens = format_ident!("invert_on_{}", option_ident_str.to_snek_case());
+      let lens_mod_tokens = generate_lens(&lens_mod, &lens, ident, &name);
 
       quote! {
         #(#attrs)*
@@ -68,63 +64,9 @@ pub fn Invert(item: TokenStream) -> TokenStream {
           #(#(#other_attrs)* #other_idents: #other_types),*
         }
 
-        impl #impl_generics From<&#ident> for Option<#name> #type_generics #where_clause {
-          fn from(val: &#ident) -> Option<#name> {
-            let #ident {
-              #option_ident,
-              #(#other_idents),*
-            } = val.clone();
+        #conversions
 
-            #option_ident.map(|inner| {
-              #name {
-                #option_ident: inner,
-                #(#other_idents),*
-              }
-            })
-          }
-        }
-
-        impl #impl_generics std::convert::TryFrom<&Option<#name>> for #ident #type_generics #where_clause {
-          type Error = &'static str;
-
-          fn try_from(val: &Option<#name>) -> Result<#ident, Self::Error> {
-            let #name {
-              #option_ident: inner,
-              #(#other_idents),*
-            } = val.clone().ok_or("Inner was None")?;
-
-            Ok(#ident {
-              #option_ident: Some(inner),
-              #(#other_idents),*
-            })
-          }
-        }
-
-        #[allow(non_snake_case)]
-        pub mod #lens_mod {
-          #[allow(non_camel_case_types)]
-          #[derive(Debug, Clone, Copy)]
-          pub struct #lens();
-
-          impl druid::lens::Lens<super::#ident, Option<super::#name>> for #lens {
-            fn with<V, F: FnOnce(&Option<super::#name>) -> V>(&self, data: &super::#ident, f: F) -> V {
-              let inner: Option<super::#name> = data.into();
-              f(&inner)
-            }
-
-            fn with_mut<V, F: FnOnce(&mut Option<super::#name>) -> V>(&self, data: &mut super::#ident, f: F) -> V {
-              use std::convert::TryInto;
-              let mut inner: Option<super::#name> = (&*data).into();
-              let res = f(&mut inner);
-
-              if let Ok(inner) = (&inner).try_into() {
-                *data = inner;
-              }
-
-              res
-            }
-          }
-        }
+        #lens_mod_tokens
 
         impl #impl_generics #ident #type_generics #where_clause {
           #[allow(non_upper_case_globals)]
@@ -142,6 +84,116 @@ pub fn Invert(item: TokenStream) -> TokenStream {
   .into()
 }
 
+fn split_field_data<'a>(
+  rem: impl IntoIterator<Item = &'a (syn::Field, Option<syn::Type>)>,
+  options: impl IntoIterator<Item = &'a (syn::Field, Option<syn::Type>)>,
+  current_option_ident: &Ident,
+) -> (Vec<syn::Ident>, Vec<syn::Type>, Vec<Vec<syn::Attribute>>) {
+  let field_iter = rem
+    .into_iter()
+    .chain(
+      options
+        .into_iter()
+        .filter(|opt| opt.0.ident.as_ref() != Some(current_option_ident)),
+    )
+    .cloned()
+    .map(|(field, _)| (field.ident.unwrap(), field.ty, field.attrs));
+
+  itertools::multiunzip(field_iter)
+}
+
+fn generate_idents(option_ident: &Ident, ident: &Ident) -> (Ident, Ident, Ident) {
+  use heck::{ToSnekCase, ToUpperCamelCase};
+
+  let option_ident_str = option_ident.to_string();
+
+  let name = format_ident!("{}Inverse{}", option_ident_str.to_upper_camel_case(), ident);
+
+  let lens_mod = format_ident!("{}_lens", option_ident_str.to_snek_case());
+  let lens = format_ident!("invert_on_{}", option_ident_str.to_snek_case());
+
+  (name, lens_mod, lens)
+}
+
+fn generate_conversions(
+  ident: &Ident,
+  name: &Ident,
+  impl_generics: &ImplGenerics<'_>,
+  type_generics: &TypeGenerics<'_>,
+  where_clause: Option<&WhereClause>,
+  option_ident: &Ident,
+  other_idents: &Vec<Ident>,
+) -> proc_macro2::TokenStream {
+  quote! {
+    impl #impl_generics From<&#ident> for Option<#name> #type_generics #where_clause {
+      fn from(val: &#ident) -> Option<#name> {
+        let #ident {
+          #option_ident,
+          #(#other_idents),*
+        } = val.clone();
+
+        #option_ident.map(|inner| {
+          #name {
+            #option_ident: inner,
+            #(#other_idents),*
+          }
+        })
+      }
+    }
+
+    impl #impl_generics std::convert::TryFrom<&Option<#name>> for #ident #type_generics #where_clause {
+      type Error = &'static str;
+
+      fn try_from(val: &Option<#name>) -> Result<#ident, Self::Error> {
+        let #name {
+          #option_ident: inner,
+          #(#other_idents),*
+        } = val.clone().ok_or("Inner was None")?;
+
+        Ok(#ident {
+          #option_ident: Some(inner),
+          #(#other_idents),*
+        })
+      }
+    }
+  }
+}
+
+fn generate_lens(
+  lens_mod: &Ident,
+  lens: &Ident,
+  ident: &Ident,
+  name: &Ident,
+) -> proc_macro2::TokenStream {
+  quote! {
+    #[allow(non_snake_case)]
+    pub mod #lens_mod {
+      #[allow(non_camel_case_types)]
+      #[derive(Debug, Clone, Copy)]
+      pub struct #lens();
+
+      impl druid::lens::Lens<super::#ident, Option<super::#name>> for #lens {
+        fn with<V, F: FnOnce(&Option<super::#name>) -> V>(&self, data: &super::#ident, f: F) -> V {
+          let inner: Option<super::#name> = data.into();
+          f(&inner)
+        }
+
+        fn with_mut<V, F: FnOnce(&mut Option<super::#name>) -> V>(&self, data: &mut super::#ident, f: F) -> V {
+          use std::convert::TryInto;
+          let mut inner: Option<super::#name> = (&*data).into();
+          let res = f(&mut inner);
+
+          if let Ok(inner) = (&inner).try_into() {
+            *data = inner;
+          }
+
+          res
+        }
+      }
+    }
+  }
+}
+
 fn extract_type_from_option(ty: &syn::Type) -> Option<&syn::Type> {
   use syn::{GenericArgument, Path, PathArguments, PathSegment};
 
@@ -155,14 +207,16 @@ fn extract_type_from_option(ty: &syn::Type) -> Option<&syn::Type> {
   // TODO store (with lazy static) the vec of string
   // TODO maybe optimization, reverse the order of segments
   fn extract_option_segment(path: &Path) -> Option<&PathSegment> {
+    const PATHS: &[&str; 3] = &["Option|", "std|option|Option|", "core|option|Option|"];
+
     let idents_of_path: String = path
       .segments
       .iter()
-      .into_iter()
-      .map(|segment| format!("{}|", segment.ident))
-      .collect();
-
-    const PATHS: &[&str; 3] = &["Option|", "std|option|Option|", "core|option|Option|"];
+      .fold(String::new(), |mut acc, segment| {
+        use std::fmt::Write;
+        let _ = write!(acc, "{}|", segment.ident);
+        acc
+      });
 
     PATHS
       .iter()

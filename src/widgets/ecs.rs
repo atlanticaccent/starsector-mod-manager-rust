@@ -10,14 +10,18 @@ thread_local! {
   static WIDGET_MAP: RefCell<HashMap<String, Box<dyn Any>, ahash::RandomState>> = const { RefCell::new(HashMap::with_hasher(ahash::RandomState::with_seeds(0, 0, 0, 0))) }
 }
 
+type EcsConstructor<T, W> = Box<dyn Fn(&T, &Env) -> W>;
+
 pub struct EcsWidget<T, W: Widget<T>> {
   key: Key<T>,
-  constructor: Box<dyn Fn(&T, &Env) -> W>,
+  constructor: EcsConstructor<T, W>,
 }
+
+type DynamicKey<T> = Box<dyn Fn(&T, &Env) -> Option<String>>;
 
 pub enum Key<T> {
   Fixed(Option<String>),
-  Dynamic(Box<dyn Fn(&T, &Env) -> Option<String>>),
+  Dynamic(DynamicKey<T>),
 }
 
 impl<T> From<String> for Key<T> {
@@ -86,11 +90,13 @@ impl<T: 'static, W: Widget<T> + 'static> EcsWidget<T, W> {
             Box::new(WidgetPod::new((constructor)(data, env))),
           );
         }
-        let any = map.get_mut(&key).expect(&format!("Get widget at {key}"));
+        let any = map
+          .get_mut(&key)
+          .unwrap_or_else(|| panic!("Get widget at {}", key));
 
         let widget = any
           .downcast_mut::<WidgetPod<T, W>>()
-          .expect(&format!("Cast to widget type {}", type_name::<W>()));
+          .unwrap_or_else(|| panic!("Cast to widget type {}", type_name::<W>()));
         func(widget, data, env)
       })
     } else {
@@ -112,10 +118,12 @@ impl<T: 'static, W: Widget<T> + 'static> EcsWidget<T, W> {
             Box::new(WidgetPod::new((self.constructor)(data, env))),
           );
         }
-        let any = map.get_mut(&key).expect(&format!("Get widget at {key}"));
+        let any = map
+          .get_mut(&key)
+          .unwrap_or_else(|| panic!("Get widget at {}", key));
         let widget = any
           .downcast_mut::<WidgetPod<T, W>>()
-          .expect(&format!("Cast to widget type {}", type_name::<W>()));
+          .unwrap_or_else(|| panic!("Cast to widget type {}", type_name::<W>()));
         func(widget, data, env)
       })
     } else {
@@ -129,8 +137,7 @@ impl<T: 'static, W: Widget<T> + 'static> EcsWidget<T, W> {
       key
         .and_then(|key| map.get(&key))
         .and_then(|any| any.downcast_ref::<WidgetPod<T, W>>())
-        .map(|w| w.is_initialized())
-        .unwrap_or_default()
+        .is_some_and(druid::WidgetPod::is_initialized)
     })
   }
 }
@@ -139,9 +146,9 @@ impl<T: Data, W: Widget<T> + 'static> Widget<T> for EcsWidget<T, W> {
   fn event(&mut self, ctx: &mut druid::EventCtx, event: &druid::Event, data: &mut T, env: &Env) {
     self.apply_mut(data, env, |widget, data, env| {
       if widget.is_initialized() {
-        widget.event(ctx, event, data, env)
+        widget.event(ctx, event, data, env);
       }
-    })
+    });
   }
 
   fn lifecycle(
@@ -158,18 +165,18 @@ impl<T: Data, W: Widget<T> + 'static> Widget<T> for EcsWidget<T, W> {
         return;
       }
       if !matches!(event, druid::LifeCycle::WidgetAdded) && !widget.is_initialized() {
-        widget.lifecycle(ctx, &druid::LifeCycle::WidgetAdded, data, env)
+        widget.lifecycle(ctx, &druid::LifeCycle::WidgetAdded, data, env);
       }
-      widget.lifecycle(ctx, event, data, env)
-    })
+      widget.lifecycle(ctx, event, data, env);
+    });
   }
 
   fn update(&mut self, ctx: &mut druid::UpdateCtx, _old_data: &T, data: &T, env: &Env) {
     self.apply(data, env, |widget, data, env| {
       if widget.is_initialized() {
-        widget.update(ctx, data, env)
+        widget.update(ctx, data, env);
       }
-    })
+    });
   }
 
   fn layout(
@@ -191,8 +198,8 @@ impl<T: Data, W: Widget<T> + 'static> Widget<T> for EcsWidget<T, W> {
   fn paint(&mut self, ctx: &mut druid::PaintCtx, data: &T, env: &Env) {
     self.apply(data, env, |widget, data, env| {
       if widget.is_initialized() {
-        widget.paint(ctx, data, env)
+        widget.paint(ctx, data, env);
       }
-    })
+    });
   }
 }

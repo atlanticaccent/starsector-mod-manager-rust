@@ -66,16 +66,16 @@ impl VMParams {
                       .with_shadow_increase(3.0)
                       .with_shadow_length(0.0)
                       .with_border(1.0, druid::theme::BORDER_DARK)
-                      .with_background(Painter::new(|ctx, _, env| {
+                      .with_background(Painter::new(|ctx, (), env| {
                         use druid::RenderContext;
 
                         let rect = ctx.size().to_rect();
-                        ctx.fill(rect, &env.get(druid::theme::BACKGROUND_DARK).lighter_by(2))
+                        ctx.fill(rect, &env.get(druid::theme::BACKGROUND_DARK).lighter_by(2));
                       }))
                       .hoverable(|_| {
                         Flex::row()
                           .with_child(
-                            Label::dynamic(|unit: &Unit, _| format!("{}b", unit))
+                            Label::dynamic(|unit: &Unit, _| format!("{unit}b"))
                               .padding((0.0, 2.0)),
                           )
                           .with_child(Icon::new(*ARROW_LEFT))
@@ -93,7 +93,7 @@ impl VMParams {
                       })
                       .on_command(Self::TOGGLE_UNIT_DROP, |_, payload, data| {
                         if !*payload {
-                          data.1 = false
+                          data.1 = false;
                         }
                       })
                       .invisible_if(|(_, data), _| *data)
@@ -136,16 +136,16 @@ impl VMParams {
                       .with_shadow_increase(3.0)
                       .with_shadow_length(0.0)
                       .with_border(1.0, druid::theme::BORDER_DARK)
-                      .with_background(Painter::new(|ctx, _, env| {
+                      .with_background(Painter::new(|ctx, (), env| {
                         use druid::RenderContext;
 
                         let rect = ctx.size().to_rect();
-                        ctx.fill(rect, &env.get(druid::theme::BACKGROUND_DARK).lighter_by(2))
+                        ctx.fill(rect, &env.get(druid::theme::BACKGROUND_DARK).lighter_by(2));
                       }))
                       .hoverable(|_| {
                         Flex::row()
                           .with_child(
-                            Label::dynamic(|unit: &Unit, _| format!("{}b", unit))
+                            Label::dynamic(|unit: &Unit, _| format!("{unit}b"))
                               .padding((0.0, 2.0)),
                           )
                           .with_child(Icon::new(*ARROW_LEFT))
@@ -163,7 +163,7 @@ impl VMParams {
                       })
                       .on_command(Self::TOGGLE_UNIT_DROP, |_, payload, data| {
                         if *payload {
-                          data.1 = false
+                          data.1 = false;
                         }
                       })
                       .invisible_if(|(_, data), _| *data)
@@ -187,7 +187,7 @@ impl VMParams {
           vmparams.heap_max = vmparams.heap_init.clone();
           ctx.request_update();
         }
-        ctx.submit_command(Self::SAVE_VMPARAMS)
+        ctx.submit_command(Self::SAVE_VMPARAMS);
       })
       .on_change(|ctx, old, data, _| {
         let linked_and_min_changed = data.linked && old.heap_init != data.heap_init;
@@ -196,7 +196,7 @@ impl VMParams {
           data.heap_max = data.heap_init.clone();
           ctx.request_update();
         }
-        ctx.submit_command(VMParams::SAVE_VMPARAMS)
+        ctx.submit_command(VMParams::SAVE_VMPARAMS);
       })
   }
 
@@ -224,16 +224,16 @@ impl VMParams {
                     .with_insets(0.0)
                     .with_shadow_length(0.0)
                     .with_border(1.0, druid::theme::BORDER_DARK)
-                    .with_background(Painter::new(|ctx, _, env| {
+                    .with_background(Painter::new(|ctx, (), env| {
                       use druid::RenderContext;
 
                       let rect = ctx.size().to_rect();
-                      ctx.fill(rect, &env.get(druid::theme::BACKGROUND_DARK).lighter_by(2))
+                      ctx.fill(rect, &env.get(druid::theme::BACKGROUND_DARK).lighter_by(2));
                     }))
                     .build(
                       Flex::row()
                         .with_child(
-                          Label::dynamic(|unit: &Unit, _| format!("{}b", unit)).padding((0.0, 2.0)),
+                          Label::dynamic(|unit: &Unit, _| format!("{unit}b")).padding((0.0, 2.0)),
                         )
                         .with_child(Icon::new(*ARROW_DROP_DOWN))
                         .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
@@ -261,7 +261,7 @@ impl VMParams {
         .boxed()
       },
       Some(move |ctx: &mut druid::EventCtx| ctx.submit_command(Self::TOGGLE_UNIT_DROP.with(max))),
-    )
+    );
   }
 }
 
@@ -274,14 +274,14 @@ fn other_units_dropdown(higher: bool) -> impl Widget<Unit> {
       .hoverable_distinct(
         || {
           Flex::row()
-            .with_child(Label::new(format!("{}b", unit)).padding((0.0, 2.0)))
+            .with_child(Label::new(format!("{unit}b")).padding((0.0, 2.0)))
             .must_fill_main_axis(true)
             .padding(2.0)
             .padding(-1.)
         },
         || {
           Flex::row()
-            .with_child(Label::new(format!("{}b", unit)).padding((0.0, 2.0)))
+            .with_child(Label::new(format!("{unit}b")).padding((0.0, 2.0)))
             .must_fill_main_axis(true)
             .padding(2.0)
             .background(Painter::new(|ctx, _, _| {
@@ -289,7 +289,7 @@ fn other_units_dropdown(higher: bool) -> impl Widget<Unit> {
 
               let path = ctx.size().to_rect().inset(-0.5).to_rounded_rect(3.);
 
-              ctx.stroke(path, &druid::Color::BLACK, 1.)
+              ctx.stroke(path, &druid::Color::BLACK, 1.);
             }))
             .padding(-1.)
         },
@@ -303,10 +303,8 @@ fn other_units_dropdown(higher: bool) -> impl Widget<Unit> {
     |data, _| *data,
     move |data, _, _| match data {
       Unit::Giga if higher => maker(Unit::Mega),
-      Unit::Giga => maker(Unit::Kilo),
-      Unit::Mega if higher => maker(Unit::Giga),
-      Unit::Mega => maker(Unit::Kilo),
-      Unit::Kilo if higher => maker(Unit::Giga),
+      Unit::Mega | Unit::Kilo if higher => maker(Unit::Giga),
+      Unit::Giga | Unit::Mega => maker(Unit::Kilo),
       Unit::Kilo => maker(Unit::Mega),
     },
   )
@@ -324,7 +322,7 @@ impl Value {
       Unit::Giga => 3,
       Unit::Mega => 2,
       Unit::Kilo => 1,
-    }) * self.amount as u64
+    }) * u64::from(self.amount)
   }
 }
 
@@ -399,9 +397,9 @@ impl<T: VMParamsPath> VMParams<T> {
     for param in params_string.split_ascii_whitespace() {
       let unit = || -> Option<Unit> {
         match param.chars().last() {
-          Some('k') | Some('K') => Some(Unit::Kilo),
-          Some('m') | Some('M') => Some(Unit::Mega),
-          Some('g') | Some('G') => Some(Unit::Giga),
+          Some('k' | 'K') => Some(Unit::Kilo),
+          Some('m' | 'M') => Some(Unit::Mega),
+          Some('g' | 'G') => Some(Unit::Giga),
           Some(_) | None => None,
         }
       };
@@ -488,12 +486,12 @@ impl<T: VMParamsPath> VMParams<T> {
       if ch == '-' {
         let key: String = input_iter
           .next_chunk::<3>()
-          .map_or_else(|iter| iter.collect(), |arr| arr.iter().collect());
+          .map_or_else(std::iter::Iterator::collect, |arr| arr.iter().collect());
 
         if write_verify_manually && key.eq_ignore_ascii_case("ser") {
           let rem: String = input_iter
             .next_chunk::<3>()
-            .map_or_else(|iter| iter.collect(), |arr| arr.iter().collect());
+            .map_or_else(std::iter::Iterator::collect, |arr| arr.iter().collect());
           if rem.eq_ignore_ascii_case("ver") {
             #[cfg(target_os = "macos")]
             output.push_str(r"Xverify:none \\n\t-");
@@ -507,23 +505,23 @@ impl<T: VMParamsPath> VMParams<T> {
           output.push_str(&key);
           if key.eq_ignore_ascii_case("xms") {
             VMParams::<T>::advance(&mut input_iter)?;
-            output.push_str(&self.heap_init.to_string().to_ascii_lowercase())
+            output.push_str(&self.heap_init.to_string().to_ascii_lowercase());
           } else if key.eq_ignore_ascii_case("xmx") {
             VMParams::<T>::advance(&mut input_iter)?;
-            output.push_str(&self.heap_max.to_string().to_ascii_lowercase())
+            output.push_str(&self.heap_max.to_string().to_ascii_lowercase());
           } else if key.eq_ignore_ascii_case("xss") {
             VMParams::<T>::advance(&mut input_iter)?;
-            output.push_str(&self.thread_stack_size.to_string().to_ascii_lowercase())
+            output.push_str(&self.thread_stack_size.to_string().to_ascii_lowercase());
           }
         }
       } else if write_verify_manually && ch == 'j' {
         let chunk: String = input_iter
           .next_chunk::<7>()
-          .map_or_else(|iter| iter.collect(), |arr| arr.iter().collect());
+          .map_or_else(std::iter::Iterator::collect, |arr| arr.iter().collect());
         output.push_str(&chunk);
 
         if chunk == "ava.exe" {
-          output.push_str(" -Xverify:none")
+          output.push_str(" -Xverify:none");
         }
       }
     }
@@ -554,7 +552,7 @@ impl<T: VMParamsPath> VMParams<T> {
     if count > 0
       && let Some(ch) = iter.next()
       && ['k', 'm', 'g'].iter().any(|t| t.eq_ignore_ascii_case(&ch))
-      && iter.peek().map(|c| c.is_whitespace()).unwrap_or_default()
+      && iter.peek().is_some_and(|c| c.is_whitespace())
     {
       Ok(())
     } else {
@@ -698,6 +696,6 @@ mod test {
       }
     }
 
-    test_func::<Azul>(true)
+    test_func::<Azul>(true);
   }
 }

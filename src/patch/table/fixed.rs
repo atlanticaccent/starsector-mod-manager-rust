@@ -21,7 +21,7 @@ impl<T: Data> Default for FixedFlexTable<T> {
 }
 
 impl<T: Data> FixedFlexTable<T> {
-  pub fn new() -> Self {
+  #[must_use] pub fn new() -> Self {
     Self {
       table: FlexTable::new(),
     }
@@ -40,14 +40,14 @@ impl<T: Data> FixedFlexTable<T> {
   }
 
   /// Builder-style method to add a table row.
-  pub fn with_row(mut self, row: TableRow<T>) -> Self {
+  #[must_use] pub fn with_row(mut self, row: TableRow<T>) -> Self {
     self.table.insert_row(row.into_internal(&self));
     self
   }
 
   /// Add a table row
   pub fn add_row(&mut self, row: TableRow<T>) {
-    self.table.insert_row(row.into_internal(self))
+    self.table.insert_row(row.into_internal(self));
   }
 
   /// Builder-style method to set the table background brush
@@ -163,7 +163,7 @@ impl<T: Data> FixedFlexTable<T> {
   /// Builder-style method to set the table column width.
   ///
   /// If not set, the [`Self::default_column_width`] is used.
-  pub fn column_widths(mut self, column_widths: &[ComplexTableColumnWidth]) -> Self {
+  #[must_use] pub fn column_widths(mut self, column_widths: &[ComplexTableColumnWidth]) -> Self {
     self.table.set_column_widths(column_widths);
     self
   }
@@ -193,7 +193,7 @@ impl<T: Data> FixedFlexTable<T> {
   }
 
   /// Builder-style method to set the default vertical cell alignment.
-  pub fn default_vertical_alignment(
+  #[must_use] pub fn default_vertical_alignment(
     mut self,
     default_vertical_alignment: TableCellVerticalAlignment,
   ) -> Self {
@@ -212,7 +212,7 @@ impl<T: Data> FixedFlexTable<T> {
   }
 
   /// Returns the column count
-  pub fn column_count(&self) -> usize {
+  #[must_use] pub fn column_count(&self) -> usize {
     if self.table.children.is_empty() {
       0
     } else {
@@ -243,7 +243,7 @@ impl<T: Data> FixedFlexTable<T> {
       BackgroundBrush::Fixed(fixed) => BackgroundBrush::Fixed(fixed),
       BackgroundBrush::Painter(mut painter) => {
         BackgroundBrush::Painter(Painter::new(move |ctx, data: &FixedTable<T>, env| {
-          painter.paint(ctx, &data.data.data, env)
+          painter.paint(ctx, &data.data.data, env);
         }))
       }
       _ => unreachable!(),
@@ -261,7 +261,7 @@ impl<T: Data> Widget<T> for FixedFlexTable<T> {
   ) {
     let mut table_data = self.data(data);
     self.table.event(ctx, event, &mut table_data, env);
-    *data = table_data.data.data
+    *data = table_data.data.data;
   }
 
   fn lifecycle(
@@ -294,7 +294,7 @@ impl<T: Data> Widget<T> for FixedFlexTable<T> {
 
   fn paint(&mut self, ctx: &mut druid::PaintCtx, data: &T, env: &druid::Env) {
     let data = self.data(data);
-    self.table.paint(ctx, &data, env)
+    self.table.paint(ctx, &data, env);
   }
 }
 
@@ -311,7 +311,7 @@ impl<T: Data> Default for TableRow<T> {
 }
 
 impl<T: Data> TableRow<T> {
-  pub fn new() -> Self {
+  #[must_use] pub fn new() -> Self {
     Self {
       children: Vec::new(),
       min_height: None,
@@ -320,7 +320,7 @@ impl<T: Data> TableRow<T> {
   }
 
   /// Builder-style method for specifying the table row minimum height.
-  pub fn min_height(mut self, min_height: f64) -> Self {
+  #[must_use] pub fn min_height(mut self, min_height: f64) -> Self {
     self.min_height = Some(min_height);
     self
   }
@@ -332,7 +332,7 @@ impl<T: Data> TableRow<T> {
 
   /// Builder-style method for specifying the childrens'
   /// [`TableCellVerticalAlignment`].
-  pub fn vertical_alignment(mut self, align: TableCellVerticalAlignment) -> Self {
+  #[must_use] pub fn vertical_alignment(mut self, align: TableCellVerticalAlignment) -> Self {
     self.vertical_alignment = Some(align);
     self
   }
@@ -367,7 +367,7 @@ impl<T: Data> TableRow<T> {
     row.min_height = min_height;
 
     for child in children {
-      row.add_child(child)
+      row.add_child(child);
     }
 
     row
@@ -422,7 +422,7 @@ impl<T: Data> TableData for FixedTable<T> {
   }
 
   fn with_mut(&mut self, _: <Self::Row as RowData>::Id, mutate: impl FnOnce(&mut Self::Row)) {
-    mutate(&mut self.data)
+    mutate(&mut self.data);
   }
 }
 

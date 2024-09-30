@@ -69,7 +69,7 @@ impl BrowserInstall {
                       );
                       ctx.submit_command(Popup::DISMISS);
                       if data.current_tab == crate::nav_bar::NavLabel::WebBrowser {
-                        ctx.submit_command(Browser::WEBVIEW_SHOW)
+                        ctx.submit_command(Browser::WEBVIEW_SHOW);
                       }
                     }
                   }),
@@ -99,7 +99,7 @@ impl BrowserInstall {
                   .on_click(|ctx, data: &mut App, _| {
                     ctx.submit_command(Popup::DISMISS);
                     if data.current_tab == crate::nav_bar::NavLabel::WebBrowser {
-                      ctx.submit_command(Browser::WEBVIEW_SHOW)
+                      ctx.submit_command(Browser::WEBVIEW_SHOW);
                     }
                   }),
               ),

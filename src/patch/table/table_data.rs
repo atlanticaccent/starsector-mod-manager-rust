@@ -82,7 +82,7 @@ impl TableData for WidgetFactoryTable {
   }
 
   fn with_mut(&mut self, idx: <Self::Row as RowData>::Id, mutate: impl FnOnce(&mut Self::Row)) {
-    mutate(&mut self[idx])
+    mutate(&mut self[idx]);
   }
 }
 

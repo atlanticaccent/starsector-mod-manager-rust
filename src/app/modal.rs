@@ -12,20 +12,36 @@ use indexmap::IndexMap;
 use super::util::{h3_fixed, DragWindowController, LabelExt, WidgetExtEx};
 use crate::app::util::Tap as _;
 
-pub struct Modal<'a, T: Data> {
+pub trait OnCloseCallback<T> {
+  const NOOP: bool = true;
+
+  fn invoke(&self, _: &mut druid::EventCtx, _: &mut T) {}
+}
+
+impl<T, F: Fn(&mut druid::EventCtx, &mut T)> OnCloseCallback<T> for F {
+  const NOOP: bool = false;
+
+  fn invoke(&self, ctx: &mut druid::EventCtx, data: &mut T) {
+    (self)(ctx, data);
+  }
+}
+
+impl<T> OnCloseCallback<T> for () {}
+
+pub struct Modal<'a, T: Data, F: OnCloseCallback<T> = ()> {
   title: String,
   contents: Vec<StringOrWidget<'a, T>>,
   buttons: IndexMap<String, Vec<CommandOrFn<T>>>,
-  on_close: Option<Box<dyn Fn(&mut druid::EventCtx, &mut T)>>,
+  on_close: F,
 }
 
 impl<'a, T: Data> Modal<'a, T> {
-  pub fn new(title: &str) -> Self {
+  #[must_use] pub fn new(title: &str) -> Self {
     Self {
       title: String::from(title),
       contents: Vec::new(),
       buttons: IndexMap::new(),
-      on_close: None,
+      on_close: (),
     }
   }
 
@@ -37,7 +53,7 @@ impl<'a, T: Data> Modal<'a, T> {
 
   pub fn with_button(mut self, label: &str, command: impl Into<CommandOrFn<T>>) -> Self {
     if let Some(commands) = self.buttons.get_mut(label) {
-      commands.push(command.into())
+      commands.push(command.into());
     } else {
       self
         .buttons
@@ -53,70 +69,35 @@ impl<'a, T: Data> Modal<'a, T> {
     self
   }
 
-  pub fn with_close(self) -> Self {
+  #[must_use] pub fn with_close(self) -> Self {
     self.close("Close")
   }
 
-  pub fn with_close_label(self, label: &str) -> Self {
+  #[must_use] pub fn with_close_label(self, label: &str) -> Self {
     self.close(label)
   }
 
-  pub fn with_on_close_override(
-    mut self,
-    on_close: impl Fn(&mut druid::EventCtx, &mut T) + 'static,
-  ) -> Self {
-    self.on_close = Some(Box::new(on_close));
+  pub fn with_on_close_override<F: Fn(&mut druid::EventCtx, &mut T) + 'static>(
+    self,
+    on_close: F,
+  ) -> Modal<'a, T, F> {
+    let Modal {
+      title,
+      contents,
+      buttons,
+      on_close: (),
+    } = self;
 
-    self
+    Modal {
+      title,
+      contents,
+      buttons,
+      on_close,
+    }
   }
+}
 
-  // pub fn build_no_flex(mut self, width: Option<f64>) -> impl Widget<T> {
-  //   Flex::column()
-  //     .with_child(
-  //       h3(&self.title)
-  //         .center()
-  //         .padding(2.)
-  //         .expand_width()
-  //         .background(theme::BACKGROUND_LIGHT)
-  //         .controller(DragWindowController::default()),
-  //     )
-  //     .with_child(
-  //       Flex::column()
-  //         .tap_mut(|flex| {
-  //           for content in self.contents.drain(..) {
-  //             flex.add_child(match content {
-  //               StringOrWidget::Str(str) => Label::wrapped(str).boxed(),
-  //               StringOrWidget::String(str) => Label::wrapped(str).boxed(),
-  //               StringOrWidget::Widget(widget) => widget,
-  //             })
-  //           }
-  //         })
-  //         .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-  //         .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
-  //         .padding(20.),
-  //     )
-  //     .with_child(
-  //       Flex::row()
-  //         .with_flex_spacer(1.)
-  //         .tap_mut(|flex| {
-  //           for (label, commands) in self.buttons {
-  //             flex.add_child(Button::new(label).on_click({
-  //               let commands = commands.clone();
-  //               move |ctx, _, _| {
-  //                 for command in &commands {
-  //                   ctx.submit_command(command.clone().to(Target::Global))
-  //                 }
-  //                 ctx.submit_command(commands::CLOSE_WINDOW)
-  //               }
-  //             }))
-  //           }
-  //         }),
-  //     )
-  //     .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-  //     .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
-  //     .pipe(|column| column.fix_width(width.unwrap_or(400.)))
-  // }
-
+impl<'a, T: Data, F: OnCloseCallback<T> + 'static> Modal<'a, T, F> {
   pub fn build(mut self) -> impl Widget<T> {
     const CLOSE: Selector = Selector::new("modal.close");
 
@@ -139,7 +120,7 @@ impl<'a, T: Data> Modal<'a, T> {
                     StringOrWidget::Str(str) => Label::wrapped(str).boxed(),
                     StringOrWidget::String(str) => Label::wrapped(str).boxed(),
                     StringOrWidget::Widget(widget) => widget,
-                  })
+                  });
                 }
               })
               .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
@@ -179,27 +160,27 @@ impl<'a, T: Data> Modal<'a, T> {
                   for command in &commands {
                     match command {
                       CommandOrFn::Command(command) => {
-                        ctx.submit_command(command.clone().to(Target::Global))
+                        ctx.submit_command(command.clone().to(Target::Global));
                       }
                       CommandOrFn::Fn(func) => {
                         if let Some(func) = func.take() {
-                          func(ctx, data)
+                          func(ctx, data);
                         }
                       }
                     }
                   }
-                  ctx.submit_notification(CLOSE)
+                  ctx.submit_notification(CLOSE);
                 }
-              }))
+              }));
             }
           })
           .on_notification(CLOSE, {
             let on_close = self.on_close;
-            move |ctx, _, data| {
-              if let Some(on_close) = &on_close {
-                on_close(ctx, data)
+            move |ctx, (), data| {
+              if F::NOOP {
+                ctx.submit_command(commands::CLOSE_WINDOW);
               } else {
-                ctx.submit_command(commands::CLOSE_WINDOW)
+                on_close.invoke(ctx, data);
               }
             }
           }),
@@ -256,9 +237,11 @@ impl<'a, T: Data> From<Box<dyn Widget<T>>> for StringOrWidget<'a, T> {
   }
 }
 
+trait ModalButtonCallback<T> = FnOnce(&mut druid::EventCtx, &mut T);
+
 pub enum CommandOrFn<T> {
   Command(Command),
-  Fn(Cell<Option<Box<dyn FnOnce(&mut druid::EventCtx, &mut T)>>>),
+  Fn(Cell<Option<Box<dyn ModalButtonCallback<T>>>>),
 }
 
 impl<T> From<Command> for CommandOrFn<T> {

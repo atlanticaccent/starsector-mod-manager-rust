@@ -16,14 +16,14 @@ mod overwrite;
 mod remote_update;
 mod select_install;
 
-use browser_install::*;
-use confirm_delete::*;
-use duplicate::*;
+use browser_install::BrowserInstall;
+use confirm_delete::ConfirmDelete;
+use duplicate::Duplicate;
 pub use launch_result::*;
-use multiple::*;
-use overwrite::*;
-use remote_update::*;
-use select_install::*;
+use multiple::Multiple;
+use overwrite::Overwrite;
+use remote_update::RemoteUpdate;
+use select_install::SelectInstall;
 
 use super::{
   controllers::MaskController,
@@ -46,9 +46,11 @@ pub enum Popup {
   AppCustom(Arc<dyn Fn() -> Box<dyn Widget<App>> + Send + Sync>),
 }
 
+pub type DismissMatcher = Arc<dyn Fn(&Popup) -> bool + Send + Sync>;
+
 impl Popup {
   pub const DISMISS: Selector = Selector::new("app.popup.dismiss");
-  pub const DISMISS_MATCHING: Selector<Arc<dyn Fn(&Popup) -> bool + Send + Sync>> =
+  pub const DISMISS_MATCHING: Selector<DismissMatcher> =
     Selector::new("app.popup.dismiss_matching");
   pub const OPEN_POPUP: Selector<Popup> = Selector::new("app.popup.open");
   pub const QUEUE_POPUP: Selector<Popup> = Selector::new("app.popup.queue");
@@ -61,12 +63,12 @@ impl Popup {
       .with_mask(Align::centered(Popup::view()))
       .dynamic(|data, _| !data.popups.is_empty())
       .on_command(Popup::OPEN_POPUP, |_, popup, data| {
-        data.popups.push_front(popup.clone())
+        data.popups.push_front(popup.clone());
       })
       .on_command(Popup::QUEUE_POPUP, |_, popup, data| {
-        data.popups.push_back(popup.clone())
+        data.popups.push_back(popup.clone());
       })
-      .on_command(Popup::DISMISS, |_, _, data| {
+      .on_command(Popup::DISMISS, |_, (), data| {
         data.popups.pop_front();
       })
       .on_command(Popup::DISMISS_MATCHING, |_, matching, data| {
@@ -99,13 +101,13 @@ impl Popup {
         if !old.settings.show_duplicate_warnings && !data.settings.show_duplicate_warnings {
           data
             .popups
-            .retain(|popup| !matches!(popup, Popup::Duplicate(_)))
+            .retain(|popup| !matches!(popup, Popup::Duplicate(_)));
         }
       })
       .controller(MaskController::new())
   }
 
-  pub fn view() -> impl Widget<App> {
+  #[must_use] pub fn view() -> impl Widget<App> {
     ViewSwitcher::new(
       |data: &App, _| data.popups.clone(),
       |popups, _, _| {
@@ -128,15 +130,15 @@ impl Popup {
     )
   }
 
-  pub fn overwrite(conflict: StringOrPath, to_install: HybridPath, entry: ModEntry) -> Popup {
+  #[must_use] pub fn overwrite(conflict: StringOrPath, to_install: HybridPath, entry: ModEntry) -> Popup {
     Popup::Ovewrite(Overwrite::new(conflict, to_install, entry))
   }
 
-  pub fn duplicate(duplicates: Vector<ModEntry>) -> Popup {
+  #[must_use] pub fn duplicate(duplicates: Vector<ModEntry>) -> Popup {
     Popup::Duplicate(Duplicate::new(duplicates))
   }
 
-  pub fn found_multiple(source: HybridPath, found: Vec<ModEntry>) -> Popup {
+  #[must_use] pub fn found_multiple(source: HybridPath, found: Vec<ModEntry>) -> Popup {
     Popup::FoundMultiple(Multiple::new(source, found.into()))
   }
 
@@ -149,7 +151,7 @@ impl Popup {
     ))
   }
 
-  pub fn browser_install(url: String) -> Popup {
+  #[must_use] pub fn browser_install(url: String) -> Popup {
     Popup::BrowserInstall(BrowserInstall::new(url))
   }
 
@@ -167,7 +169,7 @@ impl Popup {
 
   pub fn wrap_dismiss_matching<F: Fn(&Popup) -> bool + Send + Sync + 'static>(
     matching: F,
-  ) -> Arc<dyn Fn(&Popup) -> bool + Send + Sync> {
-    Arc::new(matching) as Arc<dyn Fn(&Popup) -> bool + Send + Sync>
+  ) -> DismissMatcher {
+    Arc::new(matching) as DismissMatcher
   }
 }

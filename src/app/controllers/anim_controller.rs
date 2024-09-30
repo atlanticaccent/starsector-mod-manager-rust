@@ -53,7 +53,7 @@ impl<T: Data + Interpolate, W: Widget<T>> Controller<T, W> for AnimController<T>
       && let druid::Event::Command(cmd) = &event
       && cmd.is(Self::ANIM_START)
     {
-      self.animator.start(ctx)
+      self.animator.start(ctx);
     }
 
     if let druid::Event::AnimFrame(nanos) = &event {
@@ -65,12 +65,12 @@ impl<T: Data + Interpolate, W: Widget<T>> Controller<T, W> for AnimController<T>
         .start
         .interpolate(&self.end, self.curve.translate(fraction));
       if let Some(transform) = self.transform.as_ref() {
-        inter_data = transform(inter_data)
+        inter_data = transform(inter_data);
       }
       child.event(ctx, event, &mut inter_data, env);
       *data = inter_data;
     } else {
-      child.event(ctx, event, data, env)
+      child.event(ctx, event, data, env);
     }
   }
 
@@ -84,10 +84,10 @@ impl<T: Data + Interpolate, W: Widget<T>> Controller<T, W> for AnimController<T>
   ) {
     if let druid::LifeCycle::WidgetAdded = &event {
       if self.start_on_added {
-        self.animator.start(ctx)
+        self.animator.start(ctx);
       }
     }
-    child.lifecycle(ctx, event, data, env)
+    child.lifecycle(ctx, event, data, env);
   }
 
   fn update(
@@ -98,6 +98,6 @@ impl<T: Data + Interpolate, W: Widget<T>> Controller<T, W> for AnimController<T>
     data: &T,
     env: &druid::Env,
   ) {
-    child.update(ctx, old_data, data, env)
+    child.update(ctx, old_data, data, env);
   }
 }

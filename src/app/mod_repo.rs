@@ -25,13 +25,17 @@ use super::{
   mod_description::OPEN_IN_BROWSER,
   mod_list::search::Search,
   util::{
-    default_true, hoverable_text, icons::*, lensed_bold, CommandExt, Compute, LabelExt, WebClient,
-    WidgetExtEx,
+    default_true, hoverable_text,
+    icons::{
+      ADD_BOX, ARROW_DROP_DOWN, ARROW_RIGHT, CHECK_BOX_OUTLINE_BLANK, CHEVRON_LEFT, CHEVRON_RIGHT,
+      DOUBLE_LEFT, DOUBLE_RIGHT, RADIO_BUTTON_CHECKED, RADIO_BUTTON_UNCHECKED, REFRESH, SORT, TUNE,
+    },
+    lensed_bold, CommandExt, Compute, LabelExt, WebClient, WidgetExtEx,
   },
   App,
 };
 use crate::{
-  app::util::Tap,
+  app::util::{LensExtExt, Tap},
   widgets::{
     card::Card,
     card_button::CardButton,
@@ -103,7 +107,7 @@ impl ModRepo {
                         .with_child(Icon::new(*REFRESH))
                         .padding((10.0, 0.0))
                     })
-                    .on_click(|ctx, _, _| ctx.submit_notification(REBUILD)),
+                    .on_click(|ctx, (), _| ctx.submit_notification(REBUILD)),
                 )
                 .halign_centre()
             })
@@ -114,7 +118,7 @@ impl ModRepo {
         .boxed()
       },
     )
-    .on_notification(REBUILD, |_, _, data| data.1 += 1)
+    .on_notification(REBUILD, |_, (), data| data.1 += 1)
     .lens_scope(|data| (data, 0), lens!((Option<ModRepo>, u32), 0))
     .lens(App::mod_repo)
   }
@@ -126,7 +130,7 @@ impl ModRepo {
         WrappedTable::new(450.0, |_, id, _| {
           Card::new(ModRepoItem::view()).lens(ModRepo::items.index(id))
         })
-        .on_command(Self::UPDATE_PAGE, |ctx, _, _| {
+        .on_command(Self::UPDATE_PAGE, |ctx, (), _| {
           ctx.request_update();
           ctx.request_layout();
           ctx.request_paint();
@@ -195,7 +199,7 @@ impl ModRepo {
                   .padding((3.0, 0.0))
                   .expand_width()
                   .lens(ModRepo::filters.index(&ModSource::VARIANTS[idx])),
-              )
+              );
             }
           })
           .expand_width()
@@ -203,7 +207,7 @@ impl ModRepo {
             let filters = &repo.filters;
             for item in repo.items.iter_mut() {
               item.display = filters.values().all_equal_value().is_ok()
-                || item.sources.iter().flatten().any(|s| filters[s]);
+                || item.sources.iter().any(|s| filters[s]);
             }
           })
           .prism(OptionSome)
@@ -257,9 +261,9 @@ impl ModRepo {
                         .for_each(|(_, active)| *active = false);
                     }
                   }),
-              )
+              );
             }
-            column.add_child(inner)
+            column.add_child(inner);
           })
           .expand_width()
           .lens(Map::new(
@@ -273,7 +277,7 @@ impl ModRepo {
                 repo.sort_by = sorts
                   .into_iter()
                   .find_map(|(s, active)| active.then_some(s))
-                  .unwrap_or_default()
+                  .unwrap_or_default();
               }
             },
           ))
@@ -298,17 +302,16 @@ impl ModRepo {
           for item in repo.items.iter_mut() {
             item.score = Some(&item.name)
               .into_iter()
-              .chain(item.authors.iter().flatten())
-              // .chain(item.categories.iter().flatten())
+              .chain(item.authors.iter())
               .chain(item.description.iter())
-              .filter_map(|t| best_match(&search, &t))
+              .filter_map(|t| best_match(search, t))
               .map(|m| m.score())
               .reduce(isize::max);
           }
           Metadata::Score
         };
         repo.sort_by = sort_by;
-        repo.sort_items_by(sort_by)
+        repo.sort_items_by(sort_by);
       })
   }
 
@@ -334,7 +337,7 @@ impl ModRepo {
               env.set(
                 druid::theme::TEXT_COLOR,
                 env.get(druid::theme::DISABLED_TEXT_COLOR),
-              )
+              );
             }
           })
           .empty_if_not(show_if),
@@ -347,7 +350,7 @@ impl ModRepo {
               env.set(
                 druid::theme::TEXT_COLOR,
                 env.get(druid::theme::DISABLED_TEXT_COLOR),
-              )
+              );
             }
           })
           .disabled_if(is_start)
@@ -376,7 +379,7 @@ impl ModRepo {
               env.set(
                 druid::theme::TEXT_COLOR,
                 env.get(druid::theme::DISABLED_TEXT_COLOR),
-              )
+              );
             }
           })
           .disabled_if(is_end)
@@ -390,7 +393,7 @@ impl ModRepo {
               env.set(
                 druid::theme::TEXT_COLOR,
                 env.get(druid::theme::DISABLED_TEXT_COLOR),
-              )
+              );
             }
           })
           .disabled_if(is_end)
@@ -434,7 +437,7 @@ impl ModRepo {
 
     let mut bytes = Vec::new();
     while let Ok(Some(chunk)) = req.chunk().await {
-      bytes.extend(chunk)
+      bytes.extend(chunk);
     }
 
     let mut repo: ModRepo = serde_json::from_slice(&bytes)?;
@@ -497,9 +500,9 @@ impl ModRepo {
     let already_sorted = self
       .items
       .iter()
-      .is_sorted_by(|a, b| sort_by.comparator(&a, &b).is_le());
+      .is_sorted_by(|a, b| sort_by.comparator(a, b).is_le());
     if !already_sorted {
-      self.items.sort_by(|a, b| sort_by.comparator(a, b))
+      self.items.sort_by(|a, b| sort_by.comparator(a, b));
     }
   }
 }
@@ -509,7 +512,7 @@ impl WrapData for ModRepo {
   type OwnedId = usize;
   type Value = ModRepoItem;
 
-  fn ids<'a>(&'a self) -> impl Iterator<Item = usize> {
+  fn ids(&self) -> impl Iterator<Item = usize> {
     self
       .items
       .iter()
@@ -538,11 +541,14 @@ pub struct ModRepoItem {
   mod_version: Option<String>,
   #[serde(alias = "gameVersionReq")]
   game_version: Option<String>,
-  #[serde(rename = "authorsList")]
-  authors: Option<Vector<String>>,
-  urls: Option<HashMap<UrlSource, String>>,
-  sources: Option<Vector<ModSource>>,
-  categories: Option<Vector<String>>,
+  #[serde(rename = "authorsList", default)]
+  authors: Vector<String>,
+  #[serde(default)]
+  urls: HashMap<UrlSource, String>,
+  #[serde(default)]
+  sources: Vector<ModSource>,
+  #[serde(default)]
+  categories: Vector<String>,
   #[data(eq)]
   #[serde(alias = "dateTimeCreated")]
   created: Option<DateTime<Utc>>,
@@ -598,162 +604,23 @@ impl ModRepoItem {
         Maybe::or_empty(|| Separator::new().with_width(0.5).padding(5.))
           .lens(ModRepoItem::description),
       )
-      .with_child(ViewSwitcher::new(
-        |data: &ModRepoItem, _| (data.description.clone(), data.show_description),
-        |(description, show), _, _| {
-          if let Some(description) = description {
-            let row = Flex::row().with_flex_child(
-              Flex::row()
-                .with_child(Either::new(
-                  |data, _| *data,
-                  Icon::new(*ARROW_DROP_DOWN),
-                  Icon::new(*ARROW_RIGHT),
-                ))
-                .with_child(Label::new("Description:"))
-                .main_axis_alignment(druid::widget::MainAxisAlignment::End)
-                .align_right()
-                .expand_width()
-                .controller(HoverController::default())
-                .on_click(|_, data: &mut bool, _| *data = !*data)
-                .lens(ModRepoItem::show_description)
-                .padding((0., -2., 0., 0.)),
-              Self::LABEL_FLEX,
-            );
-
-            if *show {
-              row.with_flex_child(Label::wrapped(description), Self::VALUE_FLEX)
-            } else {
-              row.with_flex_child(
-                Label::new("Click to expand...")
-                  .controller(HoverController::default())
-                  .on_click(|_, data: &mut bool, _| *data = !*data)
-                  .lens(ModRepoItem::show_description),
-                Self::VALUE_FLEX,
-              )
-            }
-            .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-            .expand_width()
-            .boxed()
-          } else {
-            SizedBox::empty().boxed()
-          }
-        },
-      ))
+      .with_child(ModRepoItem::desc_view())
       .with_child(
-        Maybe::or_empty(|| Separator::new().with_width(0.5).padding(5.)).lens(
-          ModRepoItem::authors.map(
-            |data| (data.as_ref().is_some_and(|data| !data.is_empty())).then_some(()),
-            |_, _| {},
-          ),
-        ),
+        Separator::new()
+          .with_width(0.5)
+          .padding(5.)
+          .empty_if(is_empty::<Vector<_>>)
+          .lens(ModRepoItem::authors),
       )
+      .with_child(ModRepoItem::authors_view())
       .with_child(
-        Maybe::or_empty(|| {
-          Flex::row()
-            .with_flex_child(
-              Label::new("Authors:").align_right().expand_width(),
-              Self::LABEL_FLEX,
-            )
-            .with_flex_child(
-              Label::wrapped_func(|data: &Vector<String>, _| {
-                data
-                  .iter()
-                  .cloned()
-                  .reduce(|acc, el| format!("{}, {}", acc, el))
-                  .unwrap()
-                  .trim()
-                  .to_string()
-              }),
-              Self::VALUE_FLEX,
-            )
-            .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-            .expand_width()
-        })
-        .lens(ModRepoItem::authors.map(
-          |data| {
-            (data.as_ref().is_some_and(|data| !data.is_empty()))
-              .then(|| data.clone())
-              .flatten()
-          },
-          |_, _| {},
-        )),
+        Separator::new()
+          .with_width(0.5)
+          .padding(5.)
+          .empty_if(is_empty::<HashMap<_, _>>)
+          .lens(ModRepoItem::urls),
       )
-      .with_child(
-        Maybe::or_empty(|| Separator::new().with_width(0.5).padding(5.)).lens(
-          ModRepoItem::urls.map(
-            |data| (data.as_ref().is_some_and(|data| !data.is_empty())).then_some(()),
-            |_, _| {},
-          ),
-        ),
-      )
-      .with_child(
-        Maybe::or_empty(|| {
-          Flex::row()
-            .with_flex_child(
-              Label::new("Links:").align_right().expand_width(),
-              Self::LABEL_FLEX,
-            )
-            .with_flex_child(
-              Flex::column()
-                .with_child(
-                  Maybe::or_empty(|| {
-                    hoverable_text(Some(druid::Color::rgb8(0x00, 0x7B, 0xFF)))
-                      .controller(HoverController::default())
-                      .on_click(|ctx, data, _| {
-                        ctx.submit_command_global(OPEN_IN_BROWSER.with(data.clone()))
-                      })
-                  })
-                  .lens(lens::Map::new(
-                    |data: &HashMap<UrlSource, String>| data.get(&UrlSource::Forum).cloned(),
-                    |_, _| {},
-                  ))
-                  .align_left()
-                  .expand_width(),
-                )
-                .with_child(
-                  Maybe::or_empty(|| {
-                    hoverable_text(Some(druid::Color::rgb8(0x00, 0x7B, 0xFF)))
-                      .controller(HoverController::default())
-                      .on_click(|ctx, data, _| {
-                        ctx.submit_notification(ModRepo::OPEN_CONFIRM.with(data.clone()))
-                      })
-                  })
-                  .lens(lens::Map::new(
-                    |data: &HashMap<UrlSource, String>| data.get(&UrlSource::Discord).cloned(),
-                    |_, _| {},
-                  ))
-                  .align_left()
-                  .expand_width(),
-                )
-                .with_child(
-                  Maybe::or_empty(|| {
-                    hoverable_text(Some(druid::Color::rgb8(0x00, 0x7B, 0xFF)))
-                      .controller(HoverController::default())
-                      .on_click(|ctx, data, _| {
-                        ctx.submit_command_global(OPEN_IN_BROWSER.with(data.clone()))
-                      })
-                  })
-                  .lens(lens::Map::new(
-                    |data: &HashMap<UrlSource, String>| data.get(&UrlSource::NexusMods).cloned(),
-                    |_, _| {},
-                  ))
-                  .align_left()
-                  .expand_width(),
-                ),
-              Self::VALUE_FLEX,
-            )
-            .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-            .expand_width()
-        })
-        .lens(ModRepoItem::urls.map(
-          |data| {
-            (data.as_ref().is_some_and(|data| !data.is_empty()))
-              .then(|| data.clone())
-              .flatten()
-          },
-          |_, _| {},
-        )),
-      )
+      .with_child(ModRepoItem::urls_view())
       .with_child(
         Maybe::or_empty(|| {
           Flex::column()
@@ -772,16 +639,13 @@ impl ModRepoItem {
                 .expand_width(),
             )
         })
-        .lens(ModRepoItem::edited.map(
-          |date| {
-            (*date).map(|date| {
-              DateTime::<Local>::from(date)
-                .format("%v %I:%M%p")
-                .to_string()
-            })
-          },
-          |_, _| {},
-        )),
+        .lens(ModRepoItem::edited.compute(|date| {
+          date.map(|date| {
+            DateTime::<Local>::from(date)
+              .format("%v %I:%M%p")
+              .to_string()
+          })
+        })),
       )
       .with_child(
         Maybe::or_empty(|| {
@@ -801,16 +665,13 @@ impl ModRepoItem {
                 .expand_width(),
             )
         })
-        .lens(ModRepoItem::created.map(
-          |date| {
-            (*date).map(|date| {
-              DateTime::<Local>::from(date)
-                .format("%v %I:%M%p")
-                .to_string()
-            })
-          },
-          |_, _| {},
-        )),
+        .lens(ModRepoItem::created.compute(|date| {
+          date.map(|date| {
+            DateTime::<Local>::from(date)
+              .format("%v %I:%M%p")
+              .to_string()
+          })
+        })),
       )
       .padding(Self::CARD_INSET)
       .background(Painter::new(|ctx, _, env| {
@@ -825,6 +686,141 @@ impl ModRepoItem {
       }))
       .expand_width()
   }
+
+  fn desc_view() -> impl Widget<ModRepoItem> {
+    ViewSwitcher::new(
+      |data: &ModRepoItem, _| (data.description.clone(), data.show_description),
+      |(description, show), _, _| {
+        if let Some(description) = description {
+          let row = Flex::row().with_flex_child(
+            Flex::row()
+              .with_child(Either::new(
+                |data, _| *data,
+                Icon::new(*ARROW_DROP_DOWN),
+                Icon::new(*ARROW_RIGHT),
+              ))
+              .with_child(Label::new("Description:"))
+              .main_axis_alignment(druid::widget::MainAxisAlignment::End)
+              .align_right()
+              .expand_width()
+              .controller(HoverController::default())
+              .on_click(|_, data: &mut bool, _| *data = !*data)
+              .lens(ModRepoItem::show_description)
+              .padding((0., -2., 0., 0.)),
+            Self::LABEL_FLEX,
+          );
+
+          if *show {
+            row.with_flex_child(Label::wrapped(description), Self::VALUE_FLEX)
+          } else {
+            row.with_flex_child(
+              Label::new("Click to expand...")
+                .controller(HoverController::default())
+                .on_click(|_, data: &mut bool, _| *data = !*data)
+                .lens(ModRepoItem::show_description),
+              Self::VALUE_FLEX,
+            )
+          }
+          .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+          .expand_width()
+          .boxed()
+        } else {
+          SizedBox::empty().boxed()
+        }
+      },
+    )
+  }
+
+  fn authors_view() -> impl Widget<ModRepoItem> {
+    Flex::row()
+      .with_flex_child(
+        Label::new("Authors:").align_right().expand_width(),
+        Self::LABEL_FLEX,
+      )
+      .with_flex_child(
+        Label::wrapped_func(|data: &Vector<String>, _| {
+          data
+            .iter()
+            .cloned()
+            .reduce(|acc, el| format!("{acc}, {el}"))
+            .unwrap()
+            .trim()
+            .to_string()
+        }),
+        Self::VALUE_FLEX,
+      )
+      .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+      .expand_width()
+      .empty_if(is_empty::<Vector<_>>)
+      .lens(ModRepoItem::authors)
+  }
+
+  fn urls_view() -> impl Widget<ModRepoItem> {
+    Flex::row()
+      .with_flex_child(
+        Label::new("Links:").align_right().expand_width(),
+        Self::LABEL_FLEX,
+      )
+      .with_flex_child(
+        Flex::column()
+          .with_child(
+            Maybe::or_empty(|| {
+              hoverable_text(Some(druid::Color::rgb8(0x00, 0x7B, 0xFF)))
+                .controller(HoverController::default())
+                .on_click(|ctx, data, _| {
+                  ctx.submit_command_global(OPEN_IN_BROWSER.with(data.clone()));
+                })
+            })
+            .lens(lens::Map::new(
+              |data: &HashMap<UrlSource, String>| data.get(&UrlSource::Forum).cloned(),
+              |_, _| {},
+            ))
+            .align_left()
+            .expand_width(),
+          )
+          .with_child(
+            Maybe::or_empty(|| {
+              hoverable_text(Some(druid::Color::rgb8(0x00, 0x7B, 0xFF)))
+                .controller(HoverController::default())
+                .on_click(|ctx, data, _| {
+                  ctx.submit_notification(ModRepo::OPEN_CONFIRM.with(data.clone()));
+                })
+            })
+            .lens(lens::Map::new(
+              |data: &HashMap<UrlSource, String>| data.get(&UrlSource::Discord).cloned(),
+              |_, _| {},
+            ))
+            .align_left()
+            .expand_width(),
+          )
+          .with_child(
+            Maybe::or_empty(|| {
+              hoverable_text(Some(druid::Color::rgb8(0x00, 0x7B, 0xFF)))
+                .controller(HoverController::default())
+                .on_click(|ctx, data, _| {
+                  ctx.submit_command_global(OPEN_IN_BROWSER.with(data.clone()));
+                })
+            })
+            .lens(lens::Map::new(
+              |data: &HashMap<UrlSource, String>| data.get(&UrlSource::NexusMods).cloned(),
+              |_, _| {},
+            ))
+            .align_left()
+            .expand_width(),
+          ),
+        Self::VALUE_FLEX,
+      )
+      .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+      .empty_if(is_empty::<HashMap<_, _>>)
+      .lens(ModRepoItem::urls)
+  }
+}
+
+fn is_empty<T>(collection: &T, _: &druid::Env) -> bool
+where
+  for<'a> &'a T: IntoIterator<IntoIter: ExactSizeIterator> + 'a,
+{
+  collection.into_iter().len() == 0
 }
 
 #[derive(
@@ -906,7 +902,7 @@ enum Metadata {
 }
 
 impl Metadata {
-  fn comparator(&self, left: &ModRepoItem, right: &ModRepoItem) -> std::cmp::Ordering {
+  fn comparator(self, left: &ModRepoItem, right: &ModRepoItem) -> std::cmp::Ordering {
     match self {
       Metadata::Name => left.name.cmp(&right.name),
       Metadata::Created => right.created.cmp(&left.created),
@@ -933,5 +929,20 @@ impl Display for Metadata {
       Self::Authors => "Author(s)",
       Self::Score => unimplemented!(),
     }))
+  }
+}
+
+#[cfg(test)]
+mod test {
+  use crate::app::mod_repo::ModRepoItem;
+
+  #[test]
+  fn check_repo_deser() {
+    let json = r#"{ "name": "foo" }"#;
+
+    let item: ModRepoItem = serde_json::from_str(json).expect("Deserialize");
+
+    assert!(item.authors.is_empty());
+    assert!(item.urls.is_empty());
   }
 }

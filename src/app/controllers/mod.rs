@@ -29,7 +29,7 @@ pub use max_size_box::*;
 // pub use mod_entry_click_controller::ModEntryClickController;
 pub use mod_list_controller::ModListController;
 pub use on_cmd::*;
-pub use on_event::OnEvent;
+pub use on_event::*;
 pub use on_hover::OnHover;
 pub use on_notif::OnNotif;
 pub use rotate::Rotated;

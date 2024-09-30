@@ -40,6 +40,10 @@ use crate::{
   widgets::card::Card,
 };
 
+const DOWNLOAD_COMPLETE: Selector<Flavour> = Selector::new("jre.download.complete");
+const DOWNLOAD_STARTED: Selector<Flavour> = Selector::new("jre.download.start");
+const DOWNLOAD_FAILED: Selector<Flavour> = Selector::new("jre.download.failed");
+
 #[derive(Debug, Clone, Data, Lens)]
 pub struct Swapper {
   #[data(eq)]
@@ -93,7 +97,7 @@ impl Swapper {
             .scope_with::<bool, _, _>(|_| false, {
               let inactive_text = inactive_text.clone();
               move |widget| {
-                widget.on_command(LINK_CLICKED, move |_, _, state| {
+                widget.on_command(LINK_CLICKED, move |_, (), state| {
                   state.inner = !state.inner;
                   state.outer = if state.inner {
                     active_text.clone()
@@ -133,8 +137,6 @@ impl Swapper {
   }
 
   fn swapper_row(flavour: Flavour, label: &str) -> TableRow<Self> {
-    const DOWNLOAD_FAILED: Selector<Flavour> = Selector::new("jre.download.failed");
-
     let empty_if_not = move |_: &Swapper, env: &druid::Env| {
       static _0_97_A_RC_11: LazyLock<GameVersion> =
         LazyLock::new(|| parse_game_version("0.97a-RC11"));
@@ -157,7 +159,7 @@ impl Swapper {
                 return;
               }
             } else {
-              data.jre_23 = false
+              data.jre_23 = false;
             }
 
             ctx.submit_command(VMParams::SAVE_VMPARAMS);
@@ -184,167 +186,164 @@ impl Swapper {
           })
           .empty_if_not(empty_if_not),
       )
-      .with_child({
-        let id = WidgetId::next();
-        let builder = Card::builder()
-          .with_insets((0., 10.))
-          .with_corner_radius(2.)
-          .with_shadow_length(1.)
-          .with_shadow_increase(1.);
-        let button = Either::new(
-          move |data: &Swapper, _: &druid::Env| {
-            data.current_flavour == flavour || data.cached_flavours.contains(&flavour)
-          },
-          builder
-            .clone()
-            .with_background(druid::theme::BUTTON_DARK)
-            .hoverable(|_| {
-              Label::new("Downloaded")
-                .env_scope(|env, _| {
-                  env.set(
-                    druid::theme::TEXT_SIZE_NORMAL,
-                    env.get(druid::theme::TEXT_SIZE_NORMAL) * 0.6,
-                  );
-                  env.set(
-                    druid::theme::DISABLED_TEXT_COLOR,
-                    env.get(druid::theme::TEXT_COLOR),
-                  );
-                })
-                .align_horizontal(druid::UnitPoint::CENTER)
-                .expand_width()
-                .padding((0., -2.5))
-            }),
-          Either::new(
-            |data, _: &druid::Env| *data,
-            builder
-              .clone()
-              .with_background(theme::GREEN_KEY)
-              .hoverable(|_| {
-                Label::new("Download")
-                  .with_text_color(theme::ON_GREEN_KEY)
-                  .env_scope(|env, _| {
-                    env.set(
-                      druid::theme::TEXT_SIZE_NORMAL,
-                      env.get(druid::theme::TEXT_SIZE_NORMAL) * 0.6,
-                    )
-                  })
-                  .align_horizontal(druid::UnitPoint::CENTER)
-                  .expand_width()
-                  .padding((0., -2.5))
-              }),
-            builder
-              .with_background(theme::GREEN_KEY)
-              .hoverable(move |_| {
-                Label::dynamic(|data: &f64, _| {
-                  format!("Downloading{}", ".".repeat(data.floor() as usize))
-                })
-                .controller(
-                  AnimController::new(
-                    0.,
-                    4.,
-                    druid_widget_nursery::animation::AnimationCurve::LINEAR,
-                  )
-                  .with_transform(|v| v.floor())
-                  .with_duration(2.5)
-                  .looping(),
-                )
-                .with_id(id)
-                .on_command(DOWNLOAD_STARTED, move |ctx, payload, _| {
-                  if *payload == flavour {
-                    ctx.submit_command(AnimController::<f64>::ANIM_START.to(id));
-                  }
-                })
-                .scope_independent(|| 0.)
-                .env_scope(|env, _| {
-                  env.set(
-                    druid::theme::TEXT_SIZE_NORMAL,
-                    env.get(druid::theme::TEXT_SIZE_NORMAL) * 0.6,
-                  );
-                  env.set(
-                    druid::theme::DISABLED_TEXT_COLOR,
-                    env.get(theme::ON_GREEN_KEY),
-                  );
-                })
-                .align_horizontal(druid::UnitPoint::CENTER)
-                .expand_width()
-                .padding((0., -2.5))
-              })
-              .disabled(),
-          )
-          .on_command(DOWNLOAD_STARTED, move |_, payload, data| {
-            if *payload == flavour {
-              *data = false;
-            }
-          })
-          .on_command(DOWNLOAD_FAILED, move |_, payload, data| {
-            if *payload == flavour {
-              *data = true;
-            }
-          })
-          .on_command(DOWNLOAD_COMPLETE, move |_, payload, data| {
-            if *payload == flavour {
-              *data = true;
-            }
-          })
-          .scope_independent(|| true),
-        )
-        .fix_width(175.);
-
-        const DOWNLOAD_COMPLETE: Selector<Flavour> = Selector::new("jre.download.complete");
-        const DOWNLOAD_STARTED: Selector<Flavour> = Selector::new("jre.download.start");
-        match flavour {
-          Flavour::Original => button.invisible().disabled().boxed(),
-          _ => button
-            .on_click(move |ctx, data, _| {
-              let install_dir = data.install_dir.clone();
-              let ext_ctx = ctx.get_external_handle();
-              tokio::spawn(async move {
-                let res = flavour.download(install_dir).await;
-                match res {
-                  Ok(_) => {
-                    if let Err(err) = ext_ctx.submit_command_global(DOWNLOAD_COMPLETE, flavour) {
-                      dbg!(err);
-                    }
-                  }
-                  Err(err) => {
-                    dbg!(err);
-                  }
-                }
-              });
-              ctx.set_disabled(true);
-              ctx.submit_command(DOWNLOAD_STARTED.with(flavour))
-            })
-            .on_command(DOWNLOAD_COMPLETE, move |_, payload, data| {
-              if *payload == flavour {
-                data.cached_flavours.push_back(flavour)
-              }
-            })
-            .disabled_if(move |data: &Swapper, _| {
-              data.current_flavour == flavour || data.cached_flavours.contains(&flavour)
-            })
-            .boxed(),
-        }
-        .empty_if_not(empty_if_not)
-      })
+      .with_child(Swapper::download_button(flavour, empty_if_not))
   }
 
+  fn download_button(
+    flavour: Flavour,
+    empty_if_not: impl Fn(&Swapper, &druid::Env) -> bool + 'static,
+  ) -> Either<Swapper> {
+    let id = WidgetId::next();
+    let builder = Card::builder()
+      .with_insets((0., 10.))
+      .with_corner_radius(2.)
+      .with_shadow_length(1.)
+      .with_shadow_increase(1.);
+    let button = Either::new(
+      move |data: &Swapper, _: &druid::Env| {
+        data.current_flavour == flavour || data.cached_flavours.contains(&flavour)
+      },
+      builder
+        .clone()
+        .with_background(druid::theme::BUTTON_DARK)
+        .hoverable(|_| {
+          Label::new("Downloaded")
+            .env_scope(|env, _| {
+              env.set(
+                druid::theme::TEXT_SIZE_NORMAL,
+                env.get(druid::theme::TEXT_SIZE_NORMAL) * 0.6,
+              );
+              env.set(
+                druid::theme::DISABLED_TEXT_COLOR,
+                env.get(druid::theme::TEXT_COLOR),
+              );
+            })
+            .align_horizontal(druid::UnitPoint::CENTER)
+            .expand_width()
+            .padding((0., -2.5))
+        }),
+      Either::new(
+        |data, _: &druid::Env| *data,
+        builder
+          .clone()
+          .with_background(theme::GREEN_KEY)
+          .hoverable(|_| {
+            Label::new("Download")
+              .with_text_color(theme::ON_GREEN_KEY)
+              .env_scope(|env, _| {
+                env.set(
+                  druid::theme::TEXT_SIZE_NORMAL,
+                  env.get(druid::theme::TEXT_SIZE_NORMAL) * 0.6,
+                );
+              })
+              .align_horizontal(druid::UnitPoint::CENTER)
+              .expand_width()
+              .padding((0., -2.5))
+          }),
+        builder
+          .with_background(theme::GREEN_KEY)
+          .hoverable(move |_| {
+            Label::dynamic(|data: &f64, _| {
+              format!("Downloading{}", ".".repeat(data.min(0.0).floor() as usize))
+            })
+            .controller(
+              AnimController::new(
+                0.,
+                4.,
+                druid_widget_nursery::animation::AnimationCurve::LINEAR,
+              )
+              .with_transform(f64::floor)
+              .with_duration(2.5)
+              .looping(),
+            )
+            .with_id(id)
+            .on_command(DOWNLOAD_STARTED, move |ctx, payload, _| {
+              if *payload == flavour {
+                ctx.submit_command(AnimController::<f64>::ANIM_START.to(id));
+              }
+            })
+            .scope_independent(|| 0.)
+            .env_scope(|env, _| {
+              env.set(
+                druid::theme::TEXT_SIZE_NORMAL,
+                env.get(druid::theme::TEXT_SIZE_NORMAL) * 0.6,
+              );
+              env.set(
+                druid::theme::DISABLED_TEXT_COLOR,
+                env.get(theme::ON_GREEN_KEY),
+              );
+            })
+            .align_horizontal(druid::UnitPoint::CENTER)
+            .expand_width()
+            .padding((0., -2.5))
+          })
+          .disabled(),
+      )
+      .on_command(DOWNLOAD_STARTED, move |_, payload, data| {
+        if *payload == flavour {
+          *data = false;
+        }
+      })
+      .on_command(DOWNLOAD_FAILED, move |_, payload, data| {
+        if *payload == flavour {
+          *data = true;
+        }
+      })
+      .on_command(DOWNLOAD_COMPLETE, move |_, payload, data| {
+        if *payload == flavour {
+          *data = true;
+        }
+      })
+      .scope_independent(|| true),
+    )
+    .fix_width(175.);
+    match flavour {
+      Flavour::Original => button.invisible().disabled().boxed(),
+      _ => button
+        .on_click(move |ctx, data, _| {
+          let install_dir = data.install_dir.clone();
+          let ext_ctx = ctx.get_external_handle();
+          tokio::spawn(async move {
+            flavour.download(install_dir).await.and_then(|()| {
+              ext_ctx
+                .submit_command_global(DOWNLOAD_COMPLETE, flavour)
+                .context("Failed to submit event")
+            })
+          });
+          ctx.set_disabled(true);
+          ctx.submit_command(DOWNLOAD_STARTED.with(flavour));
+        })
+        .on_command(DOWNLOAD_COMPLETE, move |_, payload, data| {
+          if *payload == flavour {
+            data.cached_flavours.push_back(flavour);
+          }
+        })
+        .disabled_if(move |data: &Swapper, _| {
+          data.current_flavour == flavour || data.cached_flavours.contains(&flavour)
+        })
+        .boxed(),
+    }
+    .empty_if_not(empty_if_not)
+  }
+
+  #[allow(clippy::unused_async)]
   pub async fn get_cached_jres(install_dir: PathBuf) -> (Flavour, Vec<Flavour>) {
     let mut available: Vec<Flavour> = Flavour::iter()
-      .filter_map(|f| {
-        let sub_path = if f == Flavour::Original {
+      .filter(|f| {
+        let sub_path = if *f == Flavour::Original {
           ORIGINAL_JRE_BACKUP.to_owned()
         } else {
-          format!("jre_{}", f)
+          format!("jre_{f}")
         };
         let path = install_dir.join(sub_path);
 
-        path.exists().then_some(f)
+        path.exists()
       })
       .collect();
 
     #[cfg(not(target_os = "macos"))]
     if install_dir.join("Miko_R3.txt").exists() && install_dir.join(consts::MIKO_JDK_VER).exists() {
-      available.push(Flavour::Miko)
+      available.push(Flavour::Miko);
     }
 
     let current = Swapper::get_actual_jre(&install_dir);
@@ -421,7 +420,7 @@ impl Flavour {
     let cached_jre = install_dir.join(match self {
       #[cfg(not(target_os = "macos"))]
       Flavour::Miko => consts::MIKO_JDK_VER.to_owned(),
-      _ => format!("jre_{}", self),
+      _ => format!("jre_{self}"),
     });
 
     if !cached_jre.exists() {
@@ -433,6 +432,7 @@ impl Flavour {
       serde_json::to_writer_pretty(
         std::fs::OpenOptions::new()
           .create(true)
+          .truncate(true)
           .write(true)
           .open(jre_8.join(".moss"))?,
         &self,
@@ -452,7 +452,7 @@ impl Flavour {
   }
 
   async fn swap_jre(self, root: PathBuf) -> anyhow::Result<bool> {
-    let cached_jre = root.join(format!("jre_{}", self));
+    let cached_jre = root.join(format!("jre_{self}"));
     let stock_jre = root.join(consts::JRE_PATH);
 
     if Swapper::get_actual_jre(&root) == self {
@@ -461,7 +461,9 @@ impl Flavour {
     }
 
     let tempdir: TempDir;
-    let jre_8 = if !cached_jre.exists() {
+    let jre_8 = if cached_jre.exists() {
+      cached_jre
+    } else {
       tempdir = self.unpack(&root).await?;
 
       let search_stratgey = self.get_search_strategy();
@@ -470,6 +472,7 @@ impl Flavour {
       serde_json::to_writer_pretty(
         std::fs::OpenOptions::new()
           .create(true)
+          .truncate(true)
           .write(true)
           .open(jre_8.join(".moss"))?,
         &self,
@@ -477,8 +480,6 @@ impl Flavour {
 
       std::fs::rename(jre_8, &cached_jre)?;
 
-      cached_jre
-    } else {
       cached_jre
     };
 
@@ -490,7 +491,7 @@ impl Flavour {
     Ok(false)
   }
 
-  fn as_const(&self) -> (&'static str, FindBy) {
+  fn as_const(self) -> (&'static str, FindBy) {
     match self {
       Flavour::Coretto => consts::CORETTO,
       Flavour::Hotspot => consts::HOTSPOT,
@@ -502,15 +503,15 @@ impl Flavour {
     }
   }
 
-  fn get_url(&self) -> &'static str {
+  fn get_url(self) -> &'static str {
     self.as_const().0
   }
 
-  fn get_search_strategy(&self) -> FindBy {
+  fn get_search_strategy(self) -> FindBy {
     self.as_const().1
   }
 
-  async fn unpack(&self, root: &Path) -> anyhow::Result<TempDir> {
+  async fn unpack(self, root: &Path) -> anyhow::Result<TempDir> {
     let url = Self::get_url(self);
 
     let tempdir = TempDir::new_in(root).context("Create tempdir")?;
@@ -519,7 +520,7 @@ impl Flavour {
 
     let mut buf = Vec::new();
     while let Some(bytes) = res.chunk().await? {
-      buf.append(&mut bytes.to_vec())
+      buf.append(&mut bytes.to_vec());
     }
 
     let path = root.join(tempdir.path());
@@ -559,9 +560,8 @@ impl Flavour {
                     && file.file_name().eq_ignore_ascii_case("jre")
                   {
                     return Some(file.path());
-                  } else {
-                    visit.push_back(file.path())
                   }
+                  visit.push_back(file.path());
                 }
               }
             }
@@ -584,7 +584,7 @@ impl Flavour {
 
     let mut buf = Vec::new();
     while let Some(bytes) = res.chunk().await? {
-      buf.append(&mut bytes.to_vec())
+      buf.append(&mut bytes.to_vec());
     }
 
     let path = root.join(tempdir.path());
@@ -609,34 +609,34 @@ impl Flavour {
       .join("6GB (Discord Choice)")
       .join("Miko_R3.txt");
 
-    std::fs::rename(r3, &root_dir.join("Miko_R3.txt"))?;
+    std::fs::rename(r3, root_dir.join("Miko_R3.txt"))?;
 
     // I hate this
     let install_files = miko_download.join("0. Files to put into starsector");
 
-    fn recursive_move(from: &Path, to: &Path) -> anyhow::Result<()> {
-      for entry in from.read_dir()? {
-        let entry = entry?;
-        let target = to.join(entry.file_name());
-
-        if !target.exists() || (!target.is_dir() && entry.path().is_dir()) {
-          std::fs::rename(entry.path(), &target)?
-        } else if entry.path().is_dir() {
-          recursive_move(&entry.path(), &target)?
-        }
-      }
-
-      Ok(())
-    }
-
     Handle::current()
-      .spawn_blocking(move || recursive_move(&install_files, &root_dir))
+      .spawn_blocking(move || Self::recursive_move(&install_files, &root_dir))
       .await??;
 
     Ok(())
   }
 
-  fn is_miko(&self) -> bool {
+  fn recursive_move(from: &Path, to: &Path) -> anyhow::Result<()> {
+    for entry in from.read_dir()? {
+      let entry = entry?;
+      let target = to.join(entry.file_name());
+
+      if !target.exists() || (!target.is_dir() && entry.path().is_dir()) {
+        std::fs::rename(entry.path(), &target)?;
+      } else if entry.path().is_dir() {
+        Self::recursive_move(&entry.path(), &target)?;
+      }
+    }
+
+    Ok(())
+  }
+
+  fn is_miko(self) -> bool {
     #[cfg(not(target_os = "macos"))]
     return matches!(self, Flavour::Miko);
     #[cfg(target_os = "macos")]
@@ -657,7 +657,7 @@ fn get_backup_path(stock_jre: &Path) -> Result<PathBuf, anyhow::Error> {
   } else if stock_jre.join(".moss").exists() {
     let flavour: Flavour =
       serde_json::from_str(&std::fs::read_to_string(stock_jre.join(".moss"))?)?;
-    format!("jre_{}", flavour)
+    format!("jre_{flavour}")
   } else {
     JRE_BACKUP.to_string()
   });
@@ -679,17 +679,17 @@ async fn revert_jre(root: PathBuf) -> anyhow::Result<bool> {
 
   if original_backup.exists() {
     if current_jre.exists() {
-      if !std::fs::symlink_metadata(&current_jre)?.is_symlink() {
-        std::fs::rename(&current_jre, get_backup_path(&current_jre)?)?;
-      } else {
+      if std::fs::symlink_metadata(&current_jre)?.is_symlink() {
         #[cfg(target_os = "windows")]
-        std::fs::remove_dir(&current_jre)?;
+        tokio::fs::remove_dir(&current_jre).await?;
         #[cfg(target_family = "unix")]
-        std::fs::remove_file(&current_jre)?;
+        tokio::fs::remove_file(&current_jre).await?;
+      } else {
+        tokio::fs::rename(&current_jre, get_backup_path(&current_jre)?).await?;
       }
     }
 
-    std::fs::rename(original_backup, &current_jre)?;
+    tokio::fs::rename(original_backup, &current_jre).await?;
 
     Ok(true)
   } else {
@@ -1027,9 +1027,9 @@ mod test {
 
     let project_test_dir = TempDir::new().expect("Create project test dir");
 
-    std::fs::create_dir_all(project_test_dir.path().join(format!("jre_{}", flavour)))
+    std::fs::create_dir_all(project_test_dir.path().join(format!("jre_{flavour}")))
       .expect("Created mock cached JRE");
-    std::fs::create_dir_all(project_test_dir.path().join(format!("jre_{}/bin", flavour)))
+    std::fs::create_dir_all(project_test_dir.path().join(format!("jre_{flavour}/bin")))
       .expect("Created mock cached JRE");
     std::fs::OpenOptions::new()
       .create_new(true)
@@ -1048,11 +1048,7 @@ mod test {
       std::fs::OpenOptions::new()
         .create_new(true)
         .write(true)
-        .open(
-          project_test_dir
-            .path()
-            .join(format!("jre_{}/.moss", flavour)),
-        )
+        .open(project_test_dir.path().join(format!("jre_{flavour}/.moss")))
         .expect("Created mock cached JRE"),
       &flavour,
     )

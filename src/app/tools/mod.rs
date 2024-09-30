@@ -44,9 +44,9 @@ impl Tools {
   fn vmparams_wrapped() -> impl Widget<Self> {
     Maybe::or_empty(VMParams::view)
       .lens(Tools::vmparams)
-      .on_command(VMParams::SAVE_VMPARAMS, |_, _, data| {
+      .on_command(VMParams::SAVE_VMPARAMS, |_, (), data| {
         eprintln!("saving vmparams");
-        data.write_vmparams()
+        data.write_vmparams();
       })
   }
 
@@ -105,7 +105,7 @@ impl Tools {
     if let Some(install) = self.install_dir.as_ref()
       && let Some(vmparams) = &self.vmparams
     {
-      vmparams.save(install).expect("Save vmparams edit")
+      vmparams.save(install).expect("Save vmparams edit");
     }
   }
 }

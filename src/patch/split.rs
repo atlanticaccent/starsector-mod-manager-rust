@@ -358,12 +358,12 @@ impl<T: Data> Widget<T> for Split<T> {
     match self.split_axis {
       Axis::Horizontal => {
         if !bc.is_width_bounded() {
-          eprintln!("A Split widget was given an unbounded width to split.")
+          eprintln!("A Split widget was given an unbounded width to split.");
         }
       }
       Axis::Vertical => {
         if !bc.is_height_bounded() {
-          eprintln!("A Split widget was given an unbounded height to split.")
+          eprintln!("A Split widget was given an unbounded height to split.");
         }
       }
     }
@@ -379,7 +379,7 @@ impl<T: Data> Widget<T> for Split<T> {
     self.split_point_effective = {
       let (min_limit, max_limit) = self.split_side_limits(reduced_size);
       let reduced_axis_size = self.split_axis.major(reduced_size);
-      if reduced_axis_size.is_infinite() || reduced_axis_size <= std::f64::EPSILON {
+      if reduced_axis_size.is_infinite() || reduced_axis_size <= f64::EPSILON {
         0.5
       } else {
         clamp(

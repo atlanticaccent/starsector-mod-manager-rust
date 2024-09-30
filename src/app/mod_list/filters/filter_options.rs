@@ -23,7 +23,7 @@ use crate::{
 pub struct FilterOptions;
 
 impl FilterOptions {
-  pub fn view() -> impl Widget<FilterState> {
+  #[must_use] pub fn view() -> impl Widget<FilterState> {
     Card::builder()
       .with_insets((0.0, 14.0))
       .with_corner_radius(4.0)
@@ -38,7 +38,7 @@ impl FilterOptions {
       .lens(FilterState::open)
   }
 
-  pub fn wide_view() -> impl Widget<FilterState> {
+  #[must_use] pub fn wide_view() -> impl Widget<FilterState> {
     let mut width_linker = {
       let mut linker = HeightLinker::new();
       linker.axis = druid::widget::Axis::Horizontal;
@@ -80,35 +80,28 @@ impl FilterOptions {
     .padding((8.0, 0.0))
   }
 
-  fn option<T: Data, U>(
+  fn option<T: Data, U: Data>(
     text: &str,
     width_linker: &mut Option<HeightLinkerShared>,
-    switch: impl Fn(&T, &Env) -> U + 'static,
+    picker: impl Fn(&T, &Env) -> U + 'static,
   ) -> impl Widget<T>
   where
-    BoolIcon<T>: FromFn<T, U>,
+    for<'a> &'a U: Into<BoolIcon<'a>>,
   {
     Flex::row()
       .with_child(
-        match BoolIcon::from_fn(switch) {
-          BoolIcon::Bool(bool) => ViewSwitcher::new(bool, |filled, _, _| {
-            Icon::new(*if *filled {
-              FILLED_CHECKBOX
-            } else {
-              EMPTY_CHECKBOX
-            })
-            .boxed()
-          })
-          .boxed(),
-          BoolIcon::Icon(icon) => ViewSwitcher::new(icon, |icon, _, _| {
-            let mut icon_widget = Icon::new(**icon);
-            if let Some(color) = icon.color() {
-              icon_widget = icon_widget.with_color(*color)
-            }
-            icon_widget.boxed()
-          })
-          .boxed(),
-        }
+        ViewSwitcher::new(picker, |pick, _, _| {
+          let icon = match pick.into() {
+            BoolIcon::Bool(true) => FILLED_CHECKBOX,
+            BoolIcon::Bool(false) => EMPTY_CHECKBOX,
+            BoolIcon::Icon(icon) => icon.clone(),
+          };
+          let mut icon_widget = Icon::new(*icon);
+          if let Some(color) = icon.color() {
+            icon_widget = icon_widget.with_color(*color);
+          }
+          icon_widget.boxed()
+        })
         .padding((5.0, 0.0, -5.0, 0.0)),
       )
       .with_child(Self::option_text(text))
@@ -141,9 +134,9 @@ impl FilterOptions {
             })
             .on_click(|_, data, _| {
               if *data == Some(true) {
-                *data = None
+                *data = None;
               } else {
-                *data = Some(true)
+                *data = Some(true);
               }
             }),
           )
@@ -153,9 +146,9 @@ impl FilterOptions {
             })
             .on_click(|_, data, _| {
               if *data == Some(false) {
-                *data = None
+                *data = None;
               } else {
-                *data = Some(false)
+                *data = Some(false);
               }
             }),
           )
@@ -169,7 +162,7 @@ impl FilterOptions {
           ModList::FILTER_UPDATE.with((Filters::Disabled, data.is_some_and(|d| d))),
         );
       })
-      .on_command(ModList::FILTER_RESET, |_, _, data| *data = None)
+      .on_command(ModList::FILTER_RESET, |_, (), data| *data = None)
       .scope_independent(|| Option::<bool>::None)
   }
 
@@ -225,7 +218,7 @@ impl FilterOptions {
       )
       .on_click(move |_, data, _| lens.put(data, !lens.get(data)))
       .on_change(move |ctx, _, data, _| {
-        ctx.submit_command(ModList::FILTER_UPDATE.with((filter, lens.get(data))))
+        ctx.submit_command(ModList::FILTER_UPDATE.with((filter, lens.get(data))));
       })
     }
 
@@ -269,8 +262,8 @@ impl FilterOptions {
                   }
                 }
               };
-              for filter in filters.into_iter() {
-                ctx.submit_command(ModList::FILTER_UPDATE.with((filter, enable)))
+              for filter in filters {
+                ctx.submit_command(ModList::FILTER_UPDATE.with((filter, enable)));
               }
             }),
           )
@@ -324,8 +317,8 @@ impl FilterOptions {
           ))
           .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start),
       )
-      .on_command(ModList::FILTER_RESET, |_, _, data| {
-        *data = VersionCheckerFilter::default()
+      .on_command(ModList::FILTER_RESET, |_, (), data| {
+        *data = VersionCheckerFilter::default();
       })
       .scope_independent(VersionCheckerFilter::default)
   }
@@ -357,9 +350,9 @@ impl FilterOptions {
             })
             .on_click(|_, data, _| {
               if *data == Some(true) {
-                *data = None
+                *data = None;
               } else {
-                *data = Some(true)
+                *data = Some(true);
               }
             }),
           )
@@ -371,9 +364,9 @@ impl FilterOptions {
             )
             .on_click(|_, data, _| {
               if *data == Some(false) {
-                *data = None
+                *data = None;
               } else {
-                *data = Some(false)
+                *data = Some(false);
               }
             }),
           )
@@ -387,36 +380,24 @@ impl FilterOptions {
           ModList::FILTER_UPDATE.with((Filters::AutoUpdateUnsupported, data.is_some_and(|d| !d))),
         );
       })
-      .on_command(ModList::FILTER_RESET, |_, _, data| *data = None)
+      .on_command(ModList::FILTER_RESET, |_, (), data| *data = None)
       .scope_independent(|| Option::<bool>::None)
   }
 }
 
-enum BoolIcon<T> {
-  Bool(Box<dyn Fn(&T, &Env) -> bool>),
-  Icon(Box<dyn Fn(&T, &Env) -> CopyIcon>),
+enum BoolIcon<'a> {
+  Bool(&'a bool),
+  Icon(&'a CopyIcon),
 }
 
-trait FromFn<T, U> {
-  fn from_fn<F>(v: F) -> BoolIcon<T>
-  where
-    F: Fn(&T, &Env) -> U + 'static;
-}
-
-impl<T> FromFn<T, bool> for BoolIcon<T> {
-  fn from_fn<F>(v: F) -> BoolIcon<T>
-  where
-    F: Fn(&T, &Env) -> bool + 'static,
-  {
-    BoolIcon::Bool(Box::new(v))
+impl<'a> From<&'a bool> for BoolIcon<'a> {
+  fn from(value: &'a bool) -> Self {
+    BoolIcon::Bool(value)
   }
 }
 
-impl<T> FromFn<T, CopyIcon> for BoolIcon<T> {
-  fn from_fn<F>(v: F) -> BoolIcon<T>
-  where
-    F: Fn(&T, &Env) -> CopyIcon + 'static,
-  {
-    BoolIcon::Icon(Box::new(v))
+impl<'a> From<&'a CopyIcon> for BoolIcon<'a> {
+  fn from(value: &'a CopyIcon) -> Self {
+    BoolIcon::Icon(value)
   }
 }

@@ -4,7 +4,7 @@ use druid::{theme, widget::SizedBox, Data, KeyOrValue, UnitPoint, Widget, Widget
 
 use super::tab::{InitialTab, TabInfo, TabsPolicy};
 
-/// A TabsPolicy that allows the app developer to provide static tabs up front
+/// A `TabsPolicy` that allows the app developer to provide static tabs up front
 /// when building the widget.
 #[derive(Clone)]
 pub struct StaticTabsForked<T> {
@@ -18,19 +18,19 @@ pub struct StaticTabsForked<T> {
 #[allow(dead_code)]
 impl<T> StaticTabsForked<T> {
   /// Set the static tabs forked's text size.
-  pub fn set_text_size(mut self, text_size: KeyOrValue<f64>) -> Self {
+  #[must_use] pub fn set_text_size(mut self, text_size: KeyOrValue<f64>) -> Self {
     self.text_size = text_size;
     self
   }
 
   /// Set the static tabs forked's label height.
-  pub fn set_label_height(mut self, label_height: f64) -> Self {
+  #[must_use] pub fn set_label_height(mut self, label_height: f64) -> Self {
     self.label_height = label_height;
     self
   }
 
-  pub fn label_idx(&self, label: &str) -> usize {
-    self.tabs.iter().position(|tab| &tab.name == label).unwrap()
+  #[must_use] pub fn label_idx(&self, label: &str) -> usize {
+    self.tabs.iter().position(|tab| tab.name == label).unwrap()
   }
 }
 

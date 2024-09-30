@@ -44,5 +44,5 @@ fn main() {
 fn configure_env<T>(env: &mut druid::Env, _data: &T) {
   druid_widget_nursery::configure_env(env, _data);
 
-  save_original_env(env)
+  save_original_env(env);
 }

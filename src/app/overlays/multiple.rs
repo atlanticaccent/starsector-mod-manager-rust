@@ -71,7 +71,7 @@ impl Multiple {
                 TableRow::new()
                   .with_child(row(found))
                   .with_child(install_button(found.path.clone(), source.clone(), idx)),
-              )
+              );
             }
 
             column.add_child(table.scroll().vertical());
@@ -165,7 +165,7 @@ impl Multiple {
 fn dismiss(ctx: &mut druid::EventCtx, data: &mut MultipleState, _env: &druid::Env) {
   ctx.submit_command(Popup::DISMISS);
   for command in data.commands.drain(0..) {
-    ctx.submit_command(command)
+    ctx.submit_command(command);
   }
 }
 
@@ -209,7 +209,7 @@ fn row<T: Data>(entry: &ModEntry) -> impl Widget<T> {
               ctx.set_active(false);
               ctx.clear_cursor();
               if ctx.is_focused() {
-                ctx.resign_focus()
+                ctx.resign_focus();
               }
               ctx.request_update();
             }),
@@ -250,14 +250,14 @@ fn install_button(path: PathBuf, source: HybridPath, idx: usize) -> impl Widget<
         ctx.clear_cursor();
         ctx.set_active(false);
         if ctx.is_focused() {
-          ctx.resign_focus()
+          ctx.resign_focus();
         }
         *can_install = false;
         state
           .commands
           .push(INSTALL_FOUND_MULTIPLE.with(SingleUse::new((vec![path.clone()], source.clone()))));
         if state.enabled.all(false) {
-          dismiss(ctx, state, env)
+          dismiss(ctx, state, env);
         }
       }
     })

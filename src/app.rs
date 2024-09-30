@@ -22,7 +22,9 @@ use crate::{
     overlays::Popup,
     settings::{Settings, ThemeEditor},
     tools::Tools,
-    util::{bold_text, icons::*, FastImMap, Release, Tap, WidgetExtEx, HOVER_STATE_CHANGE},
+    util::{
+      bold_text, icons::{ARROW_DROP_DOWN, ARROW_LEFT, ARROW_RIGHT, BOOKMARK, BOOKMARK_BORDER, CHEVRON_LEFT, CHEVRON_RIGHT, CLEAR, CONTENT_COPY, DESELECT, DONE_ALL, FIRST_PAGE, INDETERMINATE_CHECK_BOX, INFO, LAST_PAGE, LINK, LINK_OFF, PLAY_ARROW, REFRESH, SETTINGS, SHUFFLE, TOGGLE_ON, icon}, FastImMap, LensExtExt, Release, Tap, WidgetExtEx, HOVER_STATE_CHANGE,
+    },
   },
   nav_bar::{Nav, NavBar, NavLabel},
   patch::{
@@ -97,7 +99,7 @@ impl App {
   const TOGGLE_NAV_BAR: Selector = Selector::new("app.nav_bar.collapse");
   const UPDATE_AVAILABLE: Selector<anyhow::Result<Release>> = Selector::new("app.update.available");
 
-  pub fn new(runtime: Handle) -> Self {
+  #[must_use] pub fn new(runtime: Handle) -> Self {
     let settings = settings::Settings::load()
       .map(|mut settings| {
         if let Some(install_dir) = settings.install_dir.clone() {
@@ -132,7 +134,7 @@ impl App {
   }
 
   pub fn replace_mods(&mut self, mods: FastImMap<String, ModEntry>) {
-    self.mod_list.replace_mods(mods)
+    self.mod_list.replace_mods(mods);
   }
 
   pub fn view() -> impl Widget<Self> {
@@ -200,7 +202,7 @@ impl App {
                 .align_vertical(druid::UnitPoint::BOTTOM)
                 .expand_height(),
             )
-            .on_command(App::TOGGLE_NAV_BAR, |_, _, data| data.inner = !data.inner)
+            .on_command(App::TOGGLE_NAV_BAR, |_, (), data| data.inner = !data.inner)
         },
       ))
       .with_flex_child(
@@ -242,18 +244,18 @@ impl App {
 
                 let tabs = tabs.wrapped_mut();
                 let rebuild = &mut state.inner;
-                state.outer.current_tab = label.clone();
+                state.outer.current_tab = *label;
                 if *label != NavLabel::ModDetails {
                   ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Mods, false)));
-                  ctx.submit_command(NavBar::REMOVE_OVERRIDE.with(NavLabel::ModDetails))
+                  ctx.submit_command(NavBar::REMOVE_OVERRIDE.with(NavLabel::ModDetails));
                 }
                 if *label != NavLabel::StarmodderDetails {
                   ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Starmodder, false)));
-                  ctx.submit_command(NavBar::REMOVE_OVERRIDE.with(NavLabel::StarmodderDetails))
+                  ctx.submit_command(NavBar::REMOVE_OVERRIDE.with(NavLabel::StarmodderDetails));
                 }
                 if *label != NavLabel::ThemeEditor {
                   ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::ThemeEditor, false)));
-                  ctx.submit_command(NavBar::REMOVE_OVERRIDE.with(NavLabel::Settings))
+                  ctx.submit_command(NavBar::REMOVE_OVERRIDE.with(NavLabel::Settings));
                 }
 
                 match label {
@@ -267,25 +269,25 @@ impl App {
                   NavLabel::ModDetails => {
                     ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Mods, true)));
                     ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::ModDetails, true)));
-                    tabs.set_tab_index_by_label(NavLabel::ModDetails)
+                    tabs.set_tab_index_by_label(NavLabel::ModDetails);
                   }
                   NavLabel::WebBrowser => {
                     ctx.submit_command(NavBar::RECURSE_SET_EXPANDED.with(NavLabel::WebBrowser));
-                    tabs.set_tab_index_by_label(NavLabel::WebBrowser)
+                    tabs.set_tab_index_by_label(NavLabel::WebBrowser);
                   }
                   NavLabel::ThemeEditor => {
                     ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::Settings, true)));
                     ctx.submit_command(NavBar::SET_OVERRIDE.with((NavLabel::ThemeEditor, true)));
-                    tabs.set_tab_index_by_label(NavLabel::ThemeEditor)
+                    tabs.set_tab_index_by_label(NavLabel::ThemeEditor);
                   }
                   label @ (NavLabel::Performance | NavLabel::Starmodder | NavLabel::Settings) => {
-                    tabs.set_tab_index_by_label(label)
+                    tabs.set_tab_index_by_label(label);
                   }
                   _ => eprintln!("Failed to open an item for a nav bar control"),
                 }
                 true
               })
-              .on_command(ModList::REBUILD_NEXT_PASS, |_, _, state| {
+              .on_command(ModList::REBUILD_NEXT_PASS, |_, (), state| {
                 state.inner = true;
               })
           },
@@ -296,24 +298,24 @@ impl App {
 
           if let Some(version_checker) = entry_lens
             .clone()
-            .then(ModEntry::version_checker.in_arc())
+            .then(ModEntry::version_checker.in_rc())
             .get(data)
           {
             entry_lens
               .clone()
-              .then(ModEntry::remote_version.in_arc())
+              .then(ModEntry::remote_version.in_rc())
               .put(data, remote.clone());
 
             entry_lens
-              .then(ModEntry::update_status.in_arc())
-              .put(data, Some(UpdateStatus::from((&version_checker, &remote))))
+              .then(ModEntry::update_status.in_rc())
+              .put(data, Some(UpdateStatus::from((&version_checker, &remote))));
           }
         })
         .on_notification(ENABLE_DEPENDENCIES, ModDescription::enable_dependencies),
         1.0,
       )
-      .on_command(App::DISABLE, |ctx, _, _| ctx.set_disabled(true))
-      .on_command(App::ENABLE, |ctx, _, _| ctx.set_disabled(false))
+      .on_command(App::DISABLE, |ctx, (), _| ctx.set_disabled(true))
+      .on_command(App::ENABLE, |ctx, (), _| ctx.set_disabled(false))
   }
 }
 
@@ -333,7 +335,7 @@ pub impl<W: Widget<App> + 'static> W {
         } else {
           theme.into()
         }
-        .apply(env)
+        .apply(env);
       })
   }
 

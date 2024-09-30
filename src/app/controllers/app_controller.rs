@@ -95,7 +95,7 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
           if let Ok(true) = bump_is_greater(local_tag, release_tag) {
             Modal::new("Update Mod Manager?")
               .with_content("A new version of Starsector Mod Manager is available.")
-              .with_content(format!("Current version: {}", TAG))
+              .with_content(format!("Current version: {TAG}"))
               .with_content(format!("New version: {}", release.tag_name))
               .with_content({
                 #[cfg(not(target_os = "macos"))]
@@ -120,12 +120,12 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
         // widget.show(ctx, env, &());
       } else if let Some(original_exe) = cmd.get(App::RESTART) {
         if process::Command::new(original_exe).spawn().is_ok() {
-          ctx.submit_command(commands::QUIT_APP)
+          ctx.submit_command(commands::QUIT_APP);
         } else {
-          eprintln!("Failed to restart")
+          eprintln!("Failed to restart");
         };
       } else if cmd.is(App::ENABLE) {
-        ctx.set_disabled(false)
+        ctx.set_disabled(false);
       } else if let Some(payload) = cmd.get(INSTALL) {
         match payload {
           ChannelMessage::Success(entry) => {
@@ -151,7 +151,7 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
           }
           ChannelMessage::Error(name, err) => {
             ctx.submit_command(App::LOG_ERROR.with((name.clone(), err.clone())));
-            eprintln!("Failed to install {}", err);
+            eprintln!("Failed to install {err}");
           }
         }
       }
@@ -161,7 +161,7 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
       }
     }
 
-    child.event(ctx, event, data, env)
+    child.event(ctx, event, data, env);
   }
 }
 
@@ -176,7 +176,7 @@ impl Default for MaskController {
 }
 
 impl MaskController {
-  pub fn new() -> Self {
+  #[must_use] pub fn new() -> Self {
     Self {
       delayed_commands: Vec::new(),
     }
@@ -211,10 +211,10 @@ impl<W: Widget<App>> Controller<App, W> for MaskController {
       && !ctx.is_handled()
       && Self::command_whitelist(cmd)
     {
-      self.delayed_commands.push(cmd.clone())
+      self.delayed_commands.push(cmd.clone());
     }
 
-    child.event(ctx, event, data, env)
+    child.event(ctx, event, data, env);
   }
 
   fn lifecycle(
@@ -225,7 +225,7 @@ impl<W: Widget<App>> Controller<App, W> for MaskController {
     data: &App,
     env: &Env,
   ) {
-    child.lifecycle(ctx, event, data, env)
+    child.lifecycle(ctx, event, data, env);
   }
 
   fn update(
@@ -239,14 +239,14 @@ impl<W: Widget<App>> Controller<App, W> for MaskController {
     if data.popups.is_empty() {
       if !self.delayed_commands.is_empty() {
         for cmd in self.delayed_commands.drain(0..) {
-          ctx.submit_command(cmd)
+          ctx.submit_command(cmd);
         }
       }
       if !old_data.popups.is_empty() {
-        ctx.submit_command(Popup::IS_EMPTY)
+        ctx.submit_command(Popup::IS_EMPTY);
       }
     }
 
-    child.update(ctx, old_data, data, env)
+    child.update(ctx, old_data, data, env);
   }
 }

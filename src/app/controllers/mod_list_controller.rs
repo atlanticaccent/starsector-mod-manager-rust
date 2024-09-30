@@ -17,19 +17,23 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
         if let Some(install_dir) = &data.settings.install_dir {
           ctx.submit_command(App::LOG_MESSAGE.with(format!("Resuming install for {}", entry.name)));
           data.runtime.spawn(
-            installer::Payload::Resumed(entry.clone(), install_from.clone(), conflict.clone())
-              .install(
-                ctx.get_external_handle(),
-                install_dir.clone(),
-                data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
-              ),
+            installer::Payload::Resumed(
+              Box::new(entry.clone()),
+              install_from.clone(),
+              conflict.clone(),
+            )
+            .install(
+              ctx.get_external_handle(),
+              install_dir.clone(),
+              data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
+            ),
           );
         }
         ctx.is_handled();
       }
     } else if let Event::Notification(notif) = event {
       if let Some(entry) = notif.get(ModEntry::AUTO_UPDATE) {
-        Modal::<()>::new("Auto-update?")
+        let _ = Modal::<()>::new("Auto-update?")
           .with_content(format!(
             "Would you like to automatically update {}?",
             entry.name
@@ -37,13 +41,10 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
           .with_content(format!("Installed version: {}", entry.version))
           .with_content(format!(
             "New version: {}",
-            entry
-              .remote_version
-              .as_ref()
-              .map(|v| v.version.to_string())
-              .unwrap_or_else(|| String::from(
-                "Error: failed to retrieve version, this shouldn't be possible."
-              ))
+            entry.remote_version.as_ref().map_or_else(
+              || String::from("Error: failed to retrieve version, this shouldn't be possible."),
+              |v| v.version.to_string()
+            )
           ))
           .with_content(
             Maybe::or_empty(|| {
@@ -81,6 +82,6 @@ impl<W: Widget<App>> Controller<App, W> for ModListController {
       }
     }
 
-    child.event(ctx, event, data, env)
+    child.event(ctx, event, data, env);
   }
 }

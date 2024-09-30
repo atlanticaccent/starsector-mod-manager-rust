@@ -84,7 +84,7 @@ where
 /// and be able to provide a children based on the index of the child widget.
 /// This implies that the implementation of the collection of children may be
 /// abstracted away in the data as long as `children_count()`, `get_child()`,
-/// rm_child() and for_child_mut()` accessors give coherent results. This is
+/// `rm_child()` and `for_child_mut()` accessors give coherent results. This is
 /// a way to implement filtering and sorting at the app data level.
 pub trait TreeNode
 where
@@ -105,13 +105,13 @@ where
   ///
   /// The default implementation returns always `None`, disallowing chrooting.
   ///
-  /// Here's a tree with get_chroot result for each node:
+  /// Here's a tree with `get_chroot` result for each node:
   ///
-  /// - actual_root Some(1)
+  /// - `actual_root` Some(1)
   ///   - node0 None
   ///     - node0-0 None
   ///   - node1 Some(0)
-  ///     - virtual_root None
+  ///     - `virtual_root` None
   ///     - node1-1 None
   ///
   /// In this case the virtual root is `/actual_root/node1/virtual_root`
@@ -175,7 +175,7 @@ where
   }
 
   fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &T, data: &T, env: &Env) {
-    self.widget.update(ctx, data, env)
+    self.widget.update(ctx, data, env);
   }
 
   fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {
@@ -185,7 +185,7 @@ where
   }
 
   fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
-    self.widget.paint(ctx, data, env)
+    self.widget.paint(ctx, data, env);
   }
 }
 
@@ -289,7 +289,7 @@ where
 }
 
 impl<T: TreeNode, L: Lens<T, bool> + Clone> TreeNodeWidget<T, L> {
-  /// Create a TreeNodeWidget from a TreeNode.
+  /// Create a `TreeNodeWidget` from a `TreeNode`.
   fn new(
     make_widget: TreeItemFactory<T>,
     make_opener: Arc<OpenerFactory<T>>,
@@ -360,8 +360,8 @@ impl<T: TreeNode, L: Lens<T, bool> + Clone> Widget<T> for TreeNodeWidget<T, L> {
             if self.update_children(data) {
               ctx.children_changed();
             }
-            for child_widget_node in self.children.iter_mut() {
-              ctx.submit_command(TREE_CHILD_SHOW.to(child_widget_node.id()))
+            for child_widget_node in &mut self.children {
+              ctx.submit_command(TREE_CHILD_SHOW.to(child_widget_node.id()));
             }
           }
           None
@@ -427,7 +427,7 @@ impl<T: TreeNode, L: Lens<T, bool> + Clone> Widget<T> for TreeNodeWidget<T, L> {
     };
 
     // get the unhandled event or return
-    let event = if let Some(evt) = event { evt } else { return };
+    let Some(event) = event else { return };
 
     // don't go further with unhandled notifications
     if let Event::Notification(_) = event {
@@ -465,8 +465,8 @@ impl<T: TreeNode, L: Lens<T, bool> + Clone> Widget<T> for TreeNodeWidget<T, L> {
           cmd = TREE_CHILD_HIDE;
           // self.children = vec![];
         };
-        for child_widget_node in self.children.iter_mut() {
-          ctx.submit_command(cmd.to(child_widget_node.id()))
+        for child_widget_node in &mut self.children {
+          ctx.submit_command(cmd.to(child_widget_node.id()));
         }
         ctx.request_layout();
       }
@@ -476,7 +476,7 @@ impl<T: TreeNode, L: Lens<T, bool> + Clone> Widget<T> for TreeNodeWidget<T, L> {
         for (index, child_widget_node) in self.children.iter_mut().enumerate() {
           data.for_child_mut(index, |data: &mut T, _index: usize| {
             if child_widget_node.is_initialized() {
-              child_widget_node.event(ctx, event, data, env)
+              child_widget_node.event(ctx, event, data, env);
             }
           });
         }
@@ -485,14 +485,14 @@ impl<T: TreeNode, L: Lens<T, bool> + Clone> Widget<T> for TreeNodeWidget<T, L> {
           None => {
             for (index, child_widget_node) in self.children.iter_mut().enumerate() {
               data.for_child_mut(index, |data: &mut T, _index: usize| {
-                child_widget_node.event(ctx, event, data, env)
+                child_widget_node.event(ctx, event, data, env);
               });
             }
           }
           Some(idx) => {
             let child_widget_node = &mut self.children[idx];
             data.for_child_mut(idx, |data: &mut T, _index: usize| {
-              child_widget_node.event(ctx, event, data, env)
+              child_widget_node.event(ctx, event, data, env);
             });
           }
         }
@@ -522,10 +522,10 @@ impl<T: TreeNode, L: Lens<T, bool> + Clone> Widget<T> for TreeNodeWidget<T, L> {
 
     if self.update_children(data) {
       if self.expand_lens.get(data) {
-        for child_widget_node in self.children.iter_mut() {
+        for child_widget_node in &mut self.children {
           // TODO: this is not true except for the new child. `update_children` should
           // tell which child was added/removed...
-          ctx.submit_command(TREE_CHILD_SHOW.to(child_widget_node.id()))
+          ctx.submit_command(TREE_CHILD_SHOW.to(child_widget_node.id()));
         }
       }
       ctx.children_changed();
@@ -709,7 +709,7 @@ impl<T: TreeNode, L: Lens<T, bool> + Clone + 'static> Tree<T, L> {
 }
 
 /// Default tree, supplying Label if the nodes implement the Display trait.
-/// TODO: this DOES NOT implement `Default`, as we must pass the expand_lens.
+/// TODO: this DOES NOT implement `Default`, as we must pass the `expand_lens`.
 ///       At least, find a less confusing name.
 impl<T: TreeNode + Display, L: Lens<T, bool> + Clone + 'static> Tree<T, L> {
   pub fn default(expand_lens: L) -> Self {

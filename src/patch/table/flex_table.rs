@@ -35,7 +35,7 @@ pub(crate) struct TableBorderStyle {
 
 /// A container with a flexible table layout.
 ///
-/// Uses the flex layout algorithm (like [druid::widget::Flex]) to layout
+/// Uses the flex layout algorithm (like [`druid::widget::Flex`]) to layout
 /// cells in each row.
 ///
 /// # Examples
@@ -145,7 +145,7 @@ impl<T: TableData> FlexTable<T> {
     Key::new("druid_widget_nursery_fork.flex_table.total_columns");
 
   /// Create a new empty table.
-  pub fn new() -> Self {
+  #[must_use] pub fn new() -> Self {
     Self {
       default_column_width: TableColumnWidth::Flex(1.0).into(),
       default_vertical_alignment: TableCellVerticalAlignment::Middle,
@@ -275,7 +275,7 @@ impl<T: TableData> FlexTable<T> {
   /// Builder-style method to set the table column width.
   ///
   /// If not set, the [`Self::default_column_width`] is used.
-  pub fn column_widths(mut self, column_widths: &[ComplexTableColumnWidth]) -> Self {
+  #[must_use] pub fn column_widths(mut self, column_widths: &[ComplexTableColumnWidth]) -> Self {
     self.set_column_widths(column_widths);
     self
   }
@@ -305,7 +305,7 @@ impl<T: TableData> FlexTable<T> {
   }
 
   /// Builder-style method to set the default vertical cell alignment.
-  pub fn default_vertical_alignment(
+  #[must_use] pub fn default_vertical_alignment(
     mut self,
     default_vertical_alignment: TableCellVerticalAlignment,
   ) -> Self {
@@ -321,17 +321,17 @@ impl<T: TableData> FlexTable<T> {
     self.default_vertical_alignment = default_vertical_alignment;
   }
 
-  pub fn clip_aware(mut self, clip_aware: bool) -> Self {
+  #[must_use] pub fn clip_aware(mut self, clip_aware: bool) -> Self {
     self.set_clip_aware(clip_aware);
     self
   }
 
   pub fn set_clip_aware(&mut self, clip_aware: bool) {
-    self.clip_aware = clip_aware
+    self.clip_aware = clip_aware;
   }
 
   /// Returns the column count
-  pub fn column_count(&self) -> usize {
+  #[must_use] pub fn column_count(&self) -> usize {
     if self.children.is_empty() {
       0
     } else {
@@ -356,11 +356,11 @@ impl<T: TableData> FlexTable<T> {
     self.row_starts = None;
   }
 
-  pub fn row_count(&self) -> usize {
+  #[must_use] pub fn row_count(&self) -> usize {
     self.children.len()
   }
 
-  pub fn is_empty(&self) -> bool {
+  #[must_use] pub fn is_empty(&self) -> bool {
     self.row_count() == 0
   }
 
@@ -370,7 +370,7 @@ impl<T: TableData> FlexTable<T> {
     std::sync::Arc::new(maker) as std::sync::Arc<dyn Fn() -> Box<dyn Widget<()>>>
   }
 
-  fn check_clipped(&self, row_starts: &Vec<f64>, row_num: usize, clip: Rect) -> bool {
+  fn check_clipped(&self, row_starts: &[f64], row_num: usize, clip: Rect) -> bool {
     self.clip_aware
       && (row_starts.get(row_num).unwrap_or(&f64::NEG_INFINITY) > &clip.max_y()
         || row_starts.get(row_num + 1).unwrap_or(&f64::INFINITY) < &clip.min_y())
@@ -400,7 +400,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
               cell.event(ctx, event, row_data, &env);
             }
           }
-        })
+        });
       }
     }
   }
@@ -421,7 +421,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
           self.children.get_mut(&row_id).unwrap()
         };
 
-        for column in columns.iter() {
+        for column in &columns {
           if !row.children().contains_key(column) {
             row
               .children()
@@ -485,7 +485,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
       let default = self.default_column_width;
       self
         .column_widths
-        .resize_with(columns.len(), || default.clone())
+        .resize_with(columns.len(), || default);
     }
 
     let mut env = env.clone();
@@ -504,12 +504,12 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
         for (idx, column) in columns.iter().enumerate() {
           if let Some(cell) = row.children.get_mut(column) {
             env.set(Self::COL_IDX, idx as u64);
-            cell.update(ctx, row_data, &env)
+            cell.update(ctx, row_data, &env);
           } else {
             row
               .children
               .insert(column.clone(), WidgetPod::new(row_data.cell(column)));
-            ctx.children_changed()
+            ctx.children_changed();
           }
         }
       } else {
@@ -539,7 +539,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
         .resize(column_count, self.default_column_width);
     }
     if self.column_widths.len() > column_count {
-      column_count = self.column_widths.len()
+      column_count = self.column_widths.len();
     }
 
     let mut column_widths = self.column_widths.clone();
@@ -550,8 +550,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
     let col_border_width = self
       .col_border
       .as_ref()
-      .map(|b| b.width.resolve(env))
-      .unwrap_or(0f64);
+      .map_or(0f64, |b| b.width.resolve(env));
     let col_border_width_sum = col_border_width * (column_count - 1) as f64;
     let max_table_width = bc.max().width - col_border_width_sum;
 
@@ -559,12 +558,11 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
     let row_border_width = self
       .row_border
       .as_ref()
-      .map(|b| b.width.resolve(env))
-      .unwrap_or(0f64);
+      .map_or(0f64, |b| b.width.resolve(env));
     let row_border_width_sum = row_border_width * (rows.saturating_sub(1)) as f64;
     let max_table_height = bc.max().height - row_border_width_sum;
 
-    use TableColumnWidth::*;
+    use TableColumnWidth::Flex;
 
     let mut env = env.clone();
     // pass 1: compute intrinsic sizes if needed
@@ -581,7 +579,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
           if let Some(cell) = row.children.get_mut(&column) {
             let child_bc = BoxConstraints::new(
               Size::new(0., 0.),
-              Size::new(std::f64::INFINITY, std::f64::INFINITY),
+              Size::new(f64::INFINITY, f64::INFINITY),
             );
 
             env.set(Self::ROW_IDX, row_num as u64);
@@ -636,7 +634,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
       for (col_num, column) in columns.iter().enumerate() {
         let child_bc = BoxConstraints::new(
           Size::new(0., 0.),
-          Size::new(col_widths[col_num], std::f64::INFINITY),
+          Size::new(col_widths[col_num], f64::INFINITY),
         );
 
         if let Some(cell) = row.children.get_mut(column) {
@@ -809,7 +807,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
           ctx.with_save(|ctx| {
             ctx.clip(row_rect);
             row_painter.paint(ctx, data, &env);
-          })
+          });
         }
       }
 

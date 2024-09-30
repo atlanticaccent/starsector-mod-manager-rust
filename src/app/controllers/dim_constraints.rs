@@ -26,8 +26,8 @@ impl Default for SharedConstraintState {
   fn default() -> Self {
     Self {
       axis: Axis::Vertical,
-      values: Default::default(),
-      constraint: Default::default(),
+      values: Vec::default(),
+      constraint: Option::default(),
     }
   }
 }
@@ -60,7 +60,7 @@ impl<T: Data, W: Widget<T>> LayoutRepeater<T, W> {
       let mut recalc = false;
       diff.for_each(|data| {
         recalc = true;
-        data.constraint = data.values.iter().cloned().reduce(f64::max)
+        data.constraint = data.values.iter().copied().reduce(f64::max);
       });
 
       recalc
@@ -87,7 +87,7 @@ impl<T: Data, W: Widget<T>> WidgetWrapper for LayoutRepeater<T, W> {
   widget_wrapper_pod_body!(W, child);
 }
 
-pub fn next_id() -> u64 {
+#[must_use] pub fn next_id() -> u64 {
   COUNTER.with_borrow_mut(|count| {
     let val = *count;
     *count += 1;
@@ -140,7 +140,7 @@ impl<T: Data, W: Widget<T>> SharedConstraint<T, W> {
         Axis::Vertical => size.height,
       };
       if unconstrained.is_finite() {
-        self.insert_potential_constraint(data, env, unconstrained)
+        self.insert_potential_constraint(data, env, unconstrained);
       }
 
       size
@@ -174,40 +174,11 @@ impl<T: Data, W: Widget<T>> SharedConstraint<T, W> {
   }
 }
 
-#[cfg(test)]
-mod test {
-  use druid::widget::SizedBox;
-
-  use super::{LayoutRepeater, SharedConstraintState, CONSTRAINT_MAP};
-
-  #[test]
-  fn clear_or_init_clears() {
-    let parent: LayoutRepeater<(), SizedBox<_>> = LayoutRepeater::new(0, SizedBox::empty());
-
-    CONSTRAINT_MAP.with_borrow_mut(|map| {
-      let mut state = SharedConstraintState::default();
-      state.values = vec![10.0; 6];
-
-      let unaltered_state = state.clone();
-
-      map.insert((0, 0), state.clone());
-      map.insert((0, 1), state);
-      map.insert((1, 0), unaltered_state);
-    });
-
-    parent.clear_or_init();
-
-    CONSTRAINT_MAP.with_borrow(|map| {
-      assert!(map.get(&(0, 0)).unwrap().values.is_empty());
-      assert!(map.get(&(0, 1)).unwrap().values.is_empty());
-      assert_eq!(map.get(&(1, 0)).unwrap().values, vec![10.0; 6]);
-    })
-  }
-}
+type DynConstraintId<T> = Box<dyn Fn(&T, &Env) -> u64>;
 
 pub enum ConstraintId<T> {
   Fixed(u64),
-  Dynamic(Box<dyn Fn(&T, &Env) -> u64>),
+  Dynamic(DynConstraintId<T>),
 }
 
 impl<T: Data, F: Fn(&T, &Env) -> u64 + 'static> From<F> for ConstraintId<T> {
@@ -228,5 +199,38 @@ impl<T> ConstraintId<T> {
       ConstraintId::Fixed(fixed) => *fixed,
       ConstraintId::Dynamic(dynamic) => dynamic(data, env),
     }
+  }
+}
+
+#[cfg(test)]
+mod test {
+  use druid::widget::SizedBox;
+
+  use super::{LayoutRepeater, SharedConstraintState, CONSTRAINT_MAP};
+
+  #[test]
+  fn clear_or_init_clears() {
+    let parent: LayoutRepeater<(), SizedBox<_>> = LayoutRepeater::new(0, SizedBox::empty());
+
+    CONSTRAINT_MAP.with_borrow_mut(|map| {
+      let state = SharedConstraintState {
+        values: vec![10.0; 6],
+        ..Default::default()
+      };
+
+      let unaltered_state = state.clone();
+
+      map.insert((0, 0), state.clone());
+      map.insert((0, 1), state);
+      map.insert((1, 0), unaltered_state);
+    });
+
+    parent.clear_or_init();
+
+    CONSTRAINT_MAP.with_borrow(|map| {
+      assert!(map.get(&(0, 0)).unwrap().values.is_empty());
+      assert!(map.get(&(0, 1)).unwrap().values.is_empty());
+      assert_eq!(map.get(&(1, 0)).unwrap().values, vec![10.0; 6]);
+    });
   }
 }
