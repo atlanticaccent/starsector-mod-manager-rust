@@ -35,7 +35,7 @@ jobs:
       - name: Setup vcpkg
         run: |
           (cargo install cargo-vcpkg || true)
-          cargo vcpkg --verbose build
+          cargo vcpkg --verbose build --manifest-path .\moss\Cargo.toml
 
       - name: Build
         run: cargo build --release
