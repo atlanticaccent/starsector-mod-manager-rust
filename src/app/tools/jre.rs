@@ -346,7 +346,7 @@ impl Swapper {
       available.push(Flavour::Miko);
     }
 
-    let current = Swapper::get_actual_jre(&install_dir);
+    let current = Swapper::get_actual_jre(&install_dir).unwrap_or(Flavour::Original);
 
     available.push(current);
 
@@ -357,7 +357,7 @@ impl Swapper {
     Spinner::new().fix_size(50., 50.).boxed()
   }
 
-  fn get_actual_jre(install_dir: &Path) -> Flavour {
+  fn get_actual_jre(install_dir: &Path) -> anyhow::Result<Flavour> {
     fn inner(install_dir: &Path) -> anyhow::Result<Flavour> {
       let current_jre = install_dir.join(consts::JRE_PATH);
 
@@ -383,9 +383,7 @@ impl Swapper {
       }
     }
 
-    inner(install_dir)
-      .inspect_err(|e| bang!(e))
-      .unwrap_or(Flavour::Original)
+    inner(install_dir).inspect_err(|e| bang!(e))
   }
 }
 
@@ -455,7 +453,9 @@ impl Flavour {
     let cached_jre = root.join(format!("jre_{self}"));
     let stock_jre = root.join(consts::JRE_PATH);
 
-    if Swapper::get_actual_jre(&root) == self {
+    if let Ok(flavour) = Swapper::get_actual_jre(&root)
+      && flavour == self
+    {
       d_println!("Installed is already target flavour - no-op");
       return Ok(true);
     }
@@ -672,7 +672,9 @@ async fn revert_jre(root: PathBuf) -> anyhow::Result<bool> {
   let current_jre = root.join(consts::JRE_PATH);
   let original_backup = current_jre.with_file_name(ORIGINAL_JRE_BACKUP);
 
-  if Swapper::get_actual_jre(&root) == Flavour::Original {
+  if let Ok(flavour) = Swapper::get_actual_jre(&root)
+    && flavour == Flavour::Original
+  {
     d_println!("Installed is already vanilla - no-op");
     return Ok(true);
   }
