@@ -99,6 +99,10 @@ pub(crate) struct TableBorderStyle {
 ///             0..self.width
 ///         }
 ///     }
+///
+///     fn with_mut(&mut self, idx: <Self::Row as RowData>::Id, mutate: impl FnOnce(&mut Self::Row)) {
+///         (mutate)(&mut self[idx])
+///     }
 /// }
 ///
 /// # fn test() -> impl Widget<Table> {
@@ -145,7 +149,8 @@ impl<T: TableData> FlexTable<T> {
     Key::new("druid_widget_nursery_fork.flex_table.total_columns");
 
   /// Create a new empty table.
-  #[must_use] pub fn new() -> Self {
+  #[must_use]
+  pub fn new() -> Self {
     Self {
       default_column_width: TableColumnWidth::Flex(1.0).into(),
       default_vertical_alignment: TableCellVerticalAlignment::Middle,
@@ -275,7 +280,8 @@ impl<T: TableData> FlexTable<T> {
   /// Builder-style method to set the table column width.
   ///
   /// If not set, the [`Self::default_column_width`] is used.
-  #[must_use] pub fn column_widths(mut self, column_widths: &[ComplexTableColumnWidth]) -> Self {
+  #[must_use]
+  pub fn column_widths(mut self, column_widths: &[ComplexTableColumnWidth]) -> Self {
     self.set_column_widths(column_widths);
     self
   }
@@ -305,7 +311,8 @@ impl<T: TableData> FlexTable<T> {
   }
 
   /// Builder-style method to set the default vertical cell alignment.
-  #[must_use] pub fn default_vertical_alignment(
+  #[must_use]
+  pub fn default_vertical_alignment(
     mut self,
     default_vertical_alignment: TableCellVerticalAlignment,
   ) -> Self {
@@ -321,7 +328,8 @@ impl<T: TableData> FlexTable<T> {
     self.default_vertical_alignment = default_vertical_alignment;
   }
 
-  #[must_use] pub fn clip_aware(mut self, clip_aware: bool) -> Self {
+  #[must_use]
+  pub fn clip_aware(mut self, clip_aware: bool) -> Self {
     self.set_clip_aware(clip_aware);
     self
   }
@@ -331,7 +339,8 @@ impl<T: TableData> FlexTable<T> {
   }
 
   /// Returns the column count
-  #[must_use] pub fn column_count(&self) -> usize {
+  #[must_use]
+  pub fn column_count(&self) -> usize {
     if self.children.is_empty() {
       0
     } else {
@@ -356,11 +365,13 @@ impl<T: TableData> FlexTable<T> {
     self.row_starts = None;
   }
 
-  #[must_use] pub fn row_count(&self) -> usize {
+  #[must_use]
+  pub fn row_count(&self) -> usize {
     self.children.len()
   }
 
-  #[must_use] pub fn is_empty(&self) -> bool {
+  #[must_use]
+  pub fn is_empty(&self) -> bool {
     self.row_count() == 0
   }
 
@@ -483,9 +494,7 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
 
     if self.column_widths.len() != columns.len() {
       let default = self.default_column_width;
-      self
-        .column_widths
-        .resize_with(columns.len(), || default);
+      self.column_widths.resize_with(columns.len(), || default);
     }
 
     let mut env = env.clone();
@@ -577,10 +586,8 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
           let row = self.children.get_mut(&row_id).unwrap();
           let row_data = &data[row_id];
           if let Some(cell) = row.children.get_mut(&column) {
-            let child_bc = BoxConstraints::new(
-              Size::new(0., 0.),
-              Size::new(f64::INFINITY, f64::INFINITY),
-            );
+            let child_bc =
+              BoxConstraints::new(Size::new(0., 0.), Size::new(f64::INFINITY, f64::INFINITY));
 
             env.set(Self::ROW_IDX, row_num as u64);
             let size = cell.layout(ctx, &child_bc, row_data, &env);
