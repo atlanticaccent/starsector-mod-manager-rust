@@ -21,7 +21,7 @@ impl<T: Data> Default for FixedFlexTable<T> {
 }
 
 impl<T: Data> FixedFlexTable<T> {
-  #[must_use] pub fn new() -> Self {
+  pub fn new() -> Self {
     Self {
       table: FlexTable::new(),
     }
@@ -40,7 +40,7 @@ impl<T: Data> FixedFlexTable<T> {
   }
 
   /// Builder-style method to add a table row.
-  #[must_use] pub fn with_row(mut self, row: TableRow<T>) -> Self {
+  pub fn with_row(mut self, row: TableRow<T>) -> Self {
     self.table.insert_row(row.into_internal(&self));
     self
   }
@@ -163,7 +163,7 @@ impl<T: Data> FixedFlexTable<T> {
   /// Builder-style method to set the table column width.
   ///
   /// If not set, the [`Self::default_column_width`] is used.
-  #[must_use] pub fn column_widths(mut self, column_widths: &[ComplexTableColumnWidth]) -> Self {
+  pub fn column_widths(mut self, column_widths: &[ComplexTableColumnWidth]) -> Self {
     self.table.set_column_widths(column_widths);
     self
   }
@@ -193,7 +193,7 @@ impl<T: Data> FixedFlexTable<T> {
   }
 
   /// Builder-style method to set the default vertical cell alignment.
-  #[must_use] pub fn default_vertical_alignment(
+  pub fn default_vertical_alignment(
     mut self,
     default_vertical_alignment: TableCellVerticalAlignment,
   ) -> Self {
@@ -212,7 +212,7 @@ impl<T: Data> FixedFlexTable<T> {
   }
 
   /// Returns the column count
-  #[must_use] pub fn column_count(&self) -> usize {
+  pub fn column_count(&self) -> usize {
     if self.table.children.is_empty() {
       0
     } else {
@@ -311,7 +311,7 @@ impl<T: Data> Default for TableRow<T> {
 }
 
 impl<T: Data> TableRow<T> {
-  #[must_use] pub fn new() -> Self {
+  pub fn new() -> Self {
     Self {
       children: Vec::new(),
       min_height: None,
@@ -320,7 +320,7 @@ impl<T: Data> TableRow<T> {
   }
 
   /// Builder-style method for specifying the table row minimum height.
-  #[must_use] pub fn min_height(mut self, min_height: f64) -> Self {
+  pub fn min_height(mut self, min_height: f64) -> Self {
     self.min_height = Some(min_height);
     self
   }
@@ -332,7 +332,7 @@ impl<T: Data> TableRow<T> {
 
   /// Builder-style method for specifying the childrens'
   /// [`TableCellVerticalAlignment`].
-  #[must_use] pub fn vertical_alignment(mut self, align: TableCellVerticalAlignment) -> Self {
+  pub fn vertical_alignment(mut self, align: TableCellVerticalAlignment) -> Self {
     self.vertical_alignment = Some(align);
     self
   }

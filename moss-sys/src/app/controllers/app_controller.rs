@@ -170,7 +170,6 @@ impl Default for MaskController {
 }
 
 impl MaskController {
-  #[must_use]
   pub fn new() -> Self {
     Self {
       delayed_commands: Vec::new(),

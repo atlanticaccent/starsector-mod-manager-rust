@@ -92,7 +92,6 @@ impl ModList {
   const UPDATE_VERSION_CHECKER: Selector<HashMap<String, Option<ModVersionMeta>>> =
     Selector::new("mod_list.mods.update_version_checker");
 
-  #[must_use]
   pub fn new(headings: Vector<Heading>) -> Self {
     Self {
       mods: FastImMap::new(),
@@ -552,7 +551,6 @@ impl ModList {
     }
   }
 
-  #[must_use]
   pub fn sorted_vals(
     mods: &FastImMap<String, Rc<ModEntry>>,
     header: &Header,
@@ -574,7 +572,6 @@ impl ModList {
     Self::sorted_vals_inner(mods, header, search_text, filters)
   }
 
-  #[must_use]
   pub fn sorted_vals_inner(
     mods: &FastImMap<String, Rc<ModEntry>>,
     header: &Header,
@@ -707,7 +704,6 @@ pub struct EnabledMods {
 }
 
 impl EnabledMods {
-  #[must_use]
   pub fn empty() -> Self {
     Self {
       enabled_mods: Vec::new(),

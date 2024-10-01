@@ -22,7 +22,6 @@ impl Card {
   pub const CARD_INSET: f64 = 12.5;
   pub const DEFAULT_INSETS: (f64, f64) = (0.0, 14.0);
 
-  #[must_use]
   pub fn builder() -> CardBuilder {
     CardBuilder::new()
   }
@@ -316,21 +315,18 @@ impl CardBuilder {
     self
   }
 
-  #[must_use]
   pub fn with_corner_radius(mut self, corner_radius: f64) -> Self {
     self.corner_radius = corner_radius;
 
     self
   }
 
-  #[must_use]
   pub fn with_shadow_length(mut self, shadow_length: f64) -> Self {
     self.shadow_length = Some(shadow_length);
 
     self
   }
 
-  #[must_use]
   pub fn with_shadow_increase(mut self, shadow_length_increase: f64) -> Self {
     self.shadow_increase = Some(shadow_length_increase);
 
@@ -365,7 +361,6 @@ impl CardBuilder {
     self
   }
 
-  #[must_use]
   pub fn with_set_cursor(mut self, set_cursor: bool) -> Self {
     self.set_cursor = set_cursor;
 

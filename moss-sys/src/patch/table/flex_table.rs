@@ -149,7 +149,6 @@ impl<T: TableData> FlexTable<T> {
     Key::new("druid_widget_nursery_fork.flex_table.total_columns");
 
   /// Create a new empty table.
-  #[must_use]
   pub fn new() -> Self {
     Self {
       default_column_width: TableColumnWidth::Flex(1.0).into(),
@@ -280,7 +279,6 @@ impl<T: TableData> FlexTable<T> {
   /// Builder-style method to set the table column width.
   ///
   /// If not set, the [`Self::default_column_width`] is used.
-  #[must_use]
   pub fn column_widths(mut self, column_widths: &[ComplexTableColumnWidth]) -> Self {
     self.set_column_widths(column_widths);
     self
@@ -311,7 +309,6 @@ impl<T: TableData> FlexTable<T> {
   }
 
   /// Builder-style method to set the default vertical cell alignment.
-  #[must_use]
   pub fn default_vertical_alignment(
     mut self,
     default_vertical_alignment: TableCellVerticalAlignment,
@@ -328,7 +325,6 @@ impl<T: TableData> FlexTable<T> {
     self.default_vertical_alignment = default_vertical_alignment;
   }
 
-  #[must_use]
   pub fn clip_aware(mut self, clip_aware: bool) -> Self {
     self.set_clip_aware(clip_aware);
     self
@@ -339,7 +335,6 @@ impl<T: TableData> FlexTable<T> {
   }
 
   /// Returns the column count
-  #[must_use]
   pub fn column_count(&self) -> usize {
     if self.children.is_empty() {
       0
@@ -365,12 +360,10 @@ impl<T: TableData> FlexTable<T> {
     self.row_starts = None;
   }
 
-  #[must_use]
   pub fn row_count(&self) -> usize {
     self.children.len()
   }
 
-  #[must_use]
   pub fn is_empty(&self) -> bool {
     self.row_count() == 0
   }

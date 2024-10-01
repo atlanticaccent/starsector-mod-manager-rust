@@ -10,7 +10,10 @@ use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
-use super::{util::icons::{ARROW_DROP_DOWN, ARROW_DROP_UP, UNFOLD_MORE}, ModList};
+use super::{
+  util::icons::{ARROW_DROP_DOWN, ARROW_DROP_UP, UNFOLD_MORE},
+  ModList,
+};
 use crate::{app::util::LabelExt, patch::split::Split};
 
 #[derive(
@@ -47,11 +50,11 @@ pub enum Heading {
 }
 
 impl Heading {
-  #[must_use] pub fn visible(&self) -> bool {
+  pub fn visible(&self) -> bool {
     matches!(self, Heading::Enabled | Heading::Score)
   }
 
-  #[must_use] pub fn complete(list: &Vector<Heading>) -> bool {
+  pub fn complete(list: &Vector<Heading>) -> bool {
     Heading::iter()
       .filter(|h| !h.visible())
       .all(|h| list.contains(&h))
@@ -81,7 +84,7 @@ impl Header {
     Heading::GameVersion,
   ];
 
-  #[must_use] pub fn new(headings: Vector<Heading>) -> Self {
+  pub fn new(headings: Vector<Heading>) -> Self {
     Self {
       ratios: Self::calculate_ratios(headings.len()),
       headings,
@@ -96,7 +99,7 @@ impl Header {
       .collect()
   }
 
-  #[must_use] pub fn view() -> impl Widget<Header> {
+  pub fn view() -> impl Widget<Header> {
     fn recursive_split(idx: usize, titles: &Vector<Heading>) -> impl Widget<Header> {
       if idx < titles.len() - 2 {
         Split::columns(

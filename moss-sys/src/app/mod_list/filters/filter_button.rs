@@ -17,7 +17,7 @@ use crate::{
 pub struct FilterButton;
 
 impl FilterButton {
-  #[must_use] pub fn inner<T: Data>() -> Flex<T> {
+  pub fn inner<T: Data>() -> Flex<T> {
     Flex::column().with_child(
       Flex::row()
         .with_child(bold_text(

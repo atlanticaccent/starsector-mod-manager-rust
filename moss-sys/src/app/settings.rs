@@ -19,8 +19,11 @@ use super::{
   mod_list::headings::{Header, Heading},
   tools::vmparams::VMParams,
   util::{
-    bolded, button_painter, default_true, h2_fixed, hoverable_text, icons::{ADD_CIRCLE, ADD_CIRCLE_OUTLINE, ARROW_LEFT, ARROW_RIGHT, CHEVRON_LEFT, CHEVRON_RIGHT, CLOSE}, lensed_bold,
-    CommandExt, LabelExt, LoadError, SaveError, Tap, WidgetExtEx, WithHoverState,
+    bolded, button_painter, default_true, h2_fixed, hoverable_text,
+    icons::{
+      ADD_CIRCLE, ADD_CIRCLE_OUTLINE, ARROW_LEFT, ARROW_RIGHT, CHEVRON_LEFT, CHEVRON_RIGHT, CLOSE,
+    },
+    lensed_bold, CommandExt, LabelExt, LoadError, SaveError, Tap, WidgetExtEx, WithHoverState,
   },
   App,
 };
@@ -29,7 +32,10 @@ use crate::{
   nav_bar::Nav,
   theme::{Theme, Themes},
   widgets::{
-    card::Card, card_button::{AltStackOption, CardButton}, root_stack::RootStack, wrapped_table::WrappedTable,
+    card::Card,
+    card_button::{AltStackOption, CardButton},
+    root_stack::RootStack,
+    wrapped_table::WrappedTable,
   },
 };
 
@@ -116,8 +122,9 @@ impl Settings {
               .controller(HoverController::default())
               .on_click(|ctx, _, _| {
                 ctx.submit_command_global(Selector::new("druid.builtin.textbox-cancel-editing"));
-                ctx
-                  .submit_command_global(Settings::SELECTOR.with(SettingsCommand::SelectInstallDir));
+                ctx.submit_command_global(
+                  Settings::SELECTOR.with(SettingsCommand::SelectInstallDir),
+                );
               }),
             ),
         )

@@ -26,7 +26,7 @@ impl NavBar {
   pub const SET_OVERRIDE: Selector<(NavLabel, bool)> = Selector::new("nav_bar.override");
   pub const REMOVE_OVERRIDE: Selector<NavLabel> = Selector::new("nav_bar.remove_override");
 
-  #[must_use] pub fn new<T: Data>(nav: Nav, default: NavLabel) -> impl Widget<T> {
+  pub fn new<T: Data>(nav: Nav, default: NavLabel) -> impl Widget<T> {
     Scope::from_function(
       move |_| nav,
       DummyTransfer::default(),
@@ -181,7 +181,7 @@ impl From<NavLabel> for String {
 impl Nav {
   pub const NAV_SELECTOR: Selector<NavLabel> = Selector::new("nav_bar.switch");
 
-  #[must_use] pub fn new(label: NavLabel) -> Self {
+  pub fn new(label: NavLabel) -> Self {
     Self {
       label,
       command: Nav::NAV_SELECTOR.with(label),
@@ -209,7 +209,7 @@ impl Nav {
     self
   }
 
-  #[must_use] pub fn linked_to(mut self, label: NavLabel) -> Self {
+  pub fn linked_to(mut self, label: NavLabel) -> Self {
     self.linked = Some(label);
 
     self
@@ -240,19 +240,19 @@ impl Nav {
     expand
   }
 
-  #[must_use] pub fn as_root(mut self) -> Self {
+  pub fn as_root(mut self) -> Self {
     self.root = true;
 
     self
   }
 
-  #[must_use] pub fn is_always_open(mut self) -> Self {
+  pub fn is_always_open(mut self) -> Self {
     self.always_open = true;
 
     self
   }
 
-  #[must_use] pub fn separator() -> Self {
+  pub fn separator() -> Self {
     Self {
       label: NavLabel::Separator,
       command: Selector::NOOP.with(()),
@@ -267,7 +267,7 @@ impl Nav {
     }
   }
 
-  #[must_use] pub fn overridden(mut self, override_: bool) -> Self {
+  pub fn overridden(mut self, override_: bool) -> Self {
     self.override_ = Some(override_);
 
     self

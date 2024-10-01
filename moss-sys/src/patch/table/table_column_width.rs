@@ -152,7 +152,7 @@ where
 
 impl ComplexTableColumnWidth {
   /// Create instance without limits
-  #[must_use] pub fn simple(tcw: TableColumnWidth) -> Self {
+  pub fn simple(tcw: TableColumnWidth) -> Self {
     Self::Simple(tcw)
   }
 

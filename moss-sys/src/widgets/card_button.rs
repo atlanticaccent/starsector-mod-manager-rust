@@ -33,7 +33,7 @@ impl CardButton {
     >::None
   }
 
-  #[must_use] pub fn button_text<T: Data>(text: &str) -> impl Widget<T> {
+  pub fn button_text<T: Data>(text: &str) -> impl Widget<T> {
     bold_text(
       text,
       druid::theme::TEXT_SIZE_NORMAL,

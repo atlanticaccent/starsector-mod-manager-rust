@@ -84,7 +84,8 @@ pub enum SaveError {
   Format,
 }
 
-#[must_use] pub fn get_quoted_version(
+#[must_use]
+pub fn get_quoted_version(
   starsector_version: &(
     Option<String>,
     Option<String>,
@@ -98,9 +99,7 @@ pub enum SaveError {
       "{}.{}{}{}",
       major.clone().unwrap_or_else(|| "0".to_string()),
       minor.clone().unwrap_or_default(),
-      patch
-        .clone()
-        .map_or_else(String::new, |p| format!(".{p}")),
+      patch.clone().map_or_else(String::new, |p| format!(".{p}")),
       rc.clone()
         .map_or_else(String::new, |rc| format!("a-RC{rc}"))
     )),
@@ -132,14 +131,14 @@ pub trait LabelExt<T: Data> {
     Label::new(label).with_line_break_mode(druid::widget::LineBreaking::WordWrap)
   }
 
-  #[must_use] fn stringify() -> Label<T>
+  fn stringify() -> Label<T>
   where
     T: ToString,
   {
     Label::new(|t: &T, _: &Env| t.to_string())
   }
 
-  #[must_use] fn stringify_wrapped() -> Label<T>
+  fn stringify_wrapped() -> Label<T>
   where
     T: ToString,
   {
@@ -282,19 +281,23 @@ pub fn bold_text<T: Data>(
     )))
 }
 
-#[must_use] pub fn h1_fixed<T: Data>(text: &str) -> impl Widget<T> {
+#[must_use]
+pub fn h1_fixed<T: Data>(text: &str) -> impl Widget<T> {
   bold_text(text, 24., FontWeight::BOLD, theme::TEXT_COLOR)
 }
 
-#[must_use] pub fn h2_fixed<T: Data>(text: &str) -> impl Widget<T> {
+#[must_use]
+pub fn h2_fixed<T: Data>(text: &str) -> impl Widget<T> {
   bold_text(text, 20., FontWeight::SEMI_BOLD, theme::TEXT_COLOR)
 }
 
-#[must_use] pub fn h3_fixed<T: Data>(text: &str) -> impl Widget<T> {
+#[must_use]
+pub fn h3_fixed<T: Data>(text: &str) -> impl Widget<T> {
   bold_text(text, 18., FontWeight::MEDIUM, theme::TEXT_COLOR)
 }
 
-#[must_use] pub fn bolded<T: Data>(text: &str) -> impl Widget<T> {
+#[must_use]
+pub fn bolded<T: Data>(text: &str) -> impl Widget<T> {
   bold_text(
     text,
     theme::TEXT_SIZE_NORMAL,
@@ -322,15 +325,18 @@ pub fn lensed_bold<T: Data + AsRef<str>>(
     }))
 }
 
-#[must_use] pub fn h1<T: Data + AsRef<str>>() -> impl Widget<T> {
+#[must_use]
+pub fn h1<T: Data + AsRef<str>>() -> impl Widget<T> {
   lensed_bold(24., FontWeight::BOLD, theme::TEXT_COLOR)
 }
 
-#[must_use] pub fn h2<T: Data + AsRef<str>>() -> impl Widget<T> {
+#[must_use]
+pub fn h2<T: Data + AsRef<str>>() -> impl Widget<T> {
   lensed_bold(20., FontWeight::SEMI_BOLD, theme::TEXT_COLOR)
 }
 
-#[must_use] pub fn h3<T: Data + AsRef<str>>() -> impl Widget<T> {
+#[must_use]
+pub fn h3<T: Data + AsRef<str>>() -> impl Widget<T> {
   lensed_bold(18., FontWeight::MEDIUM, theme::TEXT_COLOR)
 }
 
@@ -450,7 +456,12 @@ pub fn parse_game_version(
   match components.as_slice() {
     [major, minor] if major == &"0" => {
       // text = format!("{}.{}a", major, minor);
-      (Some((*major).to_string()), Some((*minor).to_string()), None, None)
+      (
+        Some((*major).to_string()),
+        Some((*minor).to_string()),
+        None,
+        None,
+      )
     }
     [minor, patch_rc] => {
       // text = format!("0.{}a-RC{}", minor, rc);
@@ -619,7 +630,8 @@ pub async fn get_latest_manager() -> anyhow::Result<Release> {
   }
 }
 
-#[must_use] pub fn default_true() -> bool {
+#[must_use]
+pub fn default_true() -> bool {
   true
 }
 
@@ -643,7 +655,8 @@ impl Default for IndyToggleState {
   }
 }
 
-#[must_use] pub fn button_painter<T: Data>() -> Painter<T> {
+#[must_use]
+pub fn button_painter<T: Data>() -> Painter<T> {
   Painter::new(|ctx, _, env| {
     let is_active = ctx.is_active() && !ctx.is_disabled();
     let is_hot = ctx.is_hot();
@@ -1318,11 +1331,11 @@ impl<T: Any + Send, U: Any + Send, SINK: Default + Collection<T, U> + Send>
 pub struct FastImMap<K, V>(druid::im::HashMap<K, V, ahash::RandomState>);
 
 impl<K, V> FastImMap<K, V> {
-  #[must_use] pub fn new() -> Self {
+  pub fn new() -> Self {
     Self(druid::im::HashMap::with_hasher(ahash::RandomState::new()))
   }
 
-  #[must_use] pub fn inner(self) -> druid::im::HashMap<K, V, ahash::RandomState> {
+  pub fn inner(self) -> druid::im::HashMap<K, V, ahash::RandomState> {
     self.0
   }
 }
@@ -1446,7 +1459,9 @@ pub trait LensExtExt<A: ?Sized, B: ?Sized>: Lens<A, B> + Sized {
     B: ToOwned<Owned = C> + Clone,
     C: Borrow<B>,
   {
-    self.map(std::borrow::ToOwned::to_owned, |b, c| b.clone_from(c.borrow()))
+    self.map(std::borrow::ToOwned::to_owned, |b, c| {
+      b.clone_from(c.borrow())
+    })
   }
 
   fn debug<DBG>(self, dbg: DBG) -> Then<Self, Dbg<DBG>, B>
@@ -1568,7 +1583,8 @@ impl IsSome {
   }
 }
 
-#[must_use] pub fn option_ptr_cmp<T>(this: &Option<Rc<T>>, other: &Option<Rc<T>>) -> bool {
+#[must_use]
+pub fn option_ptr_cmp<T>(this: &Option<Rc<T>>, other: &Option<Rc<T>>) -> bool {
   if let Some(this) = this
     && let Some(other) = other
   {
@@ -1746,11 +1762,13 @@ impl druid::text::Formatter<u32> for ValueFormatter {
   }
 }
 
-#[must_use] pub fn ident_arc<T: Data>() -> lens::InArc<lens::Identity> {
+#[must_use]
+pub fn ident_arc<T: Data>() -> lens::InArc<lens::Identity> {
   lens::InArc::new::<T, T>(lens::Identity)
 }
 
-#[must_use] pub fn ident_rc<T: Data>() -> InRc<lens::Identity> {
+#[must_use]
+pub fn ident_rc<T: Data>() -> InRc<lens::Identity> {
   InRc::new::<T, T>(lens::Identity)
 }
 
@@ -1886,7 +1904,7 @@ impl<T, U> Default for Convert<T, U> {
 }
 
 impl<T, U> Convert<T, U> {
-  #[must_use] pub fn new() -> Self {
+  pub fn new() -> Self {
     Self::default()
   }
 }

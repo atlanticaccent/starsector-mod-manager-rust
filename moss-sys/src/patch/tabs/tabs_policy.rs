@@ -18,18 +18,18 @@ pub struct StaticTabsForked<T> {
 #[allow(dead_code)]
 impl<T> StaticTabsForked<T> {
   /// Set the static tabs forked's text size.
-  #[must_use] pub fn set_text_size(mut self, text_size: KeyOrValue<f64>) -> Self {
+  pub fn set_text_size(mut self, text_size: KeyOrValue<f64>) -> Self {
     self.text_size = text_size;
     self
   }
 
   /// Set the static tabs forked's label height.
-  #[must_use] pub fn set_label_height(mut self, label_height: f64) -> Self {
+  pub fn set_label_height(mut self, label_height: f64) -> Self {
     self.label_height = label_height;
     self
   }
 
-  #[must_use] pub fn label_idx(&self, label: &str) -> usize {
+  pub fn label_idx(&self, label: &str) -> usize {
     self.tabs.iter().position(|tab| tab.name == label).unwrap()
   }
 }

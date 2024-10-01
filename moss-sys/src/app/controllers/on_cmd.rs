@@ -17,7 +17,7 @@ pub struct OnCmd<CT, WT, W: Widget<WT>> {
 }
 
 impl<CT, WT, W: Widget<WT>> OnCmd<CT, WT, W> {
-  #[must_use] pub fn new(selector: Selector<CT>, handler: CommandFn<CT, WT, W>) -> Self {
+  pub fn new(selector: Selector<CT>, handler: CommandFn<CT, WT, W>) -> Self {
     Self { selector, handler }
   }
 }

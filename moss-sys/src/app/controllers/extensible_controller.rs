@@ -24,7 +24,7 @@ impl<T, W: Widget<T>> Default for ExtensibleController<T, W> {
 }
 
 impl<T, W: Widget<T>> ExtensibleController<T, W> {
-  #[must_use] pub fn new() -> Self {
+  pub fn new() -> Self {
     Self {
       on_change: Vec::new(),
       on_command: Vec::new(),

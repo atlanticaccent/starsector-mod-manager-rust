@@ -102,7 +102,6 @@ impl App {
   const TOGGLE_NAV_BAR: Selector = Selector::new("app.nav_bar.collapse");
   const UPDATE_AVAILABLE: Selector<anyhow::Result<Release>> = Selector::new("app.update.available");
 
-  #[must_use]
   pub fn new(runtime: Handle) -> Self {
     let settings = settings::Settings::load()
       .map(|mut settings| {

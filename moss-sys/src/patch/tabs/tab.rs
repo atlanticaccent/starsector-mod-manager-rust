@@ -97,8 +97,8 @@ pub trait TabsPolicy: Data {
   fn tab_body(&self, key: Self::Key, data: &Self::Input) -> Self::BodyWidget;
 
   /// Label widget for the tab.
-  /// Usually implemented with a call to `default_make_label` ( can't default here
-  /// because `Self::LabelWidget` isn't determined)
+  /// Usually implemented with a call to `default_make_label` ( can't default
+  /// here because `Self::LabelWidget` isn't determined)
   fn tab_label(
     &self,
     key: Self::Key,
@@ -120,7 +120,7 @@ pub trait TabsPolicy: Data {
 
   /// A default implementation for make label, if you do not wish to construct a
   /// custom widget.
-  #[must_use] fn default_make_label(info: TabInfo<Self::Input>) -> Label<Self::Input> {
+  fn default_make_label(info: TabInfo<Self::Input>) -> Label<Self::Input> {
     Label::new(info.name).with_text_color(theme::FOREGROUND_LIGHT)
   }
 
@@ -130,8 +130,8 @@ pub trait TabsPolicy: Data {
 }
 
 /// `AddTabs` is an extension to `TabsPolicy`.
-/// If a policy implements `AddTab`, then the `add_tab` and `with_tab` methods will be
-/// available on the Tabs instance.
+/// If a policy implements `AddTab`, then the `add_tab` and `with_tab` methods
+/// will be available on the Tabs instance.
 pub trait AddTab: TabsPolicy {
   /// Add a tab to the build type.
   fn add_tab(
@@ -753,8 +753,8 @@ enum TabsContent<TP: TabsPolicy> {
 /// The tabs can be provided up front, using `Tabs::new()` and
 /// `add_tab()/with_tab()`.
 ///
-/// Or, the tabs can be derived from the input data by implementing `TabsPolicy`,
-/// and providing it to `Tabs::from_policy()`
+/// Or, the tabs can be derived from the input data by implementing
+/// `TabsPolicy`, and providing it to `Tabs::from_policy()`
 ///
 /// ```
 /// use druid::widget::{Tabs, Label, WidgetExt};

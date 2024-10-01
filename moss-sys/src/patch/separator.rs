@@ -41,7 +41,7 @@ impl Default for Separator {
 }
 
 impl Separator {
-  #[must_use] pub fn new() -> Self {
+  pub fn new() -> Self {
     Self::default()
   }
 
@@ -65,7 +65,7 @@ impl Separator {
     self.color = color.into();
   }
 
-  #[must_use] pub fn with_stroke_style(mut self, stroke_style: StrokeStyle) -> Self {
+  pub fn with_stroke_style(mut self, stroke_style: StrokeStyle) -> Self {
     self.stroke_style = stroke_style;
     self
   }
@@ -74,7 +74,7 @@ impl Separator {
     self.stroke_style = stroke_style;
   }
 
-  #[must_use] pub fn with_orientation(mut self, orientation: Orientation) -> Self {
+  pub fn with_orientation(mut self, orientation: Orientation) -> Self {
     self.orientation = orientation;
     self
   }

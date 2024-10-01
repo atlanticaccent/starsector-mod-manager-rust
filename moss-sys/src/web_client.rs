@@ -11,7 +11,7 @@ pub struct WebClient;
 impl WebClient {
   pub(crate) const TIMEOUT: u64 = 75;
 
-  #[must_use] pub fn new() -> ClientWithMiddleware {
+  pub fn new() -> ClientWithMiddleware {
     Self::builder(
       ExponentialBackoff::builder()
         .retry_bounds(Duration::from_millis(20), Duration::from_millis(200))

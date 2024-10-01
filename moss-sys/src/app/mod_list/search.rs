@@ -12,7 +12,7 @@ use crate::{
 pub struct Search;
 
 impl Search {
-  #[must_use] pub fn view() -> impl Widget<String> {
+  pub fn view() -> impl Widget<String> {
     Card::new(
       Stack::new()
         .with_child(

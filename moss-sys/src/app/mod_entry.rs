@@ -663,7 +663,6 @@ pub enum Version {
 }
 
 impl Version {
-  #[must_use]
   pub fn major(&self) -> Cow<'_, str> {
     match self {
       Version::Simple(str) => str
@@ -841,7 +840,6 @@ impl From<&UpdateStatus> for KeyOrValue<Color> {
 }
 
 impl UpdateStatus {
-  #[must_use]
   pub fn as_text_colour(&self) -> KeyOrValue<Color> {
     match self {
       UpdateStatus::Major(_) => ON_ORANGE_KEY.into(),
@@ -865,7 +863,6 @@ impl ModMetadata {
   pub const SUBMIT_MOD_METADATA: Selector<(String, ModMetadata)> =
     Selector::new("mod_metadata.submit");
 
-  #[must_use]
   pub fn new() -> Self {
     Self {
       install_date: Some(Utc::now()),

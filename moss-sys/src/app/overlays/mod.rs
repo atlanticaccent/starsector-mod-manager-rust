@@ -107,7 +107,7 @@ impl Popup {
       .controller(MaskController::new())
   }
 
-  #[must_use] pub fn view() -> impl Widget<App> {
+  pub fn view() -> impl Widget<App> {
     ViewSwitcher::new(
       |data: &App, _| data.popups.clone(),
       |popups, _, _| {
@@ -130,15 +130,15 @@ impl Popup {
     )
   }
 
-  #[must_use] pub fn overwrite(conflict: StringOrPath, to_install: HybridPath, entry: ModEntry) -> Popup {
+  pub fn overwrite(conflict: StringOrPath, to_install: HybridPath, entry: ModEntry) -> Popup {
     Popup::Ovewrite(Overwrite::new(conflict, to_install, entry))
   }
 
-  #[must_use] pub fn duplicate(duplicates: Vector<ModEntry>) -> Popup {
+  pub fn duplicate(duplicates: Vector<ModEntry>) -> Popup {
     Popup::Duplicate(Duplicate::new(duplicates))
   }
 
-  #[must_use] pub fn found_multiple(source: HybridPath, found: Vec<ModEntry>) -> Popup {
+  pub fn found_multiple(source: HybridPath, found: Vec<ModEntry>) -> Popup {
     Popup::FoundMultiple(Multiple::new(source, found.into()))
   }
 
@@ -151,7 +151,7 @@ impl Popup {
     ))
   }
 
-  #[must_use] pub fn browser_install(url: String) -> Popup {
+  pub fn browser_install(url: String) -> Popup {
     Popup::BrowserInstall(BrowserInstall::new(url))
   }
 

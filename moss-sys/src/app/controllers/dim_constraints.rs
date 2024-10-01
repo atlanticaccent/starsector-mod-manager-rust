@@ -87,7 +87,8 @@ impl<T: Data, W: Widget<T>> WidgetWrapper for LayoutRepeater<T, W> {
   widget_wrapper_pod_body!(W, child);
 }
 
-#[must_use] pub fn next_id() -> u64 {
+#[must_use]
+pub fn next_id() -> u64 {
   COUNTER.with_borrow_mut(|count| {
     let val = *count;
     *count += 1;

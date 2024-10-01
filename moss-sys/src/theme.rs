@@ -194,7 +194,6 @@ impl Theme {
     env.set(druid::theme::UI_FONT, font);
   }
 
-  #[must_use]
   pub fn random() -> Self {
     let color_faker = fake::faker::color::en::HexColor();
     let gen = || ExtColor::from(Color::from_hex_str(&color_faker.fake::<String>()).unwrap());

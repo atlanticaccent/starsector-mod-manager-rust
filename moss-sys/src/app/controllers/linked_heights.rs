@@ -42,7 +42,7 @@ impl HeightLinker {
     Selector::new("height_linker.command");
   pub const HEIGHT_LINKER_RESET_ALL: Selector = Selector::new("height_linker.reset.all");
 
-  #[must_use] pub fn new() -> Self {
+  pub fn new() -> Self {
     Self {
       linked: 0,
       resolved: 0,
@@ -52,16 +52,16 @@ impl HeightLinker {
     }
   }
 
-  #[must_use] pub fn axis(mut self, axis: Axis) -> Self {
+  pub fn axis(mut self, axis: Axis) -> Self {
     self.axis = axis;
     self
   }
 
-  #[must_use] pub fn new_shared() -> HeightLinkerShared {
+  pub fn new_shared() -> HeightLinkerShared {
     Self::new().shared()
   }
 
-  #[must_use] pub fn shared(self) -> HeightLinkerShared {
+  pub fn shared(self) -> HeightLinkerShared {
     Rc::new(RefCell::new(self))
   }
 

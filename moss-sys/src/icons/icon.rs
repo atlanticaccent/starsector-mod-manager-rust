@@ -12,7 +12,7 @@ pub struct Icon {
 }
 
 impl Icon {
-  #[must_use] pub const fn new(inner: IconPaths, id: &'static str) -> Self {
+  pub const fn new(inner: IconPaths, id: &'static str) -> Self {
     Self {
       inner,
       id,
@@ -20,12 +20,12 @@ impl Icon {
     }
   }
 
-  #[must_use] pub fn with_color(mut self, color: druid::Color) -> Self {
+  pub fn with_color(mut self, color: druid::Color) -> Self {
     self.color = Some(color);
     self
   }
 
-  #[must_use] pub fn color(&self) -> &Option<druid::Color> {
+  pub fn color(&self) -> &Option<druid::Color> {
     &self.color
   }
 }

@@ -36,7 +36,7 @@ pub struct Modal<'a, T: Data, F: OnCloseCallback<T> = ()> {
 }
 
 impl<'a, T: Data> Modal<'a, T> {
-  #[must_use] pub fn new(title: &str) -> Self {
+  pub fn new(title: &str) -> Self {
     Self {
       title: String::from(title),
       contents: Vec::new(),
@@ -69,11 +69,11 @@ impl<'a, T: Data> Modal<'a, T> {
     self
   }
 
-  #[must_use] pub fn with_close(self) -> Self {
+  pub fn with_close(self) -> Self {
     self.close("Close")
   }
 
-  #[must_use] pub fn with_close_label(self, label: &str) -> Self {
+  pub fn with_close_label(self, label: &str) -> Self {
     self.close(label)
   }
 

@@ -523,7 +523,6 @@ pub enum HybridPath {
 }
 
 impl HybridPath {
-  #[must_use]
   pub fn get_path_copy(&self) -> PathBuf {
     match self {
       HybridPath::PathBuf(ref path) | HybridPath::Temp(_, _, Some(ref path)) => path.clone(),
@@ -531,7 +530,6 @@ impl HybridPath {
     }
   }
 
-  #[must_use]
   pub fn with_path(mut self, path: &PathBuf) -> Self {
     match &mut self {
       HybridPath::PathBuf(inner) => inner.clone_from(path),
@@ -543,7 +541,6 @@ impl HybridPath {
     self
   }
 
-  #[must_use]
   pub fn source(&self) -> Cow<str> {
     match self {
       HybridPath::PathBuf(path) => path.to_string_lossy(),

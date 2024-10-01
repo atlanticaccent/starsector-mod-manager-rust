@@ -13,7 +13,7 @@ use crate::{
 pub struct InstallButton;
 
 impl InstallButton {
-  #[must_use] pub fn inner<T: Data>(filled: bool) -> Flex<T> {
+  pub fn inner<T: Data>(filled: bool) -> Flex<T> {
     Flex::column().with_child(
       Flex::row()
         .with_child(bold_text(
@@ -38,7 +38,7 @@ impl InstallButton {
     Self::button_styling(Self::inner(filled))
   }
 
-  #[must_use] pub fn view() -> impl Widget<InstallState> {
+  pub fn view() -> impl Widget<InstallState> {
     Card::builder()
       .with_insets((0.0, 14.0))
       .hoverable_distinct(

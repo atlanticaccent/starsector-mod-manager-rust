@@ -19,7 +19,11 @@ use crate::{
   nav_bar::{Nav, NavLabel},
   patch::table::{FixedFlexTable, TableCellVerticalAlignment, TableColumnWidth, TableRow},
   theme::{ExtColor, Theme, Themes, OLD_BUTTON_DARK, OLD_BUTTON_LIGHT, OLD_TEXT_COLOR},
-  widgets::{card::Card, card_button::{AltStackOption, CardButton}, root_stack::RootStack},
+  widgets::{
+    card::Card,
+    card_button::{AltStackOption, CardButton},
+    root_stack::RootStack,
+  },
 };
 
 const TEXT_BOX_FONT: Key<FontDescriptor> = Key::new("theme_editor.text_box.font");
@@ -81,10 +85,7 @@ impl ThemeEditor {
         Flex::row()
           .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
           .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-          .with_child(
-            editor()
-              .expand_height(),
-          )
+          .with_child(editor().expand_height())
           .with_flex_child(
             Flex::column()
               .with_child(
@@ -123,94 +124,93 @@ impl ThemeEditor {
 }
 
 fn editor() -> impl Widget<Theme> {
-    Card::builder()
-      .build(
-        Flex::column()
-          .must_fill_main_axis(true)
-          .with_child(
-            FixedFlexTable::new()
-              .default_vertical_alignment(TableCellVerticalAlignment::Middle)
-              .default_column_width(TableColumnWidth::Intrinsic)
-              .row_border(Color::TRANSPARENT, 4.0)
-              .column_border(Color::TRANSPARENT, 10.0)
-              .with_row(optional_row("Text", Theme::text, OLD_TEXT_COLOR))
-              .with_row(optional_row(
-                "Button Dark",
-                Theme::button_dark,
-                OLD_BUTTON_DARK,
-              ))
-              .with_row(optional_row(
-                "Button Light",
-                Theme::button_light,
-                OLD_BUTTON_LIGHT,
-              ))
-              .with_row(required_row("Background Dark", Theme::background_dark))
-              .with_row(required_row("Background Light", Theme::background_light))
-              .with_row(required_row("Border Dark", Theme::border_dark))
-              .with_row(required_row("Border Light", Theme::border_light))
-              .with_row(optional_row("Shadow", Theme::shadow, Color::BLACK))
-              .with_row(optional_row(
-                "Action Background",
-                Theme::action,
-                Color::from(Theme::ACTION),
-              ))
-              .with_row(optional_row(
-                "Action Text",
-                Theme::action_text,
-                Color::from(Theme::ACTION_TEXT),
-              ))
-              .with_row(optional_row(
-                "Success Background",
-                Theme::success,
-                Color::from(Theme::SUCCESS),
-              ))
-              .with_row(optional_row(
-                "Success Text",
-                Theme::success_text,
-                Color::from(Theme::SUCCESS_TEXT),
-              ))
-              .with_row(optional_row(
-                "Error Background",
-                Theme::error,
-                Color::from(Theme::ERROR),
-              ))
-              .with_row(optional_row(
-                "Error Text",
-                Theme::error_text,
-                Color::from(Theme::ERROR_TEXT),
-              ))
-              .with_row(optional_row(
-                "Warning Background",
-                Theme::warning,
-                Color::from(Theme::WARNING),
-              ))
-              .with_row(optional_row(
-                "Warning Text",
-                Theme::warning_text,
-                Color::from(Theme::WARNING_TEXT),
-              ))
-              .with_row(optional_row(
-                "Do Not Ignore Background",
-                Theme::do_not_ignore,
-                Color::from(Theme::DO_NOT_IGNORE),
-              ))
-              .with_row(optional_row(
-                "Do Not Ignore Text",
-                Theme::do_not_ignore_text,
-                Color::from(Theme::DO_NOT_IGNORE_TEXT),
-              )),
-          )
-          .env_scope(|env, _| {
-            let font = env
-              .get(druid::theme::UI_FONT)
-              .with_size(18.0)
-              .with_weight(FontWeight::MEDIUM);
-            env.set(TEXT_BOX_FONT, font);
-          })
-          .padding((20.0, 5.0))
-          .scroll()
-          .vertical(),
+  Card::builder().build(
+    Flex::column()
+      .must_fill_main_axis(true)
+      .with_child(
+        FixedFlexTable::new()
+          .default_vertical_alignment(TableCellVerticalAlignment::Middle)
+          .default_column_width(TableColumnWidth::Intrinsic)
+          .row_border(Color::TRANSPARENT, 4.0)
+          .column_border(Color::TRANSPARENT, 10.0)
+          .with_row(optional_row("Text", Theme::text, OLD_TEXT_COLOR))
+          .with_row(optional_row(
+            "Button Dark",
+            Theme::button_dark,
+            OLD_BUTTON_DARK,
+          ))
+          .with_row(optional_row(
+            "Button Light",
+            Theme::button_light,
+            OLD_BUTTON_LIGHT,
+          ))
+          .with_row(required_row("Background Dark", Theme::background_dark))
+          .with_row(required_row("Background Light", Theme::background_light))
+          .with_row(required_row("Border Dark", Theme::border_dark))
+          .with_row(required_row("Border Light", Theme::border_light))
+          .with_row(optional_row("Shadow", Theme::shadow, Color::BLACK))
+          .with_row(optional_row(
+            "Action Background",
+            Theme::action,
+            Color::from(Theme::ACTION),
+          ))
+          .with_row(optional_row(
+            "Action Text",
+            Theme::action_text,
+            Color::from(Theme::ACTION_TEXT),
+          ))
+          .with_row(optional_row(
+            "Success Background",
+            Theme::success,
+            Color::from(Theme::SUCCESS),
+          ))
+          .with_row(optional_row(
+            "Success Text",
+            Theme::success_text,
+            Color::from(Theme::SUCCESS_TEXT),
+          ))
+          .with_row(optional_row(
+            "Error Background",
+            Theme::error,
+            Color::from(Theme::ERROR),
+          ))
+          .with_row(optional_row(
+            "Error Text",
+            Theme::error_text,
+            Color::from(Theme::ERROR_TEXT),
+          ))
+          .with_row(optional_row(
+            "Warning Background",
+            Theme::warning,
+            Color::from(Theme::WARNING),
+          ))
+          .with_row(optional_row(
+            "Warning Text",
+            Theme::warning_text,
+            Color::from(Theme::WARNING_TEXT),
+          ))
+          .with_row(optional_row(
+            "Do Not Ignore Background",
+            Theme::do_not_ignore,
+            Color::from(Theme::DO_NOT_IGNORE),
+          ))
+          .with_row(optional_row(
+            "Do Not Ignore Text",
+            Theme::do_not_ignore_text,
+            Color::from(Theme::DO_NOT_IGNORE_TEXT),
+          )),
       )
+      .env_scope(|env, _| {
+        let font = env
+          .get(druid::theme::UI_FONT)
+          .with_size(18.0)
+          .with_weight(FontWeight::MEDIUM);
+        env.set(TEXT_BOX_FONT, font);
+      })
+      .padding((20.0, 5.0))
+      .scroll()
+      .vertical(),
+  )
 }
 
 const COLOR_KEY: Key<Color> = Key::new("theme_editor.preview.key");

@@ -23,7 +23,7 @@ use crate::{
 pub struct FilterOptions;
 
 impl FilterOptions {
-  #[must_use] pub fn view() -> impl Widget<FilterState> {
+  pub fn view() -> impl Widget<FilterState> {
     Card::builder()
       .with_insets((0.0, 14.0))
       .with_corner_radius(4.0)
@@ -38,7 +38,7 @@ impl FilterOptions {
       .lens(FilterState::open)
   }
 
-  #[must_use] pub fn wide_view() -> impl Widget<FilterState> {
+  pub fn wide_view() -> impl Widget<FilterState> {
     let mut width_linker = {
       let mut linker = HeightLinker::new();
       linker.axis = druid::widget::Axis::Horizontal;

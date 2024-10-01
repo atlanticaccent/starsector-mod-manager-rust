@@ -16,7 +16,7 @@ pub struct InstallOptions;
 impl InstallOptions {
   pub const DISMISS: Selector<Point> = Selector::new("install_options.dismiss");
 
-  #[must_use] pub fn view() -> impl Widget<InstallState> {
+  pub fn view() -> impl Widget<InstallState> {
     let text = |text| {
       bold_text(
         text,

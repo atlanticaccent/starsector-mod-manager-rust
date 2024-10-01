@@ -75,8 +75,7 @@ impl VMParams {
                       .hoverable(|_| {
                         Flex::row()
                           .with_child(
-                            Label::dynamic(|unit: &Unit, _| format!("{unit}b"))
-                              .padding((0.0, 2.0)),
+                            Label::dynamic(|unit: &Unit, _| format!("{unit}b")).padding((0.0, 2.0)),
                           )
                           .with_child(Icon::new(*ARROW_LEFT))
                           .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
@@ -145,8 +144,7 @@ impl VMParams {
                       .hoverable(|_| {
                         Flex::row()
                           .with_child(
-                            Label::dynamic(|unit: &Unit, _| format!("{unit}b"))
-                              .padding((0.0, 2.0)),
+                            Label::dynamic(|unit: &Unit, _| format!("{unit}b")).padding((0.0, 2.0)),
                           )
                           .with_child(Icon::new(*ARROW_LEFT))
                           .main_axis_alignment(druid::widget::MainAxisAlignment::SpaceBetween)
