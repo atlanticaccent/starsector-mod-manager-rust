@@ -353,7 +353,10 @@ impl Browser {
 fn init_webview(ctx: &mut druid::EventCtx, data: &mut Browser) -> Result<Rc<WebView>, wry::Error> {
   #[cfg(target_os = "linux")]
   let res = {
-    use gtk::prelude::*;
+    use gtk::{
+      glib::translate::{FromGlibPtrFull, ToGlibPtr},
+      prelude::*,
+    };
     use wry::{WebViewBuilder, WebViewBuilderExtUnix};
 
     let window = ctx.window().get_gtk_application_window();

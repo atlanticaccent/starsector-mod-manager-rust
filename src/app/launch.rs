@@ -590,7 +590,7 @@ async fn launch(
   direct_launch: bool,
   resolution: Option<(u32, u32)>,
   miko: bool,
-) -> anyhow::Result<std::process::Output> {
+) -> anyhow::Result<Output> {
   use anyhow::Context;
   use tokio::fs::read_to_string;
 
@@ -661,7 +661,7 @@ async fn launch(
       false if miko => "Kitsunebi.sh",
       false => "starsector.sh",
     }),
-    None,
+    Option::<std::path::PathBuf>::None,
   );
 
   let working_dir = working_dir.as_deref().unwrap_or(install_dir);
