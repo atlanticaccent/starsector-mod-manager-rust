@@ -1992,3 +1992,5 @@ where
     v
   }
 }
+
+pub trait IsSendSync: Send + Sync {}

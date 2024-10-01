@@ -158,7 +158,7 @@ impl App {
         .with_child(launch::launch_button())
         .with_spacer(10.0)
         .with_child(NavBar::new(
-          Nav::new(NavLabel::Root).as_root().with_children(vec![
+          Nav::new(NavLabel::Root).root().with_children(vec![
             Nav::new(NavLabel::Mods)
               .overridden(false)
               .with_children(Some(Nav::new(NavLabel::ModDetails))),
@@ -170,7 +170,7 @@ impl App {
                 Nav::new(NavLabel::WebBrowser),
               ])
               .linked_to(NavLabel::Starmodder)
-              .is_always_open(),
+              .always_open(),
             Nav::separator(),
             Nav::new(NavLabel::Settings),
           ]),

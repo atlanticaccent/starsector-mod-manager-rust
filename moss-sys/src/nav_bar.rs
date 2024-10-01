@@ -67,7 +67,7 @@ impl NavBar {
               .lens(Compute::new(|data: &Nav| data.label.to_string()))
               .controller(HoverController::default())
               .on_click(|ctx, data, _| {
-                if !data.root {
+                if !data.is_root {
                   ctx.submit_command(Nav::NAV_SELECTOR.with(data.linked.unwrap_or(data.label)));
                   ctx.submit_command(
                     NavBar::RECURSE_SET_EXPANDED.with(data.linked.unwrap_or(data.label)),
@@ -103,7 +103,7 @@ impl NavBar {
             .padding((4., 6.))
             .expand_width()
             .on_command(NavBar::RECURSE_SET_EXPANDED, |ctx, label, data| {
-              if data.root {
+              if data.is_root {
                 data.set_ancestors_expanded(*label);
               }
               ctx.request_update();
@@ -114,9 +114,9 @@ impl NavBar {
             .padding((4., 6., 6., 0.))
             .expand_width(),
         )
-        .empty_if_not(|data, _| !data.root)
+        .empty_if_not(|data, _| !data.is_root)
       },
-      Compute::new(|data: &Nav| data.override_.unwrap_or(data.expanded || data.always_open)),
+      Compute::new(|data: &Nav| data.override_.unwrap_or(data.expanded || data.is_always_open)),
     )
     .with_opener(SizedBox::empty)
     .with_opener_dimensions((0., 0.))
@@ -140,12 +140,12 @@ pub struct Nav {
   pub command: Command,
   pub expanded: bool,
   pub children: Vector<Rc<Nav>>,
-  pub root: bool,
+  pub is_root: bool,
   pub depth: usize,
   #[data(eq)]
   pub linked: Option<NavLabel>,
   pub separator_: bool,
-  pub always_open: bool,
+  pub is_always_open: bool,
   pub override_: Option<bool>,
 }
 
@@ -187,11 +187,11 @@ impl Nav {
       command: Nav::NAV_SELECTOR.with(label),
       expanded: false,
       children: Vector::new(),
-      root: false,
+      is_root: false,
       depth: 0,
       linked: None,
       separator_: false,
-      always_open: false,
+      is_always_open: false,
       override_: None,
     }
   }
@@ -240,14 +240,14 @@ impl Nav {
     expand
   }
 
-  pub fn as_root(mut self) -> Self {
-    self.root = true;
+  pub fn root(mut self) -> Self {
+    self.is_root = true;
 
     self
   }
 
-  pub fn is_always_open(mut self) -> Self {
-    self.always_open = true;
+  pub fn always_open(mut self) -> Self {
+    self.is_always_open = true;
 
     self
   }
@@ -258,11 +258,11 @@ impl Nav {
       command: Selector::NOOP.with(()),
       expanded: false,
       children: Vector::new(),
-      root: false,
+      is_root: false,
       depth: 0,
       linked: None,
       separator_: true,
-      always_open: false,
+      is_always_open: false,
       override_: None,
     }
   }

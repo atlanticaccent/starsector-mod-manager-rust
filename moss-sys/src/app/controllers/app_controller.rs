@@ -140,7 +140,7 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
                 )));
               }
             }
-            ctx.submit_command(ModList::INSERT_MOD.with(entry));
+            ctx.submit_command(ModList::INSERT_MOD.with(*entry));
             ctx.request_update();
           }
           ChannelMessage::Error(name, err) => {
