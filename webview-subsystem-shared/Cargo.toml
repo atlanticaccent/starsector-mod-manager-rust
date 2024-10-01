@@ -11,4 +11,3 @@ serde = { version = "1.0.126", features = ["derive"] }
 lazy_static = "1.4"
 directories = "3.0"
 const_format = "0.2.22"
-interprocess = { git = "https://github.com/kotauskas/interprocess", rev = "5a16b3a" }
