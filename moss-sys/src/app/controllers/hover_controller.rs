@@ -4,8 +4,6 @@ use druid::{widget::Controller, Cursor, Data, Selector, Widget, WidgetId};
 
 use crate::app::util::EventExt;
 
-pub type SharedHoverState = Rc<Cell<bool>>;
-
 pub trait HoverState: Data {
   fn set(&mut self, state: bool);
 }

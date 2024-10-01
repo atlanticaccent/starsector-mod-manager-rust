@@ -143,12 +143,6 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
             ctx.submit_command(ModList::INSERT_MOD.with(entry));
             ctx.request_update();
           }
-          ChannelMessage::Duplicate(conflict, to_install, entry) => ctx.submit_command(
-            App::LOG_OVERWRITE.with((conflict.clone(), to_install.clone(), entry.clone())),
-          ),
-          ChannelMessage::FoundMultiple(source, found_paths) => {
-            ctx.submit_command(App::FOUND_MULTIPLE.with((source.clone(), found_paths.clone())));
-          }
           ChannelMessage::Error(name, err) => {
             ctx.submit_command(App::LOG_ERROR.with((name.clone(), err.clone())));
             eprintln!("Failed to install {err}");
@@ -176,7 +170,8 @@ impl Default for MaskController {
 }
 
 impl MaskController {
-  #[must_use] pub fn new() -> Self {
+  #[must_use]
+  pub fn new() -> Self {
     Self {
       delayed_commands: Vec::new(),
     }

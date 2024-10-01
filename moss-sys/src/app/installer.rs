@@ -582,9 +582,6 @@ pub enum InstallError {
 pub enum ChannelMessage {
   /// New mod entry
   Success(ModEntry),
-  /// ID, Conflicting ID or Path, Path to new, New Mod Entry
-  Duplicate(StringOrPath, HybridPath, ModEntry),
-  FoundMultiple(HybridPath, Vec<PathBuf>),
   Error(String, String),
 }
 

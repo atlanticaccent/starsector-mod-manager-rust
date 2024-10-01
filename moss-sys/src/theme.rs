@@ -1,6 +1,6 @@
 use std::{fmt::Display, ops::Deref, str::FromStr};
 
-use druid::{text::FontWeight, theme, Color, Data, Env, Key, Lens, Selector};
+use druid::{text::FontWeight, theme, Color, Data, Env, Key, Lens};
 use druid_widget_nursery::prism::Prism;
 use fake::Fake;
 use serde::{de::Visitor, Deserialize, Serialize};
@@ -16,7 +16,6 @@ pub const ON_YELLOW_KEY: Key<Color> = Key::new("theme.colour.on_yellow");
 pub const ON_BLUE_KEY: Key<Color> = Key::new("theme.colour.on_blue");
 pub const ON_ORANGE_KEY: Key<Color> = Key::new("theme.colour.on_orange");
 
-pub const CHANGE_THEME: Selector<Themes> = Selector::new("app.theme.change");
 pub const SHADOW: Key<Color> = Key::new("custom_theme.shadow");
 
 #[derive(Debug, Data, Lens, Clone, Serialize, Deserialize)]

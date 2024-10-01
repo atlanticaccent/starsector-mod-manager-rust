@@ -22,7 +22,13 @@ use crate::{
     settings::{Settings, ThemeEditor},
     tools::Tools,
     util::{
-      bold_text, icons::{ARROW_DROP_DOWN, ARROW_LEFT, ARROW_RIGHT, BOOKMARK, BOOKMARK_BORDER, CHEVRON_LEFT, CHEVRON_RIGHT, CLEAR, CONTENT_COPY, DESELECT, DONE_ALL, FIRST_PAGE, INDETERMINATE_CHECK_BOX, INFO, LAST_PAGE, LINK, LINK_OFF, PLAY_ARROW, REFRESH, SETTINGS, SHUFFLE, TOGGLE_ON, icon}, FastImMap, LensExtExt, Release, Tap, WidgetExtEx, HOVER_STATE_CHANGE,
+      bold_text,
+      icons::{
+        icon, ARROW_DROP_DOWN, ARROW_LEFT, ARROW_RIGHT, BOOKMARK, BOOKMARK_BORDER, CHEVRON_LEFT,
+        CHEVRON_RIGHT, CLEAR, CONTENT_COPY, DESELECT, DONE_ALL, FIRST_PAGE,
+        INDETERMINATE_CHECK_BOX, INFO, LAST_PAGE, LINK, LINK_OFF, PLAY_ARROW, REFRESH, SHUFFLE,
+      },
+      FastImMap, LensExtExt, Release, Tap, WidgetExtEx, HOVER_STATE_CHANGE,
     },
   },
   nav_bar::{Nav, NavBar, NavLabel},
@@ -75,12 +81,10 @@ pub struct App {
 }
 
 impl App {
-  const CONFIRM_DELETE_MOD: Selector<ModEntry> = Selector::new("app.mod_entry.delete");
-  const DISABLE: Selector<()> = Selector::new("app.disable");
   const DUMB_UNIVERSAL_ESCAPE: Selector<()> = Selector::new("app.universal_escape");
   pub const ENABLE: Selector<()> = Selector::new("app.enable");
-  const FOUND_MULTIPLE: Selector<(HybridPath, Vec<PathBuf>)> =
-    Selector::new("app.install.found_multiple");
+  const DISABLE: Selector<()> = Selector::new("app.disable");
+  const CONFIRM_DELETE_MOD: Selector<ModEntry> = Selector::new("app.mod_entry.delete");
   const LOG_ERROR: Selector<(String, String)> = Selector::new("app.mod.install.fail");
   const LOG_MESSAGE: Selector<String> = Selector::new("app.mod.install.start");
   const LOG_OVERWRITE: Selector<(StringOrPath, HybridPath, ModEntry)> =
@@ -98,7 +102,8 @@ impl App {
   const TOGGLE_NAV_BAR: Selector = Selector::new("app.nav_bar.collapse");
   const UPDATE_AVAILABLE: Selector<anyhow::Result<Release>> = Selector::new("app.update.available");
 
-  #[must_use] pub fn new(runtime: Handle) -> Self {
+  #[must_use]
+  pub fn new(runtime: Handle) -> Self {
     let settings = settings::Settings::load()
       .map(|mut settings| {
         if let Some(install_dir) = settings.install_dir.clone() {

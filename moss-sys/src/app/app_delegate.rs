@@ -1,5 +1,3 @@
-use std::{fs::File, path::PathBuf};
-
 use druid::{
   keyboard_types::Key, AppDelegate as Delegate, Command, DelegateCtx, Env, Event, Handled,
   KeyEvent, LensExt as _, SingleUse, Target, WindowHandle, WindowId,
@@ -31,7 +29,6 @@ pub enum AppCommands {
 pub struct AppDelegate {
   pub root_id: Option<WindowId>,
   pub root_window: Option<WindowHandle>,
-  pub mega_file: Option<(File, PathBuf)>,
   pub startup_popups: Vec<Popup>,
 }
 
@@ -371,11 +368,4 @@ impl Delegate<App> for AppDelegate {
 
     Some(event)
   }
-}
-
-pub enum SubwindowType {
-  Log,
-  Overwrite,
-  Duplicate,
-  Download,
 }
