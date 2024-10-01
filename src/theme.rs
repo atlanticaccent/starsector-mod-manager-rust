@@ -22,23 +22,23 @@ pub const SHADOW: Key<Color> = Key::new("custom_theme.shadow");
 #[derive(Debug, Data, Lens, Clone, Serialize, Deserialize)]
 pub struct Theme {
   text: Option<ExtColor>,
-  button_dark: Option<ExtColor>,
-  button_light: Option<ExtColor>,
   background_dark: ExtColor,
   background_light: ExtColor,
   border_dark: ExtColor,
   border_light: ExtColor,
+  button_dark: Option<ExtColor>,
+  button_light: Option<ExtColor>,
+  shadow: Option<ExtColor>,
   action: Option<ExtColor>,
   action_text: Option<ExtColor>,
   success: Option<ExtColor>,
   success_text: Option<ExtColor>,
-  error: Option<ExtColor>,
-  error_text: Option<ExtColor>,
   warning: Option<ExtColor>,
   warning_text: Option<ExtColor>,
   do_not_ignore: Option<ExtColor>,
   do_not_ignore_text: Option<ExtColor>,
-  shadow: Option<ExtColor>,
+  error: Option<ExtColor>,
+  error_text: Option<ExtColor>,
 }
 
 #[derive(Debug, Clone, Data)]
@@ -195,7 +195,8 @@ impl Theme {
     env.set(druid::theme::UI_FONT, font);
   }
 
-  #[must_use] pub fn random() -> Self {
+  #[must_use]
+  pub fn random() -> Self {
     let color_faker = fake::faker::color::en::HexColor();
     let gen = || ExtColor::from(Color::from_hex_str(&color_faker.fake::<String>()).unwrap());
 
@@ -250,9 +251,12 @@ const fn unwrap(color: &'static str) -> ExtColor {
   Debug,
 )]
 pub enum Themes {
-  Light,
+  WardLight,
+  WardDark,
+
+  HeightsLight,
   #[default]
-  Dark,
+  HeightsDark,
 
   Gates,
   Retro,
@@ -264,8 +268,11 @@ pub enum Themes {
 impl From<Themes> for Theme {
   fn from(theme: Themes) -> Self {
     match theme {
-      Themes::Light => LIGHT,
-      Themes::Dark => DARK,
+      Themes::WardLight => WARD_LIGHT,
+      Themes::WardDark => WARD_DARK,
+
+      Themes::HeightsLight => HEIGHTS_LIGHT,
+      Themes::HeightsDark => HEIGHTS_DARK,
 
       Themes::Gates => GATES_AVE_BROOKLYN,
       Themes::Retro => RETRO,
@@ -276,7 +283,51 @@ impl From<Themes> for Theme {
   }
 }
 
-const LIGHT: Theme = Theme {
+// https://www.dayroselane.com/hydrants/details/40_700343_-73_995416
+const HEIGHTS_DARK: Theme = Theme {
+  text: Some(unwrap("#fafaffff")),
+  button_dark: Some(unwrap("#272a2fff")),
+  button_light: Some(unwrap("#32353aff")),
+  background_dark: unwrap("#0b0e12ff"),
+  background_light: unwrap("#191c20ff"),
+  border_dark: unwrap("#9ea3abff"),
+  border_light: unwrap("#7f838bff"),
+  action: Some(unwrap("#a2cfffff")),
+  action_text: Some(unwrap("#00182bff")),
+  success: Some(unwrap("#abd798ff")),
+  success_text: Some(unwrap("#021b00ff")),
+  error: Some(unwrap("#ffbab1ff")),
+  error_text: Some(unwrap("#370001ff")),
+  warning: Some(unwrap("#fbc074ff")),
+  warning_text: Some(unwrap("#231300ff")),
+  do_not_ignore: Some(unwrap("#dfbefeff")),
+  do_not_ignore_text: Some(unwrap("#22063dff")),
+  shadow: Some(unwrap("#e0e2e8ff")),
+};
+
+const HEIGHTS_LIGHT: Theme = Theme {
+  text: Some(unwrap("#191C20")),
+  button_dark: Some(unwrap("#ECEEF4")),
+  button_light: Some(unwrap("#F2F3F9")),
+  background_dark: unwrap("#E0E2E8"),
+  background_light: unwrap("#E6E8EE"),
+  border_dark: unwrap("#73777F"),
+  border_light: unwrap("#C2C7CF"),
+  action: Some(unwrap("#BEE9FF")),
+  action_text: Some(unwrap("#001F2A")),
+  success: Some(unwrap("#C2EFAE")),
+  success_text: Some(unwrap("#032100")),
+  error: Some(unwrap("#FFDAD6")),
+  error_text: Some(unwrap("#410002")),
+  warning: Some(unwrap("#FFDDB6")),
+  warning_text: Some(unwrap("#2A1800")),
+  do_not_ignore: Some(unwrap("#F0DBFF")),
+  do_not_ignore_text: Some(unwrap("#280D42")),
+  shadow: Some(unwrap("#2D3135")),
+};
+
+// https://www.dayroselane.com/hydrants/details/42_377487_-71_101188
+const WARD_LIGHT: Theme = Theme {
   text: Some(unwrap("#171d1eff")),
   button_dark: Some(unwrap("#e9eff0ff")),
   button_light: Some(unwrap("#e3e9eaff")),
@@ -297,7 +348,7 @@ const LIGHT: Theme = Theme {
   shadow: Some(unwrap("#000000ff")),
 };
 
-const DARK: Theme = Theme {
+const WARD_DARK: Theme = Theme {
   text: Some(unwrap("#f6fcfdff")),
   button_dark: Some(unwrap("#1b2122ff")),
   button_light: Some(unwrap("#252b2cff")),

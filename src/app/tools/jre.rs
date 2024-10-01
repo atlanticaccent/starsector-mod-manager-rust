@@ -33,7 +33,7 @@ use crate::{
     controllers::AnimController,
     mod_entry::GameVersion,
     overlays::Popup,
-    util::{h2_fixed, parse_game_version, ShadeColor, WidgetExtEx},
+    util::{h2_fixed, parse_game_version, WidgetExtEx},
     SharedFromEnv,
   },
   bang, d_println, theme,
@@ -130,7 +130,12 @@ impl Swapper {
               2.,
             )
             .with_flex_spacer(1.)
-            .env_scope(|env, _| env.set(druid::theme::CURSOR_COLOR, druid::Color::BLACK.lighter())),
+            .env_scope(|env, _| {
+              env.set(
+                druid::theme::CURSOR_COLOR,
+                env.get(druid::theme::TEXT_COLOR),
+              )
+            }),
         )
         .padding((Card::CARD_INSET, 0.0)),
     )
