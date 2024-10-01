@@ -1,147 +1,5 @@
 cargo-features = ["codegen-backend"]
 
-[package]
-name = "moss"
-version = "0.8.0-beta2"
-authors = ["ikl"]
-edition = "2018"
-description = "A mod manager for the game Starsector"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[[bin]]
-name = "moss"
-path = "src/main.rs"
-
-[dependencies]
-druid = { workspace = true, default-features = true, features = [
-  "im",
-  "serde",
-  "raw-win-handle",
-  "image",
-  "png",
-] }
-druid-widget-nursery = { workspace = true, default-features = false, features = [
-  "material-icons",
-  "async",
-  "hot-reload",
-  "derive",
-] }
-infer = { workspace = true }
-tokio = { workspace = true, features = [
-  "fs",
-  "io-util",
-  "rt-multi-thread",
-  "process",
-  "macros",
-] }
-serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
-json5 = { workspace = true }
-json_comments = { workspace = true }
-reqwest = { workspace = true, default-features = false, features = [
-  "rustls-tls",
-  "json",
-  "gzip",
-  "brotli",
-  "deflate",
-] }
-serde-aux = { workspace = true }
-handwritten-json = { workspace = true }
-unrar = { workspace = true }
-opener = { workspace = true }
-directories = { workspace = true }
-tempfile = { workspace = true }
-compress-tools = { workspace = true }
-remove_dir_all = { workspace = true }
-sublime_fuzzy = { workspace = true }
-classfile-parser = { workspace = true }
-zip = { workspace = true }
-regex = { workspace = true }
-lazy_static = { workspace = true }
-strum = { workspace = true }
-strum_macros = { workspace = true }
-rayon = { workspace = true }
-self_update = { workspace = true, default-features = false, features = [
-  "rustls",
-] }
-indexmap = { workspace = true }
-chrono = { workspace = true, features = ["serde"] }
-rand = { workspace = true }
-base64 = { workspace = true }
-const_format = { workspace = true }
-anyhow = { workspace = true }
-flate2 = { workspace = true }
-tar = { workspace = true }
-deunicode = { workspace = true }
-ahash = { workspace = true }
-wry = { workspace = true }
-thiserror = { workspace = true }
-comemo = { workspace = true }
-fake = { workspace = true }
-extend = { workspace = true }
-itertools = { workspace = true }
-futures = { workspace = true }
-reqwest-middleware = { workspace = true }
-reqwest-retry = { workspace = true }
-http = { workspace = true }
-async-trait = { workspace = true }
-derive_more = { workspace = true, features = ["from", "into"] }
-
-[target.'cfg(target_os = "windows")'.dependencies]
-indoc = { workspace = true }
-
-[target.'cfg(target_os = "linux")'.dependencies]
-native-dialog = "0.6.3"
-gtk = { version = "0.18.0" }
-
-[target.'cfg(not(target_os = "linux"))'.dependencies]
-rfd = "0.12.1"
-
-[target.'cfg(target_os = "macos")'.dependencies]
-metal = "0.29"
-
-[dependencies.webview-subsystem]
-path = "./webview-subsystem"
-
-[dependencies.webview-shared]
-path = "./webview-subsystem-shared"
-
-[dependencies.proc-macros]
-path = "./proc-macros"
-
-[package.metadata.bundle]
-name = "MOSS"
-id = "org.laird.moss"
-osx_minimum_system_version = "10.10"
-
-[package.metadata.vcpkg]
-git = "https://github.com/microsoft/vcpkg"
-rev = "64ca152891d6ab135c6c27881e7eb0ac2fa15bba"
-dependencies = ["libarchive:x64-windows-static"]
-
-[package.metadata.packager]
-name = "MOSS"
-identifier = "org.laird.moss"
-before-packaging-command = "cargo build --release"
-resources = ["assets"]
-icons = ["assets/*.png"]
-
-[package.metadata.packager.appimage]
-bins = ["/usr/bin/xdg-open"]
-libs = [
-  "WebKitNetworkProcess",
-  "WebKitWebProcess",
-  "libwebkit2gtkinjectedbundle.so",
-  "libayatana-appindicator3.so.1",
-]
-
-[package.metadata.packager.appimage.linuxdeploy-plugins]
-"gtk" = "https://raw.githubusercontent.com/tauri-apps/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh"
-
-[package.metadata.packager.macos]
-minimum_system_version = "10.10"
-
 # [profile.dev]
 # codegen-backend = "cranelift"
 
@@ -149,9 +7,20 @@ minimum_system_version = "10.10"
 opt-level = 3
 
 [workspace]
-members = ["webview-subsystem", "webview-subsystem-shared", "proc-macros"]
+members = [
+  "moss",
+  "moss-sys",
+  "webview-subsystem",
+  "webview-subsystem-shared",
+  "proc-macros",
+]
 
 [workspace.dependencies]
+moss-sys = { path = "moss-sys" }
+proc-macros = { path = "proc-macros" }
+webview-subsystem = { path = "webview-subsystem" }
+webview-shared = { path = "webview-subsystem-shared" }
+
 wry = { git = "https://github.com/atlanticaccent/wry.git", branch = "screenshot-v2" }
 druid = { git = "https://github.com/atlanticaccent/druid", default-features = false, features = [
   "raw-win-handle",

@@ -2370,7 +2370,14 @@ dependencies = [
 name = "moss"
 version = "0.8.0-beta2"
 dependencies = [
- "ahash 0.8.11",
+ "moss-sys",
+]
+
+[[package]]
+name = "moss-sys"
+version = "0.1.0"
+dependencies = [
+ "ahash",
  "anyhow",
  "async-trait",
  "base64 0.13.1",

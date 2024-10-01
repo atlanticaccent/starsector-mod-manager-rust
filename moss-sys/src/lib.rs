@@ -24,16 +24,22 @@
 #![allow(clippy::struct_excessive_bools)]
 #![allow(clippy::if_not_else)]
 
+#[cfg(feature = "leaky-api")]
 pub mod app;
-pub mod formatter;
-pub mod nav_bar;
+#[cfg(not(feature = "leaky-api"))]
+pub(crate) mod app;
+pub(crate) mod formatter;
+pub(crate) mod nav_bar;
+#[cfg(feature = "leaky-api")]
 #[allow(dead_code)]
 pub mod patch;
-pub mod theme;
+#[cfg(not(feature = "leaky-api"))]
 #[allow(dead_code)]
-pub mod widgets;
+pub(crate) mod patch;
+pub(crate) mod theme;
+#[allow(dead_code)]
+pub(crate) mod widgets;
+pub mod entrypoint;
 
-pub use app::EnvSharedData;
-
-pub const ENV_STATE: druid::Key<std::sync::Arc<EnvSharedData>> =
+pub(crate) const ENV_STATE: druid::Key<std::sync::Arc<app::EnvSharedData>> =
   druid::Key::new("global.env_shared_state");

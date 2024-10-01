@@ -9,7 +9,6 @@ use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
 use tokio::runtime::Handle;
 use webview_shared::PROJECT;
 
-pub use crate::theme;
 use crate::{
   app::{
     browser::Browser,

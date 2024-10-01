@@ -1,42 +1,35 @@
 use druid::{
   widget::{Flex, Label},
-  Data, Key, Lens, Widget, WidgetExt as _,
+  Data, Key, Widget, WidgetExt,
 };
-use webview_shared::WEBVIEW_INSTALL;
 
 use super::Popup;
 use crate::{
   app::{
-    browser::Browser,
-    theme::{BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
-    util::{h2_fixed, LabelExt, WidgetExtEx as _},
+    mod_entry::ModEntry,
+    util::{h2_fixed, WidgetExtEx as _},
     App,
   },
+  nav_bar::Nav,
+  theme::{BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
   widgets::card::Card,
 };
 
-#[derive(Debug, Clone, Data, Lens)]
-pub struct BrowserInstall {
-  url: String,
-}
+pub struct ConfirmDelete;
 
-impl BrowserInstall {
-  pub fn new(url: String) -> Self {
-    Self { url }
-  }
-
-  pub fn view(&self) -> impl Widget<App> {
-    let Self { url } = self;
+impl ConfirmDelete {
+  pub fn view<T: Data>(entry: &ModEntry) -> impl Widget<T> {
+    let entry = entry.clone();
     Card::builder()
       .with_insets(Card::CARD_INSET)
       .with_background(druid::theme::BACKGROUND_LIGHT)
       .build(
         Flex::column()
-          .with_child(h2_fixed("Are you trying to install a mod?"))
-          .with_default_spacer()
-          .with_child(Label::wrapped("Mod will be installed from this url:"))
-          .with_child(Label::wrapped(url.as_str()))
-          .with_default_spacer()
+          .with_child(h2_fixed(&format!(
+            r#"Are you sure you want to delete "{}"?"#,
+            entry.name
+          )))
+          .with_child(Label::new("This action is permanent and cannot be undone."))
           .with_child(
             Flex::row()
               .with_child(
@@ -48,7 +41,7 @@ impl BrowserInstall {
                   .with_border(2.0, Key::new("button.border"))
                   .hoverable(|_| {
                     Flex::row()
-                      .with_child(Label::new("Install").padding((10.0, 0.0)))
+                      .with_child(Label::new("Continue").padding((10.0, 0.0)))
                       .valign_centre()
                   })
                   .env_scope(|env, _| {
@@ -61,17 +54,10 @@ impl BrowserInstall {
                   })
                   .fix_height(42.0)
                   .padding((0.0, 2.0))
-                  .on_click({
-                    let url = url.clone();
-                    move |ctx, data: &mut App, _| {
-                      ctx.submit_command(
-                        WEBVIEW_INSTALL.with(webview_shared::InstallType::Uri(url.clone())),
-                      );
-                      ctx.submit_command(Popup::DISMISS);
-                      if data.current_tab == crate::nav_bar::NavLabel::WebBrowser {
-                        ctx.submit_command(Browser::WEBVIEW_SHOW);
-                      }
-                    }
+                  .on_click(move |ctx, _, _| {
+                    ctx.submit_command(Popup::DISMISS);
+                    ctx.submit_command(App::CONFIRM_DELETE_MOD.with(entry.clone()));
+                    ctx.submit_command(Nav::NAV_SELECTOR.with(crate::nav_bar::NavLabel::Mods));
                   }),
               )
               .with_child(
@@ -96,12 +82,7 @@ impl BrowserInstall {
                   })
                   .fix_height(42.0)
                   .padding((0.0, 2.0))
-                  .on_click(|ctx, data: &mut App, _| {
-                    ctx.submit_command(Popup::DISMISS);
-                    if data.current_tab == crate::nav_bar::NavLabel::WebBrowser {
-                      ctx.submit_command(Browser::WEBVIEW_SHOW);
-                    }
-                  }),
+                  .on_click(|ctx, _, _| ctx.submit_command(Popup::DISMISS)),
               ),
           ),
       )

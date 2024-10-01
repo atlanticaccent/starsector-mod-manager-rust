@@ -11,11 +11,11 @@ use crate::{
   app::{
     installer,
     mod_entry::{ModVersionMeta, Version},
-    theme::{BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
     util::{h2_fixed, DataTimer, WidgetExtEx as _, WithHoverState},
     App, CONTENT_COPY, DONE_ALL,
   },
   patch::table::{FixedFlexTable, TableColumnWidth, TableRow},
+  theme::{BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
   widgets::card::Card,
 };
 

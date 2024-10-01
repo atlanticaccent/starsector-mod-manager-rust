@@ -17,7 +17,6 @@ use crate::{
     mod_entry::{ModMetadata, UpdateStatus, VersionComplex},
     mod_list::ModList,
     overlays::Popup,
-    theme::{self, BLUE_KEY, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_RED_KEY, RED_KEY},
     util::{
       bolded, h1, h2_fixed, h3, h3_fixed, hoverable_text_opts, ident_rc, lensed_bold, Compute,
       FastImMap, LabelExt, LensExtExt, ShadeColor, WidgetExtEx, WithHoverState, CHEVRON_LEFT,
@@ -26,6 +25,7 @@ use crate::{
     App, ViewModEntry as ModEntry, INFO,
   },
   nav_bar::{Nav, NavLabel},
+  theme::{self, BLUE_KEY, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_RED_KEY, RED_KEY},
   widgets::card::Card,
 };
 

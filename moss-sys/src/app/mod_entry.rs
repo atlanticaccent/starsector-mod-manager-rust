@@ -21,26 +21,25 @@ use json_comments::strip_comments;
 use serde::{Deserialize, Serialize};
 use serde_aux::prelude::*;
 
-use super::{
-  app_delegate::AppCommands,
-  controllers::{next_id, MaxSizeBox, SharedIdHoverState},
-  mod_description::{notify_enabled, ModDescription},
-  mod_list::{headings::Heading, ModList},
+use crate::{
+  app::{
+    app_delegate::AppCommands,
+    controllers::{next_id, MaxSizeBox, SharedIdHoverState},
+    mod_description::{notify_enabled, ModDescription},
+    mod_list::{headings::Heading, ModList},
+    util::{
+      self, default_true,
+      icons::{NEW_RELEASES, REPORT, SICK, THUMB_UP},
+      parse_game_version, LabelExt, LensExtExt, Tap, WidgetExtEx, WithHoverIdState as _,
+    },
+    App, SharedFromEnv,
+  },
+  nav_bar::{Nav, NavLabel},
+  patch::table::{FlexTable, RowData},
   theme::{
     BLUE_KEY, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ON_RED_KEY, ON_YELLOW_KEY,
     ORANGE_KEY, RED_KEY, YELLOW_KEY,
   },
-  util::{
-    self,
-    icons::{NEW_RELEASES, REPORT, SICK, THUMB_UP},
-    LensExtExt, Tap, WidgetExtEx, WithHoverIdState as _,
-  },
-  App, SharedFromEnv,
-};
-use crate::{
-  app::util::{default_true, parse_game_version, LabelExt},
-  nav_bar::{Nav, NavLabel},
-  patch::table::{FlexTable, RowData},
   widgets::card::Card,
   ENV_STATE,
 };

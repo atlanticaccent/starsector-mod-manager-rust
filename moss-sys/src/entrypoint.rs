@@ -1,15 +1,14 @@
-#![feature(let_chains)]
-
 use const_format::concatcp;
 use druid::{AppLauncher, WindowDesc};
-use moss::{
-  app::{app_delegate::AppDelegate, App, AppViewExt},
-  theme::save_original_env,
-};
 use tokio::runtime::Builder;
 use webview_shared::PROJECT;
 
-fn main() {
+use crate::{
+  app::{app_delegate::AppDelegate, App, AppViewExt},
+  theme::save_original_env,
+};
+
+pub fn start() {
   std::fs::create_dir_all(PROJECT.cache_dir()).expect("Create cache dir");
   std::fs::create_dir_all(PROJECT.data_dir()).expect("Create cache dir");
 

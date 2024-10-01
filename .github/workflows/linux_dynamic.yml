@@ -32,7 +32,7 @@ jobs:
       - name: Build
         run: cargo build --release
       - name: Test
-        run: cargo test --release --no-fail-fast -- --nocapture
+        run: cargo test --release --no-fail-fast --features="leaky-api" -- --nocapture
 
       - name: Install cargo-packager
         run: (cargo install cargo-packager || true)

@@ -43,7 +43,7 @@ pub(crate) struct TableBorderStyle {
 /// # use std::ops::{Index, IndexMut};
 /// # use druid::widget::Label;
 /// # use druid::{Data, lens::Constant, im::{vector, Vector}, Widget, WidgetExt};
-/// # use moss::patch::table::{FlexTable, TableData, RowData};
+/// # use moss_sys::patch::table::{FlexTable, TableData, RowData};
 ///
 /// #[derive(Clone, Data)]
 /// struct Row {

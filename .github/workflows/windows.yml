@@ -40,7 +40,7 @@ jobs:
       - name: Build
         run: cargo build --release
       - name: Test
-        run: cargo test --release --no-fail-fast -- --nocapture
+        run: cargo test --release --no-fail-fast --features="leaky-api" -- --nocapture
 
       - uses: actions/upload-artifact@v4
         with:

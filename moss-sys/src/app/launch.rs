@@ -8,23 +8,22 @@ use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
 use tokio::process::Command;
 use webview_shared::ExtEventSinkExt;
 
-use super::{
-  overlays::{LaunchResult, Popup},
-  theme::{BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
-  util::{h2_fixed, LabelExt, Tap, ValueFormatter},
-  App, SETTINGS, TOGGLE_ON,
-};
 use crate::{
   app::{
     controllers::Rotated,
+    overlays::{LaunchResult, Popup},
     settings::Settings,
-    util::{bold_text, ShadeColor, WidgetExtEx},
-    CHEVRON_LEFT, CHEVRON_RIGHT, INFO, PLAY_ARROW,
+    util::{
+      bold_text, h2_fixed, LabelExt, ShadeColor, Tap, ValueFormatter, WidgetExtEx, SETTINGS,
+      TOGGLE_ON,
+    },
+    App, CHEVRON_LEFT, CHEVRON_RIGHT, INFO, PLAY_ARROW,
   },
   patch::{
     separator::Separator,
     table::{FixedFlexTable, TableColumnWidth, TableRow},
   },
+  theme::{BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
   widgets::{
     card::Card,
     card_button::{AltStackOption, CardButton, ScopedStackCardButton},
