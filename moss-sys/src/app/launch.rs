@@ -11,7 +11,7 @@ use webview_shared::ExtEventSinkExt;
 use crate::{
   app::{
     controllers::Rotated,
-    overlays::{LaunchResult, Popup},
+    overlays::Popup,
     settings::Settings,
     util::{
       bold_text, h2_fixed, LabelExt, ShadeColor, Tap, ValueFormatter, WidgetExtEx, SETTINGS,
@@ -573,10 +573,8 @@ fn managed_starsector_launch(app: &mut App, ctx: &mut druid::EventCtx) {
         Popup::wrap_dismiss_matching(|popup| matches!(popup, Popup::Custom(_))),
       );
       if let Err(err) = res {
-        let _ = ext_ctx.submit_command_global(
-          Popup::OPEN_POPUP,
-          Popup::custom(move || LaunchResult::view(err.to_string()).boxed()),
-        );
+        let _ =
+          ext_ctx.submit_command_global(Popup::OPEN_POPUP, Popup::launch_result(err.to_string()));
       }
       let _ = ext_ctx.submit_command_global(App::ENABLE, ());
     });

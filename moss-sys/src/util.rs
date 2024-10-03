@@ -1,7 +1,7 @@
 use std::{
   any::Any,
   borrow::Borrow,
-  collections::{HashMap, VecDeque},
+  collections::HashMap,
   convert::identity,
   fmt::Debug,
   hash::Hash,
@@ -37,7 +37,6 @@ use json_comments::strip_comments;
 use lazy_static::lazy_static;
 use regex::Regex;
 use reqwest_middleware::ClientWithMiddleware;
-use serde::Deserialize;
 use tokio::{select, sync::mpsc};
 
 use crate::{
@@ -597,36 +596,6 @@ impl<T, W: Widget<T>> Controller<T, W> for DragWindowController {
       _ => (),
     }
     child.event(ctx, event, data, env);
-  }
-}
-
-#[derive(Deserialize, Clone, Debug)]
-pub struct Release {
-  pub name: String,
-  pub tag_name: String,
-  pub assets: Vec<Asset>,
-}
-
-#[derive(Deserialize, Clone, Debug)]
-pub struct Asset {
-  pub name: String,
-  pub browser_download_url: String,
-}
-
-pub async fn get_latest_manager() -> anyhow::Result<Release> {
-  let client = WebClient::new();
-
-  let mut res = client
-    .get("https://api.github.com/repos/atlanticaccent/starsector-mod-manager-rust/releases")
-    .send()
-    .await?
-    .json::<VecDeque<Release>>()
-    .await?;
-
-  if let Some(release) = res.pop_front() {
-    Ok(release)
-  } else {
-    anyhow::bail!("Could not find any releases.")
   }
 }
 
@@ -1785,7 +1754,12 @@ macro_rules! bang {
 // print macro that only runs in debug builds
 #[macro_export]
 macro_rules! d_println {
-  ($($arg:tt)*) => (#[cfg(debug_assertions)] println!($($arg)*));
+  ($($arg:tt)*) => {
+    {
+      #[cfg(debug_assertions)]
+      println!($($arg)*)
+    }
+  };
 }
 
 // error print that only runs in debug builds

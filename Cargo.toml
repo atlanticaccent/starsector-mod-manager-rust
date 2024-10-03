@@ -27,6 +27,7 @@ druid = { git = "https://github.com/atlanticaccent/druid", default-features = fa
 ], branch = "faster-hashing" }
 druid-widget-nursery = { git = "https://github.com/atlanticaccent/druid-widget-nursery", default-features = false }
 tokio = { version = "1.6.0" }
+tokio-util = { version = "0.7" }
 infer = "0.3.4"
 chrono = { version = "0.4.19" }
 serde = { version = "1.0.126" }
@@ -44,13 +45,13 @@ compress-tools = "0.14.1"
 remove_dir_all = "^0.7.0"
 sublime_fuzzy = "0.7.0"
 classfile-parser = "~0.3"
-zip = "^0.5"
+zip = "2"
 regex = "1.5"
 lazy_static = "1.4"
 strum = "0.26"
 strum_macros = "0.26"
 rayon = "1.5"
-self_update = { version = "0.29.0", default-features = false }
+self_update = { version = "0.41.0", default-features = false }
 indexmap = "1.8.0"
 rand = "0.8.5"
 base64 = "0.13.0"

@@ -27,7 +27,10 @@ use super::{
   overlays::Popup,
   util::{get_master_version, Tap, WebClient},
 };
-use crate::app::{mod_entry::ModEntry, util::{IsSendSync, LoadBalancer}};
+use crate::app::{
+  mod_entry::ModEntry,
+  util::{IsSendSync, LoadBalancer},
+};
 
 #[derive(Clone)]
 pub enum Payload {
@@ -190,7 +193,11 @@ async fn handle_path(
             )));
           }
           ext_ctx
-            .submit_command(INSTALL, ChannelMessage::Success(Box::new(mod_info)), Target::Auto)
+            .submit_command(
+              INSTALL,
+              ChannelMessage::Success(Box::new(mod_info)),
+              Target::Auto,
+            )
             .expect("Send success over async channel");
         }
 
@@ -375,7 +382,11 @@ async fn handle_delete(
   }
 
   ext_ctx
-    .submit_command(INSTALL, ChannelMessage::Success(Box::new(entry)), Target::Auto)
+    .submit_command(
+      INSTALL,
+      ChannelMessage::Success(Box::new(entry)),
+      Target::Auto,
+    )
     .expect("Send success over async channel");
 
   Ok(())

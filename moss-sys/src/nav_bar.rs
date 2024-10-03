@@ -116,7 +116,11 @@ impl NavBar {
         )
         .empty_if_not(|data, _| !data.is_root)
       },
-      Compute::new(|data: &Nav| data.override_.unwrap_or(data.expanded || data.is_always_open)),
+      Compute::new(|data: &Nav| {
+        data
+          .override_
+          .unwrap_or(data.expanded || data.is_always_open)
+      }),
     )
     .with_opener(SizedBox::empty)
     .with_opener_dimensions((0., 0.))

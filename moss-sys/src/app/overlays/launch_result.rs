@@ -14,7 +14,7 @@ use crate::{
 pub struct LaunchResult;
 
 impl LaunchResult {
-  pub fn view<T: Data>(error: String) -> impl Widget<T> {
+  pub fn view<T: Data>(error: &str) -> impl Widget<T> {
     Flex::row()
       .with_flex_spacer(0.5)
       .with_flex_child(

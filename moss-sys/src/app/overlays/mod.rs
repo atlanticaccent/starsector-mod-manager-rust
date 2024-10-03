@@ -15,17 +15,19 @@ mod multiple;
 mod overwrite;
 mod remote_update;
 mod select_install;
+mod self_update;
 
 use browser_install::BrowserInstall;
 use confirm_delete::ConfirmDelete;
 use duplicate::Duplicate;
-pub use launch_result::*;
+use launch_result::*;
 use multiple::Multiple;
 use overwrite::Overwrite;
 use remote_update::RemoteUpdate;
 use select_install::SelectInstall;
+pub use self_update::Status;
 
-use super::{
+use crate::app::{
   controllers::MaskController,
   installer::{HybridPath, StringOrPath},
   mod_entry::ModEntry,
@@ -42,11 +44,13 @@ pub enum Popup {
   FoundMultiple(Multiple),
   RemoteUpdate(RemoteUpdate),
   BrowserInstall(BrowserInstall),
+  LaunchResult(String),
+  SelfUpdate(Status),
   Custom(Arc<dyn Fn() -> Box<dyn Widget<()>> + Send + Sync>),
   AppCustom(Arc<dyn Fn() -> Box<dyn Widget<App>> + Send + Sync>),
 }
 
-pub type DismissMatcher = Arc<dyn Fn(&Popup) -> bool + Send + Sync>;
+pub type DismissMatcher = Box<dyn Fn(&Popup) -> bool + Send + Sync>;
 
 impl Popup {
   pub const DISMISS: Selector = Selector::new("app.popup.dismiss");
@@ -120,6 +124,8 @@ impl Popup {
             Popup::FoundMultiple(multiple) => multiple.view().boxed(),
             Popup::RemoteUpdate(remote_update) => remote_update.view().boxed(),
             Popup::BrowserInstall(browser_install) => browser_install.view().boxed(),
+            Popup::LaunchResult(error) => LaunchResult::view(error).boxed(),
+            Popup::SelfUpdate(status) => status.view().boxed(),
             Popup::Custom(maker) => maker().constant(()).boxed(),
             Popup::AppCustom(maker) => maker().boxed(),
           }
@@ -155,6 +161,10 @@ impl Popup {
     Popup::BrowserInstall(BrowserInstall::new(url))
   }
 
+  pub fn launch_result(error: String) -> Popup {
+    Popup::LaunchResult(error)
+  }
+
   pub fn custom(maker: impl Fn() -> Box<dyn Widget<()>> + Send + Sync + 'static) -> Popup {
     Popup::Custom(Arc::new(maker))
   }
@@ -170,6 +180,6 @@ impl Popup {
   pub fn wrap_dismiss_matching<F: Fn(&Popup) -> bool + Send + Sync + 'static>(
     matching: F,
   ) -> DismissMatcher {
-    Arc::new(matching) as DismissMatcher
+    Box::new(matching)
   }
 }

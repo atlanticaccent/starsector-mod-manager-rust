@@ -74,7 +74,6 @@ impl ModRepo {
 
   pub const OPEN_IN_DISCORD: Selector = Selector::new("mod_repo.open.discord");
   const OPEN_CONFIRM: Selector<String> = Selector::new("mod_repo.open.discord.confirm");
-  pub const CLEAR_MODAL: Selector = Selector::new("mod_repo.close.clear");
   const UPDATE_PAGE: Selector = Selector::new("mod_repo.page.update");
 
   pub fn wrapper() -> impl Widget<App> {

@@ -28,7 +28,7 @@ use crate::{
         CHEVRON_RIGHT, CLEAR, CONTENT_COPY, DESELECT, DONE_ALL, FIRST_PAGE,
         INDETERMINATE_CHECK_BOX, INFO, LAST_PAGE, LINK, LINK_OFF, PLAY_ARROW, REFRESH, SHUFFLE,
       },
-      FastImMap, LensExtExt, Release, Tap, WidgetExtEx, HOVER_STATE_CHANGE,
+      FastImMap, LensExtExt, Tap, WidgetExtEx, HOVER_STATE_CHANGE,
     },
   },
   nav_bar::{Nav, NavBar, NavLabel},
@@ -58,8 +58,6 @@ mod updater;
 #[allow(dead_code)]
 #[path = "./util.rs"]
 pub mod util;
-
-const TAG: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Clone, Data, Lens)]
 pub struct App {
@@ -100,7 +98,6 @@ impl App {
   const SELECTOR: Selector<app_delegate::AppCommands> = Selector::new("app.update.commands");
   const SELF_UPDATE: Selector<()> = Selector::new("app.update.perform");
   const TOGGLE_NAV_BAR: Selector = Selector::new("app.nav_bar.collapse");
-  const UPDATE_AVAILABLE: Selector<anyhow::Result<Release>> = Selector::new("app.update.available");
 
   pub fn new(runtime: Handle) -> Self {
     let settings = settings::Settings::load()

@@ -1,9 +1,6 @@
 use std::process;
 
-use druid::{
-  commands, widget::Controller, Command, Env, Event, EventCtx, Selector, Target, Widget,
-};
-use self_update::version::bump_is_greater;
+use druid::{commands, widget::Controller, Command, Env, Event, EventCtx, Selector, Widget};
 use webview_shared::ExtEventSinkExt;
 
 use crate::{
@@ -11,11 +8,9 @@ use crate::{
     installer::{ChannelMessage, INSTALL, INSTALL_FOUND_MULTIPLE},
     mod_entry::UpdateStatus,
     mod_list::ModList,
-    modal::Modal,
     overlays::Popup,
     settings::{self, Settings, SettingsCommand},
-    updater::{open_in_browser, self_update, support_self_update},
-    App, TAG,
+    App,
   },
   match_command,
   nav_bar::Nav,
@@ -57,67 +52,6 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
         ctx.set_focus(data.widget_id);
         ctx.resign_focus();
       } else if let Some(()) = cmd.get(App::SELF_UPDATE) {
-        let original_exe = std::env::current_exe();
-        if dbg!(support_self_update()) && original_exe.is_ok() {
-          let widget = if self_update().is_ok() {
-            Modal::new("Restart?")
-              .with_content("Update complete.")
-              .with_content("Would you like to restart?")
-              .with_button(
-                "Restart",
-                App::RESTART
-                  .with(original_exe.as_ref().unwrap().clone())
-                  .to(Target::Global),
-              )
-              .with_close_label("Cancel")
-          } else {
-            Modal::new("Error")
-              .with_content("Failed to update Mod Manager.")
-              .with_content(
-                "It is recommended that you restart and check that the Manager has not been \
-                 corrupted.",
-              )
-              .with_close()
-          };
-
-          widget.show(ctx, env, &());
-        } else {
-          open_in_browser();
-        }
-      } else if let Some(payload) = cmd.get(App::UPDATE_AVAILABLE) {
-        eprintln!("got update availability");
-        let _widget: Modal<'_, ()> = if let Ok(release) = payload {
-          let local_tag = TAG.strip_prefix('v').unwrap_or(TAG);
-          let release_tag = release
-            .tag_name
-            .strip_prefix('v')
-            .unwrap_or(&release.tag_name);
-          if let Ok(true) = bump_is_greater(local_tag, release_tag) {
-            Modal::new("Update Mod Manager?")
-              .with_content("A new version of Starsector Mod Manager is available.")
-              .with_content(format!("Current version: {TAG}"))
-              .with_content(format!("New version: {}", release.tag_name))
-              .with_content({
-                #[cfg(not(target_os = "macos"))]
-                let label = "Would you like to update now?";
-                #[cfg(target_os = "macos")]
-                let label = "Would you like to open the update in your browser?";
-
-                label
-              })
-              .with_button("Update", App::SELF_UPDATE)
-              .with_close_label("Cancel")
-          } else {
-            return;
-          }
-        } else {
-          Modal::new("Error")
-            .with_content("Failed to retrieve Mod Manager update status.")
-            .with_content("There may or may not be an update available.")
-            .with_close()
-        };
-
-        // widget.show(ctx, env, &());
       } else if let Some(original_exe) = cmd.get(App::RESTART) {
         if process::Command::new(original_exe).spawn().is_ok() {
           ctx.submit_command(commands::QUIT_APP);

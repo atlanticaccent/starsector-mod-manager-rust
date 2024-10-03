@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![recursion_limit = "1000"]
+// Nightly features
 #![feature(option_zip)]
 #![feature(result_flattening)]
 #![feature(async_closure)]
@@ -15,6 +16,8 @@
 #![feature(cfg_match)]
 #![feature(trait_alias)]
 #![feature(type_alias_impl_trait)]
+#![feature(is_none_or)]
+// Ignored lints
 #![allow(clippy::new_ret_no_self)]
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::return_self_not_must_use)]

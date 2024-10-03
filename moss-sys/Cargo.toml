@@ -1,6 +1,6 @@
 [package]
 name = "moss-sys"
-version = "0.1.0"
+version = "0.8.0-beta2"
 authors = ["ikl"]
 edition = "2018"
 description = "A mod manager for the game Starsector"
@@ -36,6 +36,7 @@ tokio = { workspace = true, features = [
   "process",
   "macros",
 ] }
+tokio-util = { workspace = true, features = ["rt"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 json5 = { workspace = true }
@@ -65,6 +66,9 @@ strum_macros = { workspace = true }
 rayon = { workspace = true }
 self_update = { workspace = true, default-features = false, features = [
   "rustls",
+  "archive-zip",
+  "compression-zip-bzip2",
+  "compression-zip-deflate",
 ] }
 indexmap = { workspace = true }
 chrono = { workspace = true, features = ["serde"] }

@@ -15,10 +15,10 @@ use super::{
   overlays::Popup,
   settings::{self, Settings, SettingsCommand},
   tools,
-  util::{get_latest_manager, get_starsector_version, GET_INSTALLED_STARSECTOR},
+  util::{get_starsector_version, GET_INSTALLED_STARSECTOR},
   App,
 };
-use crate::nav_bar::Nav;
+use crate::{app::updater::check_for_update, nav_bar::Nav};
 
 pub enum AppCommands {
   UpdateModDescription(ModDescription<String>),
@@ -336,17 +336,14 @@ impl Delegate<App> for AppDelegate {
             );
           }
           let ext_ctx = ctx.get_external_handle();
-          data.runtime.spawn(async move {
-            let release = get_latest_manager().await;
-            ext_ctx.submit_command(App::UPDATE_AVAILABLE, release, Target::Auto)
-          });
+          data.runtime.spawn(check_for_update(ext_ctx));
 
           let mut delayed_popups = Vec::new();
-          if !data
+          if data
             .settings
             .install_dir
             .as_ref()
-            .is_some_and(|p| p.exists())
+            .is_none_or(|p| !p.exists())
           {
             delayed_popups.push(Popup::SelectInstall);
           }
