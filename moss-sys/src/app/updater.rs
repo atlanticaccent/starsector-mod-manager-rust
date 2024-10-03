@@ -122,3 +122,48 @@ pub fn get_updater() -> anyhow::Result<Box<dyn ReleaseUpdate>> {
 
   Ok(updater)
 }
+
+#[cfg(not(target_os = "windows"))]
+pub fn alternative_updater(url: &str) -> anyhow::Result<()> {
+  use std::path::PathBuf;
+
+  use cargo_packager_updater as alt_updater;
+  use self_update::Download;
+
+  const FORMAT: alt_updater::UpdateFormat = if cfg!(target_os = "macos") {
+    alt_updater::UpdateFormat::App
+  } else if cfg!(target_os = "linux") {
+    alt_updater::UpdateFormat::AppImage
+  } else {
+    alt_updater::UpdateFormat::Wix
+  };
+
+  fn default_update() -> alt_updater::Update {
+    alt_updater::Update {
+      config: alt_updater::Config {
+        endpoints: Vec::new(),
+        pubkey: String::new(),
+        windows: None,
+      },
+      body: None,
+      current_version: String::new(),
+      version: String::new(),
+      date: None,
+      target: String::new(),
+      extract_path: PathBuf::new(),
+      download_url: "fa:ke".parse().unwrap(),
+      signature: String::new(),
+      timeout: None,
+      headers: Default::default(),
+      format: FORMAT,
+    }
+  }
+
+  let mut buf = Vec::new();
+
+  Download::from_url(url).download_to(&mut buf)?;
+
+  default_update().install(buf)?;
+
+  Ok(())
+}

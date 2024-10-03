@@ -92,6 +92,7 @@ reqwest-retry = { workspace = true }
 http = { workspace = true }
 async-trait = { workspace = true }
 derive_more = { workspace = true, features = ["from", "into"] }
+cargo-packager-updater = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 indoc = { workspace = true }
