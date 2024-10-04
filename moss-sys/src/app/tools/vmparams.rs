@@ -367,7 +367,13 @@ impl VMParamsPath for VMParamsPathDefault {
     return "vmparams";
     #[cfg(target_os = "macos")]
     return "Contents/MacOS/starsector_mac.sh";
-    #[cfg(target_os = "linux")]
+    #[cfg(any(
+      target_os = "linux",
+      target_os = "dragonfly",
+      target_os = "freebsd",
+      target_os = "netbsd",
+      target_os = "openbsd"
+    ))]
     return "starsector.sh";
   }
 }

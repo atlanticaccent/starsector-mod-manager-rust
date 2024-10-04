@@ -351,7 +351,13 @@ impl Browser {
 }
 
 fn init_webview(ctx: &mut druid::EventCtx, data: &mut Browser) -> Result<Rc<WebView>, wry::Error> {
-  #[cfg(target_os = "linux")]
+  #[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+  ))]
   let res = {
     use gtk::{
       glib::translate::{FromGlibPtrFull, ToGlibPtr},
@@ -393,7 +399,13 @@ fn init_webview(ctx: &mut druid::EventCtx, data: &mut Browser) -> Result<Rc<WebV
 
     webview_subsystem::init_webview(data.url.clone(), builder, ctx.get_external_handle())
   };
-  #[cfg(not(target_os = "linux"))]
+  #[cfg(not(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+  )))]
   let res = webview_subsystem::init_webview_with_handle(
     data.url.clone(),
     ctx.window(),

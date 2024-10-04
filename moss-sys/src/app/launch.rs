@@ -602,7 +602,13 @@ async fn launch(
     true => "Miko_R3.txt",
     #[cfg(target_os = "windows")]
     false => "vmparams",
-    #[cfg(target_os = "linux")]
+    #[cfg(any(
+      target_os = "linux",
+      target_os = "dragonfly",
+      target_os = "freebsd",
+      target_os = "netbsd",
+      target_os = "openbsd"
+    ))]
     false => "starsector.sh",
   });
 
@@ -650,7 +656,13 @@ async fn launch(
     (miko || direct_launch).then(|| install_dir.join("starsector-core")),
   );
 
-  #[cfg(target_os = "linux")]
+  #[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+  ))]
   let (exe, working_dir) = (
     install_dir.join(match direct_launch {
       true if miko => "jdk-23+9/bin/java",

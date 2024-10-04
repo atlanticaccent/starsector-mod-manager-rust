@@ -32,7 +32,13 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
             .pick_file();
           #[cfg(target_os = "windows")]
           let res = rfd::FileDialog::new().pick_folder();
-          #[cfg(target_os = "linux")]
+          #[cfg(any(
+            target_os = "linux",
+            target_os = "dragonfly",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd"
+          ))]
           let res = native_dialog::FileDialog::new()
             .show_open_single_dir()
             .ok()

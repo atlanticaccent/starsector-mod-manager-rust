@@ -66,13 +66,25 @@ impl Delegate<App> for AppDelegate {
           let sink = ctx.get_external_handle();
           if *is_file {
             data.runtime.spawn_blocking(move || {
-              #[cfg(not(target_os = "linux"))]
+              #[cfg(not(any(
+                target_os = "linux",
+                target_os = "dragonfly",
+                target_os = "freebsd",
+                target_os = "netbsd",
+                target_os = "openbsd"
+              )))]
               let res = rfd::FileDialog::new()
                 .add_filter("Archives", &[
                   "zip", "7z", "7zip", "rar", "rar4", "rar5", "tar",
                 ])
                 .pick_files();
-              #[cfg(target_os = "linux")]
+              #[cfg(any(
+                target_os = "linux",
+                target_os = "dragonfly",
+                target_os = "freebsd",
+                target_os = "netbsd",
+                target_os = "openbsd"
+              ))]
               let res = native_dialog::FileDialog::new()
                 .add_filter("Archives", &[
                   "zip", "7z", "7zip", "rar", "rar4", "rar5", "tar",
@@ -84,9 +96,21 @@ impl Delegate<App> for AppDelegate {
             });
           } else {
             data.runtime.spawn_blocking(move || {
-              #[cfg(not(target_os = "linux"))]
+              #[cfg(not(any(
+                target_os = "linux",
+                target_os = "dragonfly",
+                target_os = "freebsd",
+                target_os = "netbsd",
+                target_os = "openbsd"
+              )))]
               let res = rfd::FileDialog::new().pick_folder();
-              #[cfg(target_os = "linux")]
+              #[cfg(any(
+                target_os = "linux",
+                target_os = "dragonfly",
+                target_os = "freebsd",
+                target_os = "netbsd",
+                target_os = "openbsd"
+              ))]
               let res = native_dialog::FileDialog::new()
                 .show_open_single_dir()
                 .ok()

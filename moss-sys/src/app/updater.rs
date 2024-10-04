@@ -132,7 +132,13 @@ pub fn alternative_updater(url: &str) -> anyhow::Result<()> {
 
   const FORMAT: alt_updater::UpdateFormat = if cfg!(target_os = "macos") {
     alt_updater::UpdateFormat::App
-  } else if cfg!(target_os = "linux") {
+  } else if cfg!(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+  )) {
     alt_updater::UpdateFormat::AppImage
   } else {
     alt_updater::UpdateFormat::Wix

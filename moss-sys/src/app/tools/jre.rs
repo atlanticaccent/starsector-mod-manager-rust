@@ -732,7 +732,13 @@ mod consts {
 
   pub const JRE_PATH: &str = "jre";
 }
-#[cfg(target_os = "linux")]
+#[cfg(any(
+  target_os = "linux",
+  target_os = "dragonfly",
+  target_os = "freebsd",
+  target_os = "netbsd",
+  target_os = "openbsd"
+))]
 mod consts {
   use super::FindBy;
 
