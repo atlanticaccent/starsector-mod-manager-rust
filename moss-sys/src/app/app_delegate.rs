@@ -66,25 +66,13 @@ impl Delegate<App> for AppDelegate {
           let sink = ctx.get_external_handle();
           if *is_file {
             data.runtime.spawn_blocking(move || {
-              #[cfg(not(any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-              )))]
+              #[cfg(not(linux))]
               let res = rfd::FileDialog::new()
                 .add_filter("Archives", &[
                   "zip", "7z", "7zip", "rar", "rar4", "rar5", "tar",
                 ])
                 .pick_files();
-              #[cfg(any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-              ))]
+              #[cfg(linux)]
               let res = native_dialog::FileDialog::new()
                 .add_filter("Archives", &[
                   "zip", "7z", "7zip", "rar", "rar4", "rar5", "tar",
@@ -96,21 +84,9 @@ impl Delegate<App> for AppDelegate {
             });
           } else {
             data.runtime.spawn_blocking(move || {
-              #[cfg(not(any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-              )))]
+              #[cfg(not(linux))]
               let res = rfd::FileDialog::new().pick_folder();
-              #[cfg(any(
-                target_os = "linux",
-                target_os = "dragonfly",
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-              ))]
+              #[cfg(linux)]
               let res = native_dialog::FileDialog::new()
                 .show_open_single_dir()
                 .ok()
@@ -331,9 +307,9 @@ impl Delegate<App> for AppDelegate {
           data.browser.inner = None;
         }
         let _ = std::fs::remove_dir_all(PROJECT.cache_dir());
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(not(mac))]
         ctx.submit_command(druid::commands::QUIT_APP);
-        #[cfg(target_os = "macos")]
+        #[cfg(mac)]
         std::process::exit(0);
       }
       _ => {}

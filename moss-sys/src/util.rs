@@ -347,17 +347,11 @@ pub async fn get_starsector_version(ext_ctx: ExtEventSink, install_dir: PathBuf)
   use regex::bytes::Regex;
   use tokio::{fs, task};
 
-  #[cfg(any(
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd"
-  ))]
+  #[cfg(linux)]
   let obf_jar = install_dir.join("starfarer_obf.jar");
   #[cfg(target_os = "windows")]
   let obf_jar = install_dir.join("starsector-core/starfarer_obf.jar");
-  #[cfg(target_os = "macos")]
+  #[cfg(mac)]
   let obf_jar = install_dir.join("Contents/Resources/Java/starfarer_obf.jar");
 
   let mut res = task::spawn_blocking(move || {

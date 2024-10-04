@@ -19,9 +19,9 @@ use crate::{
 pub struct SelectInstall;
 
 impl SelectInstall {
-  #[cfg(target_os = "macos")]
+  #[cfg(mac)]
   const HEADING: &'static str = "Please select the Starsector app.";
-  #[cfg(not(target_os = "macos"))]
+  #[cfg(not(mac))]
   const HEADING: &'static str = "Please select your Starsector installation directory.";
 
   pub fn view() -> impl Widget<App> {

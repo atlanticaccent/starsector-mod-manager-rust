@@ -26,7 +26,7 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
         let ext_ctx = ctx.get_external_handle();
         ctx.set_disabled(true);
         data.runtime.spawn_blocking(move || {
-          #[cfg(target_os = "macos")]
+          #[cfg(mac)]
           let res = rfd::FileDialog::new()
             .add_filter("*.app", &["app"])
             .pick_file();

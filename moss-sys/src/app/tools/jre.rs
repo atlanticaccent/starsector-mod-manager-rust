@@ -117,7 +117,7 @@ impl Swapper {
                 let table = FlexTable::new()
                   .with_row(Self::swapper_row(Flavour::Original, "Original (Java 7)"));
 
-                #[cfg(not(target_os = "macos"))]
+                #[cfg(not(mac))]
                 let table = table.with_row(Self::swapper_row(
                   Flavour::Miko,
                   "Java 23 by Mikohime (New!)",
@@ -346,7 +346,7 @@ impl Swapper {
       })
       .collect();
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(mac))]
     if install_dir.join("Miko_R3.txt").exists() && install_dir.join(consts::MIKO_JDK_VER).exists() {
       available.push(Flavour::Miko);
     }
@@ -406,7 +406,7 @@ impl Swapper {
   strum_macros::FromRepr,
 )]
 pub enum Flavour {
-  #[cfg(not(target_os = "macos"))]
+  #[cfg(not(mac))]
   Miko,
   Coretto,
   Hotspot,
@@ -421,7 +421,7 @@ const JRE_BACKUP: &str = "jre.bak";
 impl Flavour {
   async fn download(self, install_dir: PathBuf) -> Result<(), anyhow::Error> {
     let cached_jre = install_dir.join(match self {
-      #[cfg(not(target_os = "macos"))]
+      #[cfg(not(mac))]
       Flavour::Miko => consts::MIKO_JDK_VER.to_owned(),
       _ => format!("jre_{self}"),
     });
@@ -444,7 +444,7 @@ impl Flavour {
       std::fs::rename(jre_8, &cached_jre)?;
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(mac))]
     if self.is_miko() && !install_dir.join("mikohime").exists() {
       let miko_dir = Flavour::get_miko_kit(&install_dir).await?;
 
@@ -502,7 +502,7 @@ impl Flavour {
       Flavour::Hotspot => consts::HOTSPOT,
       Flavour::Wisp => consts::WISP,
       Flavour::Azul => consts::AZUL,
-      #[cfg(not(target_os = "macos"))]
+      #[cfg(not(mac))]
       Flavour::Miko => consts::MIKO_JDK,
       Flavour::Original => unimplemented!(),
     }
@@ -579,7 +579,7 @@ impl Flavour {
       .with_context(|| "Could not find JRE in given folder")
   }
 
-  #[cfg(not(target_os = "macos"))]
+  #[cfg(not(mac))]
   async fn get_miko_kit(root: &Path) -> anyhow::Result<TempDir> {
     let url = consts::MIKO_KIT;
 
@@ -602,7 +602,7 @@ impl Flavour {
     Ok(tempdir)
   }
 
-  #[cfg(not(target_os = "macos"))]
+  #[cfg(not(mac))]
   async fn move_miko_kit(miko_download: &Path) -> anyhow::Result<()> {
     let root_dir = miko_download
       .parent()
@@ -642,9 +642,9 @@ impl Flavour {
   }
 
   fn is_miko(self) -> bool {
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(mac))]
     return matches!(self, Flavour::Miko);
-    #[cfg(target_os = "macos")]
+    #[cfg(mac)]
     return false;
   }
 }
@@ -759,7 +759,7 @@ mod consts {
 
   pub const JRE_PATH: &str = "jre_linux";
 }
-#[cfg(target_os = "macos")]
+#[cfg(mac)]
 mod consts {
   use super::FindBy;
 
@@ -812,7 +812,7 @@ mod test {
           std::fs::write(target_path.join("release"), r#"JAVA_VERSION="1.7.0""#)
             .expect("Write test release");
         }
-      } else if cfg!(target_os = "macos") {
+      } else if cfg!(mac) {
         let parent = target_path.parent().expect("Get path parent");
         std::fs::create_dir_all(parent).expect("Create parent folder");
       }
@@ -949,7 +949,7 @@ mod test {
     let test_dir = TempDir::new().expect("Create tempdir");
     let target_path = test_dir.path().join(consts::JRE_PATH);
 
-    #[cfg(target_os = "macos")]
+    #[cfg(mac)]
     std::fs::create_dir_all(target_path.parent().expect("Get path parent"))
       .expect("Create parent dir");
 
@@ -968,71 +968,6 @@ mod test {
     assert!(res);
     assert!(test_dir.path().join(consts::JRE_PATH).exists());
   }
-
-  // #[test]
-  // fn use_cached_when_managed() {
-  //   let flavour = Flavour::Coretto;
-
-  //   let project_test_dir = TempDir::new().expect("Create project test dir");
-
-  //   std::fs::create_dir_all(project_test_dir.path().join(format!("jre_{}",
-  // flavour)))     .expect("Created mock cached JRE");
-  //   std::fs::create_dir_all(project_test_dir.path().join(format!("jre_{}/bin",
-  // flavour)))     .expect("Created mock cached JRE");
-  //   std::fs::OpenOptions::new()
-  //     .create_new(true)
-  //     .write(true)
-  //     .open(project_test_dir.path().join(format!(
-  //       "jre_{}/bin/{}",
-  //       flavour,
-  //       if cfg!(target_os = "windows") {
-  //         "java.exe"
-  //       } else {
-  //         "java"
-  //       }
-  //     )))
-  //     .expect("Created mock cached JRE");
-
-  //   base_test(flavour, true, None, Some(project_test_dir), true, false);
-  // }
-
-  // #[test]
-  // fn downloads_when_managed_if_no_cache() {
-  //   let flavour = Flavour::Coretto;
-
-  //   let project_test_dir = TempDir::new().expect("Create project test dir");
-
-  //   let (test_dir, _project_data) =
-  //     base_test(flavour, true, None, Some(project_test_dir), true, false);
-
-  //   let jre_path = test_dir.path().join(consts::JRE_PATH);
-  //   assert!(jre_path.is_symlink());
-  //   assert!(jre_path.join(".moss").exists());
-
-  //   let dot_moss_string =
-  //     std::fs::read_to_string(jre_path.join(".moss")).expect("Read moss
-  // dotfile");   let installed_flavour =
-  //     serde_json::from_str::<Flavour>(&dot_moss_string).expect("Deserialise
-  // installed flavour");   assert!(installed_flavour == flavour)
-  // }
-
-  // #[test]
-  // fn saves_to_cache_when_unmanaged() {
-  //   let flavour = Flavour::Coretto;
-
-  //   let project_test_dir = TempDir::new().expect("Create project test dir");
-
-  //   let (_, project_test_dir) = base_test(flavour, true, None,
-  // Some(project_test_dir), true, false);
-
-  //   let (_, project_test_dir) = base_test(flavour, true, None,
-  // Some(project_test_dir), true, false);
-
-  //   assert!(project_test_dir
-  //     .path()
-  //     .join(format!("jre_{}", flavour))
-  //     .exists())
-  // }
 
   #[test]
   fn returns_early_if_flavour_already_installed() {

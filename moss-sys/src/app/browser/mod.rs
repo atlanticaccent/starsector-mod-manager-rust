@@ -351,13 +351,7 @@ impl Browser {
 }
 
 fn init_webview(ctx: &mut druid::EventCtx, data: &mut Browser) -> Result<Rc<WebView>, wry::Error> {
-  #[cfg(any(
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd"
-  ))]
+  #[cfg(linux)]
   let res = {
     use gtk::{
       glib::translate::{FromGlibPtrFull, ToGlibPtr},
@@ -399,13 +393,7 @@ fn init_webview(ctx: &mut druid::EventCtx, data: &mut Browser) -> Result<Rc<WebV
 
     webview_subsystem::init_webview(data.url.clone(), builder, ctx.get_external_handle())
   };
-  #[cfg(not(any(
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd"
-  )))]
+  #[cfg(not(linux))]
   let res = webview_subsystem::init_webview_with_handle(
     data.url.clone(),
     ctx.window(),
@@ -574,9 +562,9 @@ impl BrowserInner {
   fn set_bounds(&self, ctx: &mut (impl LaidOutCtx + AnyCtx)) {
     let window_origin = ctx.window_origin();
     let size = ctx.size();
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(mac))]
     let position = (window_origin.x, window_origin.y - 7.);
-    #[cfg(target_os = "macos")]
+    #[cfg(mac)]
     let position = {
       let actual_y = ctx.window().get_size().height - (ctx.window_origin().y + ctx.size().height);
       (window_origin.x, actual_y - 35.0)
@@ -591,7 +579,7 @@ impl BrowserInner {
   }
 
   fn screenshot(&self, ext_ctx: ExtEventSink) {
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(mac))]
     if self.is_visible()
       && !*self.screenshow_wip()
       && self
@@ -614,7 +602,7 @@ impl BrowserInner {
     {
       *self.screenshow_wip() = true;
     }
-    #[cfg(target_os = "macos")]
+    #[cfg(mac)]
     drop(ext_ctx)
   }
 

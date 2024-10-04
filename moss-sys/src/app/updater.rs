@@ -34,11 +34,13 @@ impl Deref for Release {
   }
 }
 
-// const SUPPORT_SELF_UPDATE: bool = cfg!(not(target_os = "macos"));
+// const SUPPORT_SELF_UPDATE: bool = cfg!(not(mac));
 const TARGET: &str = if cfg!(target_os = "windows") {
-  "moss.exe"
+  "MOSS.exe"
+} else if cfg!(linux) {
+  "MOSS.AppImage"
 } else {
-  "moss_linux"
+  "MOSS.app"
 };
 const CURRENT_VERSION: &str = cargo_crate_version!();
 
@@ -86,36 +88,31 @@ pub async fn check_for_update(ext_ctx: ExtEventSink) {
       Err(err) => return send_self_update_popup(Status::CheckFailed(err.to_string())),
     };
 
-    #[cfg(not(target_os = "macos"))]
-    {
-      let (tx, rx) = oneshot::channel();
-      send_self_update_popup(Status::Ready(release, CopyTx::new(tx)));
+    let (tx, rx) = oneshot::channel();
+    send_self_update_popup(Status::Ready(release.clone(), CopyTx::new(tx)));
 
-      if rx.blocking_recv().unwrap_or_default() {
-        let result = if updater.update().is_ok() {
-          Status::Completed
-        } else {
-          Status::InstallFailed
-        };
-
-        send_self_update_popup(result);
+    if rx.blocking_recv().unwrap_or_default() {
+      let result = if update(updater, release).is_ok() {
+        Status::Completed
+      } else {
+        Status::InstallFailed
       };
-    }
-    #[cfg(target_os = "macos")]
-    {
-      send_self_update_popup(Status::Ready(release));
-    }
+
+      send_self_update_popup(result);
+    };
   });
 }
 
-pub fn get_updater() -> anyhow::Result<Box<dyn ReleaseUpdate>> {
+fn get_updater() -> anyhow::Result<Box<dyn ReleaseUpdate>> {
   let updater = github::Update::configure()
     .repo_owner("atlanticaccent")
-    .repo_name("test")
+    .repo_name({
+      assert!(CURRENT_VERSION != "0.8.0");
+      "test"
+    })
     .current_version(CURRENT_VERSION)
     .target(TARGET)
-    .bin_path_in_archive(TARGET)
-    .bin_name("moss")
+    .bin_name(TARGET)
     .show_output(false)
     .no_confirm(true)
     .build()?;
@@ -123,34 +120,32 @@ pub fn get_updater() -> anyhow::Result<Box<dyn ReleaseUpdate>> {
   Ok(updater)
 }
 
-#[cfg(not(target_os = "windows"))]
-pub fn alternative_updater(url: &str) -> anyhow::Result<()> {
+#[cfg(windows)]
+fn update(updater: Box<dyn ReleaseUpdate>, _: Release) -> anyhow::Result<()> {
+  updater.update()?;
+
+  Ok(())
+}
+
+#[cfg(not(windows))]
+// #[cfg(windows)]
+fn update(_: Box<dyn ReleaseUpdate>, release: Release) -> anyhow::Result<()> {
   use std::path::PathBuf;
 
-  use cargo_packager_updater as alt_updater;
+  use cargo_packager_updater::{Config, Update, UpdateFormat};
   use self_update::Download;
 
-  const FORMAT: alt_updater::UpdateFormat = if cfg!(target_os = "macos") {
-    alt_updater::UpdateFormat::App
-  } else if cfg!(any(
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd"
-  )) {
-    alt_updater::UpdateFormat::AppImage
+  const FORMAT: UpdateFormat = if cfg!(mac) {
+    UpdateFormat::App
+  } else if cfg!(linux) {
+    UpdateFormat::AppImage
   } else {
-    alt_updater::UpdateFormat::Wix
+    UpdateFormat::Wix
   };
 
-  fn default_update() -> alt_updater::Update {
-    alt_updater::Update {
-      config: alt_updater::Config {
-        endpoints: Vec::new(),
-        pubkey: String::new(),
-        windows: None,
-      },
+  fn default_update() -> Update {
+    Update {
+      config: Config::default(),
       body: None,
       current_version: String::new(),
       version: String::new(),
@@ -165,9 +160,12 @@ pub fn alternative_updater(url: &str) -> anyhow::Result<()> {
     }
   }
 
-  let mut buf = Vec::new();
+  let asset = release
+    .asset_for(TARGET, None)
+    .with_context(|| format!("Release missing update for {}", self_update::get_target()))?;
 
-  Download::from_url(url).download_to(&mut buf)?;
+  let mut buf = Vec::new();
+  Download::from_url(&asset.download_url).download_to(&mut buf)?;
 
   default_update().install(buf)?;
 

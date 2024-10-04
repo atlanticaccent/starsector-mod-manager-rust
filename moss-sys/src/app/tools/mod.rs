@@ -66,10 +66,10 @@ impl Tools {
             |data: &InstallDirInverseTools, _| Swapper::get_cached_jres(data.install_dir.clone()),
             SizedBox::empty(),
             |res, _data, _| {
-              #[cfg_attr(target_os = "macos", allow(unused_mut))]
+              #[cfg_attr(mac, allow(unused_mut))]
               let (mut current_flavour, cached_flavours) = *res;
               let cached_flavours: druid::im::Vector<_> = cached_flavours.into();
-              #[cfg(not(target_os = "macos"))]
+              #[cfg(not(mac))]
               if _data.jre_23 && cached_flavours.contains(&jre::Flavour::Miko) {
                 current_flavour = jre::Flavour::Miko;
               }

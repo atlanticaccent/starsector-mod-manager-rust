@@ -365,7 +365,7 @@ impl VMParamsPath for VMParamsPathDefault {
   fn path() -> &'static str {
     #[cfg(target_os = "windows")]
     return "vmparams";
-    #[cfg(target_os = "macos")]
+    #[cfg(mac)]
     return "Contents/MacOS/starsector_mac.sh";
     #[cfg(any(
       target_os = "linux",
@@ -497,9 +497,9 @@ impl<T: VMParamsPath> VMParams<T> {
             .next_chunk::<3>()
             .map_or_else(std::iter::Iterator::collect, |arr| arr.iter().collect());
           if rem.eq_ignore_ascii_case("ver") {
-            #[cfg(target_os = "macos")]
+            #[cfg(mac)]
             output.push_str(r"Xverify:none \\n\t-");
-            #[cfg(not(target_os = "macos"))]
+            #[cfg(not(mac))]
             output.push_str("Xverify:none -");
           }
 
