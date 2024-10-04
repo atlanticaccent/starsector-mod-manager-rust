@@ -43,5 +43,7 @@ pub(crate) mod theme;
 #[allow(dead_code)]
 pub(crate) mod widgets;
 
+pub(crate) use druid::lens as mlens;
+
 pub(crate) const ENV_STATE: druid::Key<std::sync::Arc<app::EnvSharedData>> =
   druid::Key::new("global.env_shared_state");

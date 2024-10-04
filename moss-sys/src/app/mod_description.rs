@@ -18,14 +18,14 @@ use crate::{
     mod_list::ModList,
     overlays::Popup,
     util::{
-      bolded, h1, h2_fixed, h3, h3_fixed, hoverable_text_opts, ident_rc, lensed_bold, Compute,
-      FastImMap, LabelExt, LensExtExt, ShadeColor, WidgetExtEx, WithHoverState, CHEVRON_LEFT,
-      DELETE, HOVER_STATE_CHANGE, SYSTEM_UPDATE, TOGGLE_ON,
+      bolded, h1, h2_fixed, h3, h3_fixed, hoverable_text_opts, hyperlink, ident_rc, lensed_bold,
+      Compute, FastImMap, FnWidgetToMaybe, LabelExt, LensExtExt, ShadeColor, WidgetExtEx,
+      WithHoverState, CHEVRON_LEFT, DELETE, HOVER_STATE_CHANGE, SYSTEM_UPDATE, TOGGLE_ON,
     },
     App, ViewModEntry as ModEntry, INFO,
   },
   nav_bar::{Nav, NavLabel},
-  theme::{self, BLUE_KEY, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_RED_KEY, RED_KEY},
+  theme::{BLUE_KEY, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_RED_KEY, RED_KEY},
   widgets::card::Card,
 };
 
@@ -301,17 +301,13 @@ impl ModDescription {
           .with_child(h2_fixed("Description"))
           .with_child(Label::stringify_wrapped().lens(ModEntry::description))
           .with_default_spacer()
-          .with_child(
-            Maybe::or_empty(|| h2_fixed("Forum thread")).lens(Compute::new(ModEntry::fractal_link)),
-          )
+          .with_child(Maybe::or_empty(|| h2_fixed("Forum thread")).lens(ModEntry::fractal_link()))
           .with_spacer(4.0)
-          .with_child(link(ModEntry::fractal_link))
+          .with_child(hyperlink.or_maybe_empty().lens(ModEntry::fractal_link()))
           .with_default_spacer()
-          .with_child(
-            Maybe::or_empty(|| h2_fixed("NexusMods page")).lens(Compute::new(ModEntry::nexus_link)),
-          )
+          .with_child(Maybe::or_empty(|| h2_fixed("NexusMods page")).lens(ModEntry::nexus_link()))
           .with_spacer(4.0)
-          .with_child(link(ModEntry::nexus_link))
+          .with_child(hyperlink.or_maybe_empty().lens(ModEntry::nexus_link()))
           .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
           .must_fill_main_axis(true)
           .scroll()
@@ -351,33 +347,6 @@ impl ModDescription {
       }
     }
   }
-}
-
-fn link(link_computer: fn(&ModEntry) -> Option<String>) -> impl Widget<ModEntry> {
-  Maybe::or_empty(|| {
-    hoverable_text_opts(
-      Some(theme::BLUE_KEY),
-      identity,
-      &[druid::text::Attribute::Weight(
-        druid::text::FontWeight::SEMI_BOLD,
-      )],
-      &[druid::text::Attribute::TextColor(druid::KeyOrValue::Key(
-        theme::ON_BLUE_KEY,
-      ))],
-      true,
-    )
-    .on_click(|ctx, data, _| ctx.submit_command(OPEN_IN_BROWSER.with(data.clone())))
-  })
-  .lens(Compute::new(link_computer))
-  .background(Painter::new(|ctx, _, env| {
-    use druid::RenderContext;
-
-    let size = ctx.size();
-    if ctx.is_hot() {
-      ctx.fill(size.to_rect(), &env.get(theme::BLUE_KEY));
-    }
-  }))
-  .controller(HoverController::new(false, true))
 }
 
 fn dependencies() -> impl Widget<ModEntry> {

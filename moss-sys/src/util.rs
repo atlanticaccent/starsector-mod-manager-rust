@@ -15,13 +15,13 @@ use std::{
 };
 
 use druid::{
-  keyboard_types, lens,
-  lens::{Constant, Then},
-  text::{Attribute, AttributeSpans, RichText},
+  keyboard_types,
+  lens::{Constant, Identity, InArc, Map, Then, Unit},
+  text::{ArcStr, Attribute, AttributeSpans, RichText},
   theme,
   widget::{
     Align, Axis, Controller, ControllerHost, DefaultScopePolicy, Either, Flex, Label, LabelText,
-    LensScopeTransfer, LensWrap, Painter, RawLabel, Scope, ScopeTransfer, SizedBox,
+    LensScopeTransfer, LensWrap, Maybe, Painter, RawLabel, Scope, ScopeTransfer, SizedBox,
   },
   Color, Command, Data, Env, Event, EventCtx, ExtEventSink, FontWeight, KeyOrValue, Lens,
   LensExt as _, MouseEvent, Point, RenderContext, Selector, Target, TimerToken, UnitPoint, Widget,
@@ -46,9 +46,12 @@ use crate::{
       HeightLinkerShared, HoverController, HoverState, InvisibleIf, LayoutRepeater, LinkedHeights,
       OnEvent, OnHover, OnNotif, SharedConstraint, SharedIdHoverState,
     },
+    mod_description::OPEN_IN_BROWSER,
     mod_entry::{GameVersion, ModEntry, ModVersionMeta},
   },
+  mlens,
   patch::click::Click,
+  theme::{BLUE_KEY, ON_BLUE_KEY},
   widgets::card::{Card, CardBuilder},
 };
 
@@ -270,7 +273,7 @@ pub fn bold_text<T: Data>(
 ) -> impl Widget<T> {
   RawLabel::new()
     .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
-    .lens(lens::Constant(RichText::new_with_attributes(
+    .lens(Constant(RichText::new_with_attributes(
       text.into(),
       AttributeSpans::new().tap(|s| {
         s.add(0..text.len(), Attribute::Weight(weight));
@@ -703,43 +706,49 @@ pub fn hoverable_text(
   hoverable_text_opts(colour, identity, &[], &[], false)
 }
 
-pub fn hoverable_text_opts<W: Widget<RichText> + 'static>(
+pub fn hoverable_text_opts<TXT: Into<ArcStr> + Data, W: Widget<RichText> + 'static>(
   colour: Option<impl Into<KeyOrValue<Color>> + 'static>,
   mut modify: impl FnMut(RawLabel<RichText>) -> W,
   attrs: &'static [Attribute],
   hover_attrs: &'static [Attribute],
   set_cursor: bool,
-) -> impl Widget<String> {
-  let colour = colour.map(Into::into);
+) -> impl Widget<TXT> {
+  let colour = colour
+    .map(Into::into)
+    .unwrap_or_else(|| theme::TEXT_COLOR.into());
 
   let label: RawLabel<RichText> = RawLabel::new()
     .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
-    .with_text_color(colour.unwrap_or_else(|| theme::TEXT_COLOR.into()));
+    .with_text_color(colour);
 
   let wrapped = modify(label);
 
   wrapped
+    .lens(Compute::new(|(txt, _): &(Option<RichText>, _)| {
+      txt.clone().unwrap()
+    }))
     .scope_with_hover_state(false, set_cursor, move |widget| {
-      widget.lens(Compute::new(move |(text, hovered): &(RichText, bool)| {
-        let mut text = text
-          .clone()
-          .with_attribute(0..text.len(), Attribute::Underline(*hovered));
+      widget.lens(Compute::new(
+        move |((plain, hovered), is_hover): &((Option<RichText>, _), bool)| {
+          let text = if *is_hover { hovered } else { plain };
 
-        for attr in attrs {
-          text.add_attribute(0..text.len(), attr.clone());
-        }
-
-        if *hovered {
-          for attr in hover_attrs {
-            text.add_attribute(0..text.len(), attr.clone());
-          }
-        }
-
-        (text, *hovered)
-      }))
+          ((text.clone(), None), *is_hover)
+        },
+      ))
     })
-    .lens(Compute::new(|text: &String| {
-      RichText::new(text.clone().into())
+    .lens(Compute::new(move |text: &TXT| {
+      let rich = RichText::new(text.clone().into());
+      let plain = attrs
+        .iter()
+        .fold(rich, |txt, attr| txt.with_attribute(.., attr.clone()));
+      let hovered = hover_attrs
+        .iter()
+        .fold(plain.clone(), |txt, attr| {
+          txt.with_attribute(.., attr.clone())
+        })
+        .with_attribute(.., Attribute::Underline(true));
+
+      (Some(plain), Some(hovered))
     }))
 }
 
@@ -911,10 +920,10 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
   fn scope_independent<U: Data, In: Fn() -> T + 'static>(self, make_state: In) -> impl Widget<U> {
     Scope::from_lens(
       Box::new(move |()| make_state()) as Box<dyn Fn(()) -> T>,
-      lens::Unit,
+      Unit,
       self,
     )
-    .lens(lens::Identity.then(lens::Unit))
+    .lens(Identity.then(Unit))
   }
 
   fn scope_indie_computed<U: Data, In: Fn(U) -> T + 'static>(
@@ -1016,7 +1025,7 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
     set_cursor: bool,
     scope: impl FnOnce(Box<dyn Widget<(T, S)>>) -> WO,
   ) -> impl Widget<T> {
-    scope(self.lens(lens!((T, S), 0)).boxed()).with_hover_state_opts(state, set_cursor)
+    scope(self.lens(mlens!((T, S), 0)).boxed()).with_hover_state_opts(state, set_cursor)
   }
 }
 
@@ -1042,7 +1051,7 @@ pub trait WithHoverState<S: HoverState + Data + Clone, T: Data, W: Widget<(T, S)
 
     Scope::from_lens(
       move |data| (data, state.clone()),
-      lens!((T, S), 0),
+      mlens!((T, S), 0),
       self
         .on_event(move |_, ctx, event, data| {
           if let druid::Event::MouseMove(_) = event
@@ -1102,7 +1111,7 @@ pub trait WithHoverIdState<T: Data, W: Widget<(T, SharedIdHoverState)> + 'static
     let id = state.0;
     Scope::from_lens(
       move |data| (data, state.clone()),
-      lens!((T, SharedIdHoverState), 0),
+      mlens!((T, SharedIdHoverState), 0),
       self
         .on_event(move |_, ctx, event, data| {
           if let druid::Event::MouseMove(_) = event
@@ -1461,11 +1470,11 @@ pub trait LensExtExt<A: ?Sized, B: ?Sized>: Lens<A, B> + Sized {
 impl<A: ?Sized, B: ?Sized, T: Lens<A, B>> LensExtExt<A, B> for T {}
 
 #[derive(Clone)]
-pub struct Compute<Get: Fn(&B) -> C, B: ?Sized, C>(lens::Map<Get, fn(&mut B, C)>);
+pub struct Compute<Get: Fn(&B) -> C, B: ?Sized, C>(Map<Get, fn(&mut B, C)>);
 
 impl<Get: Fn(&B) -> C, B: ?Sized, C> Compute<Get, B, C> {
   pub fn new(f: Get) -> Self {
-    Self(lens::Map::new(f, |_, _| {}))
+    Self(Map::new(f, |_, _| {}))
   }
 }
 
@@ -1732,13 +1741,13 @@ impl druid::text::Formatter<u32> for ValueFormatter {
 }
 
 #[must_use]
-pub fn ident_arc<T: Data>() -> lens::InArc<lens::Identity> {
-  lens::InArc::new::<T, T>(lens::Identity)
+pub fn ident_arc<T: Data>() -> InArc<Identity> {
+  InArc::new::<T, T>(Identity)
 }
 
 #[must_use]
-pub fn ident_rc<T: Data>() -> InRc<lens::Identity> {
-  InRc::new::<T, T>(lens::Identity)
+pub fn ident_rc<T: Data>() -> InRc<Identity> {
+  InRc::new::<T, T>(Identity)
 }
 
 // dbg macro that returns ()
@@ -1968,3 +1977,37 @@ where
 }
 
 pub trait IsSendSync: Send + Sync {}
+
+pub fn hyperlink<TXT: Into<ArcStr> + Data + Clone>() -> impl Widget<TXT> {
+  hoverable_text_opts(
+    Some(BLUE_KEY),
+    identity,
+    &[druid::text::Attribute::Weight(
+      druid::text::FontWeight::SEMI_BOLD,
+    )],
+    &[druid::text::Attribute::TextColor(druid::KeyOrValue::Key(
+      ON_BLUE_KEY,
+    ))],
+    true,
+  )
+  .on_click(|ctx, data: &mut TXT, _| {
+    let data: ArcStr = data.clone().into();
+    ctx.submit_command(OPEN_IN_BROWSER.with(data.to_string()))
+  })
+  .background(Painter::new(|ctx, _, env| {
+    use druid::RenderContext;
+
+    let size = ctx.size();
+    if ctx.is_hot() {
+      ctx.fill(size.to_rect(), &env.get(BLUE_KEY));
+    }
+  }))
+  .controller(HoverController::new(false, true))
+}
+
+#[extend::ext(name = FnWidgetToMaybe)]
+pub impl<T: Data, W: Widget<T> + 'static, F: Fn() -> W + 'static> F {
+  fn or_maybe_empty(self) -> Maybe<T> {
+    Maybe::or_empty(self)
+  }
+}

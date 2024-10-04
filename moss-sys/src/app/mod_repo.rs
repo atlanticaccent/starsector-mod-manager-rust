@@ -7,7 +7,7 @@ use druid::{
   lens,
   lens::{Index, Map},
   theme,
-  widget::{Either, Flex, Label, Maybe, Painter, SizedBox, Spinner, ViewSwitcher},
+  widget::{Either, Flex, Label, Maybe, Painter, Spinner, ViewSwitcher},
   Data, Lens, LensExt, RenderContext, Selector, Widget, WidgetExt,
 };
 use druid_widget_nursery::{
@@ -687,46 +687,46 @@ impl ModRepoItem {
   }
 
   fn desc_view() -> impl Widget<ModRepoItem> {
-    ViewSwitcher::new(
-      |data: &ModRepoItem, _| (data.description.clone(), data.show_description),
-      |(description, show), _, _| {
-        if let Some(description) = description {
-          let row = Flex::row().with_flex_child(
-            Flex::row()
-              .with_child(Either::new(
-                |data, _| *data,
-                Icon::new(*ARROW_DROP_DOWN),
-                Icon::new(*ARROW_RIGHT),
-              ))
-              .with_child(Label::new("Description:"))
-              .main_axis_alignment(druid::widget::MainAxisAlignment::End)
-              .align_right()
-              .expand_width()
+    Maybe::or_empty(|| {
+      Flex::row()
+        .with_flex_child(
+          Flex::row()
+            .with_child(Either::new(
+              |(_, data), _| *data,
+              Icon::new(*ARROW_DROP_DOWN),
+              Icon::new(*ARROW_RIGHT),
+            ))
+            .with_child(Label::new("Description:"))
+            .main_axis_alignment(druid::widget::MainAxisAlignment::End)
+            .align_right()
+            .expand_width()
+            .controller(HoverController::default())
+            .on_click(|_, (_, data), _| *data = !*data)
+            .padding((0., -2., 0., 0.)),
+          Self::LABEL_FLEX,
+        )
+        .with_flex_child(
+          Either::new(
+            |(_, data), _| *data,
+            Label::wrapped_lens(druid::lens!((String, bool), 0)),
+            Label::new("Click to expand...")
               .controller(HoverController::default())
-              .on_click(|_, data: &mut bool, _| *data = !*data)
-              .lens(ModRepoItem::show_description)
-              .padding((0., -2., 0., 0.)),
-            Self::LABEL_FLEX,
-          );
-
-          if *show {
-            row.with_flex_child(Label::wrapped(description), Self::VALUE_FLEX)
-          } else {
-            row.with_flex_child(
-              Label::new("Click to expand...")
-                .controller(HoverController::default())
-                .on_click(|_, data: &mut bool, _| *data = !*data)
-                .lens(ModRepoItem::show_description),
-              Self::VALUE_FLEX,
-            )
+              .on_click(|_, (_, data): &mut (String, bool), _| *data = !*data),
+          ),
+          Self::VALUE_FLEX,
+        )
+        .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+        .expand_width()
+    })
+    .lens(
+      (ModRepoItem::description, ModRepoItem::show_description).map(
+        |(a, b)| a.as_ref().map(|a| (a.clone(), *b)),
+        |out, val| {
+          if let Some((a, b)) = val {
+            *out = (Some(a), b)
           }
-          .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
-          .expand_width()
-          .boxed()
-        } else {
-          SizedBox::empty().boxed()
-        }
-      },
+        },
+      ),
     )
   }
 

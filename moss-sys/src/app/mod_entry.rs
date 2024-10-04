@@ -147,22 +147,20 @@ impl fmt::Debug for ViewState {
 pub type ViewModEntry = ModEntry<ViewState>;
 
 impl<T> ModEntry<T> {
-  pub fn fractal_link(&self) -> Option<String> {
-    self
-      .version_checker
-      .as_ref()
-      .map(|v| &v.fractal_id)
-      .and_then(|s| {
+  pub fn fractal_link() -> impl Lens<Self, Option<String>> {
+    Self::version_checker.compute(|v| {
+      v.as_ref().map(|v| &v.fractal_id).and_then(|s| {
         (!s.is_empty()).then(|| format!("{}{}", ModDescription::FRACTAL_URL, s.clone()))
       })
+    })
   }
 
-  pub fn nexus_link(&self) -> Option<String> {
-    self
-      .version_checker
-      .as_ref()
-      .map(|v| &v.nexus_id)
-      .and_then(|s| (!s.is_empty()).then(|| format!("{}{}", ModDescription::NEXUS_URL, s.clone())))
+  pub fn nexus_link() -> impl Lens<Self, Option<String>> {
+    Self::version_checker.compute(|v| {
+      v.as_ref().map(|v| &v.nexus_id).and_then(|s| {
+        (!s.is_empty()).then(|| format!("{}{}", ModDescription::NEXUS_URL, s.clone()))
+      })
+    })
   }
 
   pub fn set_enabled(&mut self, enabled: bool) {
