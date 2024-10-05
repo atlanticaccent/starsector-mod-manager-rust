@@ -224,6 +224,10 @@ impl Delegate<App> for AppDelegate {
       } else {
         let _ = opener::open(url);
       }
+    } else if let Some(url) = cmd.get(App::OPEN_EXTERNALLY) {
+      if opener::open(url).is_err() {
+        eprintln!("Failed to open GitHub");
+      }
     } else if let Some(entry) = cmd.get(App::CONFIRM_DELETE_MOD) {
       if remove_dir_all(&entry.path).is_ok() {
         data.mod_list.mods.remove(&entry.id);
@@ -335,8 +339,7 @@ impl Delegate<App> for AppDelegate {
               Settings::SELECTOR.with(SettingsCommand::UpdateInstallDir(install_dir.clone())),
             );
           }
-          let ext_ctx = ctx.get_external_handle();
-          data.runtime.spawn(check_for_update(ext_ctx));
+          check_for_update(ctx.get_external_handle());
 
           let mut delayed_popups = Vec::new();
           if data

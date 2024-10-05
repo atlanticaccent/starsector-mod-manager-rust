@@ -46,7 +46,6 @@ use crate::{
       HeightLinkerShared, HoverController, HoverState, InvisibleIf, LayoutRepeater, LinkedHeights,
       OnEvent, OnHover, OnNotif, SharedConstraint, SharedIdHoverState,
     },
-    mod_description::OPEN_IN_BROWSER,
     mod_entry::{GameVersion, ModEntry, ModVersionMeta},
   },
   mlens,
@@ -1978,7 +1977,11 @@ where
 
 pub trait IsSendSync: Send + Sync {}
 
-pub fn hyperlink<TXT: Into<ArcStr> + Data + Clone>() -> impl Widget<TXT> {
+pub fn hyperlink_fn<TXT: Into<ArcStr> + Data + Clone>(selector: Selector<String>) -> impl Fn() -> ControllerHost<druid::widget::Container<TXT>, HoverController> + 'static {
+  move || hyperlink_opts(selector)
+}
+
+pub fn hyperlink_opts<TXT: Into<ArcStr> + Data + Clone>(selector: Selector<String>) -> ControllerHost<druid::widget::Container<TXT>, HoverController> {
   hoverable_text_opts(
     Some(BLUE_KEY),
     identity,
@@ -1990,9 +1993,9 @@ pub fn hyperlink<TXT: Into<ArcStr> + Data + Clone>() -> impl Widget<TXT> {
     ))],
     true,
   )
-  .on_click(|ctx, data: &mut TXT, _| {
+  .on_click(move |ctx, data: &mut TXT, _| {
     let data: ArcStr = data.clone().into();
-    ctx.submit_command(OPEN_IN_BROWSER.with(data.to_string()))
+    ctx.submit_command(selector.with(data.to_string()))
   })
   .background(Painter::new(|ctx, _, env| {
     use druid::RenderContext;

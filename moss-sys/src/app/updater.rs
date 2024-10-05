@@ -63,7 +63,7 @@ impl CopyTx {
   }
 }
 
-pub async fn check_for_update(ext_ctx: ExtEventSink) {
+pub fn check_for_update(ext_ctx: ExtEventSink) {
   tokio::task::spawn_blocking(move || {
     d_println!("Starting update check");
     let send_self_update_popup = |status: Status| {
@@ -92,10 +92,10 @@ pub async fn check_for_update(ext_ctx: ExtEventSink) {
     send_self_update_popup(Status::Ready(release.clone(), CopyTx::new(tx)));
 
     if rx.blocking_recv().unwrap_or_default() {
-      let result = if update(updater, release).is_ok() {
-        Status::Completed
+      let result = if let Err(err) = update(updater, release) {
+        Status::InstallFailed(err.to_string())
       } else {
-        Status::InstallFailed
+        Status::Completed
       };
 
       send_self_update_popup(result);
@@ -120,6 +120,7 @@ fn get_updater() -> anyhow::Result<Box<dyn ReleaseUpdate>> {
   Ok(updater)
 }
 
+// #[cfg(not(windows))]
 #[cfg(windows)]
 fn update(updater: Box<dyn ReleaseUpdate>, _: Release) -> anyhow::Result<()> {
   updater.update()?;
@@ -132,6 +133,7 @@ fn update(updater: Box<dyn ReleaseUpdate>, _: Release) -> anyhow::Result<()> {
 fn update(_: Box<dyn ReleaseUpdate>, release: Release) -> anyhow::Result<()> {
   use std::path::PathBuf;
 
+  use anyhow::Context;
   use cargo_packager_updater::{Config, Update, UpdateFormat};
   use self_update::Download;
 

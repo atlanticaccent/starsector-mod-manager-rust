@@ -94,10 +94,11 @@ impl App {
   const REMOVE_DOWNLOAD_BAR: Selector<i64> = Selector::new("app.download.bar.remove");
   const REPLACE_MODS: Selector<SingleUse<FastImMap<String, ModEntry>>> =
     Selector::new("app.mod_list.replace");
-  const RESTART: Selector<PathBuf> = Selector::new("app.update.restart");
+  const RESTART: Selector = Selector::new("app.update.restart");
   const SELECTOR: Selector<app_delegate::AppCommands> = Selector::new("app.update.commands");
   const SELF_UPDATE: Selector<()> = Selector::new("app.update.perform");
   const TOGGLE_NAV_BAR: Selector = Selector::new("app.nav_bar.collapse");
+  const OPEN_EXTERNALLY: Selector<String> = Selector::new("app.user_browser.open");
 
   pub fn new(runtime: Handle) -> Self {
     let settings = settings::Settings::load()

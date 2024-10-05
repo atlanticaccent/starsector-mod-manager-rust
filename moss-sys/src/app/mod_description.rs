@@ -18,7 +18,7 @@ use crate::{
     mod_list::ModList,
     overlays::Popup,
     util::{
-      bolded, h1, h2_fixed, h3, h3_fixed, hoverable_text_opts, hyperlink, ident_rc, lensed_bold,
+      bolded, h1, h2_fixed, h3, h3_fixed, hoverable_text_opts, hyperlink_fn, ident_rc, lensed_bold,
       Compute, FastImMap, FnWidgetToMaybe, LabelExt, LensExtExt, ShadeColor, WidgetExtEx,
       WithHoverState, CHEVRON_LEFT, DELETE, HOVER_STATE_CHANGE, SYSTEM_UPDATE, TOGGLE_ON,
     },
@@ -303,11 +303,19 @@ impl ModDescription {
           .with_default_spacer()
           .with_child(Maybe::or_empty(|| h2_fixed("Forum thread")).lens(ModEntry::fractal_link()))
           .with_spacer(4.0)
-          .with_child(hyperlink.or_maybe_empty().lens(ModEntry::fractal_link()))
+          .with_child(
+            hyperlink_fn(OPEN_IN_BROWSER)
+              .or_maybe_empty()
+              .lens(ModEntry::fractal_link()),
+          )
           .with_default_spacer()
           .with_child(Maybe::or_empty(|| h2_fixed("NexusMods page")).lens(ModEntry::nexus_link()))
           .with_spacer(4.0)
-          .with_child(hyperlink.or_maybe_empty().lens(ModEntry::nexus_link()))
+          .with_child(
+            hyperlink_fn(OPEN_IN_BROWSER)
+              .or_maybe_empty()
+              .lens(ModEntry::nexus_link()),
+          )
           .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
           .must_fill_main_axis(true)
           .scroll()

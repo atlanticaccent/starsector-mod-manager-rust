@@ -1,4 +1,4 @@
-use std::process;
+use std::{env::current_exe, process};
 
 use druid::{commands, widget::Controller, Command, Env, Event, EventCtx, Selector, Widget};
 use webview_shared::ExtEventSinkExt;
@@ -58,8 +58,11 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
         ctx.set_focus(data.widget_id);
         ctx.resign_focus();
       } else if let Some(()) = cmd.get(App::SELF_UPDATE) {
-      } else if let Some(original_exe) = cmd.get(App::RESTART) {
-        if process::Command::new(original_exe).spawn().is_ok() {
+      } else if cmd.is(App::RESTART) {
+        if process::Command::new(current_exe().unwrap())
+          .spawn()
+          .is_ok()
+        {
           ctx.submit_command(commands::QUIT_APP);
         } else {
           eprintln!("Failed to restart");

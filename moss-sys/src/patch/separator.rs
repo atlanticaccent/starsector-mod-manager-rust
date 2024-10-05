@@ -94,8 +94,8 @@ impl<T> Widget<T> for Separator {
   fn layout(&mut self, _ctx: &mut LayoutCtx, bc: &BoxConstraints, _data: &T, env: &Env) -> Size {
     let width = self.width.resolve(env);
     let size = match self.orientation {
-      Orientation::Vertical => (width, f64::INFINITY),
-      Orientation::Horizontal => (f64::INFINITY, width),
+      Orientation::Vertical => (width, bc.max().height),
+      Orientation::Horizontal => (bc.max().width, width),
     };
     bc.constrain(size)
   }
