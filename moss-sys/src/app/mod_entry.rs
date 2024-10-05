@@ -17,7 +17,7 @@ use druid::{
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
 use fake::Dummy;
-use json_comments::strip_comments;
+use json_comments::StripComments;
 use serde::{Deserialize, Serialize};
 use serde_aux::prelude::*;
 
@@ -177,7 +177,7 @@ impl<T: Default> ModEntry<T> {
   pub fn from_file(path: &Path, manager_metadata: ModMetadata) -> Result<Self, ModEntryError> {
     if let Ok(mod_info_file) = std::fs::read_to_string(path.join("mod_info.json")) {
       let mut stripped = String::new();
-      if strip_comments(mod_info_file.as_bytes())
+      if StripComments::new(mod_info_file.as_bytes())
         .read_to_string(&mut stripped)
         .is_ok()
         && let Ok(mut mod_info) = json5::from_str::<Self>(&stripped)
@@ -211,7 +211,7 @@ impl ModEntry {
     ) && let Some(Ok(version_filename)) = BufReader::new(version_loc_file).lines().nth(1)
       && let Some(version_filename) = version_filename.split(',').next()
       && let Ok(version_data) = std::fs::read_to_string(path.join(version_filename))
-      && strip_comments(version_data.as_bytes())
+      && StripComments::new(version_data.as_bytes())
         .read_to_string(&mut no_comments)
         .is_ok()
       && let Ok(normalized) = handwritten_json::normalize(&no_comments)

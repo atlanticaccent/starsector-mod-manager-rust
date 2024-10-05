@@ -1,6 +1,6 @@
 use std::{cell::OnceCell, rc::Rc, str::FromStr};
 
-use base64::decode;
+use base64::{engine::general_purpose::STANDARD, Engine};
 use druid::{ExtEventSink, WindowHandle};
 use mime::Mime;
 use url::Url;
@@ -63,7 +63,7 @@ pub fn init_webview(
                 .split(':')
                 .nth(1)
                 .expect("split ipc");
-              let decoded = decode(base).expect("decode uri");
+              let decoded = STANDARD.decode(base).expect("decode uri");
               let uri = String::from_utf8(decoded).expect("decode");
               let _ = ext_ctx.submit_command_global(WEBVIEW_EVENT, WebviewEvent::Download(uri));
             } else {

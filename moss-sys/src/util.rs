@@ -33,7 +33,7 @@ use druid_widget_nursery::{
   stack_tooltip::StackTooltip,
   CommandCtx, Mask,
 };
-use json_comments::strip_comments;
+use json_comments::StripComments;
 use lazy_static::lazy_static;
 use regex::Regex;
 use reqwest_middleware::ClientWithMiddleware;
@@ -227,7 +227,7 @@ pub async fn get_master_version(
     Err(err) => (id, Err(err)),
     Ok(remote) => {
       let mut stripped = String::new();
-      if strip_comments(remote.as_bytes())
+      if StripComments::new(remote.as_bytes())
         .read_to_string(&mut stripped)
         .is_ok()
         && let Ok(normalized) = handwritten_json::normalize(&stripped)

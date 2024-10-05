@@ -11,11 +11,11 @@ wry = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 base64 = { workspace = true }
 directories = { workspace = true }
-url = "2.2"
+url = "2.5"
 regex = { workspace = true }
 reqwest = { workspace = true, features = ["blocking"] }
 mime = "0.3.17"
-mime_guess = { version = "2.0.4", default-features = false }
+mime_guess = { version = "2.0.5", default-features = false }
 
 [dependencies.webview-shared]
 path = "../webview-subsystem-shared"

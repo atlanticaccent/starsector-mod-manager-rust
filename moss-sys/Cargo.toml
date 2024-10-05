@@ -98,11 +98,11 @@ cargo-packager-updater = { workspace = true }
 indoc = { workspace = true }
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))'.dependencies]
-native-dialog = "0.6.3"
-gtk = { version = "0.18.0" }
+native-dialog = "0.7"
+gtk = { version = "0.18.1" }
 
 [target.'cfg(not(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd")))'.dependencies]
-rfd = "0.12.1"
+rfd = "0.15"
 
 [target.'cfg(mac)'.dependencies]
 metal = "0.29"

@@ -1,6 +1,6 @@
 use std::{cell::RefCell, io::Write, ops::Deref, rc::Rc};
 
-use base64::decode;
+use base64::{engine::general_purpose::STANDARD, Engine};
 use druid::{
   widget::{Flex, Maybe, Painter, SizedBox},
   Data, ExtEventSink, ImageBuf, Lens, Selector, SingleUse, Widget, WidgetExt,
@@ -314,7 +314,7 @@ impl Browser {
             Some(chunk) => {
               let split = chunk.split(',').nth(1);
               if let Some(split) = split {
-                if let Ok(decoded) = decode(split) {
+                if let Ok(decoded) = STANDARD.decode(split) {
                   data.borrow_mut().extend(decoded);
                 }
               }
