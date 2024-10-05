@@ -5250,10 +5250,8 @@ dependencies = [
 name = "webview-shared"
 version = "0.1.0"
 dependencies = [
- "const_format",
  "directories",
  "druid",
- "lazy_static",
  "serde",
 ]
 
@@ -5262,16 +5260,13 @@ name = "webview-subsystem"
 version = "0.1.0"
 dependencies = [
  "base64 0.13.1",
- "const_format",
  "directories",
  "druid",
  "mime",
  "mime_guess",
- "rand 0.8.5",
  "regex",
  "reqwest",
  "serde",
- "tokio",
  "url",
  "webview-shared",
  "wry",

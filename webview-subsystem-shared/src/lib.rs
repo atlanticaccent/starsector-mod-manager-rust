@@ -1,8 +1,7 @@
-use std::{any::Any, path::PathBuf};
+use std::{any::Any, path::PathBuf, sync::LazyLock};
 
 use directories::ProjectDirs;
 use druid::{ExtEventError, ExtEventSink, Selector, Target};
-use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
@@ -35,10 +34,9 @@ pub enum WebviewEvent {
   ShowConfirmPopup(String),
 }
 
-lazy_static! {
-  pub static ref PROJECT: ProjectDirs =
-    ProjectDirs::from("org", "laird", "Starsector Mod Manager").expect("Get project dirs");
-}
+pub static PROJECT: LazyLock<ProjectDirs> = LazyLock::new(|| {
+  ProjectDirs::from("org", "laird", "Starsector Mod Manager").expect("Get project dirs")
+});
 
 pub const FRACTAL_INDEX: &str = "https://fractalsoftworks.com/forum/index.php?topic=177.0";
 pub const FRACTAL_MODS_FORUM: &str = "https://fractalsoftworks.com/forum/index.php?board=8.0";

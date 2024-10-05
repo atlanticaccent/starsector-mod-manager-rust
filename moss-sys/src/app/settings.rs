@@ -28,9 +28,9 @@ use super::{
   App,
 };
 use crate::{
-  app::PROJECT,
+  app::{updater::check_for_update, util::REFRESH, PROJECT},
   nav_bar::Nav,
-  theme::{Theme, Themes},
+  theme::{Theme, Themes, GREEN_KEY, ON_GREEN_KEY},
   widgets::{
     card::Card,
     card_button::{AltStackOption, CardButton},
@@ -206,6 +206,32 @@ impl Settings {
             .empty_if_not(|data, _| data == &Themes::Custom)
             .lens(Settings::theme),
         )
+        .with_spacer(5.0)
+        .with_child(
+          Card::builder()
+            .with_insets((0.0, 8.0))
+            .with_corner_radius(6.0)
+            .with_shadow_length(2.0)
+            .with_shadow_increase(2.0)
+            .with_border(3.5, ON_GREEN_KEY)
+            .with_background(GREEN_KEY)
+            .hoverable(|_| {
+              Flex::row()
+                .with_child(
+                  Icon::new(*REFRESH)
+                    .with_color(ON_GREEN_KEY)
+                    .padding((5.0, 0.0, -5.0, 0.0)),
+                )
+                .with_child(Label::new("Check for Updates").padding((10.0, 0.0)))
+                .valign_centre()
+            })
+            .env_scope(|env, _| {
+              env.set(druid::theme::TEXT_COLOR, env.get(ON_GREEN_KEY));
+            })
+            .fix_height(42.0)
+            .on_click(|ctx, _, _| check_for_update(ctx.get_external_handle())),
+        )
+        .with_spacer(2.0)
         .with_default_spacer()
         .with_child(
           hoverable_text(Option::<druid::Color>::None)

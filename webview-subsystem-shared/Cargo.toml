@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 druid = { workspace = true, default-features = false }
-serde = { version = "1.0.126", features = ["derive"] }
-lazy_static = "1.4"
-directories = "3.0"
-const_format = "0.2.22"
+serde = { workspace = true, default-features = false, features = [
+  "serde_derive",
+] }
+directories = { workspace = true }

@@ -7,8 +7,8 @@ edition = "2021"
 proc-macro = true
 
 [dependencies]
-syn = "2.0.48"
-quote = "1.0.35"
-heck = "0.5.0"
+syn = { version = "2.0.48", default-features = false }
+quote = { version = "1.0.35", default-features = false }
+heck = { version = "0.5.0", default-features = false }
 itertools = { workspace = true }
-proc-macro2 = "1.0"
+proc-macro2 = { version = "1.0", default-features = false }
