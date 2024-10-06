@@ -422,11 +422,11 @@ impl ModRepo {
     let client = WebClient::builder(
       ExponentialBackoff::builder()
         .retry_bounds(
-          std::time::Duration::from_millis(50),
+          std::time::Duration::from_millis(200),
           std::time::Duration::from_secs(60),
         )
         .jitter(reqwest_retry::Jitter::Bounded)
-        .build_with_total_retry_duration(std::time::Duration::from_secs(30 * 60)),
+        .build_with_total_retry_duration(std::time::Duration::from_secs(5 * 60)),
     )
     .build();
 

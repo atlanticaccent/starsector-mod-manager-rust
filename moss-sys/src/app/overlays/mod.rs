@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use druid::{
   im::Vector,
-  widget::{Align, SizedBox, ViewSwitcher},
+  widget::{Either, Painter, SizedBox, ViewSwitcher, ZStack},
   Command, Data, Selector, Widget, WidgetExt,
 };
-use druid_widget_nursery::{Mask, WidgetExt as _};
+use druid_widget_nursery::WidgetExt as _;
 
 mod browser_install;
 mod confirm_delete;
@@ -28,10 +28,9 @@ use select_install::SelectInstall;
 pub use self_update::Status;
 
 use crate::app::{
-  controllers::MaskController,
   installer::{HybridPath, StringOrPath},
   mod_entry::ModEntry,
-  util::{DataTimer, WidgetExtEx},
+  util::{Compute, DataTimer, WidgetExtEx},
   App,
 };
 
@@ -63,9 +62,9 @@ impl Popup {
   pub const IS_EMPTY: Selector = Selector::new("app.popup.empty");
 
   pub fn overlay(widget: impl Widget<App> + 'static) -> impl Widget<App> {
-    Mask::new(widget)
-      .with_mask(Align::centered(Popup::view()))
-      .dynamic(|data, _| !data.popups.is_empty())
+    ZStack::new(widget)
+      .with_centered_child(Popup::view())
+      .with_centered_child(Mask::new().lens(Compute::new(|data: &App| !data.popups.is_empty())))
       .on_command(Popup::OPEN_POPUP, |_, popup, data| {
         data.popups.push_front(popup.clone());
       })
@@ -108,7 +107,6 @@ impl Popup {
             .retain(|popup| !matches!(popup, Popup::Duplicate(_)));
         }
       })
-      .controller(MaskController::new())
   }
 
   pub fn view() -> impl Widget<App> {
@@ -181,5 +179,24 @@ impl Popup {
     matching: F,
   ) -> DismissMatcher {
     Box::new(matching)
+  }
+}
+
+struct Mask;
+
+impl Mask {
+  fn new() -> impl Widget<bool> {
+    Either::new(
+      |data, _| *data,
+      SizedBox::empty()
+        .expand()
+        .background(Painter::new(|ctx, _, env| {
+          use druid::RenderContext;
+          let size = ctx.size();
+          let bg = env.get(druid::theme::WINDOW_BACKGROUND_COLOR);
+          ctx.fill(size.to_rect(), &bg.with_alpha(0.5))
+        })),
+      SizedBox::empty(),
+    )
   }
 }
