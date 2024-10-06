@@ -8,7 +8,14 @@ use crate::{
   theme::save_original_env,
 };
 
+#[cfg(feature = "dhat-heap")]
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
+
 pub fn start() {
+  #[cfg(feature = "dhat-heap")]
+  let _profiler = dhat::Profiler::new_heap();
+
   std::fs::create_dir_all(PROJECT.cache_dir()).expect("Create cache dir");
   std::fs::create_dir_all(PROJECT.data_dir()).expect("Create cache dir");
 

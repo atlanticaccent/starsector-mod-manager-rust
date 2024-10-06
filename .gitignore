@@ -7,3 +7,4 @@ rustc-ice-*
 .DS_Store
 **/**/Starsector*
 **/**/starsector*
+dhat.json

@@ -2,7 +2,7 @@
 name = "moss"
 version = "0.1.0"
 authors = ["ikl"]
-edition = "2018"
+edition = "2021"
 description = "A mod manager for the game Starsector"
 
 [dependencies.moss-sys]

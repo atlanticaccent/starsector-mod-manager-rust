@@ -6,6 +6,10 @@ cargo-features = ["codegen-backend"]
 [profile.dev.package."*"]
 opt-level = 3
 
+[profile.release-dhat]
+inherits = "release"
+debug = 1
+
 [workspace]
 members = [
   "moss",
@@ -14,6 +18,7 @@ members = [
   "webview-subsystem-shared",
   "proc-macros",
 ]
+resolver = "2"
 
 [workspace.dependencies]
 moss-sys = { path = "moss-sys" }
@@ -30,7 +35,7 @@ tokio = { version = "1.40.0" }
 tokio-util = { version = "0.7" }
 infer = "0.16.0"
 chrono = { version = "0.4.38" }
-serde = { version = "1.0.210" }
+serde = { version = "1.0.210", default-features = false }
 serde_json = "1.0"
 json5 = "0.4.1"
 json_comments = "0.2.2"
