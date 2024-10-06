@@ -602,13 +602,7 @@ async fn launch(
     true => "Miko_R3.txt",
     #[cfg(target_os = "windows")]
     false => "vmparams",
-    #[cfg(any(
-      target_os = "linux",
-      target_os = "dragonfly",
-      target_os = "freebsd",
-      target_os = "netbsd",
-      target_os = "openbsd"
-    ))]
+    #[cfg(linux)]
     false => "starsector.sh",
   });
 
@@ -634,7 +628,7 @@ async fn launch(
   #[cfg(target_os = "windows")]
   let split_args = split_args.filter_map(|arg| {
     (!miko).then_some(arg).or_else(|| {
-      (arg != "-XX:+UseLargePages" && arg != "-XX:+UseLargePagesIndividualAllocation").then(|| {
+      (arg != "-XX:+UseLargePagesIndividualAllocation").then(|| {
         if arg == r#"-Djava.library.path="..\\mikohime/windows""# {
           r"-Djava.library.path=..\\mikohime/windows"
         } else {
@@ -672,9 +666,9 @@ async fn launch(
   #[cfg(target_os = "windows")]
   if miko
     && let output @ Ok(_) = elevated_windows_launch(
+      vmparams_path.as_path(),
       working_dir,
       &exe,
-      &vmparams_path,
       direct_launch.then(|| {
         format!(
           "-DlaunchDirect=true {} -DstartFS=false -DstartSound=true",
@@ -703,14 +697,13 @@ async fn launch(
 
 #[cfg(target_os = "windows")]
 async fn elevated_windows_launch(
+  vmparams: &Path,
   working_dir: &Path,
   executable: &Path,
-  vmparams: &Path,
-  extra_params: Option<String>,
+  direct_launch: Option<String>,
 ) -> Result<Output, anyhow::Error> {
-  use std::ffi::{OsStr, OsString};
+  use std::ffi::OsStr;
 
-  use itertools::Itertools;
   use tokio::io::AsyncWriteExt;
 
   use crate::d_println;
@@ -724,36 +717,10 @@ async fn elevated_windows_launch(
     .take()
     .ok_or(anyhow::anyhow!("Failed to retrieve powershell input"))?;
 
-  let base = indoc::formatdoc! {r#"
-      $miko = Get-Content -Path %
-      {}
-      try {{
-        Start-Process -Wait -Verb RunAs -WorkingDirectory % -FilePath % -ArgumentList $miko 
-      }} catch {{
-        if ($_.Exception.GetType().Name -eq "InvalidOperationException")
-        {{
-          throw "Failed to elevate"
-        }}
-        throw $_
-      }}
-    "#,
-    extra_params.map(|params| format!("$miko = ($miko[0..($miko.Length-2)]) + \"{params}\" + $miko[-1]")).as_deref().unwrap_or_default(),
-  };
-
-  let dummy = OsStr::new("");
-  let paths = [
-    vmparams.as_os_str(),
-    working_dir.as_os_str(),
-    executable.as_os_str(),
-  ];
-  let commands = base
-    .split('%')
-    .map(OsStr::new)
-    .interleave_shortest(IntoIterator::into_iter(paths).chain(std::iter::repeat(dummy)));
-  let os_str: OsString = commands.collect();
+  let command = format_command(vmparams, direct_launch, working_dir, executable);
 
   tokio::spawn(async move {
-    stdin.write_all(os_str.as_encoded_bytes()).await?;
+    stdin.write_all(command.as_encoded_bytes()).await?;
 
     stdin.write(OsStr::new("\n").as_encoded_bytes()).await
   })
@@ -771,6 +738,47 @@ async fn elevated_windows_launch(
   }
 
   Ok(output)
+}
+
+#[cfg(windows)]
+fn format_command(
+  vmparams: &Path,
+  extra_params: Option<String>,
+  working_dir: &Path,
+  executable: &Path,
+) -> std::ffi::OsString {
+  use std::ffi::OsStr;
+
+  use itertools::Itertools;
+
+  let base = indoc::formatdoc! {r#"
+      $miko = (Get-Content -Path %) -ne "-XX:+UseLargePagesIndividualAllocation"
+      echo $miko
+      {}try {{
+        Start-Process -Wait -Verb RunAs -WorkingDirectory % -FilePath % -ArgumentList $miko
+      }} catch {{
+        if ($_.Exception.GetType().Name -eq "InvalidOperationException")
+        {{
+          throw "Failed to elevate"
+        }}
+        throw $_
+      }}
+    "#,
+    extra_params.as_ref().map(|params| format!("$miko = ($miko[0..($miko.Length-2)]) + \"{params}\" + $miko[-1]\n")).as_deref().unwrap_or_default(),
+  };
+
+  let dummy = OsStr::new("");
+  let paths = [
+    vmparams.as_os_str(),
+    working_dir.as_os_str(),
+    executable.as_os_str(),
+  ];
+  let commands = base
+    .split('%')
+    .map(OsStr::new)
+    .interleave_shortest(IntoIterator::into_iter(paths).chain(std::iter::repeat(dummy)));
+
+  commands.collect()
 }
 
 #[cfg(mac)]
@@ -808,4 +816,69 @@ async fn launch(
       .await
   }
   .context("Failed to launch Starsector")
+}
+
+#[cfg(test)]
+mod test {
+
+  #[cfg(windows)]
+  mod windows {
+    use std::path::Path;
+
+    use indoc::indoc;
+
+    use crate::app::launch::format_command;
+
+    #[test]
+    fn format_launcher() {
+      let command = format_command(
+        Path::new("MikoR3.txt"),
+        None,
+        Path::new("./"),
+        Path::new("Mikohime.bat"),
+      );
+
+      assert_eq!(
+        indoc! {r#"
+          try {
+            Start-Process -Wait -Verb RunAs -WorkingDirectory ./ -FilePath Mikohime.bat
+          } catch {
+            if ($_.Exception.GetType().Name -eq "InvalidOperationException")
+            {
+              throw "Failed to elevate"
+            }
+            throw $_
+          }
+        "#},
+        command.into_string().expect("Convert to String")
+      )
+    }
+
+    #[test]
+    fn format_direct() {
+      let command = format_command(
+        Path::new("MikoR3.txt"),
+        Some("-resolution=1920x1080".to_owned()),
+        Path::new("./"),
+        Path::new("jre23/blah/java.exe"),
+      );
+
+      assert_eq!(
+        indoc! {r#"
+          $miko = Get-Content -Path MikoR3.txt
+          $miko = ($miko[0..($miko.Length-2)]) + "-resolution=1920x1080" + $miko[-1]
+          try {
+            Start-Process -Wait -Verb RunAs -WorkingDirectory ./ -FilePath jre23/blah/java.exe -ArgumentList $miko
+          } catch {
+            if ($_.Exception.GetType().Name -eq "InvalidOperationException")
+            {
+              throw "Failed to elevate"
+            }
+            throw $_
+          }
+        "#},
+        command.into_string().expect("Convert to String")
+      )
+    }
+  }
 }
