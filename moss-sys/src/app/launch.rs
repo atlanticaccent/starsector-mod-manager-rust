@@ -753,7 +753,6 @@ fn format_command(
 
   let base = indoc::formatdoc! {r#"
       $miko = (Get-Content -Path %) -ne "-XX:+UseLargePagesIndividualAllocation"
-      echo $miko
       {}try {{
         Start-Process -Wait -Verb RunAs -WorkingDirectory % -FilePath % -ArgumentList $miko
       }} catch {{
@@ -840,8 +839,9 @@ mod test {
 
       assert_eq!(
         indoc! {r#"
+          $miko = (Get-Content -Path MikoR3.txt) -ne "-XX:+UseLargePagesIndividualAllocation"
           try {
-            Start-Process -Wait -Verb RunAs -WorkingDirectory ./ -FilePath Mikohime.bat
+            Start-Process -Wait -Verb RunAs -WorkingDirectory ./ -FilePath Mikohime.bat -ArgumentList $miko
           } catch {
             if ($_.Exception.GetType().Name -eq "InvalidOperationException")
             {
@@ -865,7 +865,7 @@ mod test {
 
       assert_eq!(
         indoc! {r#"
-          $miko = Get-Content -Path MikoR3.txt
+          $miko = (Get-Content -Path MikoR3.txt) -ne "-XX:+UseLargePagesIndividualAllocation"
           $miko = ($miko[0..($miko.Length-2)]) + "-resolution=1920x1080" + $miko[-1]
           try {
             Start-Process -Wait -Verb RunAs -WorkingDirectory ./ -FilePath jre23/blah/java.exe -ArgumentList $miko
