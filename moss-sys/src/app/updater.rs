@@ -34,10 +34,10 @@ impl Deref for Release {
   }
 }
 
-// const SUPPORT_SELF_UPDATE: bool = cfg!(not(mac));
+// const SUPPORT_SELF_UPDATE: bool = cfg!(not(target_os = "macos"));
 const TARGET: &str = if cfg!(target_os = "windows") {
   "MOSS.exe"
-} else if cfg!(linux) {
+} else if cfg!(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd")) {
   "MOSS.AppImage"
 } else {
   "MOSS.app"
@@ -137,9 +137,9 @@ fn update(_: Box<dyn ReleaseUpdate>, release: Release) -> anyhow::Result<()> {
   use cargo_packager_updater::{Config, Update, UpdateFormat};
   use self_update::Download;
 
-  const FORMAT: UpdateFormat = if cfg!(mac) {
+  const FORMAT: UpdateFormat = if cfg!(target_os = "macos") {
     UpdateFormat::App
-  } else if cfg!(linux) {
+  } else if cfg!(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd")) {
     UpdateFormat::AppImage
   } else {
     UpdateFormat::Wix

@@ -1,4 +1,4 @@
-#[cfg(mac)]
+#[cfg(target_os = "macos")]
 fn main() {
   use std::ops::Div;
 
@@ -16,7 +16,7 @@ fn main() {
   );
 }
 
-#[cfg(not(mac))]
+#[cfg(not(target_os = "macos"))]
 fn main() {
   println!("This example does nothing outside macOS")
 }

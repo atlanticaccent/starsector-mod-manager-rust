@@ -581,7 +581,7 @@ fn managed_starsector_launch(app: &mut App, ctx: &mut druid::EventCtx) {
   }
 }
 
-#[cfg(not(mac))]
+#[cfg(not(target_os = "macos"))]
 async fn launch(
   install_dir: &Path,
   direct_launch: bool,
@@ -602,7 +602,7 @@ async fn launch(
     true => "Miko_R3.txt",
     #[cfg(target_os = "windows")]
     false => "vmparams",
-    #[cfg(linux)]
+    #[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
     false => "starsector.sh",
   });
 
@@ -650,7 +650,7 @@ async fn launch(
     (miko || direct_launch).then(|| install_dir.join("starsector-core")),
   );
 
-  #[cfg(linux)]
+  #[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
   let (exe, working_dir) = (
     install_dir.join(match direct_launch {
       true if miko => "jdk-23+9/bin/java",
@@ -780,7 +780,7 @@ fn format_command(
   commands.collect()
 }
 
-#[cfg(mac)]
+#[cfg(target_os = "macos")]
 async fn launch(
   install_dir: &Path,
   experimental_launch: bool,

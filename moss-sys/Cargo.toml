@@ -108,11 +108,8 @@ gtk = { version = "0.18.1" }
 [target.'cfg(not(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd")))'.dependencies]
 rfd = "0.15"
 
-[target.'cfg(mac)'.dependencies]
+[target.'cfg(target_os = "macos")'.dependencies]
 metal = "0.29"
-
-[build-dependencies]
-cfg_aliases = "0.2.1"
 
 [[example]]
 name = "dim_constraints"

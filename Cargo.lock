@@ -2974,7 +2974,6 @@ dependencies = [
  "async-trait",
  "base64",
  "cargo-packager-updater",
- "cfg_aliases 0.2.1",
  "chrono",
  "classfile-parser",
  "comemo",

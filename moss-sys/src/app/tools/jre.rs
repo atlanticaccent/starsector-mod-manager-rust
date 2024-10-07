@@ -117,7 +117,7 @@ impl Swapper {
                 let table = FlexTable::new()
                   .with_row(Self::swapper_row(Flavour::Original, "Original (Java 7)"));
 
-                #[cfg(not(mac))]
+                #[cfg(not(target_os = "macos"))]
                 let table = table.with_row(Self::swapper_row(
                   Flavour::Miko,
                   "Java 23 by Mikohime (New!)",
@@ -346,7 +346,7 @@ impl Swapper {
       })
       .collect();
 
-    #[cfg(not(mac))]
+    #[cfg(not(target_os = "macos"))]
     if install_dir.join("Miko_R3.txt").exists() && install_dir.join(consts::MIKO_JDK_VER).exists() {
       available.push(Flavour::Miko);
     }
@@ -406,7 +406,7 @@ impl Swapper {
   strum_macros::FromRepr,
 )]
 pub enum Flavour {
-  #[cfg(not(mac))]
+  #[cfg(not(target_os = "macos"))]
   Miko,
   Coretto,
   Hotspot,
@@ -421,7 +421,7 @@ const JRE_BACKUP: &str = "jre.bak";
 impl Flavour {
   async fn download(self, install_dir: PathBuf) -> Result<(), anyhow::Error> {
     let cached_jre = install_dir.join(match self {
-      #[cfg(not(mac))]
+      #[cfg(not(target_os = "macos"))]
       Flavour::Miko => consts::MIKO_JDK_VER.to_owned(),
       _ => format!("jre_{self}"),
     });
@@ -444,7 +444,7 @@ impl Flavour {
       std::fs::rename(jre_8, &cached_jre)?;
     }
 
-    #[cfg(not(mac))]
+    #[cfg(not(target_os = "macos"))]
     if self.is_miko() && !install_dir.join("mikohime").exists() {
       let miko_dir = Flavour::get_miko_kit(&install_dir).await?;
 
@@ -502,7 +502,7 @@ impl Flavour {
       Flavour::Hotspot => consts::HOTSPOT,
       Flavour::Wisp => consts::WISP,
       Flavour::Azul => consts::AZUL,
-      #[cfg(not(mac))]
+      #[cfg(not(target_os = "macos"))]
       Flavour::Miko => consts::MIKO_JDK,
       Flavour::Original => unimplemented!(),
     }
@@ -579,7 +579,7 @@ impl Flavour {
       .with_context(|| "Could not find JRE in given folder")
   }
 
-  #[cfg(not(mac))]
+  #[cfg(not(target_os = "macos"))]
   async fn get_miko_kit(root: &Path) -> anyhow::Result<TempDir> {
     let url = consts::MIKO_KIT;
 
@@ -602,7 +602,7 @@ impl Flavour {
     Ok(tempdir)
   }
 
-  #[cfg(not(mac))]
+  #[cfg(not(target_os = "macos"))]
   async fn move_miko_kit(miko_download: &Path) -> anyhow::Result<()> {
     let root_dir = miko_download
       .parent()
@@ -642,9 +642,9 @@ impl Flavour {
   }
 
   fn is_miko(self) -> bool {
-    #[cfg(not(mac))]
+    #[cfg(not(target_os = "macos"))]
     return matches!(self, Flavour::Miko);
-    #[cfg(mac)]
+    #[cfg(target_os = "macos")]
     return false;
   }
 }
@@ -732,7 +732,7 @@ mod consts {
 
   pub const JRE_PATH: &str = "jre";
 }
-#[cfg(linux)]
+#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 mod consts {
   use super::FindBy;
 
@@ -753,7 +753,7 @@ mod consts {
 
   pub const JRE_PATH: &str = "jre_linux";
 }
-#[cfg(mac)]
+#[cfg(target_os = "macos")]
 mod consts {
   use super::FindBy;
 
@@ -806,7 +806,7 @@ mod test {
           std::fs::write(target_path.join("release"), r#"JAVA_VERSION="1.7.0""#)
             .expect("Write test release");
         }
-      } else if cfg!(mac) {
+      } else if cfg!(target_os = "macos") {
         let parent = target_path.parent().expect("Get path parent");
         std::fs::create_dir_all(parent).expect("Create parent folder");
       }
@@ -943,7 +943,7 @@ mod test {
     let test_dir = TempDir::new().expect("Create tempdir");
     let target_path = test_dir.path().join(consts::JRE_PATH);
 
-    #[cfg(mac)]
+    #[cfg(target_os = "macos")]
     std::fs::create_dir_all(target_path.parent().expect("Get path parent"))
       .expect("Create parent dir");
 
