@@ -6415,7 +6415,7 @@ dependencies = [
 [[package]]
 name = "wry"
 version = "0.39.5"
-source = "git+https://github.com/atlanticaccent/wry.git?branch=screenshot-v2#db90c84d8421d4b86f86cb843d7c446aaa736568"
+source = "git+https://github.com/atlanticaccent/wry.git?branch=screenshot-v2#fb8e6abc5025fbf72919a173e534ad777aa4a01b"
 dependencies = [
  "base64",
  "block",
