@@ -2998,7 +2998,6 @@ dependencies = [
  "itertools 0.13.0",
  "json5",
  "json_comments",
- "lazy_static",
  "metal",
  "native-dialog",
  "opener",

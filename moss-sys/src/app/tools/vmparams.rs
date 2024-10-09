@@ -570,17 +570,26 @@ impl<T: VMParamsPath> VMParams<T> {
 
 #[cfg(test)]
 mod test {
-  use std::{io::Seek, marker::PhantomData, path::PathBuf, sync::Mutex};
+  use std::{
+    io::Seek,
+    marker::PhantomData,
+    path::PathBuf,
+    sync::{LazyLock, Mutex},
+  };
 
   use super::{VMParams, VMParamsPath};
 
-  lazy_static::lazy_static! {
-    static ref TEST_FILE: tempfile::NamedTempFile = tempfile::NamedTempFile::new().expect("Couldn't create tempdir - not a real test failure");
+  static TEST_FILE: LazyLock<tempfile::NamedTempFile> = LazyLock::new(|| {
+    tempfile::NamedTempFile::new().expect("Couldn't create tempdir - not a real test failure")
+  });
 
-    static ref ROOT: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("assets");
+  static ROOT: LazyLock<PathBuf> = LazyLock::new(|| {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+      .join("tests")
+      .join("assets")
+  });
 
-    static ref DUMB_MUTEX: Mutex<()> = Mutex::new(());
-  }
+  static DUMB_MUTEX: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
   struct TempPath;
 

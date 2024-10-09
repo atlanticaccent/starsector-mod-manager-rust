@@ -34,7 +34,6 @@ use druid_widget_nursery::{
   CommandCtx, Mask,
 };
 use json_comments::StripComments;
-use lazy_static::lazy_static;
 use regex::Regex;
 use reqwest_middleware::ClientWithMiddleware;
 use tokio::{select, sync::mpsc};
@@ -349,7 +348,13 @@ pub async fn get_starsector_version(ext_ctx: ExtEventSink, install_dir: PathBuf)
   use regex::bytes::Regex;
   use tokio::{fs, task};
 
-  #[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
+  #[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+  ))]
   let obf_jar = install_dir.join("starfarer_obf.jar");
   #[cfg(target_os = "windows")]
   let obf_jar = install_dir.join("starsector-core/starfarer_obf.jar");
@@ -403,9 +408,9 @@ pub async fn get_starsector_version(ext_ctx: ExtEventSink, install_dir: PathBuf)
   .flatten();
 
   if res.is_err() {
-    lazy_static! {
-      static ref RE: Regex = Regex::new(r"Starting Starsector (.*) launcher").unwrap();
-    }
+    static RE: LazyLock<Regex> =
+      LazyLock::new(|| Regex::new(r"Starting Starsector (.*) launcher").unwrap());
+
     res = fs::read(install_dir.join("starsector-core").join("starsector.log"))
       .await
       .map_err(|_| LoadError::ReadError)
@@ -1977,11 +1982,15 @@ where
 
 pub trait IsSendSync: Send + Sync {}
 
-pub fn hyperlink_fn<TXT: Into<ArcStr> + Data + Clone>(selector: Selector<String>) -> impl Fn() -> ControllerHost<druid::widget::Container<TXT>, HoverController> + 'static {
+pub fn hyperlink_fn<TXT: Into<ArcStr> + Data + Clone>(
+  selector: Selector<String>,
+) -> impl Fn() -> ControllerHost<druid::widget::Container<TXT>, HoverController> + 'static {
   move || hyperlink_opts(selector)
 }
 
-pub fn hyperlink_opts<TXT: Into<ArcStr> + Data + Clone>(selector: Selector<String>) -> ControllerHost<druid::widget::Container<TXT>, HoverController> {
+pub fn hyperlink_opts<TXT: Into<ArcStr> + Data + Clone>(
+  selector: Selector<String>,
+) -> ControllerHost<druid::widget::Container<TXT>, HoverController> {
   hoverable_text_opts(
     Some(BLUE_KEY),
     identity,
