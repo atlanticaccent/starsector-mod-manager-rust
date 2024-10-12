@@ -5,8 +5,9 @@ authors = ["ikl"]
 edition = "2021"
 description = "A mod manager for the game Starsector"
 
-[dependencies.moss-sys]
-workspace = true
+[dependencies]
+moss-sys = { workspace = true }
+mimalloc = { workspace = true }
 
 [package.metadata.bundle]
 name = "MOSS"
