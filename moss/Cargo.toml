@@ -1,0 +1,42 @@
+[package]
+name = "moss"
+version = "0.1.0"
+authors = ["ikl"]
+edition = "2021"
+description = "A mod manager for the game Starsector"
+
+[dependencies]
+moss-sys = { workspace = true }
+mimalloc = { workspace = true }
+
+[package.metadata.bundle]
+name = "MOSS"
+id = "org.laird.moss"
+osx_minimum_system_version = "10.10"
+
+[package.metadata.vcpkg]
+git = "https://github.com/microsoft/vcpkg"
+rev = "64ca152891d6ab135c6c27881e7eb0ac2fa15bba"
+dependencies = ["libarchive:x64-windows-static"]
+
+[package.metadata.packager]
+name = "MOSS"
+identifier = "org.laird.moss"
+before-packaging-command = "cargo build --release"
+resources = ["assets"]
+icons = ["assets/*.png"]
+
+[package.metadata.packager.appimage]
+bins = ["/usr/bin/xdg-open"]
+libs = [
+  "WebKitNetworkProcess",
+  "WebKitWebProcess",
+  "libwebkit2gtkinjectedbundle.so",
+  "libayatana-appindicator3.so.1",
+]
+
+[package.metadata.packager.appimage.linuxdeploy-plugins]
+"gtk" = "https://raw.githubusercontent.com/tauri-apps/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh"
+
+[package.metadata.packager.macos]
+minimum_system_version = "10.10"

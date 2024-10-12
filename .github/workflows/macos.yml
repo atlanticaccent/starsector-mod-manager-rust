@@ -5,7 +5,7 @@ on:
     branches:
       - release
     tags:
-      - '*'
+      - "*"
   pull_request:
     branches:
       - release
@@ -16,46 +16,42 @@ jobs:
   build:
     name: Rust project
     runs-on: macos-latest
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
+      MACOSX_DEPLOYMENT_TARGET: "10.10"
     steps:
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.6
+
+      - uses: actions/checkout@v4
+
       - name: Install dependencies
         run: |
           brew install coreutils
           brew install pkgconfig
           brew install libarchive
           echo PKG_CONFIG_PATH=$(brew ls libarchive | grep .pc$ | sed 's|/libarchive.pc||') >> $GITHUB_ENV
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-      - name: Check cache
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - uses: r7kamura/rust-problem-matchers@v1
+      - name: Build
+        run: cargo build --release
       - name: Test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --release --all --all-features --no-fail-fast -- --nocapture
-      - name: Install cargo-bundle
-        run: (cargo install cargo-bundle || true)
-      - name: Emit target macOS version env variable
-        run: echo MACOSX_DEPLOYMENT_TARGET=10.10 >> $GITHUB_ENV
-      - name: Run cargo-bundle
-        run: cargo bundle --release
-      - name: Run make_portable.sh
-        run: ./scripts/make_portable.sh target/release/bundle/osx/Starsector\ Mod\ Manager.app/Contents/MacOS/starsector_mod_manager ../Resources
-        shell: bash
-      - name: Move app bundle
-        run: mv target/release/bundle/osx/Starsector\ Mod\ Manager.app target/release/Starsector\ Mod\ Manager.app
-      - uses: actions/upload-artifact@v2
+        run: cargo test --release --no-fail-fast --features="leaky-api" -- --nocapture
+
+      - name: Install cargo-packager
+        run: (cargo install cargo-packager || true)
+      - name: Run cargo-packager
+        run: cargo packager --release --formats app
+
+      - name: Run bundle-dylibs.sh
+        run: ./scripts/bundle-dylibs.sh target/release/moss.app
+      - name: Re-sign libs
+        run: codesign --force -s - target/release/moss.app/Contents/Frameworks/*
+
+      - uses: actions/upload-artifact@v4
         with:
           name: macos
           path: |
-            target/release/starsector_mod_manager
-            target/release/Starsector Mod Manager.app
+            target/release/moss
+            target/release/moss.app

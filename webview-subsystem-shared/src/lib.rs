@@ -1,9 +1,7 @@
-use std::{path::PathBuf, any::Any};
+use std::{any::Any, path::PathBuf, sync::LazyLock};
 
 use directories::ProjectDirs;
-use druid::{Selector, Target, ExtEventError, ExtEventSink};
-use lazy_static::lazy_static;
-
+use druid::{ExtEventError, ExtEventSink, Selector, Target};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
@@ -23,7 +21,7 @@ pub enum WebviewMessage {
 }
 
 #[derive(Debug)]
-pub enum UserEvent {
+pub enum WebviewEvent {
   Navigation(String),
   NewWindow(String),
   AskDownload(String),
@@ -31,18 +29,20 @@ pub enum UserEvent {
   CancelDownload,
   BlobReceived(String),
   BlobChunk(Option<String>),
+  PageLoaded,
+  PageUnloading,
+  ShowConfirmPopup(String),
 }
 
-lazy_static! {
-  pub static ref PROJECT: ProjectDirs =
-    ProjectDirs::from("org", "laird", "Starsector Mod Manager").expect("Get project dirs");
-}
+pub static PROJECT: LazyLock<ProjectDirs> = LazyLock::new(|| {
+  ProjectDirs::from("org", "laird", "Starsector Mod Manager").expect("Get project dirs")
+});
 
 pub const FRACTAL_INDEX: &str = "https://fractalsoftworks.com/forum/index.php?topic=177.0";
 pub const FRACTAL_MODS_FORUM: &str = "https://fractalsoftworks.com/forum/index.php?board=8.0";
 pub const FRACTAL_MODDING_SUBFORUM: &str = "https://fractalsoftworks.com/forum/index.php?board=3.0";
 
-pub const WEBVIEW_EVENT: Selector<UserEvent> = Selector::new("webview.event");
+pub const WEBVIEW_EVENT: Selector<WebviewEvent> = Selector::new("webview.event");
 pub const WEBVIEW_INSTALL: Selector<InstallType> = Selector::new("webview.install");
 
 pub const WEBVIEW_OFFSET: i16 = 34;
@@ -56,11 +56,11 @@ pub trait ExtEventSinkExt {
 }
 
 impl ExtEventSinkExt for ExtEventSink {
-    fn submit_command_global<T: Any + Send>(
-      &self,
-      selector: Selector<T>,
-      payload: impl Into<Box<T>>,
-    ) -> Result<(), ExtEventError> {
-      self.submit_command(selector, payload, Target::Global)
-    }
+  fn submit_command_global<T: Any + Send>(
+    &self,
+    selector: Selector<T>,
+    payload: impl Into<Box<T>>,
+  ) -> Result<(), ExtEventError> {
+    self.submit_command(selector, payload, Target::Global)
+  }
 }

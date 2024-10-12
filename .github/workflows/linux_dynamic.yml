@@ -5,7 +5,7 @@ on:
     branches:
       - release
     tags:
-      - '*'
+      - "*"
   pull_request:
     branches:
       - release
@@ -16,33 +16,30 @@ jobs:
   build:
     name: Rust project
     runs-on: ubuntu-latest
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
     steps:
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.6
+
       - name: Install Dependencies
         run: sudo apt-get update; sudo apt-get install libarchive-dev libgtk-3-dev webkit2gtk-4.1 libgtksourceview-3.0-dev libayatana-appindicator3-dev
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-      - name: Check cache
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release
+
+      - uses: actions/checkout@v4
+
+      - uses: r7kamura/rust-problem-matchers@v1
+      - name: Build
+        run: cargo build --release
       - name: Test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --release --no-fail-fast -- --nocapture
-      - uses: actions/upload-artifact@v2
+        run: cargo test --release --no-fail-fast --features="leaky-api" -- --nocapture
+
+      - name: Install cargo-packager
+        run: (cargo install cargo-packager || true)
+      - name: Run cargo-packager
+        run: cargo packager --release --formats appimage
+
+      - uses: actions/upload-artifact@v4
         with:
           name: linux_dynamic
-          path: target/release/starsector_mod_manager
+          path: target/release/moss
