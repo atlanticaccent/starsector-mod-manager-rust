@@ -33,17 +33,15 @@ pub(crate) mod app;
 pub mod entrypoint;
 pub(crate) mod formatter;
 pub(crate) mod nav_bar;
-#[cfg(feature = "leaky-api")]
-#[allow(dead_code)]
-pub mod patch;
-#[cfg(not(feature = "leaky-api"))]
-#[allow(dead_code)]
-pub(crate) mod patch;
 pub(crate) mod theme;
-#[allow(dead_code)]
-pub(crate) mod widgets;
-
-pub(crate) use druid::lens as mlens;
 
 pub(crate) const ENV_STATE: druid::Key<std::sync::Arc<app::EnvSharedData>> =
   druid::Key::new("global.env_shared_state");
+
+pub(crate) mod widgets {
+  use moss_lib::common::widgets::root_stack::RootStack as GenericRootStack;
+
+  use crate::app::App;
+
+  pub(crate) type RootStack = GenericRootStack<App>;
+}

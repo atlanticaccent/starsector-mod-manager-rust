@@ -3,20 +3,8 @@ use std::{fmt::Display, ops::Deref, str::FromStr};
 use druid::{text::FontWeight, theme, Color, Data, Env, Key, Lens};
 use druid_widget_nursery::prism::Prism;
 use fake::Fake;
+pub use moss_lib::common::theme_keys::*;
 use serde::{de::Visitor, Deserialize, Serialize};
-
-pub const ORANGE_KEY: Key<Color> = Key::new("theme.colour.orange");
-pub const BLUE_KEY: Key<Color> = Key::new("theme.colour.blue");
-pub const GREEN_KEY: Key<Color> = Key::new("theme.colour.green");
-pub const RED_KEY: Key<Color> = Key::new("theme.colour.red");
-pub const YELLOW_KEY: Key<Color> = Key::new("theme.colour.yellow");
-pub const ON_GREEN_KEY: Key<Color> = Key::new("theme.colour.on_green");
-pub const ON_RED_KEY: Key<Color> = Key::new("theme.colour.on_red");
-pub const ON_YELLOW_KEY: Key<Color> = Key::new("theme.colour.on_yellow");
-pub const ON_BLUE_KEY: Key<Color> = Key::new("theme.colour.on_blue");
-pub const ON_ORANGE_KEY: Key<Color> = Key::new("theme.colour.on_orange");
-
-pub const SHADOW: Key<Color> = Key::new("custom_theme.shadow");
 
 #[derive(Debug, Data, Lens, Clone, Serialize, Deserialize)]
 pub struct Theme {

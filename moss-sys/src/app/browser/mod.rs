@@ -6,26 +6,25 @@ use druid::{
   Data, ExtEventSink, ImageBuf, Lens, Selector, SingleUse, Widget, WidgetExt,
 };
 use druid_widget_nursery::{material_icons::Icon, AnyCtx, LaidOutCtx, WidgetExt as _};
+use moss_lib::common::{
+  controllers::ExtensibleController, widget_ext::WidgetExtEx as _, widgets::card::Card, ShadeColor,
+};
 use rand::random;
 use webview_shared::{
   ExtEventSinkExt, InstallType, WebviewEvent, PROJECT, WEBVIEW_EVENT, WEBVIEW_INSTALL,
 };
 use wry::WebView;
 
-use super::{
-  overlays::Popup,
-  util::{DataTimer, WidgetExtEx},
-};
 use crate::{
   app::{
     browser::controls::{button, button_text, button_unconstrained},
-    controllers::ExtensibleController,
-    util::ShadeColor,
+    overlays::Popup,
+    util::DataTimer,
     ARROW_LEFT, ARROW_RIGHT, BOOKMARK, BOOKMARK_BORDER, REFRESH,
   },
   match_command,
   nav_bar::{Nav, NavLabel},
-  widgets::{card::Card, root_stack::RootStack},
+  widgets::RootStack,
 };
 
 mod controls;
@@ -351,7 +350,13 @@ impl Browser {
 }
 
 fn init_webview(ctx: &mut druid::EventCtx, data: &mut Browser) -> Result<Rc<WebView>, wry::Error> {
-  #[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
+  #[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+  ))]
   let res = {
     use gtk::{
       glib::translate::{FromGlibPtrFull, ToGlibPtr},
@@ -393,7 +398,13 @@ fn init_webview(ctx: &mut druid::EventCtx, data: &mut Browser) -> Result<Rc<WebV
 
     webview_subsystem::init_webview(data.url.clone(), builder, ctx.get_external_handle())
   };
-  #[cfg(not(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd")))]
+  #[cfg(not(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+  )))]
   let res = webview_subsystem::init_webview_with_handle(
     data.url.clone(),
     ctx.window(),

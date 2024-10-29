@@ -14,17 +14,15 @@ use druid::{
   Data, Lens, LensExt, Selector, Widget, WidgetExt as _,
 };
 use druid_widget_nursery::{material_icons::Icon, wrap::Wrap, WidgetExt};
+use moss_lib::common::{labels::h2_fixed, widget_ext::{WidgetExtEx, WithHoverState}, widgets::card::Card, ShadeColor};
 use regex::{Captures, Regex, RegexBuilder};
 use strum_macros::EnumIter;
 
 use super::tool_card;
-use crate::{
-  app::{
-    util::{h2_fixed, LoadError, ShadeColor, ValueFormatter, WidgetExtEx, WithHoverState as _},
-    ARROW_DROP_DOWN, ARROW_LEFT, LINK, LINK_OFF,
-  },
-  widgets::{card::Card, root_stack::RootStack},
-};
+use crate::{app::{
+  util::{LoadError, ValueFormatter},
+  ARROW_DROP_DOWN, ARROW_LEFT, LINK, LINK_OFF,
+}, widgets::RootStack};
 
 #[derive(Debug, Clone, Data, Lens)]
 pub(crate) struct VMParams<T: VMParamsPath = VMParamsPathDefault> {

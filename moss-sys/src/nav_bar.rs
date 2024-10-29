@@ -8,15 +8,10 @@ use druid::{
   Color, Command, Data, Lens, Selector, Widget, WidgetExt as _,
 };
 use druid_widget_nursery::{material_icons::Icon, navigator::View, WidgetExt as _};
-
-use crate::{
-  app::{
-    controllers::HoverController,
-    util::{
-      hoverable_text_opts, Compute, DummyTransfer, ShadeColor, WidgetExtEx as _, HOURGLASS_TOP,
-    },
-  },
-  patch::tree::{Tree, TreeNode},
+use moss_lib::{
+  common::{controllers::HoverController, labels::hoverable_text_opts, lenses::Compute, widget_ext::{DummyTransfer, WidgetExtEx as _}, ShadeColor},
+  druid_patch::tree::{Tree, TreeNode},
+  icons::HOURGLASS_TOP,
 };
 
 pub struct NavBar;

@@ -6,15 +6,12 @@ use druid::{
   Data, Lens, RenderContext, Selector, Widget, WidgetExt,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
+use moss_lib::{common::{controllers::HeightLinker, labels::LabelExt as _}, druid_patch::split::Split, icons::{ARROW_DROP_DOWN, ARROW_DROP_UP, UNFOLD_MORE}};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
-use super::{
-  util::icons::{ARROW_DROP_DOWN, ARROW_DROP_UP, UNFOLD_MORE},
-  ModList,
-};
-use crate::{app::util::LabelExt, patch::split::Split};
+use super::ModList;
 
 #[derive(
   Debug,
@@ -145,7 +142,7 @@ impl Header {
       for (idx, ratio) in header.ratios.iter().enumerate() {
         ctx.submit_command(ModList::UPDATE_COLUMN_WIDTH.with((idx + 1, *ratio)));
       }
-      ctx.submit_command(crate::app::controllers::HeightLinker::HEIGHT_LINKER_RESET_ALL);
+      ctx.submit_command(HeightLinker::HEIGHT_LINKER_RESET_ALL);
       ctx.submit_command(ModList::REBUILD_NEXT_PASS);
     })
     .on_command(Header::REMOVE_HEADING, |ctx, heading, header| {
@@ -159,7 +156,7 @@ impl Header {
       for (idx, ratio) in header.ratios.iter().enumerate() {
         ctx.submit_command(ModList::UPDATE_COLUMN_WIDTH.with((idx + 1, *ratio)));
       }
-      ctx.submit_command(crate::app::controllers::HeightLinker::HEIGHT_LINKER_RESET_ALL);
+      ctx.submit_command(HeightLinker::HEIGHT_LINKER_RESET_ALL);
       ctx.submit_command(ModList::REBUILD_NEXT_PASS);
     })
   }

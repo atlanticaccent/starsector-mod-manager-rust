@@ -5,18 +5,17 @@ use druid::{
   Data, Key, Widget, WidgetExt,
 };
 use druid_widget_nursery::material_icons::Icon;
+use moss_lib::{common::{labels::h2_fixed, widget_ext::{WidgetExtEx, WithHoverState}, widgets::card::Card}, druid_patch::table::{FixedFlexTable, TableColumnWidth, TableRow}};
 
 use super::Popup;
 use crate::{
   app::{
     installer,
     mod_entry::{ModVersionMeta, Version},
-    util::{h2_fixed, DataTimer, WidgetExtEx as _, WithHoverState},
+    util::DataTimer,
     App, CONTENT_COPY, DONE_ALL,
   },
-  patch::table::{FixedFlexTable, TableColumnWidth, TableRow},
   theme::{BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
-  widgets::card::Card,
 };
 
 #[derive(Clone, Data)]

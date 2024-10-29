@@ -3,6 +3,7 @@ use druid::{
   KeyEvent, LensExt as _, SingleUse, Target, WindowHandle, WindowId,
 };
 use itertools::Itertools;
+use moss_lib::{installer::Installer, updater::check_for_update};
 use rand::random;
 use remove_dir_all::remove_dir_all;
 use reqwest::Url;
@@ -18,7 +19,7 @@ use super::{
   util::{get_starsector_version, GET_INSTALLED_STARSECTOR},
   App,
 };
-use crate::{app::updater::check_for_update, nav_bar::Nav};
+use crate::{app::updater::get_update_status_handler, nav_bar::Nav};
 
 pub enum AppCommands {
   UpdateModDescription(ModDescription<String>),
@@ -29,7 +30,9 @@ pub enum AppCommands {
 pub struct AppDelegate {
   pub root_id: Option<WindowId>,
   pub root_window: Option<WindowHandle>,
+
   pub startup_popups: Vec<Popup>,
+  // pub installer: Installer<>
 }
 
 impl Delegate<App> for AppDelegate {
@@ -66,13 +69,25 @@ impl Delegate<App> for AppDelegate {
           let sink = ctx.get_external_handle();
           if *is_file {
             data.runtime.spawn_blocking(move || {
-              #[cfg(not(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd")))]
+              #[cfg(not(any(
+                target_os = "linux",
+                target_os = "dragonfly",
+                target_os = "freebsd",
+                target_os = "netbsd",
+                target_os = "openbsd"
+              )))]
               let res = rfd::FileDialog::new()
                 .add_filter("Archives", &[
                   "zip", "7z", "7zip", "rar", "rar4", "rar5", "tar",
                 ])
                 .pick_files();
-              #[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
+              #[cfg(any(
+                target_os = "linux",
+                target_os = "dragonfly",
+                target_os = "freebsd",
+                target_os = "netbsd",
+                target_os = "openbsd"
+              ))]
               let res = native_dialog::FileDialog::new()
                 .add_filter("Archives", &[
                   "zip", "7z", "7zip", "rar", "rar4", "rar5", "tar",
@@ -84,9 +99,21 @@ impl Delegate<App> for AppDelegate {
             });
           } else {
             data.runtime.spawn_blocking(move || {
-              #[cfg(not(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd")))]
+              #[cfg(not(any(
+                target_os = "linux",
+                target_os = "dragonfly",
+                target_os = "freebsd",
+                target_os = "netbsd",
+                target_os = "openbsd"
+              )))]
               let res = rfd::FileDialog::new().pick_folder();
-              #[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
+              #[cfg(any(
+                target_os = "linux",
+                target_os = "dragonfly",
+                target_os = "freebsd",
+                target_os = "netbsd",
+                target_os = "openbsd"
+              ))]
               let res = native_dialog::FileDialog::new()
                 .show_open_single_dir()
                 .ok()
@@ -339,7 +366,7 @@ impl Delegate<App> for AppDelegate {
               Settings::SELECTOR.with(SettingsCommand::UpdateInstallDir(install_dir.clone())),
             );
           }
-          check_for_update(ctx.get_external_handle());
+          check_for_update(get_update_status_handler(ctx.get_external_handle()));
 
           let mut delayed_popups = Vec::new();
           if data

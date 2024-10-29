@@ -18,6 +18,7 @@ use druid_widget_nursery::{
   WidgetExt as _,
 };
 use flate2::read::GzDecoder;
+use moss_lib::common::{controllers::AnimController, labels::h2_fixed, widget_ext::WidgetExtEx, widgets::card::Card};
 use rand::random;
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
@@ -29,15 +30,8 @@ use webview_shared::ExtEventSinkExt;
 
 use super::{tool_card, vmparams::VMParams};
 use crate::{
-  app::{
-    controllers::AnimController,
-    mod_entry::GameVersion,
-    overlays::Popup,
-    util::{h2_fixed, parse_game_version, WidgetExtEx},
-    SharedFromEnv,
-  },
+  app::{mod_entry::GameVersion, overlays::Popup, util::parse_game_version, SharedFromEnv},
   bang, d_println, theme,
-  widgets::card::Card,
 };
 
 const DOWNLOAD_COMPLETE: Selector<Flavour> = Selector::new("jre.download.complete");
@@ -732,7 +726,13 @@ mod consts {
 
   pub const JRE_PATH: &str = "jre";
 }
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
+#[cfg(any(
+  target_os = "linux",
+  target_os = "dragonfly",
+  target_os = "freebsd",
+  target_os = "netbsd",
+  target_os = "openbsd"
+))]
 mod consts {
   use super::FindBy;
 

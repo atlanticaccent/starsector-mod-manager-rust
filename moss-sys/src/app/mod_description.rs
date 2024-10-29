@@ -9,24 +9,33 @@ use druid::{
 };
 use druid_widget_nursery::{material_icons::Icon, Mask, WidgetExt as _};
 use itertools::Itertools;
+use moss_lib::{
+  common::{
+    controllers::{HoverController, REMOVE_POINTER},
+    fast_im_map::FastImMap,
+    labels::{
+      bolded, h1, h2_fixed, h3, h3_fixed, hoverable_text_opts, hyperlink_fn, lensed_bold,
+      LabelExt as _,
+    },
+    lenses::{Compute, LensExtExt as _},
+    widget_ext::{WidgetExtEx as _, WithHoverState, HOVER_STATE_CHANGE},
+    widgets::{card::Card, rotate::Rotated},
+    ShadeColor,
+  },
+  icons::{CHEVRON_LEFT, DELETE, SYSTEM_UPDATE, TOGGLE_ON},
+};
 
 use crate::{
   app::{
     app_delegate::AppCommands,
-    controllers::{HoverController, Rotated, REMOVE_POINTER},
     mod_entry::{ModMetadata, UpdateStatus, VersionComplex},
     mod_list::ModList,
     overlays::Popup,
-    util::{
-      bolded, h1, h2_fixed, h3, h3_fixed, hoverable_text_opts, hyperlink_fn, ident_rc, lensed_bold,
-      Compute, FastImMap, FnWidgetToMaybe, LabelExt, LensExtExt, ShadeColor, WidgetExtEx,
-      WithHoverState, CHEVRON_LEFT, DELETE, HOVER_STATE_CHANGE, SYSTEM_UPDATE, TOGGLE_ON,
-    },
+    util::{ident_rc, FnWidgetToMaybe},
     App, ViewModEntry as ModEntry, INFO,
   },
   nav_bar::{Nav, NavLabel},
   theme::{BLUE_KEY, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_RED_KEY, RED_KEY},
-  widgets::card::Card,
 };
 
 pub const OPEN_IN_BROWSER: Selector<String> =

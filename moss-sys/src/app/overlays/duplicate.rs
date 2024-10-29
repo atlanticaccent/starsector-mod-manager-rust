@@ -5,18 +5,17 @@ use druid::{
   Data, Key, LensExt, Widget, WidgetExt,
 };
 use druid_widget_nursery::table::{FlexTable, TableColumnWidth, TableRow};
+use moss_lib::common::{
+  labels::{h2_fixed, LabelExt},
+  widget_ext::WidgetExtEx,
+  widgets::card::Card,
+  ShadeColor,
+};
 
 use super::Popup;
 use crate::{
-  app::{
-    mod_entry::ModEntry,
-    mod_list::ModList,
-    settings::Settings,
-    util::{h2_fixed, LabelExt, ShadeColor as _, Tap, WidgetExtEx as _},
-    App,
-  },
+  app::{mod_entry::ModEntry, mod_list::ModList, settings::Settings, util::Tap, App},
   theme::{BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
-  widgets::card::Card,
 };
 
 #[derive(Clone, Data)]

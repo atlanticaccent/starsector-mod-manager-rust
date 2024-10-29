@@ -1,9 +1,5 @@
 use druid::{Data, Widget, WidgetExt as _};
-
-use crate::{
-  app::util::{bold_text, WidgetExtEx as _},
-  widgets::card::Card,
-};
+use moss_lib::common::{labels::bold_text, widget_ext::WidgetExtEx as _, widgets::card::Card};
 
 pub fn button_text<T: Data>(text: &str) -> impl Widget<T> {
   bold_text(

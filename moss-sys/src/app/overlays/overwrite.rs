@@ -2,17 +2,15 @@ use druid::{
   widget::{Flex, Label},
   Data, Key, Widget, WidgetExt,
 };
+use moss_lib::{
+  common::{labels::h2_fixed, widget_ext::WidgetExtEx, widgets::card::Card},
+  installer::{HybridPath, StringOrPath},
+};
 
 use super::Popup;
 use crate::{
-  app::{
-    installer::{HybridPath, StringOrPath},
-    mod_entry::ModEntry,
-    util::{h2_fixed, WidgetExtEx as _},
-    App,
-  },
+  app::{mod_entry::ModEntry, App},
   theme::{BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
-  widgets::card::Card,
 };
 
 #[derive(Clone, Data)]

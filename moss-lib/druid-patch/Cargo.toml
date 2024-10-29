@@ -1,0 +1,10 @@
+[package]
+name = "druid-patch"
+version = "0.1.0"
+authors = ["ikl"]
+edition = "2021"
+description = "Patched Druid widgets"
+
+[dependencies]
+druid = { workspace = true }
+druid-widget-nursery = { workspace = true }

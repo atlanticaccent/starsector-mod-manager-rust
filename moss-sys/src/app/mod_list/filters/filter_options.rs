@@ -4,20 +4,22 @@ use druid::{
   Data, Env, Lens, LensExt, Widget, WidgetExt as _,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
+use moss_lib::{
+  common::{
+    controllers::{HeightLinker, HeightLinkerShared},
+    labels::bold_text,
+    widget_ext::{WidgetExtEx as _, WithHoverState as _},
+    widgets::card::Card,
+  },
+  icons::{
+    Icon as CopyIcon, ADD_BOX as FILLED_CHECKBOX, CHECK_BOX_OUTLINE_BLANK as EMPTY_CHECKBOX,
+  },
+};
 
 use super::{filter_button::FilterButton, FilterState};
-use crate::{
-  app::{
-    controllers::{HeightLinker, HeightLinkerShared},
-    icon::Icon as CopyIcon,
-    mod_list::{install::install_options::InstallOptions, Filters, ModList},
-    util::{
-      bold_text, WidgetExtEx as _, WithHoverState, ADD_BOX as FILLED_CHECKBOX,
-      CHECK_BOX_OUTLINE_BLANK as EMPTY_CHECKBOX,
-    },
-    DESELECT, INDETERMINATE_CHECK_BOX,
-  },
-  widgets::card::Card,
+use crate::app::{
+  mod_list::{install::install_options::InstallOptions, Filters, ModList},
+  DESELECT, INDETERMINATE_CHECK_BOX,
 };
 
 pub struct FilterOptions;

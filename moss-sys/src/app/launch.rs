@@ -5,30 +5,34 @@ use druid::{
   Color, Data, Key, LensExt, Selector, Widget, WidgetExt,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
+use moss_lib::{
+  common::{
+    labels::{bold_text, h2_fixed, LabelExt},
+    widget_ext::WidgetExtEx as _,
+    widgets::{
+      card::Card,
+      card_button::{AltStackOption, CardButton, ScopedStackCardButton},
+      rotate::Rotated,
+    }, ShadeColor,
+  },
+  druid_patch::{
+    separator::Separator,
+    table::{FixedFlexTable, TableColumnWidth, TableRow},
+  },
+  icons::{SETTINGS, TOGGLE_ON},
+};
 use tokio::process::Command;
 use webview_shared::ExtEventSinkExt;
 
 use crate::{
   app::{
-    controllers::Rotated,
     overlays::Popup,
     settings::Settings,
-    util::{
-      bold_text, h2_fixed, LabelExt, ShadeColor, Tap, ValueFormatter, WidgetExtEx, SETTINGS,
-      TOGGLE_ON,
-    },
+    util::{Tap, ValueFormatter},
     App, CHEVRON_LEFT, CHEVRON_RIGHT, INFO, PLAY_ARROW,
   },
-  patch::{
-    separator::Separator,
-    table::{FixedFlexTable, TableColumnWidth, TableRow},
-  },
   theme::{BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
-  widgets::{
-    card::Card,
-    card_button::{AltStackOption, CardButton, ScopedStackCardButton},
-    root_stack::RootStack,
-  },
+  widgets::RootStack,
 };
 
 const OLD_TEXT_COLOR: druid::Key<druid::Color> = druid::Key::new("old_text_colour");
@@ -88,7 +92,7 @@ pub(crate) fn launch_button() -> impl Widget<App> {
             env.set(druid::theme::TEXT_COLOR, druid::Color::WHITE.darker());
           })
           .expand_width()
-          .on_click(|ctx, _, _| ctx.submit_command(crate::widgets::root_stack::RootStack::DISMISS))
+          .on_click(|ctx, _, _| ctx.submit_command(RootStack::DISMISS))
       },
       Some(
         |widget: ScopedStackCardButton<App>,
@@ -602,7 +606,13 @@ async fn launch(
     true => "Miko_R3.txt",
     #[cfg(target_os = "windows")]
     false => "vmparams",
-    #[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
+    #[cfg(any(
+      target_os = "linux",
+      target_os = "dragonfly",
+      target_os = "freebsd",
+      target_os = "netbsd",
+      target_os = "openbsd"
+    ))]
     false => "starsector.sh",
   });
 
@@ -650,7 +660,13 @@ async fn launch(
     (miko || direct_launch).then(|| install_dir.join("starsector-core")),
   );
 
-  #[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
+  #[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+  ))]
   let (exe, working_dir) = (
     install_dir.join(match direct_launch {
       true if miko => "jdk-23+9/bin/java",

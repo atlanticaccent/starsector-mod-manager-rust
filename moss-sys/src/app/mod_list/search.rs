@@ -4,11 +4,8 @@ use druid::{
   UnitPoint, Widget, WidgetExt,
 };
 use druid_widget_nursery::{material_icons::Icon, Stack, StackChildPosition, WidgetExt as _};
+use moss_lib::{common::{widget_ext::{WidgetExtEx as _, WithHoverState}, widgets::card::Card}, icons::{CANCEL, SEARCH}};
 
-use crate::{
-  app::util::{WidgetExtEx, WithHoverState, CANCEL, SEARCH},
-  widgets::card::Card,
-};
 pub struct Search;
 
 impl Search {

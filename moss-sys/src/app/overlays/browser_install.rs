@@ -2,17 +2,16 @@ use druid::{
   widget::{Flex, Label},
   Data, Key, Lens, Widget, WidgetExt as _,
 };
+use moss_lib::common::{labels::{h2_fixed, LabelExt as _}, widget_ext::WidgetExtEx, widgets::card::Card};
 use webview_shared::WEBVIEW_INSTALL;
 
 use super::Popup;
 use crate::{
   app::{
     browser::Browser,
-    util::{h2_fixed, LabelExt, WidgetExtEx as _},
     App,
   },
   theme::{BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
-  widgets::card::Card,
 };
 
 #[derive(Debug, Clone, Data, Lens)]

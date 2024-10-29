@@ -783,6 +783,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "common"
+version = "0.1.0"
+dependencies = [
+ "ahash",
+ "druid",
+ "druid-patch",
+ "druid-widget-nursery",
+ "extend",
+ "macros",
+]
+
+[[package]]
 name = "compress-tools"
 version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1367,6 +1379,14 @@ source = "git+https://github.com/atlanticaccent/druid-material-icons#069f0a100aa
 dependencies = [
  "druid",
  "kurbo",
+]
+
+[[package]]
+name = "druid-patch"
+version = "0.1.0"
+dependencies = [
+ "druid",
+ "druid-widget-nursery",
 ]
 
 [[package]]
@@ -2402,6 +2422,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "icons"
+version = "0.1.0"
+dependencies = [
+ "druid",
+ "druid-widget-nursery",
+ "macros",
+]
+
+[[package]]
 name = "ident_case"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2520,6 +2549,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a0c10553d664a4d0bcff9f4215d0aac67a639cc68ef660840afe309b807bc9f5"
 dependencies = [
  "generic-array",
+]
+
+[[package]]
+name = "installer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "compress-tools",
+ "infer",
+ "itertools 0.13.0",
+ "remove_dir_all",
+ "reqwest",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "unrar",
+ "web-client",
 ]
 
 [[package]]
@@ -2842,6 +2889,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c41e0c4fef86961ac6d6f8a82609f55f31b05e4fce149ac5710e439df7619ba4"
 
 [[package]]
+name = "macros"
+version = "0.1.0"
+dependencies = [
+ "druid",
+ "heck 0.5.0",
+ "itertools 0.13.0",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.79",
+]
+
+[[package]]
 name = "malloc_buf"
 version = "0.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2982,7 +3041,20 @@ name = "moss"
 version = "0.1.0"
 dependencies = [
  "mimalloc",
+ "moss-lib",
  "moss-sys",
+]
+
+[[package]]
+name = "moss-lib"
+version = "0.1.0"
+dependencies = [
+ "common",
+ "druid-patch",
+ "icons",
+ "installer",
+ "updater",
+ "web-client",
 ]
 
 [[package]]
@@ -3019,6 +3091,7 @@ dependencies = [
  "json5",
  "json_comments",
  "metal",
+ "moss-lib",
  "native-dialog",
  "opener",
  "proc-macros",
@@ -5661,6 +5734,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
+name = "updater"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cargo-packager-updater",
+ "derive_more 1.0.0",
+ "self_update",
+ "tokio",
+]
+
+[[package]]
 name = "url"
 version = "2.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5908,6 +5992,19 @@ dependencies = [
  "dlib",
  "log",
  "pkg-config",
+]
+
+[[package]]
+name = "web-client"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "futures",
+ "http",
+ "reqwest",
+ "reqwest-middleware",
+ "reqwest-retry",
+ "thiserror",
 ]
 
 [[package]]

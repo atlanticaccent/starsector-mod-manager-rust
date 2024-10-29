@@ -1,15 +1,9 @@
 use druid::{theme, widget::Flex, Point, Selector, Widget, WidgetExt};
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
+use moss_lib::{common::{labels::bold_text, widget_ext::WidgetExtEx as _, widgets::card::Card}, icons::{FOLDER, INVENTORY_2}};
 
 use super::{install_button::InstallButton, InstallState};
-use crate::{
-  app::{
-    app_delegate::AppCommands,
-    util::{bold_text, WidgetExtEx, FOLDER, INVENTORY_2},
-    App,
-  },
-  widgets::card::Card,
-};
+use crate::app::{app_delegate::AppCommands, App};
 
 pub struct InstallOptions;
 

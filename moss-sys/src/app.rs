@@ -6,14 +6,33 @@ use druid::{
   Data, Lens, LensExt, Selector, SingleUse, Widget, WidgetExt, WidgetId,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as WidgetExtNursery};
+use moss_lib::{
+  common::{
+    controllers::{HoverController, REMOVE_POINTER},
+    fast_im_map::FastImMap,
+    labels::bold_text,
+    lenses::LensExtExt as _,
+    widget_ext::{WidgetExtEx as _, HOVER_STATE_CHANGE},
+    widgets::root_stack::RootStack,
+  },
+  druid_patch::{
+    tabs::tab::{InitialTab, Tabs, TabsPolicy, TabsTransition},
+    tabs_policy::StaticTabsForked,
+  },
+  icons::{
+    ARROW_DROP_DOWN, ARROW_LEFT, ARROW_RIGHT, BOOKMARK, BOOKMARK_BORDER, CHEVRON_LEFT,
+    CHEVRON_RIGHT, CLEAR, CONTENT_COPY, DESELECT, DONE_ALL, FIRST_PAGE, INDETERMINATE_CHECK_BOX,
+    INFO, LAST_PAGE, LINK, LINK_OFF, PLAY_ARROW, REFRESH, SHUFFLE,
+  },
+  installer::{HybridPath, StringOrPath},
+};
 use tokio::runtime::Handle;
 use webview_shared::PROJECT;
 
 use crate::{
   app::{
     browser::Browser,
-    controllers::{AppController, HoverController, ModListController, REMOVE_POINTER},
-    installer::{HybridPath, StringOrPath},
+    controllers::{AppController, ModListController},
     mod_description::{ModDescription, ENABLE_DEPENDENCIES},
     mod_entry::{GameVersion, ModEntry, UpdateStatus, ViewModEntry},
     mod_list::ModList,
@@ -21,23 +40,10 @@ use crate::{
     overlays::Popup,
     settings::{Settings, ThemeEditor},
     tools::Tools,
-    util::{
-      bold_text,
-      icons::{
-        icon, ARROW_DROP_DOWN, ARROW_LEFT, ARROW_RIGHT, BOOKMARK, BOOKMARK_BORDER, CHEVRON_LEFT,
-        CHEVRON_RIGHT, CLEAR, CONTENT_COPY, DESELECT, DONE_ALL, FIRST_PAGE,
-        INDETERMINATE_CHECK_BOX, INFO, LAST_PAGE, LINK, LINK_OFF, PLAY_ARROW, REFRESH, SHUFFLE,
-      },
-      FastImMap, LensExtExt, Tap, WidgetExtEx, HOVER_STATE_CHANGE,
-    },
+    util::Tap,
   },
   nav_bar::{Nav, NavBar, NavLabel},
-  patch::{
-    tabs::tab::{InitialTab, Tabs, TabsPolicy},
-    tabs_policy::StaticTabsForked,
-  },
   theme::Themes,
-  widgets::root_stack::RootStack,
   ENV_STATE,
 };
 
@@ -50,7 +56,6 @@ mod mod_description;
 pub mod mod_entry;
 pub mod mod_list;
 mod mod_repo;
-pub mod modal;
 pub mod overlays;
 mod settings;
 mod tools;
@@ -88,7 +93,6 @@ impl App {
   const LOG_OVERWRITE: Selector<(StringOrPath, HybridPath, ModEntry)> =
     Selector::new("app.mod.install.overwrite");
   const OPEN_FILE: Selector<Option<Vec<PathBuf>>> = Selector::new("app.open.multiple");
-  const OPEN_FOLDER: Selector<Option<PathBuf>> = Selector::new("app.open.folder");
   pub const OPEN_WEBVIEW: Selector<Option<String>> = Selector::new("app.webview.open");
   const REFRESH: Selector<()> = Selector::new("app.mod_list.refresh");
   const REMOVE_DOWNLOAD_BAR: Selector<i64> = Selector::new("app.download.bar.remove");
@@ -234,7 +238,7 @@ impl App {
               .lens(App::settings),
           ),
         ]))
-        .with_transition(crate::patch::tabs::tab::TabsTransition::Instant)
+        .with_transition(TabsTransition::Instant)
         .scope_with(
           |_| false,
           |widget| {

@@ -11,32 +11,31 @@ use druid::{
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
 use extend::ext;
+use moss_lib::{
+  common::{
+    controllers::HoverController, labels::{bolded, h2_fixed, hoverable_text, lensed_bold, LabelExt}, widget_ext::{CommandExt, WidgetExtEx as _, WithHoverState}, widgets::{
+      card::Card, card_button::{AltStackOption, CardButton}, rotate::Rotated, wrapped_table::WrappedTable
+    }
+  },
+  icons::{
+    ADD_CIRCLE, ADD_CIRCLE_OUTLINE, ARROW_LEFT, ARROW_RIGHT, CHEVRON_LEFT, CHEVRON_RIGHT, CLOSE,
+    REFRESH,
+  },
+  updater::check_for_update,
+};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 
 use super::{
-  controllers::{HoverController, Rotated},
   mod_list::headings::{Header, Heading},
   tools::vmparams::VMParams,
-  util::{
-    bolded, button_painter, default_true, h2_fixed, hoverable_text,
-    icons::{
-      ADD_CIRCLE, ADD_CIRCLE_OUTLINE, ARROW_LEFT, ARROW_RIGHT, CHEVRON_LEFT, CHEVRON_RIGHT, CLOSE,
-    },
-    lensed_bold, CommandExt, LabelExt, LoadError, SaveError, Tap, WidgetExtEx, WithHoverState,
-  },
+  util::{default_true, LoadError, SaveError, Tap},
   App,
 };
 use crate::{
-  app::{updater::check_for_update, util::REFRESH, PROJECT},
+  app::{updater::get_update_status_handler, PROJECT},
   nav_bar::Nav,
-  theme::{Theme, Themes, GREEN_KEY, ON_GREEN_KEY},
-  widgets::{
-    card::Card,
-    card_button::{AltStackOption, CardButton},
-    root_stack::RootStack,
-    wrapped_table::WrappedTable,
-  },
+  theme::{Theme, Themes, GREEN_KEY, ON_GREEN_KEY}, widgets::RootStack,
 };
 
 mod theme_editor;
@@ -229,7 +228,9 @@ impl Settings {
               env.set(druid::theme::TEXT_COLOR, env.get(ON_GREEN_KEY));
             })
             .fix_height(42.0)
-            .on_click(|ctx, _, _| check_for_update(ctx.get_external_handle())),
+            .on_click(|ctx, _, _| {
+              check_for_update(get_update_status_handler(ctx.get_external_handle()));
+            }),
         )
         .with_spacer(2.0)
         .with_default_spacer()
@@ -615,6 +616,41 @@ impl Settings {
     let copy = self.clone();
     handle.spawn_blocking(move || copy.save());
   }
+}
+
+#[must_use]
+pub fn button_painter<T: Data>() -> Painter<T> {
+  Painter::new(|ctx, _, env| {
+    let is_active = ctx.is_active() && !ctx.is_disabled();
+    let is_hot = ctx.is_hot();
+    let size = ctx.size();
+    let stroke_width = env.get(druid::theme::BUTTON_BORDER_WIDTH);
+
+    let rounded_rect = size
+      .to_rect()
+      .inset(-stroke_width / 2.0)
+      .to_rounded_rect(env.get(druid::theme::BUTTON_BORDER_RADIUS));
+
+    let bg_gradient = if ctx.is_disabled() {
+      env.get(druid::theme::DISABLED_BUTTON_DARK)
+    } else if is_active {
+      env.get(druid::theme::BUTTON_DARK)
+    } else {
+      env.get(druid::theme::BUTTON_LIGHT)
+    };
+
+    let border_color = if is_hot && !ctx.is_disabled() {
+      env.get(druid::theme::BORDER_LIGHT)
+    } else {
+      env.get(druid::theme::BORDER_DARK)
+    };
+
+    use druid::RenderContext;
+
+    ctx.stroke(rounded_rect, &border_color, stroke_width);
+
+    ctx.fill(rounded_rect, &bg_gradient);
+  })
 }
 
 pub enum SettingsCommand {

@@ -7,31 +7,28 @@ use druid::{
   Data, Key, Widget, WidgetExt,
 };
 use druid_widget_nursery::material_icons::Icon;
+use moss_lib::{
+  common::{
+    controllers::HoverController,
+    labels::{h2_fixed, hyperlink_opts, LabelExt},
+    widget_ext::WidgetExtEx,
+    widgets::card::Card,
+  },
+  icons::{ARROW_DROP_DOWN, ARROW_RIGHT},
+  updater::{CloneTx, Release, Status},
+};
 use self_update::cargo_crate_version;
 
 use crate::{
-  app::{
-    controllers::HoverController,
-    overlays::Popup,
-    updater::{CopyTx, Release},
-    util::{h2_fixed, hyperlink_opts, LabelExt, WidgetExtEx, ARROW_DROP_DOWN, ARROW_RIGHT},
-    App,
-  },
+  app::{overlays::Popup, App},
   theme::{BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
-  widgets::card::Card,
 };
 
-#[derive(Debug, Clone, Data)]
-pub enum Status {
-  Ready(Release, CopyTx),
-  Completed,
-  CheckFailed(String),
-  InstallFailed(String),
-}
+pub(super) struct StatusPopup;
 
-impl Status {
-  pub fn view<T: Data>(&self) -> impl Widget<T> {
-    match self {
+impl StatusPopup {
+  pub fn view<T: Data>(status: &Status) -> impl Widget<T> {
+    match status {
       Status::Ready(release, tx) => View::prompt_update(release, tx).boxed(),
       Status::CheckFailed(error) => View::check_failed(error).boxed(),
       Status::Completed => View::success().boxed(),
@@ -43,7 +40,7 @@ impl Status {
 struct View<T>(PhantomData<T>);
 
 impl<T: Data> View<T> {
-  fn prompt_update(release: &Release, tx: &CopyTx) -> impl Widget<T> {
+  fn prompt_update(release: &Release, tx: &CloneTx) -> impl Widget<T> {
     Flex::row()
       .must_fill_main_axis(true)
       .with_flex_spacer(0.5)

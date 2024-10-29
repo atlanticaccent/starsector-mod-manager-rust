@@ -21,18 +21,16 @@ use browser_install::BrowserInstall;
 use confirm_delete::ConfirmDelete;
 use duplicate::Duplicate;
 use launch_result::*;
+use moss_lib::{
+  common::{lenses::Compute, widget_ext::WidgetExtEx},
+  installer::{HybridPath, StringOrPath},
+};
 use multiple::Multiple;
 use overwrite::Overwrite;
 use remote_update::RemoteUpdate;
 use select_install::SelectInstall;
-pub use self_update::Status;
 
-use crate::app::{
-  installer::{HybridPath, StringOrPath},
-  mod_entry::ModEntry,
-  util::{Compute, DataTimer, WidgetExtEx},
-  App,
-};
+use crate::app::{mod_entry::ModEntry, overlays::self_update::StatusPopup, util::DataTimer, App};
 
 #[derive(Clone, Data)]
 pub enum Popup {
@@ -44,7 +42,7 @@ pub enum Popup {
   RemoteUpdate(RemoteUpdate),
   BrowserInstall(BrowserInstall),
   LaunchResult(String),
-  SelfUpdate(Status),
+  SelfUpdate(#[data(eq)] moss_lib::updater::Status),
   Custom(Arc<dyn Fn() -> Box<dyn Widget<()>> + Send + Sync>),
   AppCustom(Arc<dyn Fn() -> Box<dyn Widget<App>> + Send + Sync>),
 }
@@ -123,7 +121,7 @@ impl Popup {
             Popup::RemoteUpdate(remote_update) => remote_update.view().boxed(),
             Popup::BrowserInstall(browser_install) => browser_install.view().boxed(),
             Popup::LaunchResult(error) => LaunchResult::view(error).boxed(),
-            Popup::SelfUpdate(status) => status.view().boxed(),
+            Popup::SelfUpdate(status) => StatusPopup::view(status).boxed(),
             Popup::Custom(maker) => maker().constant(()).boxed(),
             Popup::AppCustom(maker) => maker().boxed(),
           }

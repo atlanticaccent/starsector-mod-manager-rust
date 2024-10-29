@@ -1,20 +1,14 @@
 use std::{env::current_exe, process};
 
-use druid::{commands, widget::Controller, Command, Env, Event, EventCtx, Selector, Widget};
+use druid::{commands, widget::Controller, Env, Event, EventCtx, Widget};
 use webview_shared::ExtEventSinkExt;
 
-use crate::{
-  app::{
-    installer::{ChannelMessage, INSTALL, INSTALL_FOUND_MULTIPLE},
-    mod_entry::UpdateStatus,
-    mod_list::ModList,
-    overlays::Popup,
-    settings::{self, Settings, SettingsCommand},
-    App,
-  },
-  match_command,
-  nav_bar::Nav,
-  widgets::root_stack::RootStack,
+use crate::app::{
+  installer::{ChannelMessage, INSTALL},
+  mod_entry::UpdateStatus,
+  mod_list::ModList,
+  settings::{self, Settings, SettingsCommand},
+  App,
 };
 
 pub struct AppController;
@@ -99,91 +93,5 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
     }
 
     child.event(ctx, event, data, env);
-  }
-}
-
-pub struct MaskController {
-  delayed_commands: Vec<Command>,
-}
-
-impl Default for MaskController {
-  fn default() -> Self {
-    Self::new()
-  }
-}
-
-impl MaskController {
-  pub fn new() -> Self {
-    Self {
-      delayed_commands: Vec::new(),
-    }
-  }
-
-  fn command_whitelist(cmd: &Command) -> bool {
-    const BUILTIN_TEXTBOX_CANCEL: Selector<()> =
-      Selector::new("druid.builtin.textbox-cancel-editing");
-    match_command!(cmd, true => {
-      Popup::DISMISS,
-      Popup::DISMISS_MATCHING,
-      Popup::OPEN_POPUP,
-      Popup::QUEUE_POPUP,
-      Popup::DELAYED_POPUP,
-      Popup::OPEN_NEXT,
-      INSTALL_FOUND_MULTIPLE,
-      ModList::OVERWRITE,
-      BUILTIN_TEXTBOX_CANCEL,
-      App::CONFIRM_DELETE_MOD,
-      Nav::NAV_SELECTOR,
-      Settings::SELECTOR,
-      RootStack::SHOW,
-      RootStack::DISMISS, => false,
-    })
-  }
-}
-
-impl<W: Widget<App>> Controller<App, W> for MaskController {
-  fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut App, env: &Env) {
-    if !data.popups.is_empty()
-      && let Event::Command(cmd) = event
-      && !ctx.is_handled()
-      && Self::command_whitelist(cmd)
-    {
-      self.delayed_commands.push(cmd.clone());
-    }
-
-    child.event(ctx, event, data, env);
-  }
-
-  fn lifecycle(
-    &mut self,
-    child: &mut W,
-    ctx: &mut druid::LifeCycleCtx,
-    event: &druid::LifeCycle,
-    data: &App,
-    env: &Env,
-  ) {
-    child.lifecycle(ctx, event, data, env);
-  }
-
-  fn update(
-    &mut self,
-    child: &mut W,
-    ctx: &mut druid::UpdateCtx,
-    old_data: &App,
-    data: &App,
-    env: &Env,
-  ) {
-    if data.popups.is_empty() {
-      if !self.delayed_commands.is_empty() {
-        for cmd in self.delayed_commands.drain(0..) {
-          ctx.submit_command(cmd);
-        }
-      }
-      if !old_data.popups.is_empty() {
-        ctx.submit_command(Popup::IS_EMPTY);
-      }
-    }
-
-    child.update(ctx, old_data, data, env);
   }
 }

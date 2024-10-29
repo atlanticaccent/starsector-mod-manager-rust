@@ -1,10 +1,8 @@
 use druid::{widget::Flex, Data, Widget, WidgetExt};
 use druid_widget_nursery::material_icons::Icon;
+use moss_lib::common::{labels::bold_text, widgets::card::Card};
 
-use crate::{
-  app::{util::bold_text, App, REFRESH},
-  widgets::card::Card,
-};
+use crate::app::{App, REFRESH};
 
 pub struct Refresh;
 

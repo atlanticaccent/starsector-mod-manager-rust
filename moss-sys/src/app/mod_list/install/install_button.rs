@@ -3,12 +3,9 @@ use druid::{
   Data, Widget, WidgetExt as _,
 };
 use druid_widget_nursery::material_icons::Icon;
+use moss_lib::{common::{labels::bold_text, widget_ext::WidgetExtEx, widgets::card::Card}, icons::{ADD_CIRCLE, ADD_CIRCLE_OUTLINE}};
 
 use super::InstallState;
-use crate::{
-  app::util::{bold_text, WidgetExtEx as _, ADD_CIRCLE, ADD_CIRCLE_OUTLINE},
-  widgets::card::Card,
-};
 
 pub struct InstallButton;
 

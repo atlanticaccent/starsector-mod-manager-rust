@@ -1,0 +1,15 @@
+[package]
+name = "updater"
+version = "0.1.0"
+authors = ["ikl"]
+edition = "2021"
+description = "Self-updater for MOSS"
+
+[dependencies]
+tokio = { workspace = true }
+self_update = { workspace = true }
+derive_more = { workspace = true, features = ["deref"] }
+anyhow = { workspace = true }
+
+[target.'cfg(not(windows))'.dependencies]
+cargo-packager-updater = { workspace = true }

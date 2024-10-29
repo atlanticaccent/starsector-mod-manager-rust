@@ -6,14 +6,12 @@ use druid::{
   Data, Lens, LensExt, Widget, WidgetExt,
 };
 use druid_widget_nursery::{FutureWidget, WidgetExt as _};
+use moss_lib::common::{lenses::LensExtExt, widget_ext::WidgetExtEx, widgets::card::{Card, CardBuilder}};
 use proc_macros::Invert;
 
 use self::{jre::Swapper, vmparams::VMParams};
 use super::settings::Settings;
-use crate::{
-  app::util::{Convert, LensExtExt, WidgetExtEx},
-  widgets::card::{Card, CardBuilder},
-};
+use crate::app::util::Convert;
 
 pub mod jre;
 pub mod vmparams;

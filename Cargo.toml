@@ -21,10 +21,12 @@ members = [
   "webview-subsystem-shared",
   "proc-macros",
 ]
+exclude = ["moss-lib", "moss-lib/**"]
 resolver = "2"
 
 [workspace.dependencies]
 moss-sys = { path = "moss-sys" }
+moss-lib = { path = "moss-lib" }
 proc-macros = { path = "proc-macros" }
 webview-subsystem = { path = "webview-subsystem" }
 webview-shared = { path = "webview-subsystem-shared" }

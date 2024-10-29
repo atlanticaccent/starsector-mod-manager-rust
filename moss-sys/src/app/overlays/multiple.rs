@@ -7,22 +7,26 @@ use druid::{
 };
 use druid_widget_nursery::wrap::Wrap;
 use itertools::Itertools;
+use moss_lib::{
+  common::{
+    labels::{bolded, h2_fixed, hoverable_text},
+    widget_ext::WidgetExtEx,
+    widgets::card::Card,
+    ShadeColor,
+  },
+  druid_patch::table::{FixedFlexTable, TableColumnWidth, TableRow},
+  installer::HybridPath,
+};
 
 use super::Popup;
 use crate::{
-  app::{
-    installer::{HybridPath, INSTALL_FOUND_MULTIPLE},
-    mod_entry::ModEntry,
-    util::{bolded, h2_fixed, hoverable_text, ShadeColor, Tap as _, WidgetExtEx as _},
-    App,
-  },
-  patch::table::{FixedFlexTable, TableColumnWidth, TableRow},
+  app::{installer::INSTALL_FOUND_MULTIPLE, mod_entry::ModEntry, util::Tap as _, App},
   theme::{BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
-  widgets::card::Card,
 };
 
 #[derive(Debug, Clone, Data)]
 pub struct Multiple {
+  #[data(eq)]
   pub source: HybridPath,
   found: Vector<ModEntry>,
 }

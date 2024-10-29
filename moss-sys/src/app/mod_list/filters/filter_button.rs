@@ -3,16 +3,10 @@ use druid::{
   Data, Widget, WidgetExt as _,
 };
 use druid_widget_nursery::{material_icons::Icon, Stack, StackChildPosition};
+use moss_lib::{common::{labels::bold_text, lenses::LensExtExt, widget_ext::WidgetExtEx, widgets::card::Card}, icons::TUNE};
 
 use super::{FilterState, FILTER_POSITION};
-use crate::{
-  app::{
-    mod_list::ModList,
-    util::{bold_text, LensExtExt, WidgetExtEx as _, TUNE},
-    CLEAR,
-  },
-  widgets::card::Card,
-};
+use crate::app::{mod_list::ModList, CLEAR};
 
 pub struct FilterButton;
 

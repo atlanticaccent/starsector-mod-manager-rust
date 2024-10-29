@@ -18,6 +18,18 @@ use druid::{
 use druid_widget_nursery::{
   Stack, StackChildParams, StackChildPosition, WidgetExt as WidgetExtNursery,
 };
+use moss_lib::{
+  common::{
+    controllers::ExtensibleController, fast_im_map::FastImMap, lenses::LensExtExt,
+    widget_ext::WidgetExtEx as _, widgets::card::Card,
+  },
+  druid_patch::table::{
+    ComplexTableColumnWidth, FlexTable, RowData, TableCellVerticalAlignment, TableColumnWidth,
+    TableData,
+  },
+  installer::HybridPath,
+  web_client::WebClient,
+};
 use rand::Rng;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -26,22 +38,14 @@ use sublime_fuzzy::best_match;
 use webview_shared::ExtEventSinkExt;
 
 use super::{
-  controllers::ExtensibleController,
-  installer::HybridPath,
   mod_entry::{
     GameVersion, ModEntry as RawModEntry, ModMetadata, ModVersionMeta, UpdateStatus,
     ViewModEntry as ModEntry,
   },
-  util::{self, FastImMap, SaveError, WebClient, WidgetExtEx},
+  util::{self, SaveError},
   App,
 };
-use crate::{
-  app::util::{LensExtExt, LoadBalancer},
-  patch::table::{
-    ComplexTableColumnWidth, FlexTable, TableCellVerticalAlignment, TableColumnWidth, TableData,
-  },
-  widgets::card::Card,
-};
+use crate::app::util::LoadBalancer;
 
 pub mod filters;
 pub mod headings;
@@ -687,11 +691,7 @@ impl TableData for ModList {
       .copied()
   }
 
-  fn with_mut(
-    &mut self,
-    idx: <Self::Row as crate::patch::table::RowData>::Id,
-    mutate: impl FnOnce(&mut Self::Row),
-  ) {
+  fn with_mut(&mut self, idx: <Self::Row as RowData>::Id, mutate: impl FnOnce(&mut Self::Row)) {
     let entry = Rc::make_mut(&mut self.mods[&idx]);
     mutate(entry);
   }

@@ -1,0 +1,23 @@
+[package]
+name = "installer"
+version = "0.1.0"
+authors = ["ikl"]
+edition = "2021"
+description = "Mod installation handling for MOSS"
+
+[dependencies]
+# Internal
+web-client = { workspace = true }
+
+# External
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }
+itertools = { workspace = true }
+remove_dir_all = { workspace = true }
+reqwest = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true }
+unrar = { workspace = true }
+compress-tools = { workspace = true }
+infer = { workspace = true }

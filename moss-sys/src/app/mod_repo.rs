@@ -14,33 +14,34 @@ use druid_widget_nursery::{
   material_icons::Icon, prism::OptionSome, FutureWidget, Separator, WidgetExt as WidgetExtNursery,
 };
 use itertools::Itertools;
+use moss_lib::{
+  common::{
+    controllers::HoverController,
+    labels::{hoverable_text, lensed_bold, LabelExt},
+    lenses::{Compute, LensExtExt},
+    widget_ext::{CommandExt, WidgetExtEx},
+    widgets::{
+      card::Card,
+      card_button::CardButton,
+      wrapped_table::{WrapData, WrappedTable},
+    },
+  },
+  icons::{
+    ADD_BOX, ARROW_DROP_DOWN, ARROW_RIGHT, CHECK_BOX_OUTLINE_BLANK, CHEVRON_LEFT, CHEVRON_RIGHT,
+    DOUBLE_LEFT, DOUBLE_RIGHT, RADIO_BUTTON_CHECKED, RADIO_BUTTON_UNCHECKED, REFRESH, SORT, TUNE,
+  }, web_client::WebClient,
+};
 use reqwest_retry::policies::ExponentialBackoff;
 use serde::Deserialize;
 use strum::{IntoEnumIterator, VariantArray};
 use strum_macros::{EnumIter, EnumString, IntoStaticStr, VariantArray};
 use sublime_fuzzy::best_match;
 
-use super::{
-  controllers::HoverController,
+use crate::app::{
   mod_description::OPEN_IN_BROWSER,
   mod_list::search::Search,
-  util::{
-    default_true, hoverable_text,
-    icons::{
-      ADD_BOX, ARROW_DROP_DOWN, ARROW_RIGHT, CHECK_BOX_OUTLINE_BLANK, CHEVRON_LEFT, CHEVRON_RIGHT,
-      DOUBLE_LEFT, DOUBLE_RIGHT, RADIO_BUTTON_CHECKED, RADIO_BUTTON_UNCHECKED, REFRESH, SORT, TUNE,
-    },
-    lensed_bold, CommandExt, Compute, LabelExt, WebClient, WidgetExtEx,
-  },
+  util::{default_true, Tap},
   App,
-};
-use crate::{
-  app::util::{LensExtExt, Tap},
-  widgets::{
-    card::Card,
-    card_button::CardButton,
-    wrapped_table::{WrapData, WrappedTable},
-  },
 };
 
 #[derive(Deserialize, Data, Clone, Lens, Debug)]

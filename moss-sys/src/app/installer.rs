@@ -1,7 +1,7 @@
 use std::{
-  borrow::Cow,
   collections::{HashMap, VecDeque},
   fs::{copy, create_dir_all},
+  future::Future,
   io::{self, Write},
   iter::FusedIterator,
   path::{Path, PathBuf},
@@ -10,8 +10,12 @@ use std::{
 
 use anyhow::bail;
 use chrono::Local;
-use druid::{Data, ExtEventSink, Selector, SingleUse, Target};
+use druid::{ExtEventSink, Selector, SingleUse, Target};
 use itertools::Itertools;
+use moss_lib::{
+  installer::{HybridPath, InstallerDelegate},
+  web_client::WebClient,
+};
 use remove_dir_all::remove_dir_all;
 use reqwest::Url;
 use tempfile::{tempdir, TempDir};
@@ -25,11 +29,11 @@ use webview_shared::ExtEventSinkExt;
 use super::{
   mod_entry::{ModMetadata, ModVersionMeta, UpdateStatus},
   overlays::Popup,
-  util::{get_master_version, Tap, WebClient},
+  util::{get_master_version, Tap},
 };
-use crate::app::{
-  mod_entry::ModEntry,
-  util::{IsSendSync, LoadBalancer},
+use crate::{
+  app::{mod_entry::ModEntry, util::LoadBalancer},
+  bang,
 };
 
 #[derive(Clone)]
@@ -527,45 +531,6 @@ pub async fn download(
   Ok(file)
 }
 
-#[derive(Debug, Clone, Data)]
-pub enum HybridPath {
-  PathBuf(#[data(eq)] PathBuf),
-  Temp(Arc<TempDir>, String, #[data(eq)] Option<PathBuf>),
-}
-
-impl HybridPath {
-  pub fn get_path_copy(&self) -> PathBuf {
-    match self {
-      HybridPath::PathBuf(ref path) | HybridPath::Temp(_, _, Some(ref path)) => path.clone(),
-      HybridPath::Temp(ref arc, _, None) => arc.path().to_path_buf(),
-    }
-  }
-
-  pub fn with_path(mut self, path: &PathBuf) -> Self {
-    match &mut self {
-      HybridPath::PathBuf(inner) => inner.clone_from(path),
-      HybridPath::Temp(_, _, path_opt) => {
-        path_opt.replace(path.clone());
-      }
-    };
-
-    self
-  }
-
-  pub fn source(&self) -> Cow<str> {
-    match self {
-      HybridPath::PathBuf(path) => path.to_string_lossy(),
-      HybridPath::Temp(_, source, _) => source.into(),
-    }
-  }
-}
-
-impl From<PathBuf> for HybridPath {
-  fn from(value: PathBuf) -> Self {
-    Self::PathBuf(value)
-  }
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum InstallError {
   #[error("I/O error: {0:?}")]
@@ -593,23 +558,55 @@ pub enum ChannelMessage {
   Error(String, String),
 }
 
-impl IsSendSync for ChannelMessage {}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum StringOrPath {
-  String(String),
-  Path(PathBuf),
+pub struct InstallerImpl {
+  ext_ctx: ExtEventSink,
 }
 
-impl From<String> for StringOrPath {
-  fn from(string: String) -> Self {
-    StringOrPath::String(string)
+impl InstallerDelegate for InstallerImpl {
+  type Entry = ModEntry;
+
+  fn error_handler(&self, error: &dyn std::error::Error) {
+    let _ = self
+      .ext_ctx
+      .submit_command_global(
+        INSTALL,
+        ChannelMessage::Error(String::new(), error.to_string()),
+      )
+      .inspect_err(|err| bang!(err));
   }
-}
 
-impl From<PathBuf> for StringOrPath {
-  fn from(path: PathBuf) -> Self {
-    StringOrPath::Path(path)
+  fn multiple_handler(&self, folder: HybridPath, found: Vec<Self::Entry>) {
+    let _ = self
+      .ext_ctx
+      .submit_command_global(Popup::OPEN_POPUP, Popup::found_multiple(folder, found))
+      .inspect_err(|err| bang!(err));
+  }
+
+  fn overwrite_handler(
+    &self,
+    found: moss_lib::installer::StringOrPath,
+    folder: HybridPath,
+    entry: Self::Entry,
+  ) {
+    let _ = self
+      .ext_ctx
+      .submit_command_global(Popup::QUEUE_POPUP, Popup::overwrite(found, folder, entry))
+      .inspect_err(|err| bang!(err));
+  }
+
+  fn completed_handler(&self, entry: Self::Entry) {
+    let _ = self
+      .ext_ctx
+      .submit_command_global(INSTALL, ChannelMessage::Success(Box::new(entry)))
+      .inspect_err(|err| bang!(err));
+  }
+
+  fn check_conflict(&self, entry: &Self::Entry) -> impl Future<Output = bool> + Send + 'static {
+    let ext_ctx = self.ext_ctx.clone();
+    async move {
+      let _ = ext_ctx;
+      false
+    }
   }
 }
 

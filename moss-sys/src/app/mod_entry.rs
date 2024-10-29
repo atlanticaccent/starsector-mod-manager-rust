@@ -18,29 +18,34 @@ use druid::{
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
 use fake::Dummy;
 use json_comments::StripComments;
+use moss_lib::{
+  common::{
+    controllers::{next_id, MaxSizeBox, SharedIdHoverState},
+    labels::LabelExt as _,
+    lenses::LensExtExt as _,
+    widget_ext::{WidgetExtEx as _, WithHoverIdState},
+    widgets::card::Card,
+  },
+  druid_patch::table::{FlexTable, RowData},
+  icons::{NEW_RELEASES, REPORT, SICK, THUMB_UP}, web_client::WebClient,
+};
 use serde::{Deserialize, Serialize};
 use serde_aux::prelude::*;
+use tokio::io::AsyncWriteExt;
 
 use crate::{
   app::{
     app_delegate::AppCommands,
-    controllers::{next_id, MaxSizeBox, SharedIdHoverState},
     mod_description::{notify_enabled, ModDescription},
     mod_list::{headings::Heading, ModList},
-    util::{
-      self, default_true,
-      icons::{NEW_RELEASES, REPORT, SICK, THUMB_UP},
-      parse_game_version, LabelExt, LensExtExt, Tap, WidgetExtEx, WithHoverIdState as _,
-    },
+    util::{self, default_true, get_master_version, parse_game_version, Tap},
     App, SharedFromEnv,
   },
   nav_bar::{Nav, NavLabel},
-  patch::table::{FlexTable, RowData},
   theme::{
     BLUE_KEY, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ON_RED_KEY, ON_YELLOW_KEY,
     ORANGE_KEY, RED_KEY, YELLOW_KEY,
   },
-  widgets::card::Card,
   ENV_STATE,
 };
 
@@ -175,23 +180,14 @@ impl<T> ModEntry<T> {
 
 impl<T: Default> ModEntry<T> {
   pub fn from_file(path: &Path, manager_metadata: ModMetadata) -> Result<Self, ModEntryError> {
-    if let Ok(mod_info_file) = std::fs::read_to_string(path.join("mod_info.json")) {
-      let mut stripped = String::new();
-      if StripComments::new(mod_info_file.as_bytes())
-        .read_to_string(&mut stripped)
-        .is_ok()
-        && let Ok(mut mod_info) = json5::from_str::<Self>(&stripped)
-      {
-        mod_info.version_checker = ModEntry::parse_version_checker(path, &mod_info.id);
-        mod_info.path = path.to_path_buf();
-        mod_info.manager_metadata = manager_metadata;
-        Ok(mod_info)
-      } else {
-        Err(ModEntryError::ParseError)
-      }
-    } else {
-      Err(ModEntryError::FileError)
-    }
+    let mod_info_file = std::fs::read_to_string(path.join("mod_info.json"))?;
+    let mut stripped = String::new();
+    StripComments::new(mod_info_file.as_bytes()).read_to_string(&mut stripped)?;
+    let mut mod_info = json5::from_str::<Self>(&stripped)?;
+    mod_info.version_checker = ModEntry::parse_version_checker(path, &mod_info.id);
+    mod_info.path = path.to_path_buf();
+    mod_info.manager_metadata = manager_metadata;
+    Ok(mod_info)
   }
 }
 
@@ -259,6 +255,51 @@ impl ModEntry {
   }
 }
 
+impl TryFrom<&Path> for ModEntry {
+  type Error = ModEntryError;
+
+  fn try_from(mod_folder: &Path) -> Result<Self, Self::Error> {
+    let metadata = ModMetadata::default();
+    tokio::runtime::Handle::current().block_on(metadata.save(mod_folder))?;
+    ModEntry::from_file(mod_folder, metadata)
+  }
+}
+
+impl moss_lib::installer::Entry for ModEntry {
+  type Id = String;
+  type Error = ModEntryError;
+
+  fn id(&self) -> Self::Id {
+    self.id.clone()
+  }
+
+  fn destination_folder(&self, parent: &Path) -> PathBuf {
+    parent.join(self.id())
+  }
+
+  async fn enrich(&mut self, path: PathBuf) -> Result<(), ModEntryError> {
+    self.manager_metadata.save(&path).await?;
+
+    self.set_path(path);
+    if let Some(version_checker) = self.version_checker.as_ref() {
+      let client = WebClient::new();
+      self.remote_version = get_master_version(
+        &client,
+        None,
+        version_checker.remote_url.clone(),
+        version_checker.id.clone(),
+      )
+      .await;
+      self.update_status = Some(UpdateStatus::from((
+        version_checker,
+        &self.remote_version,
+      )));
+    }
+
+    Ok(())
+  }
+}
+
 impl ViewModEntry {
   pub fn view_cell(&self, heading: Heading) -> Option<impl Widget<Self>> {
     if heading == Heading::Score {
@@ -322,11 +363,7 @@ impl ViewModEntry {
                   )
                 })
               },
-              Button::from_label(Label::wrapped("Update available!")).on_click(
-                |ctx: &mut druid::EventCtx, data: &mut ViewModEntry, _| {
-                  ctx.submit_notification(ModEntry::AUTO_UPDATE.with(data.clone().into()));
-                },
-              ),
+              Button::from_label(Label::wrapped("Update available!")),
               Label::wrapped("No update available"),
             ),
             Label::wrapped("Unsupported"),
@@ -695,10 +732,12 @@ impl Default for Version {
   }
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum ModEntryError {
-  ParseError,
-  FileError,
+  #[error("JSON5 parsing error")]
+  JsonError(#[from] json5::Error),
+  #[error("I/O error")]
+  IoError(#[from] std::io::Error),
 }
 
 #[allow(clippy::derived_hash_with_manual_eq)]
@@ -899,14 +938,17 @@ impl ModMetadata {
   }
 
   pub async fn save(&self, mod_folder: impl AsRef<Path>) -> std::io::Result<()> {
-    use tokio::fs::write;
-
     let path = Self::path(mod_folder);
 
     let json = serde_json::to_vec_pretty(&self)?;
 
-    write(&path, json).await?;
+    let mut file = tokio::fs::File::create(path).await?;
 
-    Ok(())
+    file.write_all(&json).await?;
+    file.sync_all().await
+  }
+
+  pub fn save_blocking(&self, mod_folder: impl AsRef<Path>) -> std::io::Result<()> {
+    tokio::runtime::Handle::current().block_on(self.save(mod_folder))
   }
 }

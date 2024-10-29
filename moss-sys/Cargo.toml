@@ -13,10 +13,13 @@ leaky-api = []
 dhat-heap = ["dhat"]
 
 [dependencies]
+# Internal
+moss-lib = { workspace = true }
 proc-macros = { workspace = true }
 webview-subsystem = { workspace = true }
 webview-shared = { workspace = true }
 
+# External
 druid = { workspace = true, default-features = true, features = [
   "im",
   "serde",

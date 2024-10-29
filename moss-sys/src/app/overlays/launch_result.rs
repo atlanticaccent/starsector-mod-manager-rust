@@ -2,14 +2,10 @@ use druid::{
   widget::{Flex, Label},
   Data, Key, Widget, WidgetExt,
 };
+use moss_lib::{common::{labels::h2_fixed, widget_ext::WidgetExtEx, widgets::card::Card}, druid_patch::table::{FixedFlexTable, TableRow}};
 
 use super::Popup;
-use crate::{
-  app::util::{h2_fixed, WidgetExtEx as _},
-  patch::table::{FixedFlexTable, TableRow},
-  theme::{BLUE_KEY, ON_BLUE_KEY},
-  widgets::card::Card,
-};
+use crate::theme::{BLUE_KEY, ON_BLUE_KEY};
 
 pub struct LaunchResult;
 

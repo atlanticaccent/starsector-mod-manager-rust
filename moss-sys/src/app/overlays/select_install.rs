@@ -4,16 +4,12 @@ use druid::{
   LensExt, Selector, Widget, WidgetExt as _,
 };
 use druid_widget_nursery::WidgetExt;
+use moss_lib::common::{controllers::HoverController, labels::h2_fixed, widget_ext::CommandExt, widgets::card::Card};
 
 use super::Popup;
-use crate::{
-  app::{
-    controllers::HoverController,
-    settings::{InstallDirDelegate, Settings, SettingsCommand},
-    util::{h2_fixed, CommandExt as _},
-    App,
-  },
-  widgets::card::Card,
+use crate::app::{
+  settings::{InstallDirDelegate, Settings, SettingsCommand},
+  App,
 };
 
 pub struct SelectInstall;
