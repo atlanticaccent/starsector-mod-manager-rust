@@ -1,11 +1,10 @@
 use const_format::concatcp;
 use druid::{AppLauncher, WindowDesc};
-use moss_lib::installer::Installer;
 use tokio::runtime::Builder;
 use webview_shared::PROJECT;
 
 use crate::{
-  app::{app_delegate::AppDelegate, installer, App, AppViewExt},
+  app::{app_delegate::AppDelegate, installer::Installer, App, AppViewExt},
   theme::save_original_env,
 };
 
@@ -44,16 +43,10 @@ pub fn start() {
   let launcher = AppLauncher::with_window(main_window).configure_env(configure_env);
 
   let ext_ctx = launcher.get_external_handle();
-  let installer = Installer::new(
-    installer::error_handler(ext_ctx.clone()),
-    installer::multiple_handler(ext_ctx.clone()),
-    installer::overwrite_handler(ext_ctx.clone()),
-    installer::completed_handler(ext_ctx.clone()),
-    move |entry| installer::check_conflict(ext_ctx.clone(), entry.id.clone()),
-  );
+  let installer = Installer::new(ext_ctx);
 
   launcher
-    .delegate(AppDelegate::default())
+    .delegate(AppDelegate::new(installer))
     .launch(initial_state)
     .expect("Failed to launch application");
 }

@@ -21,3 +21,4 @@ tokio = { workspace = true }
 unrar = { workspace = true }
 compress-tools = { workspace = true }
 infer = { workspace = true }
+futures-util = { workspace = true }

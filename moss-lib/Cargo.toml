@@ -76,7 +76,7 @@ fake = { version = "2.10.0", features = [
 ] }
 extend = "1.2.0"
 itertools = "0.13.0"
-futures = "0.3.30"
+futures-util = "0.3.30"
 reqwest-middleware = "0.3.3"
 reqwest-retry = "0.6.1"
 http = "1.1.0"

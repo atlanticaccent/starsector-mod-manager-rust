@@ -11,6 +11,7 @@ pub mod theme_keys;
 pub mod widget_ext;
 #[allow(dead_code)]
 pub mod widgets;
+#[allow(unused_macros)]
 pub mod macro_rules;
 
 use druid::{lens, Color, Event, Key, MouseEvent, Selector};

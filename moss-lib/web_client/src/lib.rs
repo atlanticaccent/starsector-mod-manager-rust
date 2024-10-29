@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use futures::future::BoxFuture;
+use futures_util::future::BoxFuture;
 use http::Extensions;
 use reqwest::{Request, Response};
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware, Middleware, Next};
@@ -10,6 +10,7 @@ mod error;
 
 pub use error::Error;
 
+#[derive(Clone)]
 pub struct WebClient(ClientWithMiddleware);
 
 impl WebClient {

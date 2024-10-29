@@ -2558,6 +2558,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "compress-tools",
+ "futures-util",
  "infer",
  "itertools 0.13.0",
  "remove_dir_all",
@@ -5999,7 +6000,7 @@ name = "web-client"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "futures",
+ "futures-util",
  "http",
  "reqwest",
  "reqwest-middleware",

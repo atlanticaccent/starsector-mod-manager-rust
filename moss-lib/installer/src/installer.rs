@@ -1,14 +1,15 @@
 use std::{
   borrow::Cow,
   collections::VecDeque,
+  error::Error,
   fs::{copy, create_dir_all},
   future::Future,
   iter::FusedIterator,
-  marker::PhantomData,
   path::{Path, PathBuf},
   sync::Arc,
 };
 
+use futures_util::{FutureExt, TryFutureExt};
 use itertools::Itertools;
 use tempfile::{tempdir, TempDir};
 use tokio::{
@@ -18,10 +19,6 @@ use tokio::{
 };
 
 use crate::{Entry, InstallerDelegate};
-
-pub struct Installer<DEL> {
-  delegate: DEL,
-}
 
 #[derive(Clone)]
 pub enum Request<T, U = ()> {
@@ -35,41 +32,64 @@ pub enum Request<T, U = ()> {
   },
 }
 
-impl<T: Entry, DEL: InstallerDelegate<Entry = T>> Installer<DEL> {
-  pub fn new(delegate: DEL) -> Self {
-    Self { delegate }
-  }
+pub trait InstallerExt: InstallerDelegate
+where
+  for<'a> <<Self as InstallerDelegate>::Entry as TryFrom<&'a Path>>::Error: Send,
+  InstallError<<Self::Entry as Entry>::Error>: From<Self::InstallError>,
+  InstallError<<Self::Entry as Entry>::Error>: Into<Self::InstallError>,
+{
+  type InstallError: Send;
 
-  pub async fn install<U>(&self, request: Request<T, U>)
-  {
-    match request {
-      Request::Initial(targets, parent_dest) => {
-        let mut handles = JoinSet::new();
-        let parent_dest: Arc<Path> = parent_dest.into();
-        for target in targets {
-          handles.spawn(self.handle_path(target, parent_dest.clone()));
+  fn install<U: Send>(
+    &self,
+    request: Request<Self::Entry, U>,
+  ) -> impl Future<Output = Result<(), Self::InstallError>> + Send {
+    let installer = self.clone();
+    async move {
+      match request {
+        Request::Initial(mut targets, parent_dest) if targets.len() == 1 => {
+          installer
+            .handle_path(targets.pop().unwrap(), parent_dest)
+            .await
         }
+        Request::Initial(targets, parent_dest) => {
+          let mut handles = JoinSet::new();
+          let parent_dest: Arc<Path> = parent_dest.into();
+          for target in targets {
+            handles.spawn(installer.clone().handle_path(target, parent_dest.clone()));
+          }
 
-        handles.join_all().await;
+          let mut sum_result = Vec::new();
+          while let Some(res) = handles.join_next().await {
+            let res = res
+              .map_err(|err| Self::InstallError::from(InstallError::Join(err).into()))
+              .flatten();
+
+            sum_result.push(res);
+          }
+
+          let (completed, errors): (Vec<_>, Vec<_>) = sum_result.into_iter().partition_result();
+
+          Ok(todo!())
+        }
+        Request::Resumed(data, hybrid_path, path_buf) => todo!(),
+        Request::Download {
+          id,
+          url,
+          expected_version,
+          old_path,
+        } => todo!(),
       }
-      Request::Resumed(data, hybrid_path, path_buf) => todo!(),
-      Request::Download {
-        id,
-        url,
-        expected_version,
-        old_path,
-      } => todo!(),
     }
   }
 
   fn handle_path(
-    &self,
+    self,
     source: HybridPath,
-    parent_dest: Arc<Path>,
-  ) -> impl Future<Output = anyhow::Result<()>> {
-    let (error_handler, multiple_handler, overwrite_handler, completed_handler, conlict_check) =
-      self.into_parts();
+    parent_dest: impl AsRef<Path> + Send,
+  ) -> impl Future<Output = Result<(), Self::InstallError>> + Send {
     async move {
+      let parent_dest = parent_dest.as_ref();
       let path = source.get_path_copy();
       let file_name = path.file_name().map_or_else(
         || String::from("unknown"),
@@ -77,26 +97,15 @@ impl<T: Entry, DEL: InstallerDelegate<Entry = T>> Installer<DEL> {
       );
 
       let mod_folder = if path.is_file() {
-        let decompress = task::spawn_blocking(move || decompress(&path))
-          .await
-          .expect("Run decompression");
-        match decompress {
-          Ok(temp) => HybridPath::Temp(Arc::new(temp), file_name.clone(), None),
-          Err(err) => {
-            println!("{err:?}");
-
-            error_handler(err.as_ref());
-
-            return Err(err);
-          }
-        }
+        let decompress = task::spawn_blocking(move || decompress(&path)).await??;
+        HybridPath::Temp(Arc::new(decompress), file_name.clone(), None)
       } else {
         source
       };
 
       let dir = mod_folder.get_path_copy();
 
-      let res = match &mod_folder {
+      let mod_paths = match &mod_folder {
         HybridPath::PathBuf(_) | HybridPath::Temp(_, _, None) => {
           timeout(
             std::time::Duration::from_millis(500),
@@ -105,82 +114,79 @@ impl<T: Entry, DEL: InstallerDelegate<Entry = T>> Installer<DEL> {
           .await??
         }
         HybridPath::Temp(_, _, Some(path)) => Ok(vec![path.clone()]),
-      };
+      }
+      .map_err(InstallError::ModSearchError)?;
 
-      match res {
-        Ok(mod_paths) => {
-          #[allow(irrefutable_let_patterns)]
-          if mod_paths.len() > 1 {
-            let found = mod_paths
-              .into_iter()
-              .filter_map(|path| T::try_from(&path).ok())
-              .collect_vec();
+      #[allow(irrefutable_let_patterns)]
+      if mod_paths.len() > 1 {
+        let found = mod_paths
+          .into_iter()
+          .filter_map(|path| Self::Entry::try_from(&path).ok())
+          .collect_vec();
 
-            multiple_handler(mod_folder, found);
+        self.multiple_handler(mod_folder, found);
 
-            Ok(())
-          } else if let Some(mod_path) = mod_paths.first()
+        Ok(())
+      } else if let Some(mod_path) = mod_paths.first()
             // && let mod_metadata = ModMetadata::new()
             // && mod_metadata.save(mod_path).await.is_ok()
-            && let Ok(mut mod_info) = T::try_from(mod_path)
-          {
-            if conlict_check(&mod_info).await {
-              // note: this is probably the way wrong way of doing this
-              // instead, just submit the new entry if it doesn't conflict with an existing
-              // path, _then_ detect the conflict that way there's less chance an
-              // existing ID gets missed due to the ID list effectively getting cached when
-              // this function starts
+            && let Ok(mut mod_info) = Self::Entry::try_from(mod_path)
+      {
+        if self.check_conflict(&mod_info).await {
+          // note: this is probably the way wrong way of doing this
+          // instead, just submit the new entry if it doesn't conflict with an existing
+          // path, _then_ detect the conflict that way there's less chance an
+          // existing ID gets missed due to the ID list effectively getting cached when
+          // this function starts
 
-              overwrite_handler(
-                mod_info.id().into(),
-                mod_folder.with_path(mod_path),
-                mod_info,
-              )
-            } else if let target_path = mod_info.destination_folder(&parent_dest)
-              && target_path.exists()
-              && target_path.is_dir()
-              && !location_is_empty(&target_path)
-            {
-              overwrite_handler(target_path.into(), mod_folder.with_path(mod_path), mod_info)
-            } else {
-              let destination = mod_info.destination_folder(&parent_dest);
+          self.overwrite_handler(
+            mod_info.id().into(),
+            mod_folder.with_path(mod_path),
+            mod_info,
+          )
+        } else if let target_path = mod_info.destination_folder(&parent_dest)
+          && target_path.exists()
+          && target_path.is_dir()
+          && !location_is_empty(&target_path)
+        {
+          self.overwrite_handler(target_path.into(), mod_folder.with_path(mod_path), mod_info)
+        } else {
+          let destination = mod_info.destination_folder(&parent_dest);
 
-              move_or_copy(mod_path.clone(), destination.clone()).await;
+          move_or_copy(mod_path.clone(), destination.clone()).await;
 
-              mod_info.enrich(destination).await?;
-              completed_handler(mod_info)
-            }
-
-            Ok(())
-          } else {
-            let err = anyhow::anyhow!("Could not find mod folder or parse mod_info.json");
-
-            error_handler(err.as_ref());
-
-            return Err(err);
-          }
+          mod_info
+            .enrich(destination)
+            .await
+            .map_err(InstallError::EntryEnrichmentError)?;
+          self.completed_handler(mod_info)
         }
-        Err(err) => {
-          let err = anyhow::Error::new(err).context(format!("Failed to find mod"));
 
-          error_handler(err.as_ref());
-
-          Err(err)
-        }
+        Ok(())
+      } else {
+        Err(InstallError::ModSearchErrorUnknown)
       }
     }
+    .map_err(Into::into)
   }
+}
+
+impl<T: InstallerDelegate> InstallerExt for T
+where
+  for<'a> <<Self as InstallerDelegate>::Entry as TryFrom<&'a Path>>::Error: Send,
+{
+  type InstallError = InstallError<<Self::Entry as Entry>::Error>;
 }
 
 fn location_is_empty(loc: &Path) -> bool {
   loc.read_dir().into_iter().flatten().flatten().count() == 0
 }
 
-pub fn decompress(path: &Path) -> anyhow::Result<TempDir> {
+pub fn decompress<E: Error + Send>(path: &Path) -> Result<TempDir, InstallError<E>> {
   let source = std::fs::File::open(path)?;
   let temp_dir = tempdir()?;
   let mime_type = infer::get_from_path(path)?
-    .ok_or(InstallError::Mime)?
+    .ok_or(InstallError::<E>::Mime)?
     .mime_type();
 
   match mime_type {
@@ -350,7 +356,13 @@ impl From<PathBuf> for HybridPath {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum InstallError {
+pub enum InstallError<E: Error> {
+  #[error("Failed to find mod")]
+  ModSearchError(#[source] std::io::Error),
+  #[error("Unknown failure to find mod")]
+  ModSearchErrorUnknown,
+  #[error("Entry enrichment error")]
+  EntryEnrichmentError(#[source] E),
   #[error("I/O error: {0:?}")]
   Io(#[from] std::io::Error),
   #[error("Failed to determine file type")]

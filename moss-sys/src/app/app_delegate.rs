@@ -3,7 +3,7 @@ use druid::{
   KeyEvent, LensExt as _, SingleUse, Target, WindowHandle, WindowId,
 };
 use itertools::Itertools;
-use moss_lib::{installer::Installer, updater::check_for_update};
+use moss_lib::updater::check_for_update;
 use rand::random;
 use remove_dir_all::remove_dir_all;
 use reqwest::Url;
@@ -19,20 +19,31 @@ use super::{
   util::{get_starsector_version, GET_INSTALLED_STARSECTOR},
   App,
 };
-use crate::{app::updater::get_update_status_handler, nav_bar::Nav};
+use crate::{
+  app::{installer::Installer, updater::get_update_status_handler},
+  nav_bar::Nav,
+};
 
 pub enum AppCommands {
   UpdateModDescription(ModDescription<String>),
   PickFile(bool),
 }
 
-#[derive(Default)]
 pub struct AppDelegate {
   pub root_id: Option<WindowId>,
   pub root_window: Option<WindowHandle>,
 
-  pub startup_popups: Vec<Popup>,
-  // pub installer: Installer<>
+  pub installer: Installer,
+}
+
+impl AppDelegate {
+  pub fn new(installer: Installer) -> Self {
+    Self {
+      root_id: None,
+      root_window: None,
+      installer,
+    }
+  }
 }
 
 impl Delegate<App> for AppDelegate {
@@ -377,7 +388,6 @@ impl Delegate<App> for AppDelegate {
           {
             delayed_popups.push(Popup::SelectInstall);
           }
-          delayed_popups.append(&mut self.startup_popups);
 
           ctx.submit_command(Popup::DELAYED_POPUP.with(delayed_popups));
         }

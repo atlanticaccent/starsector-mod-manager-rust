@@ -13,7 +13,7 @@ use chrono::Local;
 use druid::{ExtEventSink, Selector, SingleUse, Target};
 use itertools::Itertools;
 use moss_lib::{
-  installer::{HybridPath, InstallerDelegate},
+  installer::{Entry, HybridPath, InstallerDelegate, InstallerExt, Request},
   web_client::WebClient,
 };
 use remove_dir_all::remove_dir_all;
@@ -558,14 +558,25 @@ pub enum ChannelMessage {
   Error(String, String),
 }
 
-pub struct InstallerImpl {
+#[derive(Clone)]
+pub struct Installer {
   ext_ctx: ExtEventSink,
 }
 
-impl InstallerDelegate for InstallerImpl {
+impl Installer {
+  pub fn new(ext_ctx: ExtEventSink) -> Self {
+    Self { ext_ctx }
+  }
+
+  pub async fn install<U: Send>(&self, request: Request<ModEntry, U>) {
+    <Self as InstallerExt>::install(&self, request).await;
+  }
+}
+
+impl InstallerDelegate for Installer {
   type Entry = ModEntry;
 
-  fn error_handler(&self, error: &dyn std::error::Error) {
+  fn error_handler(&self, error: &(dyn std::error::Error + Send + Sync + 'static)) {
     let _ = self
       .ext_ctx
       .submit_command_global(
@@ -575,7 +586,7 @@ impl InstallerDelegate for InstallerImpl {
       .inspect_err(|err| bang!(err));
   }
 
-  fn multiple_handler(&self, folder: HybridPath, found: Vec<Self::Entry>) {
+  fn multiple_handler(&self, folder: HybridPath, found: Vec<ModEntry>) {
     let _ = self
       .ext_ctx
       .submit_command_global(Popup::OPEN_POPUP, Popup::found_multiple(folder, found))
@@ -586,7 +597,7 @@ impl InstallerDelegate for InstallerImpl {
     &self,
     found: moss_lib::installer::StringOrPath,
     folder: HybridPath,
-    entry: Self::Entry,
+    entry: ModEntry,
   ) {
     let _ = self
       .ext_ctx
@@ -594,17 +605,19 @@ impl InstallerDelegate for InstallerImpl {
       .inspect_err(|err| bang!(err));
   }
 
-  fn completed_handler(&self, entry: Self::Entry) {
+  fn completed_handler(&self, entry: ModEntry) {
     let _ = self
       .ext_ctx
       .submit_command_global(INSTALL, ChannelMessage::Success(Box::new(entry)))
       .inspect_err(|err| bang!(err));
   }
 
-  fn check_conflict(&self, entry: &Self::Entry) -> impl Future<Output = bool> + Send + 'static {
+  fn check_conflict(&self, entry: &ModEntry) -> impl Future<Output = bool> + Send + 'static {
     let ext_ctx = self.ext_ctx.clone();
+    let id = entry.id();
     async move {
       let _ = ext_ctx;
+      let _ = id;
       false
     }
   }

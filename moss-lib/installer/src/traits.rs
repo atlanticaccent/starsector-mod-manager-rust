@@ -1,14 +1,15 @@
 use std::{
-  error::Error,
-  future::Future,
-  path::{Path, PathBuf},
+  error::Error, future::Future, path::{Path, PathBuf}
 };
 
 use crate::{HybridPath, StringOrPath};
 
-pub trait Entry: for<'a> TryFrom<&'a Path> + Send + 'static {
+pub use crate::installer::InstallerExt;
+
+pub trait Entry: for<'a> TryFrom<&'a Path> + Send + 'static
+{
   type Id: Into<StringOrPath>;
-  type Error: std::error::Error + Send + Sync;
+  type Error: Error + Send + Sync;
 
   fn id(&self) -> Self::Id;
 
@@ -20,10 +21,11 @@ pub trait Entry: for<'a> TryFrom<&'a Path> + Send + 'static {
   ) -> impl Future<Output = Result<(), <Self as Entry>::Error>> + Send;
 }
 
-pub trait InstallerDelegate: Clone + Send + 'static {
+pub trait InstallerDelegate: Clone + Send + 'static
+{
   type Entry: Entry;
 
-  fn error_handler(&self, error: &dyn Error);
+  fn error_handler(&self, error: &(dyn Error + Send + Sync + 'static));
 
   fn multiple_handler(&self, folder: HybridPath, found: Vec<Self::Entry>);
 

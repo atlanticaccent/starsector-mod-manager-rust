@@ -84,32 +84,39 @@ pub async fn get_master_version(
   remote_url: String,
   id: String,
 ) -> Option<ModVersionMeta> {
-  let res = client.get(remote_url).await;
-
-  let payload = match res {
-    Err(err) => (id, Err(err.into())),
-    Ok(remote) => {
-      let mut stripped = String::new();
-      if StripComments::new(remote.as_bytes())
-        .read_to_string(&mut stripped)
-        .is_ok()
-        && let Ok(normalized) = handwritten_json::normalize(&stripped)
-        && let Ok(remote) = json5::from_str::<ModVersionMeta>(&normalized)
-      {
-        (id, Ok(remote))
-      } else {
-        (id, Err(anyhow::anyhow!("Parse error. Payload:\n{remote}")))
+  let request = async |client: &WebClient| {
+    let res = client.get(remote_url).await;
+  
+    match res {
+      Err(err) => (id, Err(err.into())),
+      Ok(remote) => {
+        let mut stripped = String::new();
+        if StripComments::new(remote.as_bytes())
+          .read_to_string(&mut stripped)
+          .is_ok()
+          && let Ok(normalized) = handwritten_json::normalize(&stripped)
+          && let Ok(remote) = json5::from_str::<ModVersionMeta>(&normalized)
+        {
+          (id, Ok(remote))
+        } else {
+          (id, Err(anyhow::anyhow!("Parse error. Payload:\n{remote}")))
+        }
       }
     }
   };
 
   if let Some(ext_sink) = ext_sink {
-    if let Err(err) = ext_sink.submit_command(MASTER_VERSION_RECEIVED, payload, Target::Auto) {
-      eprintln!("Failed to submit remote version data {err}");
-    }
+    let client = client.clone();
+    tokio::spawn(async move {
+      let payload = request(&client).await;
+
+      if let Err(err) = ext_sink.submit_command(MASTER_VERSION_RECEIVED, payload, Target::Auto) {
+        eprintln!("Failed to submit remote version data {err}");
+      }
+    });
     None
   } else {
-    payload.1.ok()
+    request(client).await.1.ok()
   }
 }
 

@@ -6,7 +6,7 @@ edition = "2021"
 description = "HTTP client with retries for MOSS"
 
 [dependencies]
-futures = { workspace = true }
+futures-util = { workspace = true }
 http = { workspace = true }
 reqwest = { workspace = true }
 reqwest-middleware = { workspace = true }

@@ -1,7 +1,8 @@
 #![feature(let_chains)]
+#![feature(result_flattening)]
 
-mod installer;
+pub(crate) mod installer;
 mod traits;
 
-pub use installer::{HybridPath, Installer, StringOrPath};
-pub use traits::{Entry, InstallerDelegate};
+pub use installer::{HybridPath, Request, StringOrPath};
+pub use traits::{Entry, InstallerDelegate, InstallerExt};

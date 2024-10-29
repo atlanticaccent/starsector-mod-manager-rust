@@ -18,7 +18,9 @@ use druid_widget_nursery::{
   WidgetExt as _,
 };
 use flate2::read::GzDecoder;
-use moss_lib::common::{controllers::AnimController, labels::h2_fixed, widget_ext::WidgetExtEx, widgets::card::Card};
+use moss_lib::common::{
+  controllers::AnimController, labels::h2_fixed, widget_ext::WidgetExtEx, widgets::card::Card,
+};
 use rand::random;
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
@@ -620,6 +622,7 @@ impl Flavour {
     Ok(())
   }
 
+  #[cfg_attr(target_os = "macos", allow(dead_code))]
   fn recursive_move(from: &Path, to: &Path) -> anyhow::Result<()> {
     for entry in from.read_dir()? {
       let entry = entry?;
