@@ -3043,23 +3043,10 @@ version = "0.1.0"
 dependencies = [
  "mimalloc",
  "moss-lib",
- "moss-sys",
 ]
 
 [[package]]
 name = "moss-lib"
-version = "0.1.0"
-dependencies = [
- "common",
- "druid-patch",
- "icons",
- "installer",
- "updater",
- "web-client",
-]
-
-[[package]]
-name = "moss-sys"
 version = "0.8.0-beta2"
 dependencies = [
  "ahash",
@@ -3070,6 +3057,7 @@ dependencies = [
  "chrono",
  "classfile-parser",
  "comemo",
+ "common",
  "compress-tools",
  "const_format",
  "derive_more 1.0.0",
@@ -3077,22 +3065,25 @@ dependencies = [
  "dhat",
  "directories",
  "druid",
+ "druid-patch",
  "druid-widget-nursery",
  "extend",
  "fake",
  "flate2",
- "futures",
+ "futures-util",
  "gtk",
  "handwritten-json",
  "http",
+ "icons",
  "indexmap 2.6.0",
  "indoc",
  "infer",
+ "installer",
  "itertools 0.13.0",
  "json5",
  "json_comments",
+ "macros",
  "metal",
- "moss-lib",
  "native-dialog",
  "opener",
  "proc-macros",
@@ -3117,6 +3108,8 @@ dependencies = [
  "tokio",
  "tokio-util",
  "unrar",
+ "updater",
+ "web-client",
  "webview-shared",
  "webview-subsystem",
  "wry",

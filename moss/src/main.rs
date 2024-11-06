@@ -4,5 +4,5 @@ use mimalloc::MiMalloc;
 static GLOBAL: MiMalloc = MiMalloc;
 
 fn main() {
-  moss_sys::entrypoint::start()
+  moss_lib::entrypoint::start()
 }

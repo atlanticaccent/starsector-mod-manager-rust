@@ -16,21 +16,35 @@ debug = 1
 [workspace]
 members = [
   "moss",
-  "moss-sys",
+  "moss-lib",
   "webview-subsystem",
   "webview-subsystem-shared",
   "proc-macros",
+  "common",
+  "druid-patch",
+  "macros",
+  "icons",
+  "updater",
+  "web-client",
+  "installer",
 ]
-exclude = ["moss-lib", "moss-lib/**"]
 resolver = "2"
 
 [workspace.dependencies]
-moss-sys = { path = "moss-sys" }
+# Internal
 moss-lib = { path = "moss-lib" }
 proc-macros = { path = "proc-macros" }
 webview-subsystem = { path = "webview-subsystem" }
 webview-shared = { path = "webview-subsystem-shared" }
+common = { path = "common" }
+druid-patch = { path = "druid-patch" }
+macros = { path = "macros" }
+icons = { path = "icons" }
+updater = { path = "updater" }
+web-client = { path = "web-client" }
+installer = { path = "installer" }
 
+# External
 wry = { git = "https://github.com/atlanticaccent/wry.git", branch = "screenshot-v2" }
 druid = { git = "https://github.com/atlanticaccent/druid", default-features = false, features = [
   "raw-win-handle",
@@ -80,7 +94,7 @@ fake = { version = "2.10.0", features = [
 ] }
 extend = "1.2.0"
 itertools = "0.13.0"
-futures = "0.3.30"
+futures-util = "0.3.30"
 reqwest-middleware = "0.3.3"
 reqwest-retry = "0.6.1"
 http = "1.1.0"

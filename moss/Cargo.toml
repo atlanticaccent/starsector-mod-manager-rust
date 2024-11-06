@@ -6,7 +6,6 @@ edition = "2021"
 description = "A mod manager for the game Starsector"
 
 [dependencies]
-moss-sys = { workspace = true }
 moss-lib = { workspace = true }
 mimalloc = { workspace = true }
 

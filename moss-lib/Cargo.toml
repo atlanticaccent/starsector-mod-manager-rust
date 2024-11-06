@@ -1,86 +1,124 @@
 [package]
 name = "moss-lib"
-version = "0.1.0"
+version = "0.8.0-beta2"
 authors = ["ikl"]
 edition = "2021"
-description = "Components for building MOSS"
+description = "A mod manager for the game Starsector"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+default = []
+leaky-api = []
+dhat-heap = ["dhat"]
 
 [dependencies]
+# Internal
+proc-macros = { workspace = true }
+webview-subsystem = { workspace = true }
+webview-shared = { workspace = true }
 common = { workspace = true }
 druid-patch = { workspace = true }
+macros = { workspace = true }
 icons = { workspace = true }
 updater = { workspace = true }
 web-client = { workspace = true }
 installer = { workspace = true }
 
-[workspace]
-members = ["common", "druid-patch", "macros", "icons", "updater", "web-client"]
-resolver = "2"
-
-[workspace.dependencies]
-# Internal
-common = { path = "common" }
-druid-patch = { path = "druid-patch" }
-macros = { path = "macros" }
-icons = { path = "icons" }
-updater = { path = "updater" }
-web-client = { path = "web_client" }
-installer = { path = "installer" }
-
 # External
-druid = { git = "https://github.com/atlanticaccent/druid", default-features = false, features = [
+druid = { workspace = true, default-features = true, features = [
+  "im",
+  "serde",
   "raw-win-handle",
-], branch = "faster-hashing" }
-druid-widget-nursery = { git = "https://github.com/atlanticaccent/druid-widget-nursery", default-features = false }
-tokio = { version = "1.40.0" }
-tokio-util = { version = "0.7" }
-infer = "0.16.0"
-chrono = { version = "0.4.38" }
-serde = { version = "1.0.210", default-features = false }
-serde_json = "1.0"
-json5 = "0.4.1"
-json_comments = "0.2.2"
-reqwest = { version = "0.12.8", default-features = false }
-serde-aux = "4.5.0"
-handwritten-json = { git = "https://github.com/atlanticaccent/rust-handwritten-json.git" }
-unrar = "0.4"
-opener = "0.7"
-directories = "5.0"
-tempfile = "^3.13"
-compress-tools = "0.15.1"
-remove_dir_all = "^0.8.4"
-sublime_fuzzy = "0.7.0"
-classfile-parser = "~0.3"
-zip = "2"
-regex = "1.11"
-strum = "0.26"
-strum_macros = "0.26"
-rayon = "1.10"
-self_update = { version = "0.41.0", default-features = false }
-indexmap = "2.6.0"
-rand = "0.8.5"
-base64 = "0.22.1"
-const_format = "0.2.33"
-anyhow = "1.0.89"
-flate2 = "1.0"
-tar = "0.4"
-deunicode = "1.6.0"
-ahash = "0.8.11"
-thiserror = "1.0.64"
-comemo = "0.4.0"
-fake = { version = "2.10.0", features = [
-  "derive",
-  "chrono",
-  "chrono-tz",
-  "random_color",
+  "image",
+  "png",
 ] }
-extend = "1.2.0"
-itertools = "0.13.0"
-futures-util = "0.3.30"
-reqwest-middleware = "0.3.3"
-reqwest-retry = "0.6.1"
-http = "1.1.0"
-async-trait = "0.1.83"
-derive_more = "1.0"
-indoc = "2.0"
-cargo-packager-updater = "0.2"
+druid-widget-nursery = { workspace = true, default-features = false, features = [
+  "material-icons",
+  "async",
+  "hot-reload",
+  "derive",
+] }
+infer = { workspace = true }
+tokio = { workspace = true, features = [
+  "fs",
+  "io-util",
+  "rt-multi-thread",
+  "process",
+  "macros",
+] }
+tokio-util = { workspace = true, features = ["rt"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+json5 = { workspace = true }
+json_comments = { workspace = true }
+reqwest = { workspace = true, default-features = false, features = [
+  "rustls-tls",
+  "json",
+  "gzip",
+  "brotli",
+  "deflate",
+] }
+serde-aux = { workspace = true }
+handwritten-json = { workspace = true }
+unrar = { workspace = true }
+opener = { workspace = true }
+directories = { workspace = true }
+tempfile = { workspace = true }
+compress-tools = { workspace = true }
+remove_dir_all = { workspace = true }
+sublime_fuzzy = { workspace = true }
+classfile-parser = { workspace = true }
+zip = { workspace = true }
+regex = { workspace = true }
+strum = { workspace = true }
+strum_macros = { workspace = true }
+rayon = { workspace = true }
+self_update = { workspace = true, default-features = false, features = [
+  "rustls",
+  "archive-zip",
+  "compression-zip-bzip2",
+  "compression-zip-deflate",
+] }
+indexmap = { workspace = true }
+chrono = { workspace = true, features = ["serde"] }
+rand = { workspace = true }
+base64 = { workspace = true }
+const_format = { workspace = true }
+anyhow = { workspace = true }
+flate2 = { workspace = true }
+tar = { workspace = true }
+deunicode = { workspace = true }
+ahash = { workspace = true }
+wry = { workspace = true }
+thiserror = { workspace = true }
+comemo = { workspace = true }
+fake = { workspace = true }
+extend = { workspace = true }
+itertools = { workspace = true }
+futures-util = { workspace = true }
+reqwest-middleware = { workspace = true }
+reqwest-retry = { workspace = true }
+http = { workspace = true }
+async-trait = { workspace = true }
+derive_more = { workspace = true, features = ["from", "into"] }
+cargo-packager-updater = { workspace = true }
+
+dhat = { version = "0.3", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+indoc = { workspace = true }
+
+[target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))'.dependencies]
+native-dialog = "0.7"
+gtk = { version = "0.18.1" }
+
+[target.'cfg(not(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd")))'.dependencies]
+rfd = "0.15"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+metal = "0.29"
+
+[[example]]
+name = "dim_constraints"
+required-features = ["leaky-api"]
