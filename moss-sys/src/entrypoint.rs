@@ -23,15 +23,6 @@ pub fn start() {
 
   let _guard = runtime.enter();
 
-  // create the initial app state
-  let mut initial_state = App::new(runtime.handle().clone());
-
-  if let Some(install_dir) = initial_state.settings.install_dir.as_ref() {
-    if !install_dir.exists() {
-      initial_state.settings.install_dir = None;
-    }
-  }
-
   let main_window = WindowDesc::new(App::view().overlay().theme_wrapper().env_as_shared_data())
     .title(concatcp!(
       "MOSS | Mod Organizer for StarSector v",
@@ -45,8 +36,17 @@ pub fn start() {
   let ext_ctx = launcher.get_external_handle();
   let installer = Installer::new(ext_ctx);
 
+  // create the initial app state
+  let mut initial_state = App::new(runtime.handle().clone(), installer);
+
+  if let Some(install_dir) = initial_state.settings.install_dir.as_ref() {
+    if !install_dir.exists() {
+      initial_state.settings.install_dir = None;
+    }
+  }
+
   launcher
-    .delegate(AppDelegate::new(installer))
+    .delegate(AppDelegate::new(/* installer */))
     .launch(initial_state)
     .expect("Failed to launch application");
 }

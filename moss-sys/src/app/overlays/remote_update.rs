@@ -1,16 +1,22 @@
-use std::rc::Rc;
+use std::{cell::Cell, rc::Rc};
 
 use druid::{
   widget::{Either, Flex, Label},
   Data, Key, Widget, WidgetExt,
 };
 use druid_widget_nursery::material_icons::Icon;
-use moss_lib::{common::{labels::h2_fixed, widget_ext::{WidgetExtEx, WithHoverState}, widgets::card::Card}, druid_patch::table::{FixedFlexTable, TableColumnWidth, TableRow}};
+use moss_lib::{
+  common::{
+    labels::h2_fixed,
+    widget_ext::{WidgetExtEx, WithHoverState},
+    widgets::card::Card,
+  },
+  druid_patch::table::{FixedFlexTable, TableColumnWidth, TableRow},
+};
 
 use super::Popup;
 use crate::{
   app::{
-    installer,
     mod_entry::{ModVersionMeta, Version},
     util::DataTimer,
     App, CONTENT_COPY, DONE_ALL,
@@ -49,8 +55,9 @@ impl RemoteUpdate {
       remote_version,
     } = self;
     let mod_id = mod_id.clone();
-    let remote_version = remote_version.clone();
     let direct_download_url = remote_version.direct_download_url.clone().unwrap();
+    let new_version = remote_version.version.to_string();
+    let remote_version = Cell::new(Some(remote_version.clone()));
 
     Card::builder()
       .with_insets(Card::CARD_INSET)
@@ -102,7 +109,7 @@ impl RemoteUpdate {
               .with_row(
                 TableRow::new()
                   .with_child(Label::new("The new version will be:").align_left())
-                  .with_child(Label::new(remote_version.version.to_string()).align_left()),
+                  .with_child(Label::new(new_version).align_left()),
               ),
           )
           .with_default_spacer()
@@ -137,18 +144,13 @@ impl RemoteUpdate {
                     new.view_state.updating = true;
                     let new = Rc::new(new.clone());
                     data.mod_list.mods[&mod_id] = new;
-                    data.runtime.spawn(
-                      installer::Payload::Download {
-                        mod_id: mod_id.clone(),
+
+                    data.runtime.spawn(data.installer.install(
+                      moss_lib::installer::Request::Download {
+                        remote_data: remote_version.replace(None).take().unwrap(),
                         old_path: data.mod_list.mods[&mod_id].path.clone(),
-                        remote_version: remote_version.clone(),
-                      }
-                      .install(
-                        ctx.get_external_handle(),
-                        data.settings.install_dir.clone().unwrap(),
-                        data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
-                      ),
-                    );
+                      },
+                    ));
                   }),
               )
               .with_child(

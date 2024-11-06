@@ -27,7 +27,8 @@ use moss_lib::{
     widgets::card::Card,
   },
   druid_patch::table::{FlexTable, RowData},
-  icons::{NEW_RELEASES, REPORT, SICK, THUMB_UP}, web_client::WebClient,
+  icons::{NEW_RELEASES, REPORT, SICK, THUMB_UP},
+  web_client::WebClient,
 };
 use serde::{Deserialize, Serialize};
 use serde_aux::prelude::*;
@@ -260,6 +261,7 @@ impl TryFrom<&Path> for ModEntry {
 
   fn try_from(mod_folder: &Path) -> Result<Self, Self::Error> {
     let metadata = ModMetadata::default();
+
     tokio::runtime::Handle::current().block_on(metadata.save(mod_folder))?;
     ModEntry::from_file(mod_folder, metadata)
   }
@@ -267,7 +269,8 @@ impl TryFrom<&Path> for ModEntry {
 
 impl moss_lib::installer::Entry for ModEntry {
   type Id = String;
-  type Error = ModEntryError;
+  type ParseError = ModEntryError;
+  type EnrichmentError = ModEntryError;
 
   fn id(&self) -> Self::Id {
     self.id.clone()
@@ -275,6 +278,13 @@ impl moss_lib::installer::Entry for ModEntry {
 
   fn destination_folder(&self, parent: &Path) -> PathBuf {
     parent.join(self.id())
+  }
+
+  async fn parse(path: impl AsRef<Path>) -> Result<Self, ModEntryError> {
+    let path = path.as_ref();
+    let metadata = ModMetadata::default();
+    metadata.save(path).await?;
+    ModEntry::from_file(path, metadata)
   }
 
   async fn enrich(&mut self, path: PathBuf) -> Result<(), ModEntryError> {
@@ -290,10 +300,7 @@ impl moss_lib::installer::Entry for ModEntry {
         version_checker.id.clone(),
       )
       .await;
-      self.update_status = Some(UpdateStatus::from((
-        version_checker,
-        &self.remote_version,
-      )));
+      self.update_status = Some(UpdateStatus::from((version_checker, &self.remote_version)));
     }
 
     Ok(())
@@ -760,6 +767,18 @@ pub struct ModVersionMeta {
   pub nexus_id: String,
   #[serde(alias = "modVersion")]
   pub version: VersionComplex,
+}
+
+impl moss_lib::installer::EntryUpdate for ModVersionMeta {
+  type Entry = ModEntry;
+
+  fn url(&self) -> String {
+    self.direct_download_url.clone().unwrap()
+  }
+
+  fn matches(&self, entry: &ModEntry) -> bool {
+    entry.version_checker.as_ref().unwrap().version == self.version
+  }
 }
 
 impl PartialEq for ModVersionMeta {

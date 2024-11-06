@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use druid::{
   im::{HashSet, Vector},
@@ -33,6 +33,7 @@ use crate::{
   app::{
     browser::Browser,
     controllers::{AppController, ModListController},
+    installer::{AsyncError, Installer},
     mod_description::{ModDescription, ENABLE_DEPENDENCIES},
     mod_entry::{GameVersion, ModEntry, UpdateStatus, ViewModEntry},
     mod_list::ModList,
@@ -73,6 +74,8 @@ pub struct App {
   #[data(ignore)]
   runtime: Handle,
   #[data(ignore)]
+  installer: Arc<Installer>,
+  #[data(ignore)]
   widget_id: WidgetId,
   browser: Browser,
   mod_repo: Option<ModRepo>,
@@ -88,7 +91,7 @@ impl App {
   pub const ENABLE: Selector<()> = Selector::new("app.enable");
   const DISABLE: Selector<()> = Selector::new("app.disable");
   const CONFIRM_DELETE_MOD: Selector<ModEntry> = Selector::new("app.mod_entry.delete");
-  const LOG_ERROR: Selector<(String, String)> = Selector::new("app.mod.install.fail");
+  const LOG_ERROR: Selector<(String, Arc<dyn AsyncError>)> = Selector::new("app.mod.install.fail");
   const LOG_MESSAGE: Selector<String> = Selector::new("app.mod.install.start");
   const LOG_OVERWRITE: Selector<(StringOrPath, HybridPath, ModEntry)> =
     Selector::new("app.mod.install.overwrite");
@@ -104,7 +107,7 @@ impl App {
   const TOGGLE_NAV_BAR: Selector = Selector::new("app.nav_bar.collapse");
   const OPEN_EXTERNALLY: Selector<String> = Selector::new("app.user_browser.open");
 
-  pub fn new(runtime: Handle) -> Self {
+  pub fn new(runtime: Handle, installer: Installer) -> Self {
     let settings = settings::Settings::load()
       .map(|mut settings| {
         if let Some(install_dir) = settings.install_dir.clone() {
@@ -127,6 +130,7 @@ impl App {
       mod_list: mod_list::ModList::new(headings),
       active: None,
       runtime,
+      installer: Arc::new(installer),
       widget_id: WidgetId::reserved(0),
       browser: Default::default(),
       mod_repo: None,
@@ -372,6 +376,7 @@ impl<'a> From<&'a App> for std::sync::Arc<EnvSharedData> {
       block_next_root_stack: _,
       views: _,
       current_view: _,
+      installer: _,
     }: &'a App,
   ) -> Self {
     std::sync::Arc::new(EnvSharedData {

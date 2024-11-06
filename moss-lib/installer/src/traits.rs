@@ -1,31 +1,53 @@
 use std::{
-  error::Error, future::Future, path::{Path, PathBuf}
+  error::Error,
+  fmt::Debug,
+  future::Future,
+  path::{Path, PathBuf},
 };
 
-use crate::{HybridPath, StringOrPath};
+use futures_util::TryFutureExt as _;
 
 pub use crate::installer::InstallerExt;
+use crate::{HybridPath, InstallError, StringOrPath};
 
-pub trait Entry: for<'a> TryFrom<&'a Path> + Send + 'static
-{
+pub trait Entry: Debug + Sized + Send + 'static {
   type Id: Into<StringOrPath>;
-  type Error: Error + Send + Sync;
+  type EnrichmentError: Error + Send + Sync;
+  type ParseError: Error + Send + Sync;
 
   fn id(&self) -> Self::Id;
+
+  fn parse(path: impl AsRef<Path> + Send) -> impl Future<Output = Result<Self, <Self as Entry>::ParseError>> + Send;
 
   fn destination_folder(&self, parent: &Path) -> PathBuf;
 
   fn enrich(
     &mut self,
     path: PathBuf,
-  ) -> impl Future<Output = Result<(), <Self as Entry>::Error>> + Send;
+  ) -> impl Future<Output = Result<(), <Self as Entry>::EnrichmentError>> + Send;
 }
 
-pub trait InstallerDelegate: Clone + Send + 'static
-{
+pub(crate) trait EntryExt: Entry {
+  fn parse_ext(path: impl AsRef<Path> + Send) -> impl Future<Output = Result<Self, InstallError<Self>>> + Send {
+    Self::parse(path).map_err(InstallError::EntryParsingError)
+  }
+}
+
+impl<T: Entry> EntryExt for T {}
+
+pub trait EntryUpdate: Send {
   type Entry: Entry;
 
-  fn error_handler(&self, error: &(dyn Error + Send + Sync + 'static));
+  fn url(&self) -> String;
+
+  fn matches(&self, entry: &Self::Entry) -> bool;
+}
+
+pub trait InstallerDelegate: Clone + Send + Sync {
+  type Entry: Entry;
+  type EntryUpdate: EntryUpdate<Entry = Self::Entry>;
+
+  fn error_handler<E: Error + Send + Sync + 'static>(&self, error: E);
 
   fn multiple_handler(&self, folder: HybridPath, found: Vec<Self::Entry>);
 

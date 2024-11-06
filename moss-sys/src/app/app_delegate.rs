@@ -1,7 +1,8 @@
 use druid::{
   keyboard_types::Key, AppDelegate as Delegate, Command, DelegateCtx, Env, Event, Handled,
-  KeyEvent, LensExt as _, SingleUse, Target, WindowHandle, WindowId,
+  KeyEvent, LensExt as _, SingleUse, Target, WindowId,
 };
+use futures::FutureExt;
 use itertools::Itertools;
 use moss_lib::updater::check_for_update;
 use rand::random;
@@ -19,10 +20,7 @@ use super::{
   util::{get_starsector_version, GET_INSTALLED_STARSECTOR},
   App,
 };
-use crate::{
-  app::{installer::Installer, updater::get_update_status_handler},
-  nav_bar::Nav,
-};
+use crate::{app::updater::get_update_status_handler, nav_bar::Nav};
 
 pub enum AppCommands {
   UpdateModDescription(ModDescription<String>),
@@ -31,35 +29,19 @@ pub enum AppCommands {
 
 pub struct AppDelegate {
   pub root_id: Option<WindowId>,
-  pub root_window: Option<WindowHandle>,
-
-  pub installer: Installer,
+  // pub installer: Installer,
 }
 
 impl AppDelegate {
-  pub fn new(installer: Installer) -> Self {
+  pub fn new(/* installer: Installer */) -> Self {
     Self {
       root_id: None,
-      root_window: None,
-      installer,
+      // installer,
     }
   }
 }
 
 impl Delegate<App> for AppDelegate {
-  fn window_added(
-    &mut self,
-    _id: WindowId,
-    handle: druid::WindowHandle,
-    _data: &mut App,
-    _env: &Env,
-    _ctx: &mut DelegateCtx,
-  ) {
-    if self.root_window.is_none() {
-      self.root_window = Some(handle);
-    }
-  }
-
   #[allow(clippy::too_many_lines)]
   fn command(
     &mut self,
@@ -187,73 +169,76 @@ impl Delegate<App> for AppDelegate {
 
       return Handled::Yes;
     } else if let Some(install) = cmd.get(WEBVIEW_INSTALL) {
-      let runtime = data.runtime.clone();
-      let install = install.clone();
+      let install_type = install.clone();
       let ext_ctx = ctx.get_external_handle();
+      let installer = data.installer.clone();
       let install_dir = data.settings.install_dir.clone().unwrap();
-      let ids = data.mod_list.mods.values().map(|v| v.id.clone()).collect();
-      data.runtime.spawn_blocking(move || {
-        runtime.block_on(async move {
-          let path = match install {
-            InstallType::Uri(uri) => {
-              let file_name = Url::parse(&uri)
-                .ok()
-                .and_then(|url| {
-                  url
-                    .path_segments()
-                    .and_then(std::iter::Iterator::last)
-                    .map(std::string::ToString::to_string)
-                })
-                .unwrap_or_else(|| uri.clone())
-                .to_string();
-              ext_ctx
-                .submit_command(
-                  App::LOG_MESSAGE,
-                  format!("Installing {}", &file_name),
-                  Target::Auto,
-                )
-                .expect("Send install start");
-              let download = installer::download(uri, ext_ctx.clone())
-                .await
-                .expect("Download archive");
-              let download_dir = PROJECT.cache_dir().to_path_buf();
-              let mut persist_path = download_dir.join(&file_name);
-              if persist_path.exists() {
-                persist_path = download_dir.join(format!("{}({})", file_name, random::<u8>()));
-              }
-              if let Err(err) = download.persist(&persist_path) {
-                if err.error.kind() == std::io::ErrorKind::CrossesDevices {
-                  std::fs::copy(err.file.path(), &persist_path)
-                    .expect("Copy download across devices");
-                } else {
-                  panic!("{}", err)
-                }
-              }
 
-              persist_path
+      data.runtime.spawn(async move {
+        let path = match install_type {
+          InstallType::Uri(uri) => {
+            let file_name = Url::parse(&uri)
+              .ok()
+              .and_then(|url| {
+                url
+                  .path_segments()
+                  .and_then(std::iter::Iterator::last)
+                  .map(std::string::ToString::to_string)
+              })
+              .unwrap_or_else(|| uri.clone())
+              .to_string();
+            ext_ctx
+              .submit_command(
+                App::LOG_MESSAGE,
+                format!("Installing {}", &file_name),
+                Target::Auto,
+              )
+              .expect("Send install start");
+            let download = moss_lib::installer::InstallerExt::download(installer.as_ref(), &uri)
+              .await
+              .expect("Download archive");
+            let download_dir = PROJECT.cache_dir().to_path_buf();
+            let mut persist_path = download_dir.join(&file_name);
+            if persist_path.exists() {
+              persist_path = download_dir.join(format!("{}({})", file_name, random::<u8>()));
             }
-            InstallType::Path(path) => {
-              let file_name = path
-                .file_name()
-                .unwrap_or(path.as_os_str())
-                .to_string_lossy()
-                .to_string();
-              ext_ctx
-                .submit_command(
-                  App::LOG_MESSAGE,
-                  format!("Installing {}", &file_name),
-                  Target::Auto,
-                )
-                .expect("Send install start");
+            if let Err(err) = download.persist(&persist_path) {
+              if err.error.kind() == std::io::ErrorKind::CrossesDevices {
+                std::fs::copy(err.file.path(), &persist_path)
+                  .expect("Copy download across devices");
+              } else {
+                panic!("{}", err)
+              }
+            }
 
-              path
-            }
-          };
-          installer::Payload::Initial(vec![path.into()])
-            .install(ext_ctx, install_dir, ids)
-            .await;
-        });
+            persist_path
+          }
+          InstallType::Path(path) => {
+            let file_name = path
+              .file_name()
+              .unwrap_or(path.as_os_str())
+              .to_string_lossy()
+              .to_string();
+            ext_ctx
+              .submit_command(
+                App::LOG_MESSAGE,
+                format!("Installing {}", &file_name),
+                Target::Auto,
+              )
+              .expect("Send install start");
+
+            path
+          }
+        };
+
+        installer
+          .install(moss_lib::installer::Request::Initial(
+            vec![path.into()],
+            install_dir,
+          ))
+          .await;
       });
+
       return Handled::Yes;
     } else if let Some(url) = cmd.get(mod_description::OPEN_IN_BROWSER) {
       if data.settings.open_forum_link_in_webview {
@@ -293,21 +278,19 @@ impl Delegate<App> for AppDelegate {
       .get(installer::INSTALL_FOUND_MULTIPLE)
       .and_then(SingleUse::take)
     {
-      let ext_ctx = ctx.get_external_handle();
       let install_dir = data.settings.install_dir.as_ref().unwrap().clone();
-      let ids = data.mod_list.mods.values().map(|v| v.id.clone()).collect();
-      data.runtime.spawn(async move {
-        installer::Payload::Initial(
-          to_install
-            .into_iter()
-            .map(|p| source.clone().with_path(&p))
-            .collect_vec(),
-        )
-        .install(ext_ctx, install_dir, ids)
-        .await;
-
-        drop(source);
-      });
+      data.runtime.spawn(
+        data
+          .installer
+          .install(moss_lib::installer::Request::Initial(
+            to_install
+              .into_iter()
+              .map(|p| source.clone().with_path(&p))
+              .collect_vec(),
+            install_dir,
+          ))
+          .then(async move |()| drop(source)),
+      );
 
       return Handled::Yes;
     }
@@ -325,14 +308,13 @@ impl Delegate<App> for AppDelegate {
             .collect::<Vec<String>>()
             .join(", "),
         )));
-        data.runtime.spawn(
-          installer::Payload::Initial(targets.iter().map(|p| p.clone().into()).collect_vec())
-            .install(
-              ctx.get_external_handle(),
-              data.settings.install_dir.clone().unwrap(),
-              data.mod_list.mods.values().map(|v| v.id.clone()).collect(),
-            ),
-        );
+        // let fut = self
+        //   .installer
+        //   .install(moss_lib::installer::Request::Initial(
+        //     targets.iter().map(|p| p.clone().into()).collect_vec(),
+        //     data.settings.install_dir.clone().unwrap(),
+        //   ));
+        // data.runtime.spawn(fut);
       }
       return Handled::Yes;
     }
