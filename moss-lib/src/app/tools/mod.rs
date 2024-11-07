@@ -11,7 +11,7 @@ use druid::{
   Data, Lens, LensExt, Widget, WidgetExt,
 };
 use druid_widget_nursery::{FutureWidget, WidgetExt as _};
-use proc_macros::Invert;
+use macros::Invert;
 
 use self::{jre::Swapper, vmparams::VMParams};
 use super::settings::Settings;

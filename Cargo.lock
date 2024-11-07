@@ -3086,7 +3086,6 @@ dependencies = [
  "metal",
  "native-dialog",
  "opener",
- "proc-macros",
  "rand 0.8.5",
  "rayon",
  "regex",
@@ -4164,17 +4163,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e719e8df665df0d1c8fbfd238015744736151d4445ec0836b8e628aae103b77"
 dependencies = [
  "unicode-ident",
-]
-
-[[package]]
-name = "proc-macros"
-version = "0.1.0"
-dependencies = [
- "heck 0.5.0",
- "itertools 0.13.0",
- "proc-macro2",
- "quote",
- "syn 2.0.79",
 ]
 
 [[package]]
