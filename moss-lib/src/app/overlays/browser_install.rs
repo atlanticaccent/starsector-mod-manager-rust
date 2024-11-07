@@ -7,7 +7,7 @@ use druid::{
   widget::{Flex, Label},
   Data, Key, Lens, Widget, WidgetExt as _,
 };
-use webview_shared::WEBVIEW_INSTALL;
+use webview::WEBVIEW_INSTALL;
 
 use super::Popup;
 use crate::{
@@ -65,7 +65,7 @@ impl BrowserInstall {
                     let url = url.clone();
                     move |ctx, data: &mut App, _| {
                       ctx.submit_command(
-                        WEBVIEW_INSTALL.with(webview_shared::InstallType::Uri(url.clone())),
+                        WEBVIEW_INSTALL.with(webview::InstallType::Uri(url.clone())),
                       );
                       ctx.submit_command(Popup::DISMISS);
                       if data.current_tab == crate::nav_bar::NavLabel::WebBrowser {

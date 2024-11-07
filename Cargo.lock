@@ -3110,8 +3110,7 @@ dependencies = [
  "unrar",
  "updater",
  "web-client",
- "webview-shared",
- "webview-subsystem",
+ "webview",
  "wry",
  "zip",
 ]
@@ -6065,19 +6064,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "webview-shared"
-version = "0.1.0"
-dependencies = [
- "directories",
- "druid",
- "serde",
-]
-
-[[package]]
-name = "webview-subsystem"
+name = "webview"
 version = "0.1.0"
 dependencies = [
  "base64",
+ "common",
  "directories",
  "druid",
  "mime",
@@ -6086,7 +6077,6 @@ dependencies = [
  "reqwest",
  "serde",
  "url",
- "webview-shared",
  "wry",
 ]
 

@@ -15,8 +15,7 @@ dhat-heap = ["dhat"]
 [dependencies]
 # Internal
 proc-macros = { workspace = true }
-webview-subsystem = { workspace = true }
-webview-shared = { workspace = true }
+webview = { workspace = true }
 common = { workspace = true }
 druid-patch = { workspace = true }
 macros = { workspace = true }

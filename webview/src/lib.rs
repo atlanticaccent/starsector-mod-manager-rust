@@ -1,13 +1,17 @@
-use std::{cell::OnceCell, rc::Rc, str::FromStr};
+use std::{cell::OnceCell, path::PathBuf, rc::Rc, str::FromStr};
 
 use base64::{engine::general_purpose::STANDARD, Engine};
+use common::ExtEventSinkExt;
 use druid::{ExtEventSink, WindowHandle};
 use mime::Mime;
+use serde::{Deserialize, Serialize};
 use url::Url;
-use webview_shared::{ExtEventSinkExt, WebviewEvent, FRACTAL_INDEX, WEBVIEW_EVENT};
 use wry::{WebContext, WebView, WebViewBuilder};
 
+mod consts;
 mod links;
+
+pub use consts::*;
 
 pub fn init_webview_with_handle(
   url: Option<String>,
@@ -187,4 +191,34 @@ fn mime_type_is_archive(mime: &Mime) -> bool {
     }
     _ => false
   }
+}
+
+#[derive(Clone)]
+pub enum InstallType {
+  Uri(String),
+  Path(PathBuf),
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
+pub enum WebviewMessage {
+  Navigation(String),
+  Download(String),
+  Shutdown,
+  BlobFile(PathBuf),
+  Maximize,
+  Minimize,
+}
+
+#[derive(Debug)]
+pub enum WebviewEvent {
+  Navigation(String),
+  NewWindow(String),
+  AskDownload(String),
+  Download(String),
+  CancelDownload,
+  BlobReceived(String),
+  BlobChunk(Option<String>),
+  PageLoaded,
+  PageUnloading,
+  ShowConfirmPopup(String),
 }

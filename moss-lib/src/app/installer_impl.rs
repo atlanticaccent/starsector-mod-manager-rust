@@ -2,7 +2,7 @@ use std::{future::Future, path::PathBuf, sync::Arc};
 
 use druid::{ExtEventSink, Selector, SingleUse};
 use installer::{Entry, HybridPath, InstallerDelegate, InstallerExt, Request};
-use webview_shared::ExtEventSinkExt;
+use common::ExtEventSinkExt;
 
 use super::{mod_entry::ModVersionMeta, overlays::Popup};
 use crate::{app::mod_entry::ModEntry, bang};

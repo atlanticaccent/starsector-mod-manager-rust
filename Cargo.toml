@@ -17,8 +17,7 @@ debug = 1
 members = [
   "moss",
   "moss-lib",
-  "webview-subsystem",
-  "webview-subsystem-shared",
+  "webview",
   "proc-macros",
   "common",
   "druid-patch",
@@ -34,8 +33,7 @@ resolver = "2"
 # Internal
 moss-lib = { path = "moss-lib" }
 proc-macros = { path = "proc-macros" }
-webview-subsystem = { path = "webview-subsystem" }
-webview-shared = { path = "webview-subsystem-shared" }
+webview = { path = "webview" }
 common = { path = "common" }
 druid-patch = { path = "druid-patch" }
 macros = { path = "macros" }

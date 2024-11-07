@@ -7,14 +7,16 @@ pub mod controllers;
 pub mod fast_im_map;
 pub mod labels;
 pub mod lenses;
+#[allow(unused_macros)]
+pub mod macro_rules;
 pub mod theme_keys;
 pub mod widget_ext;
 #[allow(dead_code)]
 pub mod widgets;
-#[allow(unused_macros)]
-pub mod macro_rules;
 
-use druid::{lens, Color, Event, Key, MouseEvent, Selector};
+use std::any::Any;
+
+use druid::{lens, Color, Event, ExtEventError, ExtEventSink, Key, MouseEvent, Selector, Target};
 use druid_widget_nursery::animation::Interpolate as _;
 
 pub const IS_EMPTY: Selector = Selector::new("app.popup.empty");
@@ -78,5 +80,23 @@ pub impl Event {
     } else {
       None
     }
+  }
+}
+
+pub trait ExtEventSinkExt {
+  fn submit_command_global<T: Any + Send>(
+    &self,
+    selector: Selector<T>,
+    payload: impl Into<Box<T>>,
+  ) -> Result<(), ExtEventError>;
+}
+
+impl ExtEventSinkExt for ExtEventSink {
+  fn submit_command_global<T: Any + Send>(
+    &self,
+    selector: Selector<T>,
+    payload: impl Into<Box<T>>,
+  ) -> Result<(), ExtEventError> {
+    self.submit_command(selector, payload, Target::Global)
   }
 }

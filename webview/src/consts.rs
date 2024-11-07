@@ -1,38 +1,9 @@
-use std::{path::PathBuf, sync::LazyLock};
+use std::sync::LazyLock;
 
 use directories::ProjectDirs;
 use druid::Selector;
-use serde::{Deserialize, Serialize};
 
-#[derive(Clone)]
-pub enum InstallType {
-  Uri(String),
-  Path(PathBuf),
-}
-
-#[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub enum WebviewMessage {
-  Navigation(String),
-  Download(String),
-  Shutdown,
-  BlobFile(PathBuf),
-  Maximize,
-  Minimize,
-}
-
-#[derive(Debug)]
-pub enum WebviewEvent {
-  Navigation(String),
-  NewWindow(String),
-  AskDownload(String),
-  Download(String),
-  CancelDownload,
-  BlobReceived(String),
-  BlobChunk(Option<String>),
-  PageLoaded,
-  PageUnloading,
-  ShowConfirmPopup(String),
-}
+use crate::{InstallType, WebviewEvent};
 
 pub static PROJECT: LazyLock<ProjectDirs> = LazyLock::new(|| {
   ProjectDirs::from("org", "laird", "Starsector Mod Manager").expect("Get project dirs")

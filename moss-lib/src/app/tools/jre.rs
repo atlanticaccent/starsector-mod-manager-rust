@@ -28,7 +28,7 @@ use strum_macros::Display;
 use tar::Archive;
 use tempfile::TempDir;
 use tokio::runtime::Handle;
-use webview_shared::ExtEventSinkExt;
+use common::ExtEventSinkExt;
 
 use super::{tool_card, vmparams::VMParams};
 use crate::{

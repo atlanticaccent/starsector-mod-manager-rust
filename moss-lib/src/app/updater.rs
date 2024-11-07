@@ -1,6 +1,6 @@
 use druid::ExtEventSink;
 use updater::Status;
-use webview_shared::ExtEventSinkExt;
+use common::ExtEventSinkExt;
 
 use crate::app::overlays::Popup;
 

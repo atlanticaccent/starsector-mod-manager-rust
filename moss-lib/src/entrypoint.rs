@@ -1,7 +1,7 @@
 use const_format::concatcp;
 use druid::{AppLauncher, WindowDesc};
 use tokio::runtime::Builder;
-use webview_shared::PROJECT;
+use webview::PROJECT;
 
 use crate::{
   app::{app_delegate::AppDelegate, installer_impl::Installer, App, AppViewExt},

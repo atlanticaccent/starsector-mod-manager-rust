@@ -2,7 +2,8 @@ use std::{cell::RefCell, io::Write, ops::Deref, rc::Rc};
 
 use base64::{engine::general_purpose::STANDARD, Engine};
 use common::{
-  controllers::ExtensibleController, widget_ext::WidgetExtEx as _, widgets::card::Card, ShadeColor,
+  controllers::ExtensibleController, widget_ext::WidgetExtEx as _, widgets::card::Card,
+  ExtEventSinkExt, ShadeColor,
 };
 use druid::{
   widget::{Flex, Maybe, Painter, SizedBox},
@@ -10,9 +11,7 @@ use druid::{
 };
 use druid_widget_nursery::{material_icons::Icon, AnyCtx, LaidOutCtx, WidgetExt as _};
 use rand::random;
-use webview_shared::{
-  ExtEventSinkExt, InstallType, WebviewEvent, PROJECT, WEBVIEW_EVENT, WEBVIEW_INSTALL,
-};
+use webview::{InstallType, WebviewEvent, PROJECT, WEBVIEW_EVENT, WEBVIEW_INSTALL};
 use wry::WebView;
 
 use crate::{
@@ -396,7 +395,7 @@ fn init_webview(ctx: &mut druid::EventCtx, data: &mut Browser) -> Result<Rc<WebV
 
     let builder = WebViewBuilder::new_gtk(&fixed);
 
-    webview_subsystem::init_webview(data.url.clone(), builder, ctx.get_external_handle())
+    webview::init_webview(data.url.clone(), builder, ctx.get_external_handle())
   };
   #[cfg(not(any(
     target_os = "linux",
@@ -405,11 +404,8 @@ fn init_webview(ctx: &mut druid::EventCtx, data: &mut Browser) -> Result<Rc<WebV
     target_os = "netbsd",
     target_os = "openbsd"
   )))]
-  let res = webview_subsystem::init_webview_with_handle(
-    data.url.clone(),
-    ctx.window(),
-    ctx.get_external_handle(),
-  );
+  let res =
+    webview::init_webview_with_handle(data.url.clone(), ctx.window(), ctx.get_external_handle());
   res
 }
 

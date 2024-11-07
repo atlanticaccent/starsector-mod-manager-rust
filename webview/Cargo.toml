@@ -1,11 +1,15 @@
 [package]
-name = "webview-subsystem"
+name = "webview"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# Internal
+common = { workspace = true }
+
+# External
 druid = { workspace = true, default-features = false }
 wry = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
@@ -16,6 +20,3 @@ regex = { workspace = true }
 reqwest = { workspace = true, features = ["blocking"] }
 mime = "0.3.17"
 mime_guess = { version = "2.0.5", default-features = false }
-
-[dependencies.webview-shared]
-path = "../webview-subsystem-shared"

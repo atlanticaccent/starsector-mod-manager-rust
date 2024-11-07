@@ -25,7 +25,7 @@ use icons::{
 };
 use installer::{HybridPath, StringOrPath};
 use tokio::runtime::Handle;
-use webview_shared::PROJECT;
+use webview::PROJECT;
 
 use crate::{
   app::{

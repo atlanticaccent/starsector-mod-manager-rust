@@ -33,7 +33,7 @@ use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter};
 use sublime_fuzzy::best_match;
 use web_client::WebClient;
-use webview_shared::ExtEventSinkExt;
+use common::ExtEventSinkExt;
 
 use super::{
   mod_entry::{

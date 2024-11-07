@@ -21,7 +21,7 @@ use druid_patch::{
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
 use icons::{SETTINGS, TOGGLE_ON};
 use tokio::process::Command;
-use webview_shared::ExtEventSinkExt;
+use common::ExtEventSinkExt;
 
 use crate::{
   app::{

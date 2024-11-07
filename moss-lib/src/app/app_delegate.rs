@@ -8,7 +8,7 @@ use rand::random;
 use remove_dir_all::remove_dir_all;
 use reqwest::Url;
 use updater::check_for_update;
-use webview_shared::{InstallType, PROJECT, WEBVIEW_INSTALL};
+use webview::{InstallType, PROJECT, WEBVIEW_INSTALL};
 
 use super::{
   installer_impl::{self, DOWNLOAD_PROGRESS, DOWNLOAD_STARTED},
