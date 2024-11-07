@@ -1,5 +1,0 @@
-include = ["**/Cargo.toml"]
-
-[schema]
-path = "cargo.schema.json"
-enabled = true
