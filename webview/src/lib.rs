@@ -18,6 +18,61 @@ pub fn init_webview_with_handle(
   parent: &WindowHandle,
   ext_ctx: ExtEventSink,
 ) -> wry::Result<Rc<WebView>> {
+  #[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+  ))]
+  {
+    use gtk::{
+      glib::translate::{FromGlibPtrFull, ToGlibPtr},
+      prelude::*,
+    };
+    use wry::{WebViewBuilder, WebViewBuilderExtUnix};
+
+    let window = parent.get_gtk_application_window();
+    let bin: &gtk::Bin = window.upcast_ref();
+    let child = bin.child().unwrap();
+    let vbox: &gtk::Box = child.downcast_ref().unwrap();
+
+    eprintln!("{}", vbox.type_());
+    eprintln!("{:?}", vbox.children());
+
+    let child_ref: *const _ = child.to_glib_full();
+    let container: &gtk::Container = window.upcast_ref();
+
+    container.remove(&child);
+
+    let overlay = gtk::Overlay::new();
+    overlay.add(&child);
+    unsafe {
+      drop(gtk::glib::object::ObjectRef::from_glib_full(
+        child_ref as *mut _,
+      ))
+    };
+
+    let fixed = gtk::Fixed::new();
+    overlay.add_overlay(&fixed);
+    overlay.set_overlay_pass_through(&fixed, true);
+    fixed.show_all();
+
+    overlay.show_all();
+
+    container.add(&overlay);
+
+    let builder = WebViewBuilder::new_gtk(&fixed);
+
+    return init_webview(url, builder, ext_ctx);
+  };
+  #[cfg(not(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+  )))]
   init_webview(url, WebViewBuilder::new_as_child(parent), ext_ctx)
 }
 

@@ -11,7 +11,9 @@ use druid::{
 };
 use druid_widget_nursery::{material_icons::Icon, AnyCtx, LaidOutCtx, WidgetExt as _};
 use rand::random;
-use webview::{InstallType, WebviewEvent, PROJECT, WEBVIEW_EVENT, WEBVIEW_INSTALL};
+use webview::{
+  init_webview_with_handle, InstallType, WebviewEvent, PROJECT, WEBVIEW_EVENT, WEBVIEW_INSTALL,
+};
 use wry::WebView;
 
 use crate::{
@@ -202,7 +204,7 @@ impl Browser {
       }
     })
     .on_command2(INIT_WEBVIEW, |_, ctx, (), data| {
-      let res = init_webview(ctx, data);
+      let res = init_webview_with_handle(data.url.clone(), ctx.window(), ctx.get_external_handle());
 
       match res {
         Ok(webview) => {
@@ -346,67 +348,6 @@ impl Browser {
 
     false
   }
-}
-
-fn init_webview(ctx: &mut druid::EventCtx, data: &mut Browser) -> Result<Rc<WebView>, wry::Error> {
-  #[cfg(any(
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd"
-  ))]
-  let res = {
-    use gtk::{
-      glib::translate::{FromGlibPtrFull, ToGlibPtr},
-      prelude::*,
-    };
-    use wry::{WebViewBuilder, WebViewBuilderExtUnix};
-
-    let window = ctx.window().get_gtk_application_window();
-    let bin: &gtk::Bin = window.upcast_ref();
-    let child = bin.child().unwrap();
-    let vbox: &gtk::Box = child.downcast_ref().unwrap();
-
-    eprintln!("{}", vbox.type_());
-    eprintln!("{:?}", vbox.children());
-
-    let child_ref: *const _ = child.to_glib_full();
-    let container: &gtk::Container = window.upcast_ref();
-
-    container.remove(&child);
-
-    let overlay = gtk::Overlay::new();
-    overlay.add(&child);
-    unsafe {
-      drop(gtk::glib::object::ObjectRef::from_glib_full(
-        child_ref as *mut _,
-      ))
-    };
-
-    let fixed = gtk::Fixed::new();
-    overlay.add_overlay(&fixed);
-    overlay.set_overlay_pass_through(&fixed, true);
-    fixed.show_all();
-
-    overlay.show_all();
-
-    container.add(&overlay);
-
-    let builder = WebViewBuilder::new_gtk(&fixed);
-
-    webview::init_webview(data.url.clone(), builder, ctx.get_external_handle())
-  };
-  #[cfg(not(any(
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd"
-  )))]
-  let res =
-    webview::init_webview_with_handle(data.url.clone(), ctx.window(), ctx.get_external_handle());
-  res
 }
 
 const BOOKMARK_WIDTH: f64 = 190.0;
