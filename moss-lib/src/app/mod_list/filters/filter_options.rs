@@ -1,19 +1,17 @@
+use common::{
+  controllers::{HeightLinker, HeightLinkerShared},
+  labels::bold_text,
+  widget_ext::{WidgetExtEx as _, WithHoverState as _},
+  widgets::card::Card,
+};
 use druid::{
   lens, theme,
   widget::{Flex, SizedBox, ViewSwitcher},
   Data, Env, Lens, LensExt, Widget, WidgetExt as _,
 };
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
-use {
-  common::{
-    controllers::{HeightLinker, HeightLinkerShared},
-    labels::bold_text,
-    widget_ext::{WidgetExtEx as _, WithHoverState as _},
-    widgets::card::Card,
-  },
-  icons::{
-    Icon as CopyIcon, ADD_BOX as FILLED_CHECKBOX, CHECK_BOX_OUTLINE_BLANK as EMPTY_CHECKBOX,
-  },
+use icons::{
+  Icon as CopyIcon, ADD_BOX as FILLED_CHECKBOX, CHECK_BOX_OUTLINE_BLANK as EMPTY_CHECKBOX,
 };
 
 use super::{filter_button::FilterButton, FilterState};

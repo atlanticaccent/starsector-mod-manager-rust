@@ -4,7 +4,12 @@ use druid::{Data, Selector, Widget, WidgetExt as _, WidgetId};
 use druid_widget_nursery::{CommandCtx, LaidOutCtx, WidgetExt as _};
 
 use super::card::CardBuilder;
-use crate::{labels::bold_text, widget_ext::{state_derived_lenses, State, WidgetExtEx as _}, widgets::{card::Card, root_stack::RootStack}, IS_EMPTY};
+use crate::{
+  labels::bold_text,
+  widget_ext::{state_derived_lenses, State, WidgetExtEx as _},
+  widgets::{card::Card, root_stack::RootStack},
+  IS_EMPTY,
+};
 
 pub trait AltStackActivator<T, A> = Fn(
   ScopedStackCardButton<T>,
@@ -111,11 +116,7 @@ impl CardButton {
     base: impl Fn(bool) -> W + 'static,
     dropdown: impl Fn(bool) -> WO + 'static,
     alt_stack_activation: Option<
-      impl Fn(
-          ScopedStackCardButton<T>,
-          Rc<dyn Fn() -> Box<dyn Widget<A>> + 'static>,
-          WidgetId,
-        ) -> WSO
+      impl Fn(ScopedStackCardButton<T>, Rc<dyn Fn() -> Box<dyn Widget<A>> + 'static>, WidgetId) -> WSO
         + 'static,
     >,
     width: f64,

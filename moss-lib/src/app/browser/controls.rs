@@ -1,5 +1,5 @@
-use druid::{Data, Widget, WidgetExt as _};
 use common::{labels::bold_text, widget_ext::WidgetExtEx as _, widgets::card::Card};
+use druid::{Data, Widget, WidgetExt as _};
 
 pub fn button_text<T: Data>(text: &str) -> impl Widget<T> {
   bold_text(

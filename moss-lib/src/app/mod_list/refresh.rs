@@ -1,6 +1,6 @@
+use common::{labels::bold_text, widgets::card::Card};
 use druid::{widget::Flex, Data, Widget, WidgetExt};
 use druid_widget_nursery::material_icons::Icon;
-use common::{labels::bold_text, widgets::card::Card};
 
 use crate::app::{App, REFRESH};
 

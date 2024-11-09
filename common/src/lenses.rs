@@ -1,9 +1,4 @@
-use std::{
-  borrow::Borrow,
-  fmt::Debug,
-  marker::PhantomData,
-  rc::Rc,
-};
+use std::{borrow::Borrow, fmt::Debug, marker::PhantomData, rc::Rc};
 
 use druid::{
   lens::{Identity, InArc, Map, Then},

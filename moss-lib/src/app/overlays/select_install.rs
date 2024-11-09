@@ -1,10 +1,12 @@
+use common::{
+  controllers::HoverController, labels::h2_fixed, widget_ext::CommandExt, widgets::card::Card,
+};
 use druid::{
   text::ParseFormatter,
   widget::{Button, Flex, TextBox},
   LensExt, Selector, Widget, WidgetExt as _,
 };
 use druid_widget_nursery::WidgetExt;
-use common::{controllers::HoverController, labels::h2_fixed, widget_ext::CommandExt, widgets::card::Card};
 
 use super::Popup;
 use crate::app::{

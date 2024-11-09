@@ -1,10 +1,10 @@
-use druid::{
-  widget::{Axis, Label},
-  AppLauncher, Color, Widget, WidgetExt, WindowDesc,
-};
 use common::{
   controllers::{next_id, LayoutRepeater, SharedConstraint},
   labels::LabelExt,
+};
+use druid::{
+  widget::{Axis, Label},
+  AppLauncher, Color, Widget, WidgetExt, WindowDesc,
 };
 use druid_patch::table::{FixedFlexTable, TableRow};
 

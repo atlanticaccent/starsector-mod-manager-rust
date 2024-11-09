@@ -1,5 +1,5 @@
-pub mod icon;
 pub mod exports;
+pub mod icon;
 
-pub use icon::Icon;
 pub use exports::*;
+pub use icon::Icon;

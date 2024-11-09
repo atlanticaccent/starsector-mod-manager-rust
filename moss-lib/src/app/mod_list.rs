@@ -10,7 +10,7 @@ use std::{
 use comemo::memoize;
 use common::{
   controllers::ExtensibleController, fast_im_map::FastImMap, lenses::LensExtExt,
-  widget_ext::WidgetExtEx as _, widgets::card::Card,
+  widget_ext::WidgetExtEx as _, widgets::card::Card, ExtEventSinkExt,
 };
 use druid::{
   im::Vector,
@@ -33,7 +33,6 @@ use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter};
 use sublime_fuzzy::best_match;
 use web_client::WebClient;
-use common::ExtEventSinkExt;
 
 use super::{
   mod_entry::{

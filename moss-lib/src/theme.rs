@@ -1,9 +1,9 @@
 use std::{fmt::Display, ops::Deref, str::FromStr};
 
+pub use common::theme_keys::*;
 use druid::{text::FontWeight, theme, Color, Data, Env, Key, Lens};
 use druid_widget_nursery::prism::Prism;
 use fake::Fake;
-pub use common::theme_keys::*;
 use serde::{de::Visitor, Deserialize, Serialize};
 
 #[derive(Debug, Data, Lens, Clone, Serialize, Deserialize)]

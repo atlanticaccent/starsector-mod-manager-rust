@@ -1,10 +1,10 @@
-use std::{borrow::Cow, path::PathBuf};
-
-use std::path::Path;
+use std::{
+  borrow::Cow,
+  path::{Path, PathBuf},
+  sync::Arc,
+};
 
 use tempfile::TempDir;
-
-use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub enum HybridPath {

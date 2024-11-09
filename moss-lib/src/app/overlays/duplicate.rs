@@ -1,16 +1,16 @@
 use chrono::{DateTime, Local};
-use druid::{
-  im::Vector,
-  widget::{Checkbox, Flex, Label},
-  Data, Key, LensExt, Widget, WidgetExt,
-};
-use druid_widget_nursery::table::{FlexTable, TableColumnWidth, TableRow};
 use common::{
   labels::{h2_fixed, LabelExt},
   widget_ext::WidgetExtEx,
   widgets::card::Card,
   ShadeColor,
 };
+use druid::{
+  im::Vector,
+  widget::{Checkbox, Flex, Label},
+  Data, Key, LensExt, Widget, WidgetExt,
+};
+use druid_widget_nursery::table::{FlexTable, TableColumnWidth, TableRow};
 
 use super::Popup;
 use crate::{

@@ -1,10 +1,14 @@
+use common::{
+  widget_ext::{WidgetExtEx as _, WithHoverState},
+  widgets::card::Card,
+};
 use druid::{
   lens,
   widget::{Flex, TextBox},
   UnitPoint, Widget, WidgetExt,
 };
 use druid_widget_nursery::{material_icons::Icon, Stack, StackChildPosition, WidgetExt as _};
-use {common::{widget_ext::{WidgetExtEx as _, WithHoverState}, widgets::card::Card}, icons::{CANCEL, SEARCH}};
+use icons::{CANCEL, SEARCH};
 
 pub struct Search;
 

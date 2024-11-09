@@ -1,22 +1,20 @@
 use std::path::PathBuf;
 
+use common::{
+  labels::{bolded, h2_fixed, hoverable_text},
+  widget_ext::WidgetExtEx,
+  widgets::card::Card,
+  ShadeColor,
+};
 use druid::{
   im::Vector,
   widget::{Flex, Label},
   Command, Data, Key, Lens, SingleUse, Widget, WidgetExt as _,
 };
+use druid_patch::table::{FixedFlexTable, TableColumnWidth, TableRow};
 use druid_widget_nursery::wrap::Wrap;
+use installer::HybridPath;
 use itertools::Itertools;
-use {
-  common::{
-    labels::{bolded, h2_fixed, hoverable_text},
-    widget_ext::WidgetExtEx,
-    widgets::card::Card,
-    ShadeColor,
-  },
-  druid_patch::table::{FixedFlexTable, TableColumnWidth, TableRow},
-  installer::HybridPath,
-};
 
 use super::Popup;
 use crate::{

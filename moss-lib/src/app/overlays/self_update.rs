@@ -1,5 +1,11 @@
 use std::marker::PhantomData;
 
+use common::{
+  controllers::HoverController,
+  labels::{h2_fixed, hyperlink_opts, LabelExt},
+  widget_ext::WidgetExtEx,
+  widgets::card::Card,
+};
 use druid::{
   kurbo::Line,
   text::{FontWeight, RichTextBuilder},
@@ -7,17 +13,9 @@ use druid::{
   Data, Key, Widget, WidgetExt,
 };
 use druid_widget_nursery::material_icons::Icon;
-use {
-  common::{
-    controllers::HoverController,
-    labels::{h2_fixed, hyperlink_opts, LabelExt},
-    widget_ext::WidgetExtEx,
-    widgets::card::Card,
-  },
-  icons::{ARROW_DROP_DOWN, ARROW_RIGHT},
-  updater::{CloneTx, Release, Status},
-};
+use icons::{ARROW_DROP_DOWN, ARROW_RIGHT};
 use self_update::cargo_crate_version;
+use updater::{CloneTx, Release, Status};
 
 use crate::{
   app::{overlays::Popup, App},

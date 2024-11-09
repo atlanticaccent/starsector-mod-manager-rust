@@ -1,8 +1,9 @@
+use common::{labels::h2_fixed, widget_ext::WidgetExtEx, widgets::card::Card};
 use druid::{
   widget::{Flex, Label},
   Data, Key, Widget, WidgetExt,
 };
-use {common::{labels::h2_fixed, widget_ext::WidgetExtEx, widgets::card::Card}, druid_patch::table::{FixedFlexTable, TableRow}};
+use druid_patch::table::{FixedFlexTable, TableRow};
 
 use super::Popup;
 use crate::theme::{BLUE_KEY, ON_BLUE_KEY};

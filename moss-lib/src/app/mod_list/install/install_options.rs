@@ -1,6 +1,7 @@
+use common::{labels::bold_text, widget_ext::WidgetExtEx as _, widgets::card::Card};
 use druid::{theme, widget::Flex, Point, Selector, Widget, WidgetExt};
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
-use {common::{labels::bold_text, widget_ext::WidgetExtEx as _, widgets::card::Card}, icons::{FOLDER, INVENTORY_2}};
+use icons::{FOLDER, INVENTORY_2};
 
 use super::{install_button::InstallButton, InstallState};
 use crate::app::{app_delegate::AppCommands, App};

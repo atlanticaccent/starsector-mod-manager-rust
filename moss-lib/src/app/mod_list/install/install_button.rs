@@ -1,9 +1,10 @@
+use common::{labels::bold_text, widget_ext::WidgetExtEx, widgets::card::Card};
 use druid::{
   widget::{Flex, SizedBox},
   Data, Widget, WidgetExt as _,
 };
 use druid_widget_nursery::material_icons::Icon;
-use {common::{labels::bold_text, widget_ext::WidgetExtEx, widgets::card::Card}, icons::{ADD_CIRCLE, ADD_CIRCLE_OUTLINE}};
+use icons::{ADD_CIRCLE, ADD_CIRCLE_OUTLINE};
 
 use super::InstallState;
 

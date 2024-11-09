@@ -1,9 +1,10 @@
+use common::{labels::bold_text, lenses::LensExtExt, widget_ext::WidgetExtEx, widgets::card::Card};
 use druid::{
   widget::{Flex, SizedBox},
   Data, Widget, WidgetExt as _,
 };
 use druid_widget_nursery::{material_icons::Icon, Stack, StackChildPosition};
-use {common::{labels::bold_text, lenses::LensExtExt, widget_ext::WidgetExtEx, widgets::card::Card}, icons::TUNE};
+use icons::TUNE;
 
 use super::{FilterState, FILTER_POSITION};
 use crate::app::{mod_list::ModList, CLEAR};

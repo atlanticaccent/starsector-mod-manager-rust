@@ -1,18 +1,16 @@
 use std::{cell::Cell, rc::Rc};
 
+use common::{
+  labels::h2_fixed,
+  widget_ext::{WidgetExtEx, WithHoverState},
+  widgets::card::Card,
+};
 use druid::{
   widget::{Either, Flex, Label},
   Data, Key, Widget, WidgetExt,
 };
+use druid_patch::table::{FixedFlexTable, TableColumnWidth, TableRow};
 use druid_widget_nursery::material_icons::Icon;
-use {
-  common::{
-    labels::h2_fixed,
-    widget_ext::{WidgetExtEx, WithHoverState},
-    widgets::card::Card,
-  },
-  druid_patch::table::{FixedFlexTable, TableColumnWidth, TableRow},
-};
 
 use super::Popup;
 use crate::{
@@ -145,12 +143,12 @@ impl RemoteUpdate {
                     let new = Rc::new(new.clone());
                     data.mod_list.mods[&mod_id] = new;
 
-                    data.runtime.spawn(data.installer.install(
-                      installer::Request::Download {
+                    data
+                      .runtime
+                      .spawn(data.installer.install(installer::Request::Download {
                         remote_data: remote_version.replace(None).take().unwrap(),
                         old_path: data.mod_list.mods[&mod_id].path.clone(),
-                      },
-                    ));
+                      }));
                   }),
               )
               .with_child(

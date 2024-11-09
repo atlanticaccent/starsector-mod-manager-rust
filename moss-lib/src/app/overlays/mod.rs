@@ -18,13 +18,11 @@ mod select_install;
 mod self_update;
 
 use browser_install::BrowserInstall;
+use common::{lenses::Compute, widget_ext::WidgetExtEx};
 use confirm_delete::ConfirmDelete;
 use duplicate::Duplicate;
+use installer::{HybridPath, StringOrPath};
 use launch_result::*;
-use {
-  common::{lenses::Compute, widget_ext::WidgetExtEx},
-  installer::{HybridPath, StringOrPath},
-};
 use multiple::Multiple;
 use overwrite::Overwrite;
 use remote_update::RemoteUpdate;

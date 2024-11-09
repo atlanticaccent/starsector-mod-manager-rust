@@ -6,6 +6,10 @@ use std::{
 };
 
 use anyhow::Context;
+use common::{
+  controllers::AnimController, labels::h2_fixed, widget_ext::WidgetExtEx, widgets::card::Card,
+  ExtEventSinkExt,
+};
 use compress_tools::uncompress_archive;
 use druid::{
   im::Vector,
@@ -18,9 +22,6 @@ use druid_widget_nursery::{
   WidgetExt as _,
 };
 use flate2::read::GzDecoder;
-use common::{
-  controllers::AnimController, labels::h2_fixed, widget_ext::WidgetExtEx, widgets::card::Card,
-};
 use rand::random;
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
@@ -28,7 +29,6 @@ use strum_macros::Display;
 use tar::Archive;
 use tempfile::TempDir;
 use tokio::runtime::Handle;
-use common::ExtEventSinkExt;
 
 use super::{tool_card, vmparams::VMParams};
 use crate::{

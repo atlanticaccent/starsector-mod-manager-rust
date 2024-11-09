@@ -17,7 +17,9 @@ pub trait Entry: Debug + Sized + Send + 'static {
 
   fn id(&self) -> Self::Id;
 
-  fn parse(path: impl AsRef<Path> + Send) -> impl Future<Output = Result<Self, <Self as Entry>::ParseError>> + Send;
+  fn parse(
+    path: impl AsRef<Path> + Send,
+  ) -> impl Future<Output = Result<Self, <Self as Entry>::ParseError>> + Send;
 
   fn destination_folder(&self, parent: &Path) -> PathBuf;
 
@@ -28,7 +30,9 @@ pub trait Entry: Debug + Sized + Send + 'static {
 }
 
 pub(crate) trait EntryExt: Entry {
-  fn parse_ext(path: impl AsRef<Path> + Send) -> impl Future<Output = Result<Self, InstallError<Self>>> + Send {
+  fn parse_ext(
+    path: impl AsRef<Path> + Send,
+  ) -> impl Future<Output = Result<Self, InstallError<Self>>> + Send {
     Self::parse(path).map_err(InstallError::EntryParsingError)
   }
 }

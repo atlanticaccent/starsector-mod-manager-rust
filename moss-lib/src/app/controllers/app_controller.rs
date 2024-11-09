@@ -1,7 +1,7 @@
 use std::{env::current_exe, process};
 
-use druid::{commands, widget::Controller, Env, Event, EventCtx, Widget};
 use common::ExtEventSinkExt;
+use druid::{commands, widget::Controller, Env, Event, EventCtx, Widget};
 
 use crate::app::{
   installer_impl::{ChannelMessage, INSTALL},

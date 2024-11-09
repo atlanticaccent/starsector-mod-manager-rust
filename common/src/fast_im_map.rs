@@ -1,4 +1,9 @@
-use std::{borrow::Borrow, fmt::Debug, hash::Hash, ops::{Deref, DerefMut, Index, IndexMut}};
+use std::{
+  borrow::Borrow,
+  fmt::Debug,
+  hash::Hash,
+  ops::{Deref, DerefMut, Index, IndexMut},
+};
 
 use druid::Data;
 

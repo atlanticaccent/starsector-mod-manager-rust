@@ -9,15 +9,6 @@ use std::{
 };
 
 use chrono::{DateTime, Local, Utc};
-use druid::{
-  kurbo::Line,
-  lens, theme,
-  widget::{Button, Checkbox, Either, Flex, Label, Painter, ViewSwitcher},
-  Color, Data, ExtEventSink, KeyOrValue, Lens, RenderContext as _, Selector, Widget, WidgetExt,
-};
-use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
-use fake::Dummy;
-use json_comments::StripComments;
 use common::{
   controllers::{next_id, MaxSizeBox, SharedIdHoverState},
   labels::LabelExt as _,
@@ -25,12 +16,21 @@ use common::{
   widget_ext::{WidgetExtEx as _, WithHoverIdState},
   widgets::card::Card,
 };
+use druid::{
+  kurbo::Line,
+  lens, theme,
+  widget::{Button, Checkbox, Either, Flex, Label, Painter, ViewSwitcher},
+  Color, Data, ExtEventSink, KeyOrValue, Lens, RenderContext as _, Selector, Widget, WidgetExt,
+};
 use druid_patch::table::{FlexTable, RowData};
+use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
+use fake::Dummy;
 use icons::{NEW_RELEASES, REPORT, SICK, THUMB_UP};
-use web_client::WebClient;
+use json_comments::StripComments;
 use serde::{Deserialize, Serialize};
 use serde_aux::prelude::*;
 use tokio::io::AsyncWriteExt;
+use web_client::WebClient;
 
 use crate::{
   app::{

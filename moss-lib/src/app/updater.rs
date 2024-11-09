@@ -1,6 +1,6 @@
+use common::ExtEventSinkExt;
 use druid::ExtEventSink;
 use updater::Status;
-use common::ExtEventSinkExt;
 
 use crate::app::overlays::Popup;
 

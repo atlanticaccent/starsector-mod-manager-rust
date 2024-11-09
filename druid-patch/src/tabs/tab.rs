@@ -685,10 +685,7 @@ pub enum TabsTransition {
 
 impl Default for TabsTransition {
   fn default() -> Self {
-    TabsTransition::Slide(
-      Duration::from_millis(250)
-        .as_nanos() as u64,
-    )
+    TabsTransition::Slide(Duration::from_millis(250).as_nanos() as u64)
   }
 }
 

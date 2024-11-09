@@ -8,7 +8,7 @@ use common::{
     card_button::{AltStackOption, CardButton, ScopedStackCardButton},
     rotate::Rotated,
   },
-  ShadeColor,
+  ExtEventSinkExt, ShadeColor,
 };
 use druid::{
   widget::{Container, Either, Flex, Label, TextBox, ViewSwitcher},
@@ -21,7 +21,6 @@ use druid_patch::{
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
 use icons::{SETTINGS, TOGGLE_ON};
 use tokio::process::Command;
-use common::ExtEventSinkExt;
 
 use crate::{
   app::{

@@ -1,8 +1,8 @@
 use std::{future::Future, path::PathBuf, sync::Arc};
 
+use common::ExtEventSinkExt;
 use druid::{ExtEventSink, Selector, SingleUse};
 use installer::{Entry, HybridPath, InstallerDelegate, InstallerExt, Request};
-use common::ExtEventSinkExt;
 
 use super::{mod_entry::ModVersionMeta, overlays::Popup};
 use crate::{app::mod_entry::ModEntry, bang};
@@ -62,12 +62,7 @@ impl InstallerDelegate for Installer {
       .inspect_err(|err| bang!(err));
   }
 
-  fn overwrite_handler(
-    &self,
-    found: installer::StringOrPath,
-    folder: HybridPath,
-    entry: ModEntry,
-  ) {
+  fn overwrite_handler(&self, found: installer::StringOrPath, folder: HybridPath, entry: ModEntry) {
     let _ = self
       .ext_ctx
       .submit_command_global(Popup::QUEUE_POPUP, Popup::overwrite(found, folder, entry))

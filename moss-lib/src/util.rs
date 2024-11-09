@@ -84,7 +84,7 @@ pub async fn get_master_version(
 ) -> Option<ModVersionMeta> {
   let request = async |client: &WebClient| {
     let res = client.get(remote_url).await;
-  
+
     match res {
       Err(err) => (id, Err(err.into())),
       Ok(remote) => {
