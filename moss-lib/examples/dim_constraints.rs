@@ -2,13 +2,11 @@ use druid::{
   widget::{Axis, Label},
   AppLauncher, Color, Widget, WidgetExt, WindowDesc,
 };
-use moss_sys::{
-  app::{
-    controllers::{next_id, LayoutRepeater, SharedConstraint},
-    util::LabelExt,
-  },
-  patch::table::{FixedFlexTable, TableRow},
+use common::{
+  controllers::{next_id, LayoutRepeater, SharedConstraint},
+  labels::LabelExt,
 };
+use druid_patch::table::{FixedFlexTable, TableRow};
 
 fn main() -> Result<(), druid::PlatformError> {
   let window = WindowDesc::new(ui_builder());
