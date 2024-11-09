@@ -487,9 +487,9 @@ checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
 
 [[package]]
 name = "bytemuck"
-version = "1.18.0"
+version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94bbb0ad554ad961ddc5da507a12a29b14e4ae5bda06b19f575a3e6079d2e2ae"
+checksum = "8334215b81e418a0a7bdb8ef0849474f40bb10c8b71f1c4ed315cff49f32494d"
 
 [[package]]
 name = "byteorder"
@@ -787,9 +787,9 @@ name = "common"
 version = "0.1.0"
 dependencies = [
  "ahash",
- "druid",
  "druid-patch",
  "druid-widget-nursery",
+ "druid-wrapper",
  "extend",
  "macros",
 ]
@@ -1385,8 +1385,8 @@ dependencies = [
 name = "druid-patch"
 version = "0.1.0"
 dependencies = [
- "druid",
  "druid-widget-nursery",
+ "druid-wrapper",
 ]
 
 [[package]]
@@ -1448,6 +1448,13 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "druid-wrapper"
+version = "0.1.0"
+dependencies = [
+ "druid",
 ]
 
 [[package]]
@@ -1647,9 +1654,9 @@ checksum = "e8c02a5121d4ea3eb16a80748c74f5549a5665e4c21333c6098f283870fbdea6"
 
 [[package]]
 name = "fdeflate"
-version = "0.3.5"
+version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8090f921a24b04994d9929e204f50b498a33ea6ba559ffaa05e04f7ee7fb5ab"
+checksum = "07c6f4c64c1d33a3111c4466f7365ebdcc37c5bd1ea0d62aae2e3d722aacbedb"
 dependencies = [
  "simd-adler32",
 ]
@@ -2425,8 +2432,8 @@ dependencies = [
 name = "icons"
 version = "0.1.0"
 dependencies = [
- "druid",
  "druid-widget-nursery",
+ "druid-wrapper",
  "macros",
 ]
 
@@ -2893,7 +2900,7 @@ checksum = "c41e0c4fef86961ac6d6f8a82609f55f31b05e4fce149ac5710e439df7619ba4"
 name = "macros"
 version = "0.1.0"
 dependencies = [
- "druid",
+ "druid-wrapper",
  "heck 0.5.0",
  "itertools 0.13.0",
  "proc-macro2",
@@ -3064,9 +3071,9 @@ dependencies = [
  "deunicode",
  "dhat",
  "directories",
- "druid",
  "druid-patch",
  "druid-widget-nursery",
+ "druid-wrapper",
  "extend",
  "fake",
  "flate2",
@@ -6058,7 +6065,7 @@ dependencies = [
  "base64",
  "common",
  "directories",
- "druid",
+ "druid-wrapper",
  "mime",
  "mime_guess",
  "regex",

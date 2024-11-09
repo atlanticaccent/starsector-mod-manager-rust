@@ -1,0 +1,23 @@
+[package]
+name = "druid-wrapper"
+version = "0.1.0"
+edition = "2021"
+
+[target.'cfg(not(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd")))'.dependencies]
+druid-actual = { workspace = true, features = [
+  "im",
+  "serde",
+  "raw-win-handle",
+  "image",
+  "png",
+] }
+
+[target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))'.dependencies]
+druid-actual = { workspace = true, features = [
+  "gtk",
+  "im",
+  "serde",
+  "raw-win-handle",
+  "image",
+  "png",
+] }

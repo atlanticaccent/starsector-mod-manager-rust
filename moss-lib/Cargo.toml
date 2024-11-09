@@ -24,13 +24,7 @@ web-client = { workspace = true }
 installer = { workspace = true }
 
 # External
-druid = { workspace = true, default-features = true, features = [
-  "im",
-  "serde",
-  "raw-win-handle",
-  "image",
-  "png",
-] }
+druid = { workspace = true }
 druid-widget-nursery = { workspace = true, default-features = false, features = [
   "material-icons",
   "async",
