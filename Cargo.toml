@@ -44,7 +44,7 @@ installer = { path = "installer" }
 # External
 wry = { git = "https://github.com/atlanticaccent/wry.git", branch = "screenshot-v2" }
 druid = { path = "druid-wrapper", package = "druid-wrapper" }
-druid-actual = { git = "https://github.com/atlanticaccent/druid", default-features = false, branch = "faster-hashing", package = "druid" }
+druid-actual = { git = "https://github.com/atlanticaccent/druid", default-features = false, branch = "staging", package = "druid" }
 druid-widget-nursery = { git = "https://github.com/atlanticaccent/druid-widget-nursery", default-features = false }
 tokio = { version = "1.40.0" }
 tokio-util = { version = "0.7" }
