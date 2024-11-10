@@ -4,7 +4,9 @@ cargo-features = ["codegen-backend"]
 # codegen-backend = "cranelift"
 
 [profile.release]
+panic = "abort"
 lto = "thin"
+codegen-units = 1
 
 [profile.dev.package."*"]
 opt-level = 3
@@ -98,7 +100,7 @@ async-trait = "0.1.83"
 derive_more = "1.0"
 indoc = "2.0"
 cargo-packager-updater = "0.2"
-mimalloc = "0.1.43"
+mimalloc = { version = "0.1.43", default-features = false }
 
 # [patch.'https://github.com/atlanticaccent/druid-widget-nursery']
 # druid-widget-nursery = { path = "../druid-widget-nursery" }
