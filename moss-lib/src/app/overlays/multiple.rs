@@ -9,7 +9,7 @@ use common::{
 use druid::{
   im::Vector,
   widget::{Flex, Label},
-  Command, Data, Key, Lens, SingleUse, Widget, WidgetExt as _,
+  Data, Key, Lens, SingleUse, Widget, WidgetExt as _,
 };
 use druid_patch::table::{FixedFlexTable, TableColumnWidth, TableRow};
 use druid_widget_nursery::wrap::Wrap;
@@ -33,7 +33,7 @@ pub struct Multiple {
 struct MultipleState {
   enabled: Vector<bool>,
   #[data(ignore)]
-  commands: Vec<Command>,
+  to_install: Vec<PathBuf>,
   #[data(ignore)]
   source: HybridPath,
 }
@@ -47,7 +47,7 @@ impl Multiple {
     let Self { source, found } = self.clone();
     let len = found.len();
 
-    Card::builder()
+    let body = Card::builder()
       .with_insets(Card::CARD_INSET)
       .with_background(druid::theme::BACKGROUND_LIGHT)
       .build(
@@ -72,7 +72,7 @@ impl Multiple {
               table.add_row(
                 TableRow::new()
                   .with_child(row(found))
-                  .with_child(install_button(found.path.clone(), source.clone(), idx)),
+                  .with_child(install_button(idx)),
               );
             }
 
@@ -111,20 +111,46 @@ impl Multiple {
                   .padding((0.0, 2.0))
                   .on_click({
                     let source = source.clone();
-                    move |ctx, data: &mut MultipleState, env| {
-                      let installable = found
-                        .iter()
-                        .zip(data.enabled.iter())
-                        .filter(|&(_, installable)| *installable)
-                        .map(|(entry, _)| entry.path.clone())
-                        .collect_vec();
-                      dismiss(ctx, data, env);
+                    let installable = found.iter().map(|entry| entry.path.clone()).collect_vec();
+                    move |ctx, _, _| {
+                      ctx.submit_command(Popup::DISMISS);
                       ctx.submit_command(
-                        INSTALL_FOUND_MULTIPLE.with(SingleUse::new((installable, source.clone()))),
+                        INSTALL_FOUND_MULTIPLE
+                          .with(SingleUse::new((installable.clone(), source.clone()))),
                       );
                     }
                   })
                   .disabled_if(|data, _| data.enabled.all(false)),
+              )
+              .with_child(
+                Card::builder()
+                  .with_insets((0.0, 8.0))
+                  .with_corner_radius(6.0)
+                  .with_shadow_length(2.0)
+                  .with_shadow_increase(2.0)
+                  .with_border(2.0, Key::new("button.border"))
+                  .hoverable(|_| {
+                    Flex::row()
+                      .with_child(Label::new("Install Selected").padding((10.0, 0.0)))
+                      .valign_centre()
+                  })
+                  .env_scope(|env, data: &MultipleState| {
+                    let mut blue = env.get(BLUE_KEY);
+                    let mut on_blue = env.get(ON_BLUE_KEY);
+
+                    if data.enabled.all(false) {
+                      blue = blue.darker_by(2);
+                      on_blue = on_blue.darker_by(4);
+                    }
+
+                    env.set(druid::theme::BACKGROUND_LIGHT, blue);
+                    env.set(druid::theme::TEXT_COLOR, on_blue);
+                    env.set(Key::<druid::Color>::new("button.border"), on_blue);
+                  })
+                  .fix_height(42.0)
+                  .padding((0.0, 2.0))
+                  .on_click(dismiss)
+                  .empty_if(|data, _| data.enabled.all(false)),
               )
               .with_child(
                 Card::builder()
@@ -148,27 +174,43 @@ impl Multiple {
                   })
                   .fix_height(42.0)
                   .padding((0.0, 2.0))
-                  .on_click(dismiss),
+                  .on_click(|ctx, _, _| {
+                    ctx.submit_command(Popup::DISMISS);
+                  }),
               )
               .align_right(),
           ),
       )
       .scope_independent({
         let source = source.clone();
+        let installable = found.iter().map(|entry| entry.path.clone()).collect_vec();
         move || MultipleState {
           enabled: Vector::from(vec![true; len]),
-          commands: vec![],
+          to_install: installable.clone(),
           source: source.clone(),
         }
-      })
+      });
+
+    Flex::row()
+      .must_fill_main_axis(true)
+      .with_flex_spacer(0.5)
+      .with_flex_child(body, 1.0)
+      .with_flex_spacer(0.5)
   }
 }
 
 fn dismiss(ctx: &mut druid::EventCtx, data: &mut MultipleState, _env: &druid::Env) {
   ctx.submit_command(Popup::DISMISS);
-  for command in data.commands.drain(0..) {
-    ctx.submit_command(command);
-  }
+
+  let to_install = std::mem::take(&mut data.to_install);
+  let selected = data
+    .enabled
+    .iter()
+    .zip(to_install.into_iter())
+    .filter_map(|(selected, path)| selected.then_some(path))
+    .collect_vec();
+
+  ctx.submit_command(INSTALL_FOUND_MULTIPLE.with(SingleUse::new((selected, data.source.clone()))));
 }
 
 #[allow(irrefutable_let_patterns)]
@@ -219,16 +261,23 @@ fn row<T: Data>(entry: &ModEntry) -> impl Widget<T> {
     )
 }
 
-fn install_button(path: PathBuf, source: HybridPath, idx: usize) -> impl Widget<MultipleState> {
+fn install_button(idx: usize) -> impl Widget<MultipleState> {
   Card::builder()
     .with_insets((0.0, 8.0))
     .with_corner_radius(6.0)
     .with_shadow_length(2.0)
     .with_shadow_increase(2.0)
     .with_border(2.0, Key::new("button.border"))
-    .hoverable(|_| {
+    .hoverable(move |_| {
       Flex::row()
-        .with_child(Label::new("Install").padding((10.0, 0.0)))
+        .with_child(
+          Label::new("Select")
+            .else_if(
+              move |data: &MultipleState, _| data.enabled[idx],
+              Label::new("Selected"),
+            )
+            .padding((10.0, 0.0)),
+        )
         .valign_centre()
     })
     .env_scope(move |env, data: &MultipleState| {
@@ -246,7 +295,7 @@ fn install_button(path: PathBuf, source: HybridPath, idx: usize) -> impl Widget<
     })
     .fix_height(42.0)
     .padding((0.0, 2.0))
-    .on_click(move |ctx, state: &mut MultipleState, env| {
+    .on_click(move |ctx, state: &mut MultipleState, _| {
       let can_install = &mut state.enabled[idx];
       if *can_install {
         ctx.clear_cursor();
@@ -254,14 +303,8 @@ fn install_button(path: PathBuf, source: HybridPath, idx: usize) -> impl Widget<
         if ctx.is_focused() {
           ctx.resign_focus();
         }
-        *can_install = false;
-        state
-          .commands
-          .push(INSTALL_FOUND_MULTIPLE.with(SingleUse::new((vec![path.clone()], source.clone()))));
-        if state.enabled.all(false) {
-          dismiss(ctx, state, env);
-        }
       }
+      *can_install = !*can_install;
     })
     .disabled_if(move |data, _| !data.enabled[idx])
 }
