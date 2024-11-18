@@ -2,7 +2,7 @@ use std::ops::Index;
 
 use druid::{
   widget::{BackgroundBrush, Painter},
-  Color, Data, KeyOrValue, Lens, Widget, WidgetExt, WidgetPod,
+  Color, Data, Key, KeyOrValue, Lens, Widget, WidgetExt, WidgetPod,
 };
 
 use super::{
@@ -10,8 +10,10 @@ use super::{
   TableData, TableRowInternal,
 };
 
+type InnerTable<T> = FlexTable<FixedTable<T>>;
+
 pub struct FixedFlexTable<T: Data> {
-  table: FlexTable<FixedTable<T>>,
+  table: InnerTable<T>,
 }
 
 impl<T: Data> Default for FixedFlexTable<T> {
@@ -21,6 +23,10 @@ impl<T: Data> Default for FixedFlexTable<T> {
 }
 
 impl<T: Data> FixedFlexTable<T> {
+  pub const COL_IDX: Key<u64> = InnerTable::<T>::COL_IDX;
+  pub const ROW_IDX: Key<u64> = InnerTable::<T>::ROW_IDX;
+  pub const TOTAL_COLUMNS: Key<u64> = InnerTable::<T>::TOTAL_COLUMNS;
+
   pub fn new() -> Self {
     Self {
       table: FlexTable::new(),
@@ -401,14 +407,6 @@ struct FixedTable<T: Data> {
   columns: usize,
 }
 
-impl<T: Data> Index<usize> for FixedTable<T> {
-  type Output = FixedRow<T>;
-
-  fn index(&self, _: usize) -> &Self::Output {
-    &self.data
-  }
-}
-
 impl<T: Data> TableData for FixedTable<T> {
   type Column = <Self::Row as RowData>::Column;
   type Row = FixedRow<T>;
@@ -423,6 +421,10 @@ impl<T: Data> TableData for FixedTable<T> {
 
   fn with_mut(&mut self, _: <Self::Row as RowData>::Id, mutate: impl FnOnce(&mut Self::Row)) {
     mutate(&mut self.data);
+  }
+
+  fn index(&self, idx: <Self::Row as RowData>::Id) -> &Self::Row {
+    &self.data
   }
 }
 

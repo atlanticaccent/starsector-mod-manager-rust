@@ -2,13 +2,13 @@ use std::path::PathBuf;
 
 use common::{
   labels::{bolded, h2_fixed, hoverable_text},
+  theme_keys::{GREEN_KEY, ON_GREEN_KEY},
   widget_ext::WidgetExtEx,
   widgets::card::Card,
-  ShadeColor,
 };
 use druid::{
   im::Vector,
-  widget::{Flex, Label},
+  widget::{Flex, Label, Painter, SizedBox},
   Data, Key, Lens, SingleUse, Widget, WidgetExt as _,
 };
 use druid_patch::table::{FixedFlexTable, TableColumnWidth, TableRow};
@@ -18,7 +18,7 @@ use itertools::Itertools;
 
 use super::Popup;
 use crate::{
-  app::{installer_impl::INSTALL_FOUND_MULTIPLE, mod_entry::ModEntry, util::Tap as _, App},
+  app::{installer_impl::INSTALL_FOUND_MULTIPLE, mod_entry::ModEntry, App},
   theme::{BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
 };
 
@@ -31,7 +31,7 @@ pub struct Multiple {
 
 #[derive(Debug, Clone, Data, Lens)]
 struct MultipleState {
-  enabled: Vector<bool>,
+  selected: Vector<bool>,
   #[data(ignore)]
   to_install: Vec<PathBuf>,
   #[data(ignore)]
@@ -62,23 +62,42 @@ impl Multiple {
               .with_child(h2_fixed("Multiple mods found during installation from"))
               .with_child(h2_fixed(&source.source())),
           )
-          .pipe(|column| {
-            let mut column = column;
-
+          .with_spacer(5.0)
+          .with_child({
             let mut table = FixedFlexTable::new()
               .with_column_width(TableColumnWidth::Flex(1.0))
-              .with_column_width(TableColumnWidth::Intrinsic);
+              .with_column_width(TableColumnWidth::Intrinsic)
+              .row_background(Painter::new(move |ctx, _, env| {
+                use druid::RenderContext;
+                let rect = ctx.size().to_rect();
+
+                if env
+                  .try_get(FixedFlexTable::<MultipleState>::ROW_IDX)
+                  .unwrap_or(0)
+                  % 3
+                  == 0
+                {
+                  ctx.fill(rect, &env.get(druid::theme::BACKGROUND_DARK));
+                } else {
+                  ctx.fill(rect, &env.get(druid::theme::BACKGROUND_LIGHT));
+                }
+              }));
             for (idx, found) in found.iter().enumerate() {
               table.add_row(
                 TableRow::new()
                   .with_child(row(found))
-                  .with_child(install_button(idx)),
+                  .with_child(install_button(idx).align_right()),
               );
+              if idx < len - 1 {
+                table.add_row(
+                  TableRow::new()
+                    .with_child(SizedBox::empty().fix_height(5.0))
+                    .with_child(SizedBox::empty()),
+                );
+              }
             }
 
-            column.add_child(table.scroll().vertical());
-
-            column
+            table.scroll().vertical()
           })
           .with_child(
             Flex::row()
@@ -94,18 +113,13 @@ impl Multiple {
                       .with_child(Label::new("Install All").padding((10.0, 0.0)))
                       .valign_centre()
                   })
-                  .env_scope(|env, data: &MultipleState| {
-                    let mut blue = env.get(BLUE_KEY);
-                    let mut on_blue = env.get(ON_BLUE_KEY);
+                  .env_scope(|env, _: &MultipleState| {
+                    let bg = env.get(BLUE_KEY);
+                    let text = env.get(ON_BLUE_KEY);
 
-                    if data.enabled.all(false) {
-                      blue = blue.darker_by(2);
-                      on_blue = on_blue.darker_by(4);
-                    }
-
-                    env.set(druid::theme::BACKGROUND_LIGHT, blue);
-                    env.set(druid::theme::TEXT_COLOR, on_blue);
-                    env.set(Key::<druid::Color>::new("button.border"), on_blue);
+                    env.set(druid::theme::BACKGROUND_LIGHT, bg);
+                    env.set(druid::theme::TEXT_COLOR, text);
+                    env.set(Key::<druid::Color>::new("button.border"), text);
                   })
                   .fix_height(42.0)
                   .padding((0.0, 2.0))
@@ -119,8 +133,7 @@ impl Multiple {
                           .with(SingleUse::new((installable.clone(), source.clone()))),
                       );
                     }
-                  })
-                  .disabled_if(|data, _| data.enabled.all(false)),
+                  }),
               )
               .with_child(
                 Card::builder()
@@ -134,23 +147,18 @@ impl Multiple {
                       .with_child(Label::new("Install Selected").padding((10.0, 0.0)))
                       .valign_centre()
                   })
-                  .env_scope(|env, data: &MultipleState| {
-                    let mut blue = env.get(BLUE_KEY);
-                    let mut on_blue = env.get(ON_BLUE_KEY);
+                  .env_scope(|env, _: &MultipleState| {
+                    let bg = env.get(GREEN_KEY);
+                    let text = env.get(ON_GREEN_KEY);
 
-                    if data.enabled.all(false) {
-                      blue = blue.darker_by(2);
-                      on_blue = on_blue.darker_by(4);
-                    }
-
-                    env.set(druid::theme::BACKGROUND_LIGHT, blue);
-                    env.set(druid::theme::TEXT_COLOR, on_blue);
-                    env.set(Key::<druid::Color>::new("button.border"), on_blue);
+                    env.set(druid::theme::BACKGROUND_LIGHT, bg);
+                    env.set(druid::theme::TEXT_COLOR, text);
+                    env.set(Key::<druid::Color>::new("button.border"), text);
                   })
                   .fix_height(42.0)
                   .padding((0.0, 2.0))
                   .on_click(dismiss)
-                  .empty_if(|data, _| data.enabled.all(false)),
+                  .empty_if(|data, _| data.selected.all(false)),
               )
               .with_child(
                 Card::builder()
@@ -161,7 +169,7 @@ impl Multiple {
                   .with_border(2.0, Key::new("button.border"))
                   .hoverable(|_| {
                     Flex::row()
-                      .with_child(Label::new("Close").padding((10.0, 0.0)))
+                      .with_child(Label::new("Cancel").padding((10.0, 0.0)))
                       .valign_centre()
                   })
                   .env_scope(|env, _| {
@@ -185,7 +193,7 @@ impl Multiple {
         let source = source.clone();
         let installable = found.iter().map(|entry| entry.path.clone()).collect_vec();
         move || MultipleState {
-          enabled: Vector::from(vec![true; len]),
+          selected: Vector::from(vec![false; len]),
           to_install: installable.clone(),
           source: source.clone(),
         }
@@ -204,7 +212,7 @@ fn dismiss(ctx: &mut druid::EventCtx, data: &mut MultipleState, _env: &druid::En
 
   let to_install = std::mem::take(&mut data.to_install);
   let selected = data
-    .enabled
+    .selected
     .iter()
     .zip(to_install.into_iter())
     .filter_map(|(selected, path)| selected.then_some(path))
@@ -273,7 +281,7 @@ fn install_button(idx: usize) -> impl Widget<MultipleState> {
         .with_child(
           Label::new("Select")
             .else_if(
-              move |data: &MultipleState, _| data.enabled[idx],
+              move |data: &MultipleState, _| data.selected[idx],
               Label::new("Selected"),
             )
             .padding((10.0, 0.0)),
@@ -281,32 +289,29 @@ fn install_button(idx: usize) -> impl Widget<MultipleState> {
         .valign_centre()
     })
     .env_scope(move |env, data: &MultipleState| {
-      let mut blue = env.get(BLUE_KEY);
-      let mut on_blue = env.get(ON_BLUE_KEY);
+      let (bg, text) = if data.selected[idx] {
+        (env.get(GREEN_KEY), env.get(ON_GREEN_KEY))
+      } else {
+        (env.get(BLUE_KEY), env.get(ON_BLUE_KEY))
+      };
 
-      if !data.enabled[idx] {
-        blue = blue.darker_by(2);
-        on_blue = on_blue.darker_by(4);
-      }
-
-      env.set(druid::theme::BACKGROUND_LIGHT, blue);
-      env.set(druid::theme::TEXT_COLOR, on_blue);
-      env.set(Key::<druid::Color>::new("button.border"), on_blue);
+      env.set(druid::theme::BACKGROUND_LIGHT, bg);
+      env.set(druid::theme::TEXT_COLOR, text);
+      env.set(Key::<druid::Color>::new("button.border"), text);
     })
     .fix_height(42.0)
     .padding((0.0, 2.0))
     .on_click(move |ctx, state: &mut MultipleState, _| {
-      let can_install = &mut state.enabled[idx];
-      if *can_install {
+      let selected = &mut state.selected[idx];
+      *selected = !*selected;
+      if *selected {
         ctx.clear_cursor();
         ctx.set_active(false);
         if ctx.is_focused() {
           ctx.resign_focus();
         }
       }
-      *can_install = !*can_install;
     })
-    .disabled_if(move |data, _| !data.enabled[idx])
 }
 
 #[extend::ext]

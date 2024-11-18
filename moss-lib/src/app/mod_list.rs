@@ -692,6 +692,10 @@ impl TableData for ModList {
     let entry = Rc::make_mut(&mut self.mods[&idx]);
     mutate(entry);
   }
+
+  fn index(&self, idx: <Self::Row as RowData>::Id) -> &Self::Row {
+    &self.mods[&idx]
+  }
 }
 
 #[derive(Serialize, Deserialize)]

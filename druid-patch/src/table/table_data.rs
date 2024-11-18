@@ -3,6 +3,7 @@ use std::{
   hash::Hash,
   ops::{Deref, Index},
   sync::Arc,
+  usize,
 };
 
 use druid::{
@@ -37,7 +38,7 @@ impl<T: RowData> RowData for Arc<T> {
   }
 }
 
-pub trait TableData: Data + Index<<Self::Row as RowData>::Id, Output = Self::Row> {
+pub trait TableData: Data {
   type Row: RowData<Column = Self::Column>;
   type Column: Hash + Eq + Clone + Debug;
 
@@ -46,6 +47,8 @@ pub trait TableData: Data + Index<<Self::Row as RowData>::Id, Output = Self::Row
   fn columns(&self) -> impl Iterator<Item = Self::Column>;
 
   fn with_mut(&mut self, idx: <Self::Row as RowData>::Id, mutate: impl FnOnce(&mut Self::Row));
+
+  fn index(&self, idx: <Self::Row as RowData>::Id) -> &Self::Row;
 }
 
 pub type WidgetFactoryRow = Vector<Arc<dyn Fn() -> Box<dyn Widget<()>>>>;
@@ -84,6 +87,10 @@ impl TableData for WidgetFactoryTable {
   fn with_mut(&mut self, idx: <Self::Row as RowData>::Id, mutate: impl FnOnce(&mut Self::Row)) {
     mutate(&mut self[idx]);
   }
+
+  fn index(&self, idx: <Self::Row as RowData>::Id) -> &Self::Row {
+    &self[idx]
+  }
 }
 
 impl RowData for () {
@@ -103,13 +110,36 @@ impl TableData for [(); 0] {
   type Column = usize;
   type Row = ();
 
-  fn keys(&self) -> impl Iterator<Item = <Self::Row as RowData>::Id> {
+  fn keys(&self) -> impl Iterator<Item = usize> {
     0..0
   }
 
-  fn columns(&self) -> impl Iterator<Item = Self::Column> {
+  fn columns(&self) -> impl Iterator<Item = usize> {
     0..0
   }
 
   fn with_mut(&mut self, _: usize, _: impl FnOnce(&mut ())) {}
+
+  fn index(&self, idx: <Self::Row as RowData>::Id) -> &Self::Row {
+    &self[0]
+  }
+}
+
+impl TableData for () {
+  type Column = usize;
+  type Row = ();
+
+  fn keys(&self) -> impl Iterator<Item = usize> {
+    0..0
+  }
+
+  fn columns(&self) -> impl Iterator<Item = usize> {
+    0..0
+  }
+
+  fn with_mut(&mut self, _: usize, mutate: impl FnOnce(&mut ())) {}
+
+  fn index(&self, _: usize) -> &() {
+    self
+  }
 }

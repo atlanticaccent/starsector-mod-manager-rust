@@ -2,7 +2,7 @@ use std::{
   cell::Cell,
   fmt::{Debug, Display},
   hash::Hash,
-  ops::{Deref, Index, IndexMut},
+  ops::Deref,
   rc::Rc,
 };
 
@@ -278,22 +278,6 @@ impl<T: WrapData, W> TableDataImpl<T, W> {
   }
 }
 
-impl<T: WrapData, W> Index<usize> for TableDataImpl<T, W> {
-  type Output = RowDataImpl<T, W>;
-
-  fn index(&self, row: usize) -> &Self::Output {
-    self.data.row.set(row);
-    &self.data
-  }
-}
-
-impl<T: WrapData, W> IndexMut<usize> for TableDataImpl<T, W> {
-  fn index_mut(&mut self, row: usize) -> &mut Self::Output {
-    self.data.row.set(row);
-    &mut self.data
-  }
-}
-
 impl<T: WrapData, W> Clone for TableDataImpl<T, W> {
   fn clone(&self) -> Self {
     Self {
@@ -325,6 +309,11 @@ impl<T: WrapData, W: Widget<T> + 'static> TableData for TableDataImpl<T, W> {
 
   fn with_mut(&mut self, _: <Self::Row as RowData>::Id, mutate: impl FnOnce(&mut Self::Row)) {
     mutate(&mut self.data);
+  }
+
+  fn index(&self, idx: <Self::Row as RowData>::Id) -> &Self::Row {
+    self.data.row.set(idx);
+    &self.data
   }
 }
 
