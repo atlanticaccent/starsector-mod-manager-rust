@@ -1,12 +1,26 @@
-cargo-features = ["codegen-backend"]
+cargo-features = ["codegen-backend", "profile-rustflags"]
 
 # [profile.dev]
 # codegen-backend = "cranelift"
 
 [profile.release]
 panic = "abort"
-lto = "thin"
+lto = "fat"
 codegen-units = 1
+
+[profile.ci]
+# rustflags = [
+#   "-C",
+#   "linker-plugin-lto",
+#   "-C",
+#   "linker=clang",
+#   "-C",
+#   "link-arg=-fuse-ld=lld",
+#   "-Z",
+#   "share-generics=true",
+# ]
+inherits = "release"
+incremental = false
 
 [profile.dev.package."*"]
 opt-level = 3
@@ -14,6 +28,24 @@ opt-level = 3
 [profile.release-dhat]
 inherits = "release"
 debug = 1
+
+[profile.iter-mac]
+rustflags = [
+  "-C",
+  "relocation-model=static",
+  "-C",
+  "embed-bitcode=no",
+  "-C",
+  "lto=off",
+  "-Z",
+  "share-generics=true",
+]
+inherits = "dev"
+debug = 0
+
+[profile.iter]
+inherits = "iter-mac"
+strip = "debuginfo"
 
 [workspace]
 members = [

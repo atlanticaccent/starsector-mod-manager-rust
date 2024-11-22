@@ -20,6 +20,7 @@ jobs:
       SCCACHE_GHA_ENABLED: "true"
       RUSTC_WRAPPER: "sccache"
       MACOSX_DEPLOYMENT_TARGET: "10.10"
+      CARGO_INCREMENTAL: 0
     steps:
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.6
@@ -28,14 +29,12 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install coreutils
-          brew install pkgconfig
-          brew install libarchive
+          brew install coreutils pkgconfig libarchive llvm@18
           echo PKG_CONFIG_PATH=$(brew ls libarchive | grep .pc$ | sed 's|/libarchive.pc||') >> $GITHUB_ENV
 
       - uses: r7kamura/rust-problem-matchers@v1
       - name: Build
-        run: cargo build --release
+        run: ./scripts/ci.sh
       - name: Test
         run: cargo test --release --no-fail-fast --features="leaky-api" -- --nocapture
 

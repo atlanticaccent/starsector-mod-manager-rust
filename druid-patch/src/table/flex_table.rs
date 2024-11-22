@@ -70,20 +70,6 @@ pub(crate) struct TableBorderStyle {
 ///     width: usize,
 /// }
 ///
-/// impl Index<usize> for Table {
-///     type Output = Row;
-///
-///     fn index(&self, row: usize) -> &Self::Output {
-///         &self.children[row]
-///     }
-/// }
-///
-/// impl IndexMut<usize> for Table {
-///     fn index_mut(&mut self, row: usize) -> &mut Self::Output {
-///         &mut self.children[row]
-///     }
-/// }
-///
 /// impl TableData for Table {
 ///     type Row = Row;
 ///     type Column = usize;
@@ -101,7 +87,11 @@ pub(crate) struct TableBorderStyle {
 ///     }
 ///
 ///     fn with_mut(&mut self, idx: <Self::Row as RowData>::Id, mutate: impl FnOnce(&mut Self::Row)) {
-///         (mutate)(&mut self[idx])
+///         (mutate)(&mut self.children[idx])
+///     }
+///
+///     fn index(&self, idx: <Self::Row as RowData>::Id) -> &<Self as TableData>::Row {
+///         &self.children[idx]
 ///     }
 /// }
 ///

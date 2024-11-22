@@ -19,9 +19,16 @@ jobs:
     env:
       SCCACHE_GHA_ENABLED: "true"
       RUSTC_WRAPPER: "sccache"
+      CARGO_INCREMENTAL: 0
     steps:
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.6
+
+      - name: Install llvm-18
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 18
 
       - name: Install Dependencies
         run: sudo apt-get update; sudo apt-get install libarchive-dev libgtk-3-dev webkit2gtk-4.1 libgtksourceview-3.0-dev libayatana-appindicator3-dev
@@ -30,14 +37,21 @@ jobs:
 
       - uses: r7kamura/rust-problem-matchers@v1
       - name: Build
-        run: cargo build --release
+        env:
+          CC: clang-18
+          CXX: clang++-18
+          AR: llvm-ar-18
+          CFLAGS: "-flto=full -O3"
+          CXXFLAGS: "-flto=full -O3"
+          RUSTFLAGS: "-Zshare-generics=true -Clinker=clang-18 -Clinker-plugin-lto -Clink-arg=-fuse-ld=lld-18"
+        run: cargo build --profile=ci
       - name: Test
-        run: cargo test --release --no-fail-fast --features="leaky-api" -- --nocapture
+        run: cargo test --profile=ci --no-fail-fast --features="leaky-api" -- --nocapture
 
       - name: Install cargo-packager
         run: (cargo install cargo-packager || true)
       - name: Run cargo-packager
-        run: cargo packager --release --formats appimage
+        run: cargo packager --profile=ci --formats appimage
 
       - uses: actions/upload-artifact@v4
         with:
