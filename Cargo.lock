@@ -3046,14 +3046,6 @@ dependencies = [
 
 [[package]]
 name = "moss"
-version = "0.1.0"
-dependencies = [
- "mimalloc",
- "moss-lib",
-]
-
-[[package]]
-name = "moss-lib"
 version = "0.8.0-beta2"
 dependencies = [
  "ahash",
@@ -3090,6 +3082,7 @@ dependencies = [
  "json_comments",
  "macros",
  "metal",
+ "mimalloc",
  "native-dialog",
  "opener",
  "rand 0.8.5",

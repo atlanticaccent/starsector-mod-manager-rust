@@ -18,7 +18,6 @@ debug = 1
 [workspace]
 members = [
   "moss",
-  "moss-lib",
   "webview",
   "common",
   "druid-patch",
