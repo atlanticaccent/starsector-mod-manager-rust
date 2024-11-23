@@ -7,4 +7,5 @@ linker = "rust-lld.exe"
 
 [alias]
 fast = ["r", "-q", "--manifest-path", "fast/Cargo.toml", "--"]
-fast_check = ["r", "-q", "--manifest-path", "fast/Cargo.toml", "--", "check"]
+feck = ["r", "-q", "--manifest-path", "fast/Cargo.toml", "--", "check"]
+fun = ["r", "-q", "--manifest-path", "fast/Cargo.toml", "--", "run"]
