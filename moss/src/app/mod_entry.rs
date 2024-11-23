@@ -437,63 +437,63 @@ impl ViewModEntry {
             } else {
               update_status.clone()
             };
-            Box::new(
-              Flex::row()
-                .with_child(Label::new(version_union.to_string()))
-                .with_flex_spacer(1.)
-                .tap(|row| {
-                  let mut icon_row = Flex::row();
-                  let mut iter = 0;
+            Flex::row()
+              .with_child(Label::new(version_union.to_string()))
+              .with_flex_spacer(1.)
+              .tap(|row| {
+                let mut icon_row = Flex::row();
+                let mut iter = 0;
 
-                  match update_status {
-                    UpdateStatus::Major(_) => iter = 3,
-                    UpdateStatus::Minor(_) => iter = 2,
-                    UpdateStatus::Patch(_) => iter = 1,
-                    UpdateStatus::Error => icon_row.add_child(Icon::new(*REPORT)),
-                    UpdateStatus::Discrepancy(_) => icon_row.add_child(Icon::new(*SICK)),
-                    UpdateStatus::UpToDate => icon_row.add_child(Icon::new(*THUMB_UP)),
-                  };
+                match update_status {
+                  UpdateStatus::Major(_) => iter = 3,
+                  UpdateStatus::Minor(_) => iter = 2,
+                  UpdateStatus::Patch(_) => iter = 1,
+                  UpdateStatus::Error => icon_row.add_child(Icon::new(*REPORT)),
+                  UpdateStatus::Discrepancy(_) => icon_row.add_child(Icon::new(*SICK)),
+                  UpdateStatus::UpToDate => icon_row.add_child(Icon::new(*THUMB_UP)),
+                };
 
-                  for _ in 0..iter {
-                    icon_row.add_child(Icon::new(*NEW_RELEASES));
+                for _ in 0..iter {
+                  icon_row.add_child(Icon::new(*NEW_RELEASES));
+                }
+
+                let tooltip = match &update_status {
+                  UpdateStatus::Error => "Error\nThere was an error retrieving or parsing this \
+                                          mod's version information."
+                    .to_string(),
+                  UpdateStatus::Discrepancy(remote) => {
+                    format!(
+                      "Discrepancy\nThe installed version of this mod is newer than the known \
+                       latest version.\nNewest version according to server: {remote}.\nThis is \
+                       usually because the author has forgotten to update their version file and \
+                       is not an error."
+                    )
                   }
-
-                  let tooltip = match update_status {
-                    UpdateStatus::Error => "Error\nThere was an error retrieving or parsing this \
-                                            mod's version information."
-                      .to_string(),
-                    UpdateStatus::Discrepancy(_) => {
-                      "\
-                          Discrepancy\nThe installed version of this mod is higher than the \
-                       version available from the server.\nThis usually means the mod author has \
-                       forgotten to update their remote version file and is not a cause for alarm."
-                        .to_string()
-                    }
-                    _ => update_status.to_string(),
-                  };
-                  let builder = Card::builder();
-                  row.add_child(
-                    icon_row
-                      .padding(2.0)
-                      .wrap_with_hover_state(false, true)
-                      .stack_tooltip_custom(
-                        match (&update_status).into() {
-                          druid::KeyOrValue::Concrete(color) => builder.with_background(color),
-                          druid::KeyOrValue::Key(key) => builder.with_background(key),
-                        }
-                        .build(MaxSizeBox::new(
-                          Label::new(tooltip)
-                            .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
-                            .with_text_color(update_status.as_text_colour())
-                            .padding((5.0, 0.0)),
-                          druid::widget::Axis::Horizontal,
-                          300.0,
-                        )),
-                      )
-                      .with_offset((10.0, 10.0)),
-                  );
-                }),
-            )
+                  _ => update_status.to_string(),
+                };
+                let builder = Card::builder();
+                row.add_child(
+                  icon_row
+                    .padding(2.0)
+                    .wrap_with_hover_state(false, true)
+                    .stack_tooltip_custom(
+                      match (&update_status).into() {
+                        druid::KeyOrValue::Concrete(color) => builder.with_background(color),
+                        druid::KeyOrValue::Key(key) => builder.with_background(key),
+                      }
+                      .build(MaxSizeBox::new(
+                        Label::new(tooltip)
+                          .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
+                          .with_text_color(update_status.as_text_colour())
+                          .padding((5.0, 0.0)),
+                        druid::widget::Axis::Horizontal,
+                        330.0,
+                      )),
+                    )
+                    .with_offset((10.0, 10.0)),
+                );
+              })
+              .boxed()
           } else {
             Label::dynamic(|data: &(Option<UpdateStatus>, Version), _| data.1.to_string()).boxed()
           }
