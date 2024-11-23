@@ -3,21 +3,25 @@ use std::{future::Future, path::PathBuf, sync::Arc};
 use common::ExtEventSinkExt;
 use druid::{ExtEventSink, Selector, SingleUse};
 use installer::{Entry, HybridPath, InstallerDelegate, InstallerExt, Request};
+use types::CloneTx;
 
 use super::{mod_entry::ModVersionMeta, overlays::Popup};
 use crate::{app::mod_entry::ModEntry, bang};
 
-pub const INSTALL: Selector<ChannelMessage> = Selector::new("install.message");
+pub const INSTALL: Selector<SingleUse<InstallMessage>> = Selector::new("install.message");
 pub const DOWNLOAD_STARTED: Selector<(i64, String)> = Selector::new("install.download.started");
 pub const DOWNLOAD_PROGRESS: Selector<Vec<(i64, String, f64)>> =
   Selector::new("install.download.progress");
-pub const INSTALL_FOUND_MULTIPLE: Selector<SingleUse<(Vec<PathBuf>, HybridPath)>> =
-  Selector::new("install.found_multiple.install_all");
 
 #[derive(Debug, Clone)]
-pub enum ChannelMessage {
-  /// New mod entry
+pub enum InstallMessage {
+  /// Multiple mods found in single installation source
+  FoundMultiple(Vec<PathBuf>, HybridPath),
+  /// Check mod already installed
+  CheckConflict(String, CloneTx),
+  /// Installation succeeded
   Success(Box<ModEntry>),
+  /// Unrecoverable install error
   Error(String, Arc<dyn std::error::Error + Send + Sync>),
 }
 
@@ -50,7 +54,7 @@ impl InstallerDelegate for Installer {
       .ext_ctx
       .submit_command_global(
         INSTALL,
-        ChannelMessage::Error(String::new(), Arc::new(error)),
+        SingleUse::new(InstallMessage::Error(String::new(), Arc::new(error))),
       )
       .inspect_err(|err| bang!(err));
   }
@@ -72,7 +76,10 @@ impl InstallerDelegate for Installer {
   fn completed_handler(&self, entry: ModEntry) {
     let _ = self
       .ext_ctx
-      .submit_command_global(INSTALL, ChannelMessage::Success(Box::new(entry)))
+      .submit_command_global(
+        INSTALL,
+        SingleUse::new(InstallMessage::Success(Box::new(entry))),
+      )
       .inspect_err(|err| bang!(err));
   }
 
@@ -80,9 +87,20 @@ impl InstallerDelegate for Installer {
     let ext_ctx = self.ext_ctx.clone();
     let id = entry.id();
     async move {
-      let _ = ext_ctx;
-      let _ = id;
-      false
+      let (tx, rx) = tokio::sync::oneshot::channel();
+
+      if ext_ctx
+        .submit_command_global(
+          INSTALL,
+          SingleUse::new(InstallMessage::CheckConflict(id, CloneTx::new(tx))),
+        )
+        .inspect_err(|err| bang!(err))
+        .is_err()
+      {
+        return false;
+      }
+
+      rx.await.unwrap_or_default()
     }
   }
 }

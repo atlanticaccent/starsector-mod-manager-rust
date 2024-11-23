@@ -1,5 +1,3 @@
-use std::sync::{Arc, Mutex};
-
 use derive_more::derive::{Deref, From};
 use self_update::{
   backends::github,
@@ -8,6 +6,7 @@ use self_update::{
   version,
 };
 use tokio::sync::oneshot;
+use types::CloneTx;
 
 #[derive(Debug, Clone, From, Deref)]
 #[repr(transparent)]
@@ -42,31 +41,6 @@ const TARGET: &str = if cfg!(target_os = "windows") {
   "MOSS.app"
 };
 const CURRENT_VERSION: &str = cargo_crate_version!();
-
-#[derive(Debug, Clone, From, Deref)]
-pub struct CloneTx(Arc<Mutex<Option<oneshot::Sender<bool>>>>);
-
-impl CloneTx {
-  pub fn new(tx: oneshot::Sender<bool>) -> Self {
-    Self(Arc::new(Mutex::new(Some(tx))))
-  }
-
-  pub fn send(&self, val: bool) {
-    let Ok(mut guard) = self.lock() else {
-      return;
-    };
-
-    if let Some(sender) = guard.take() {
-      let _ = sender.send(val);
-    }
-  }
-}
-
-impl PartialEq for CloneTx {
-  fn eq(&self, other: &Self) -> bool {
-    Arc::ptr_eq(self, other)
-  }
-}
 
 pub fn check_for_update(callback: impl Fn(Status) + Send + Sync + 'static) {
   tokio::task::spawn_blocking(move || check_for_update_blocking(&callback, &callback));

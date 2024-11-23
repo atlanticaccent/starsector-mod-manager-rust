@@ -1,8 +1,7 @@
 use druid::{
   keyboard_types::Key, AppDelegate as Delegate, Command, DelegateCtx, Env, Event, Handled,
-  KeyEvent, LensExt as _, SingleUse, Target, WindowId,
+  KeyEvent, LensExt as _, Target, WindowId,
 };
-use futures_util::FutureExt;
 use itertools::Itertools;
 use rand::random;
 use remove_dir_all::remove_dir_all;
@@ -11,7 +10,7 @@ use updater::check_for_update;
 use webview::{InstallType, PROJECT, WEBVIEW_INSTALL};
 
 use super::{
-  installer_impl::{self, DOWNLOAD_PROGRESS, DOWNLOAD_STARTED},
+  installer_impl::{DOWNLOAD_PROGRESS, DOWNLOAD_STARTED},
   mod_description::{self, ModDescription},
   mod_list::{install::install_options::InstallOptions, ModList},
   overlays::Popup,
@@ -269,25 +268,6 @@ impl Delegate<App> for AppDelegate {
       return Handled::Yes;
     } else if let Some(_timestamp) = cmd.get(App::REMOVE_DOWNLOAD_BAR) {
       // data.downloads.remove(timestamp);
-
-      return Handled::Yes;
-    } else if let Some((to_install, source)) = cmd
-      .get(installer_impl::INSTALL_FOUND_MULTIPLE)
-      .and_then(SingleUse::take)
-    {
-      let install_dir = data.settings.install_dir.as_ref().unwrap().clone();
-      data.runtime.spawn(
-        data
-          .installer
-          .install(installer::Request::Initial(
-            to_install
-              .into_iter()
-              .map(|p| source.clone().with_path(&p))
-              .collect_vec(),
-            install_dir,
-          ))
-          .then(async move |()| drop(source)),
-      );
 
       return Handled::Yes;
     }

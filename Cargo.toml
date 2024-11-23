@@ -59,6 +59,7 @@ members = [
   "web-client",
   "installer",
   "druid-wrapper",
+  "types",
 ]
 resolver = "2"
 
@@ -73,6 +74,7 @@ icons = { path = "icons" }
 updater = { path = "updater" }
 web-client = { path = "web-client" }
 installer = { path = "installer" }
+types = { path = "types" }
 
 # External
 wry = { git = "https://github.com/atlanticaccent/wry.git", branch = "screenshot-v2" }

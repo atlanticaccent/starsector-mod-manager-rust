@@ -275,7 +275,7 @@ impl installer::Entry for ModEntry {
   }
 
   fn destination_folder(&self, parent: &Path) -> PathBuf {
-    parent.join(self.id())
+    parent.join("mods").join(self.id())
   }
 
   async fn parse(path: impl AsRef<Path>) -> Result<Self, ModEntryError> {

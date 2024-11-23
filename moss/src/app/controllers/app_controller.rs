@@ -2,9 +2,11 @@ use std::{env::current_exe, process};
 
 use common::ExtEventSinkExt;
 use druid::{commands, widget::Controller, Env, Event, EventCtx, Widget};
+use futures_util::FutureExt;
+use itertools::Itertools;
 
 use crate::app::{
-  installer_impl::{ChannelMessage, INSTALL},
+  installer_impl::{InstallMessage, INSTALL},
   mod_entry::UpdateStatus,
   mod_list::ModList,
   settings::{self, Settings, SettingsCommand},
@@ -63,9 +65,11 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
         };
       } else if cmd.is(App::ENABLE) {
         ctx.set_disabled(false);
-      } else if let Some(payload) = cmd.get(INSTALL) {
+      } else if let Some(single_use) = cmd.get(INSTALL)
+        && let Some(payload) = single_use.take()
+      {
         match payload {
-          ChannelMessage::Success(entry) => {
+          InstallMessage::Success(entry) => {
             let mut entry = entry.clone();
             if let Some(existing) = data.mod_list.mods.get(&entry.id) {
               entry.enabled = existing.enabled;
@@ -80,9 +84,27 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
             ctx.submit_command(ModList::INSERT_MOD.with(*entry));
             ctx.request_update();
           }
-          ChannelMessage::Error(name, err) => {
+          InstallMessage::Error(name, err) => {
             ctx.submit_command(App::LOG_ERROR.with((name.clone(), err.clone())));
             eprintln!("Failed to install {err}");
+          }
+          InstallMessage::FoundMultiple(to_install, source) => {
+            let install_dir = data.settings.install_dir.as_ref().unwrap().clone();
+            data.runtime.spawn(
+              data
+                .installer
+                .install(installer::Request::Initial(
+                  to_install
+                    .into_iter()
+                    .map(|p| source.clone().with_path(&p))
+                    .collect_vec(),
+                  install_dir,
+                ))
+                .then(async move |()| drop(source)),
+            );
+          }
+          InstallMessage::CheckConflict(id, clone_tx) => {
+            clone_tx.send(data.mod_list.mods.contains_key(&id));
           }
         }
       }

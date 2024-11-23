@@ -18,7 +18,11 @@ use itertools::Itertools;
 
 use super::Popup;
 use crate::{
-  app::{installer_impl::INSTALL_FOUND_MULTIPLE, mod_entry::ModEntry, App},
+  app::{
+    installer_impl::{InstallMessage, INSTALL},
+    mod_entry::ModEntry,
+    App,
+  },
   theme::{BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
 };
 
@@ -128,10 +132,9 @@ impl Multiple {
                     let installable = found.iter().map(|entry| entry.path.clone()).collect_vec();
                     move |ctx, _, _| {
                       ctx.submit_command(Popup::DISMISS);
-                      ctx.submit_command(
-                        INSTALL_FOUND_MULTIPLE
-                          .with(SingleUse::new((installable.clone(), source.clone()))),
-                      );
+                      ctx.submit_command(INSTALL.with(SingleUse::new(
+                        InstallMessage::FoundMultiple(installable.clone(), source.clone()),
+                      )));
                     }
                   }),
               )
@@ -218,7 +221,10 @@ fn dismiss(ctx: &mut druid::EventCtx, data: &mut MultipleState, _env: &druid::En
     .filter_map(|(selected, path)| selected.then_some(path))
     .collect_vec();
 
-  ctx.submit_command(INSTALL_FOUND_MULTIPLE.with(SingleUse::new((selected, data.source.clone()))));
+  ctx.submit_command(INSTALL.with(SingleUse::new(InstallMessage::FoundMultiple(
+    selected,
+    data.source.clone(),
+  ))));
 }
 
 #[allow(irrefutable_let_patterns)]

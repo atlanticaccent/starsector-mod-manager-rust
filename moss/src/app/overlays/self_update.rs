@@ -15,7 +15,8 @@ use druid::{
 use druid_widget_nursery::material_icons::Icon;
 use icons::{ARROW_DROP_DOWN, ARROW_RIGHT};
 use self_update::cargo_crate_version;
-use updater::{CloneTx, Release, Status};
+use types::CloneTx;
+use updater::{Release, Status};
 
 use crate::{
   app::{overlays::Popup, App},

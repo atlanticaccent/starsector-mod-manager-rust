@@ -22,6 +22,7 @@ icons = { workspace = true }
 updater = { workspace = true }
 web-client = { workspace = true }
 installer = { workspace = true }
+types = { workspace = true }
 
 # External
 druid = { workspace = true }
