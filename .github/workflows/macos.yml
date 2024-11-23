@@ -29,8 +29,8 @@ jobs:
 
       - name: Install dependencies
         run: |
+          brew unlink pkg-config@0.29.2 || true
           brew install coreutils pkgconfig libarchive llvm@18
-          brew link --overwrite pkgconfig
           echo PKG_CONFIG_PATH=$(brew ls libarchive | grep .pc$ | sed 's|/libarchive.pc||') >> $GITHUB_ENV
 
       - uses: r7kamura/rust-problem-matchers@v1
