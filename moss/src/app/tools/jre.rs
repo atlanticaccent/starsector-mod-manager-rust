@@ -6,16 +6,13 @@ use std::{
 };
 
 use anyhow::Context;
-use common::{
-  controllers::AnimController, labels::h2_fixed, widget_ext::WidgetExtEx, widgets::card::Card,
-  ExtEventSinkExt,
-};
+use common::{labels::h2_fixed, widget_ext::WidgetExtEx, widgets::card::Card, ExtEventSinkExt};
 use compress_tools::uncompress_archive;
 use druid::{
   im::Vector,
   text::RichTextBuilder,
   widget::{Either, Flex, Label, Radio, RawLabel, Spinner},
-  Data, Lens, Selector, Widget, WidgetExt, WidgetId,
+  Data, Lens, Selector, Widget, WidgetExt,
 };
 use druid_widget_nursery::{
   table::{FlexTable, TableRow},
@@ -194,7 +191,6 @@ impl Swapper {
     flavour: Flavour,
     empty_if_not: impl Fn(&Swapper, &druid::Env) -> bool + 'static,
   ) -> Either<Swapper> {
-    let id = WidgetId::next();
     let builder = Card::builder()
       .with_insets((0., 10.))
       .with_corner_radius(2.)
@@ -207,6 +203,7 @@ impl Swapper {
       builder
         .clone()
         .with_background(druid::theme::BUTTON_DARK)
+        .with_border(1.0, druid::theme::BORDER_DARK)
         .hoverable(|_| {
           Label::new("Downloaded")
             .env_scope(|env, _| {
@@ -244,41 +241,21 @@ impl Swapper {
         builder
           .with_background(theme::GREEN_KEY)
           .hoverable(move |_| {
-            Label::dynamic(|data: &f64, _| {
-              format!("Downloading{}", ".".repeat(data.min(0.0).floor() as usize))
-            })
-            .controller(
-              AnimController::new(
-                0.,
-                4.,
-                druid_widget_nursery::animation::AnimationCurve::LINEAR,
-              )
-              .with_transform(f64::floor)
-              .with_duration(2.5)
-              .looping(),
-            )
-            .with_id(id)
-            .on_command(DOWNLOAD_STARTED, move |ctx, payload, _| {
-              if *payload == flavour {
-                ctx.submit_command(AnimController::<f64>::ANIM_START.to(id));
-              }
-            })
-            .scope_independent(|| 0.)
-            .env_scope(|env, _| {
-              env.set(
-                druid::theme::TEXT_SIZE_NORMAL,
-                env.get(druid::theme::TEXT_SIZE_NORMAL) * 0.6,
-              );
-              env.set(
-                druid::theme::DISABLED_TEXT_COLOR,
-                env.get(theme::ON_GREEN_KEY),
-              );
-            })
-            .align_horizontal(druid::UnitPoint::CENTER)
-            .expand_width()
-            .padding((0., -2.5))
-          })
-          .disabled(),
+            Spinner::new()
+              .env_scope(|env, _| {
+                env.set(
+                  druid::theme::TEXT_SIZE_NORMAL,
+                  env.get(druid::theme::TEXT_SIZE_NORMAL) * 0.6,
+                );
+                env.set(
+                  druid::theme::DISABLED_TEXT_COLOR,
+                  env.get(theme::ON_GREEN_KEY),
+                );
+              })
+              .align_horizontal(druid::UnitPoint::CENTER)
+              .expand_width()
+              .padding((0., -2.5))
+          }),
       )
       .on_command(DOWNLOAD_STARTED, move |_, payload, data| {
         if *payload == flavour {
@@ -305,11 +282,15 @@ impl Swapper {
           let install_dir = data.install_dir.clone();
           let ext_ctx = ctx.get_external_handle();
           tokio::spawn(async move {
-            flavour.download(install_dir).await.and_then(|()| {
-              ext_ctx
-                .submit_command_global(DOWNLOAD_COMPLETE, flavour)
-                .context("Failed to submit event")
-            })
+            flavour
+              .download(install_dir)
+              .await
+              .and_then(|()| {
+                ext_ctx
+                  .submit_command_global(DOWNLOAD_COMPLETE, flavour)
+                  .context("Failed to submit event")
+              })
+              .inspect_err(|err| bang!(err))
           });
           ctx.set_disabled(true);
           ctx.submit_command(DOWNLOAD_STARTED.with(flavour));
