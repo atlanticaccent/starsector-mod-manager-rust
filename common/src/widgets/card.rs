@@ -134,10 +134,9 @@ impl Card {
 
       let rounded_rect = size.to_rect().inset(-insets).to_rounded_rect(corner_radius);
 
-      if let Some(background) = ctx
-        .is_hot()
-        .then_some(())
-        .and(on_hover.as_mut())
+      if let Some(background) = on_hover
+        .as_mut()
+        .filter(|_| ctx.is_hot())
         .or(background.as_mut())
       {
         ctx.with_save(|ctx| {

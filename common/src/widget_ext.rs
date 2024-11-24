@@ -296,6 +296,13 @@ pub trait WidgetExtEx<T: Data, W: Widget<T>>: Widget<T> + Sized + 'static {
   ) -> impl Widget<T> {
     scope(self.lens(lens!((T, S), 0)).boxed()).with_hover_state_opts(state, set_cursor)
   }
+
+  fn on_lifecycle(
+    self,
+    func: impl Fn(&mut Self, &mut druid::LifeCycleCtx, &druid::LifeCycle, &T, &Env) + 'static,
+  ) -> ControllerHost<Self, ExtensibleController<T, Self>> {
+    self.controller(ExtensibleController::new().on_lifecycle(func))
+  }
 }
 
 #[derive(Clone, Data, Lens)]
