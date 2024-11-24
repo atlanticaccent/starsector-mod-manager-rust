@@ -7,33 +7,25 @@ use std::{
   marker::PhantomData,
   ops::Deref,
   path::PathBuf,
-  rc::Rc,
   sync::{Arc, LazyLock, RwLock, Weak},
 };
 
-use common::{controllers::HoverController, labels::LabelExt as _};
 use druid::{
-  lens::{Identity, InArc},
-  widget::{Label, LabelText, Maybe, ScopeTransfer},
-  Color, Data, Event, ExtEventSink, KeyOrValue, Lens, MouseEvent, Selector, Target, TimerToken,
-  Widget, WidgetExt,
+  widget::Maybe,
+  Color, Data, ExtEventSink, KeyOrValue, Selector, Target, TimerToken,
+  Widget,
 };
 use json_comments::StripComments;
 use regex::Regex;
 use tokio::{select, sync::mpsc};
 use web_client::WebClient;
 
-use crate::app::{
-  mod_entry::{GameVersion, ModEntry, ModVersionMeta},
-  settings::button_painter,
-};
+use crate::app::mod_entry::{GameVersion, ModEntry, ModVersionMeta};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {
   #[error("No such file")]
   NoSuchFile,
-  #[error("File read error")]
-  ReadError,
   #[error("File format error")]
   FormatError,
   #[error("Archive error")]
@@ -42,6 +34,10 @@ pub enum LoadError {
   IoError(#[from] std::io::Error),
   #[error("Serialization error")]
   SerializationError(#[from] serde_json::Error),
+  #[error("Join error")]
+  JoinError(#[from] tokio::task::JoinError),
+  #[error("Parsing error: {0}")]
+  ParserError(anyhow::Error),
 }
 
 #[derive(Debug, Clone)]
@@ -145,44 +141,39 @@ pub async fn get_starsector_version(ext_ctx: ExtEventSink, install_dir: PathBuf)
 
     // println!("{:?}", zip.file_names().collect::<Vec<&str>>());
 
-    let mut version_class = zip
-      .by_name("com/fs/starfarer/Version.class")
-      .map_err(|_| LoadError::NoSuchFile)?;
+    let mut version_class = zip.by_name("com/fs/starfarer/Version.class")?;
 
     let mut buf: Vec<u8> = Vec::new();
-    version_class
-      .read_to_end(&mut buf)
-      .map_err(|_| LoadError::ReadError)
-      .and_then(|_| {
-        class_parser(&buf)
-          .map_err(|_| LoadError::FormatError)
-          .map(|(_, class_file)| class_file)
+    version_class.read_to_end(&mut buf)?;
+
+    let (_, class_file) =
+      class_parser(&buf).map_err(|err| LoadError::ParserError(err.to_owned().into()))?;
+
+    let version_string = class_file
+      .fields
+      .iter()
+      .find_map(|f| {
+        use classfile_parser::{
+          attribute_info::constant_value_attribute_parser, constant_info::ConstantInfo,
+        };
+        if let ConstantInfo::Utf8(name) = &class_file.const_pool[(f.name_index - 1) as usize]
+          && name.utf8_string == "versionOnly"
+          && let Ok((_, attr)) =
+            constant_value_attribute_parser(&f.attributes.first().unwrap().info)
+          && let ConstantInfo::Utf8(utf_const) =
+            &class_file.const_pool[attr.constant_value_index as usize]
+        {
+          Some(utf_const.utf8_string.clone())
+        } else {
+          None
+        }
       })
-      .and_then(|class_file| {
-        class_file
-          .fields
-          .iter()
-          .find_map(|f| {
-            if let classfile_parser::constant_info::ConstantInfo::Utf8(name) =
-              &class_file.const_pool[(f.name_index - 1) as usize]
-              && name.utf8_string == "versionOnly"
-              && let Ok((_, attr)) =
-                classfile_parser::attribute_info::constant_value_attribute_parser(
-                  &f.attributes.first().unwrap().info,
-                )
-              && let classfile_parser::constant_info::ConstantInfo::Utf8(utf_const) =
-                &class_file.const_pool[attr.constant_value_index as usize]
-            {
-              Some(utf_const.utf8_string.clone())
-            } else {
-              None
-            }
-          })
-          .ok_or(LoadError::FormatError)
-      })
+      .ok_or(LoadError::ParserError(anyhow::anyhow!("")));
+
+    version_string
   })
   .await
-  .map_err(|_| LoadError::ReadError)
+  .map_err(Into::into)
   .flatten();
 
   if res.is_err() {
@@ -191,7 +182,7 @@ pub async fn get_starsector_version(ext_ctx: ExtEventSink, install_dir: PathBuf)
 
     res = fs::read(install_dir.join("starsector-core").join("starsector.log"))
       .await
-      .map_err(|_| LoadError::ReadError)
+      .map_err(Into::into)
       .and_then(|file| {
         RE.captures(&file)
           .and_then(|captures| captures.get(1))
@@ -346,24 +337,8 @@ impl From<StarsectorVersionDiff> for KeyOrValue<Color> {
   }
 }
 
-#[must_use]
 pub fn default_true() -> bool {
   true
-}
-
-pub struct Button2;
-
-impl Button2 {
-  pub fn new<T: Data, W: Widget<T> + 'static>(label: W) -> impl Widget<T> {
-    label
-      .padding((8., 4.))
-      .background(button_painter())
-      .controller(HoverController::default())
-  }
-
-  pub fn from_label<T: Data>(label: impl Into<LabelText<T>>) -> impl Widget<T> {
-    Self::new(Label::wrapped_into(label).with_text_size(18.))
-  }
 }
 
 /// A bad trait
@@ -502,17 +477,6 @@ impl<T: Any + Send, U: Any + Send, SINK: Default + Collection<T, U> + Send>
   }
 }
 
-#[must_use]
-pub fn option_ptr_cmp<T>(this: &Option<Rc<T>>, other: &Option<Rc<T>>) -> bool {
-  if let Some(this) = this
-    && let Some(other) = other
-  {
-    Rc::ptr_eq(this, other)
-  } else {
-    false
-  }
-}
-
 #[extend::ext(name = Tap)]
 pub impl<T> T {
   fn tap<U>(mut self, func: impl FnOnce(&mut Self) -> U) -> Self {
@@ -629,15 +593,6 @@ impl druid::text::Formatter<u32> for ValueFormatter {
   }
 }
 
-pub fn ident_arc<T: Data>() -> InArc<Identity> {
-  InArc::new::<T, T>(Identity)
-}
-
-#[must_use]
-pub fn ident_rc<T: Data>() -> InRc<Identity> {
-  InRc::new::<T, T>(Identity)
-}
-
 // dbg macro that returns ()
 #[macro_export]
 macro_rules! bang {
@@ -664,207 +619,6 @@ macro_rules! d_println {
 macro_rules! d_eprintln {
   ($($arg:tt)*) => (#[cfg(debug_assertions)] eprintln!($($arg)*));
 }
-
-pub trait TransferRead<State, In> = Fn(&mut State, &In);
-pub trait TransferWrite<State, In> = Fn(&State, &mut In);
-
-pub struct FnTransfer<
-  In: Data,
-  State: Data,
-  R: TransferRead<State, In>,
-  W: TransferWrite<State, In>,
-> {
-  read: R,
-  write: W,
-  _read: PhantomData<In>,
-  _write: PhantomData<State>,
-}
-
-impl<In: Data, State: Data, R: TransferRead<State, In>, W: TransferWrite<State, In>>
-  FnTransfer<In, State, R, W>
-{
-  pub fn new(read: R, write: W) -> Self {
-    Self {
-      read,
-      write,
-      _read: PhantomData,
-      _write: PhantomData,
-    }
-  }
-}
-
-impl<In: Data, State: Data, R: TransferRead<State, In>, W: TransferWrite<State, In>> ScopeTransfer
-  for FnTransfer<In, State, R, W>
-{
-  type In = In;
-  type State = State;
-
-  fn read_input(&self, state: &mut Self::State, input: &Self::In) {
-    (self.read)(state, input);
-  }
-
-  fn write_back_input(&self, state: &Self::State, input: &mut Self::In) {
-    (self.write)(state, input);
-  }
-}
-
-// TODO: macro that syncs fields with same names between two structs using
-// existing lens impls on tuples of lenses
-
-pub struct PartialScopeTransfer<In, State> {
-  read: Box<dyn TransferRead<State, In>>,
-  write: Box<dyn TransferWrite<State, In>>,
-}
-
-impl<In, State> PartialScopeTransfer<In, State> {
-  pub fn new<Prt: Data>(
-    lens_state: impl Lens<State, Prt> + Clone + 'static,
-    lens_in: impl Lens<In, Prt> + Clone + 'static,
-  ) -> PartialScopeTransfer<In, State> {
-    PartialScopeTransfer {
-      read: {
-        let lens_state = lens_state.clone();
-        let lens_in = lens_in.clone();
-        Box::new(move |state: &mut State, data: &In| {
-          let partial = lens_in.with(data, std::clone::Clone::clone);
-          lens_state.with_mut(state, |inner| {
-            if !inner.same(&partial) {
-              *inner = partial;
-            }
-          });
-        })
-      },
-      write: Box::new(move |state, data| {
-        let partial = lens_state.with(state, std::clone::Clone::clone);
-        lens_in.with_mut(data, |inner| {
-          if !inner.same(&partial) {
-            *inner = partial;
-          }
-        });
-      }),
-    }
-  }
-}
-
-impl<In: Data, State: Data> ScopeTransfer for PartialScopeTransfer<In, State> {
-  type In = In;
-  type State = State;
-
-  fn read_input(&self, state: &mut State, data: &In) {
-    (self.read)(state, data);
-  }
-
-  fn write_back_input(&self, state: &State, data: &mut In) {
-    (self.write)(state, data);
-  }
-}
-
-#[derive(Clone)]
-pub struct Convert<T, U> {
-  outer: PhantomData<T>,
-  inner: PhantomData<U>,
-}
-
-impl<T, U> Default for Convert<T, U> {
-  fn default() -> Self {
-    Self {
-      outer: PhantomData,
-      inner: PhantomData,
-    }
-  }
-}
-
-impl<T, U> Convert<T, U> {
-  pub fn new() -> Self {
-    Self::default()
-  }
-}
-
-impl<T: From<U> + Clone, U: Data + From<T>> Lens<T, U> for Convert<T, U> {
-  fn with<V, F: FnOnce(&U) -> V>(&self, data: &T, f: F) -> V {
-    let data = data.clone().into();
-    f(&data)
-  }
-
-  fn with_mut<V, F: FnOnce(&mut U) -> V>(&self, data: &mut T, f: F) -> V {
-    let mut val = data.clone().into();
-    let res = f(&mut val);
-    *data = val.into();
-
-    res
-  }
-}
-
-#[extend::ext(name = EventExt)]
-pub impl Event {
-  fn get_cmd<T: 'static>(&self, selector: Selector<T>) -> Option<&T> {
-    if let Event::Command(cmd) = self {
-      cmd.get(selector)
-    } else {
-      None
-    }
-  }
-
-  fn is_cmd<T: 'static>(&self, selector: Selector<T>) -> bool {
-    if let Event::Command(cmd) = self {
-      cmd.is(selector)
-    } else {
-      false
-    }
-  }
-
-  fn as_mouse_up(&self) -> Option<&MouseEvent> {
-    if let Event::MouseUp(mouse) = self {
-      Some(mouse)
-    } else {
-      None
-    }
-  }
-}
-
-/// A `Lens` that exposes data within an `Arc` with copy-on-write semantics
-///
-/// A copy is only made in the event that a different value is written.
-#[derive(Debug, Copy, Clone)]
-pub struct InRc<L> {
-  inner: L,
-}
-
-impl<L> InRc<L> {
-  /// Adapt a lens to operate on an `Arc`
-  ///
-  /// See also `LensExt::in_arc`
-  pub fn new<A, B>(inner: L) -> Self
-  where
-    A: Clone,
-    B: Data,
-    L: Lens<A, B>,
-  {
-    Self { inner }
-  }
-}
-
-impl<A, B, L> Lens<Rc<A>, B> for InRc<L>
-where
-  A: Clone,
-  B: Data,
-  L: Lens<A, B>,
-{
-  fn with<V, F: FnOnce(&B) -> V>(&self, data: &Rc<A>, f: F) -> V {
-    self.inner.with(data, f)
-  }
-
-  fn with_mut<V, F: FnOnce(&mut B) -> V>(&self, data: &mut Rc<A>, f: F) -> V {
-    let mut temp = self.inner.with(data, std::clone::Clone::clone);
-    let v = f(&mut temp);
-    if self.inner.with(data, |x| !x.same(&temp)) {
-      self.inner.with_mut(Rc::make_mut(data), |x| *x = temp);
-    }
-    v
-  }
-}
-
-pub trait IsSendSync: Send + Sync {}
 
 #[extend::ext(name = FnWidgetToMaybe)]
 pub impl<T: Data, W: Widget<T> + 'static, F: Fn() -> W + 'static> F {

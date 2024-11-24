@@ -85,22 +85,17 @@ impl Swapper {
         .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
         .with_child(h2_fixed("Java Runtime Swapper"))
         .with_child(
-          RawLabel::new()
-            .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
-            .scope_with::<bool, _, _>(|_| false, {
-              let inactive_text = inactive_text.clone();
-              move |widget| {
-                widget.on_command(LINK_CLICKED, move |_, (), state| {
-                  state.inner = !state.inner;
-                  state.outer = if state.inner {
-                    active_text.clone()
-                  } else {
-                    inactive_text.clone()
-                  }
-                })
-              }
-            })
-            .scope_independent(move || inactive_text.clone()),
+          Either::new(
+            |active, _| *active,
+            RawLabel::new()
+              .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
+              .constant(active_text),
+            RawLabel::new()
+              .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
+              .constant(inactive_text),
+          )
+          .on_command(LINK_CLICKED, move |_, (), active| *active = !*active)
+          .scope_independent(|| false),
         )
         .with_default_spacer()
         .with_child(

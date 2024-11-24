@@ -41,8 +41,8 @@ pub trait LensExtExt<A: ?Sized, B: ?Sized>: Lens<A, B> + Sized {
 
   fn convert<C>(self) -> Then<Self, Convert<B, C>, B>
   where
-    B: From<C> + Clone,
-    C: From<B> + Data,
+    B: From<C> + Into<C> + Clone,
+    C: From<B> + Into<B> + Data,
   {
     self.then(Convert::<B, C>::new())
   }
@@ -168,11 +168,11 @@ where
     v
   }
 }
+
 pub fn ident_arc<T: Data>() -> InArc<Identity> {
   InArc::new::<T, T>(Identity)
 }
 
-#[must_use]
 pub fn ident_rc<T: Data>() -> InRc<Identity> {
   InRc::new::<T, T>(Identity)
 }

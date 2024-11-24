@@ -400,8 +400,7 @@ impl<T: VMParamsPath> VMParams<T> {
 
     let mut params_string = String::new();
     params_file
-      .read_to_string(&mut params_string)
-      .map_err(|_| LoadError::ReadError)?;
+      .read_to_string(&mut params_string)?;
 
     let (mut heap_init, mut heap_max, mut thread_stack_size) = (None, None, None);
     for param in params_string.split_ascii_whitespace() {

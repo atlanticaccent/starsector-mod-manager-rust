@@ -577,8 +577,7 @@ impl Settings {
 
     let mut config_string = String::new();
     config_file
-      .read_to_string(&mut config_string)
-      .map_err(|_| LoadError::ReadError)?;
+      .read_to_string(&mut config_string)?;
 
     serde_json::from_str::<Settings>(&config_string)
       .map_err(Into::into)

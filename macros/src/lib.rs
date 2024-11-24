@@ -16,6 +16,6 @@ pub fn icon(item: TokenStream) -> TokenStream {
 
 #[allow(non_snake_case)]
 #[proc_macro_attribute]
-pub fn Invert(_: TokenStream, item: TokenStream) -> TokenStream {
+pub fn OptionSpec(_: TokenStream, item: TokenStream) -> TokenStream {
   invert::Invert(item)
 }

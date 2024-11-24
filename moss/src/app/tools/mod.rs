@@ -8,19 +8,18 @@ use common::{
 use derive_more::derive::{From, Into};
 use druid::{
   widget::{Flex, Maybe, SizedBox, ViewSwitcher},
-  Data, Lens, LensExt, Widget, WidgetExt,
+  Data, Lens, Widget, WidgetExt,
 };
 use druid_widget_nursery::{FutureWidget, WidgetExt as _};
-use macros::Invert;
+use macros::OptionSpec;
 
 use self::{jre::Swapper, vmparams::VMParams};
 use super::settings::Settings;
-use crate::app::util::Convert;
 
 pub mod jre;
 pub mod vmparams;
 
-#[Invert]
+#[OptionSpec]
 #[derive(Debug, Clone, Data, Lens)]
 pub struct Tools {
   #[data(eq)]
@@ -85,11 +84,11 @@ impl Tools {
                     jre_23: tools.jre_23,
                   },
                   (
-                    Swapper::install_dir.then(Convert::<PathBuf, PathWrapper>::new()),
+                    Swapper::install_dir.convert::<PathWrapper>(),
                     Swapper::jre_23,
                   ),
                   (
-                    InstallDirInverseTools::install_dir.convert::<PathWrapper>(),
+                    InstallDirInverseTools::install_dir.convert(),
                     InstallDirInverseTools::jre_23,
                   ),
                 )
