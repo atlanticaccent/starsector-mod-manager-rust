@@ -1,13 +1,13 @@
 use common::{labels::h2_fixed, widget_ext::WidgetExtEx, widgets::card::Card};
 use druid::{
   widget::{Flex, Label},
-  Data, Key, Widget, WidgetExt,
+  Data, Key, SingleUse, Widget, WidgetExt,
 };
 use installer::{HybridPath, StringOrPath};
 
 use super::Popup;
 use crate::{
-  app::{mod_entry::ModEntry, App},
+  app::{mod_entry::ModEntry, mod_list::ModList, App},
   theme::{BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
 };
 
@@ -35,6 +35,7 @@ impl Overwrite {
       to_install,
       entry,
     } = self.clone();
+    let to_install = SingleUse::new(to_install);
 
     Card::builder()
       .with_insets(Card::CARD_INSET)
@@ -82,16 +83,20 @@ impl Overwrite {
                   .padding((0.0, 2.0))
                   .on_click(move |ctx, data: &mut App, _| {
                     ctx.submit_command(Popup::DISMISS);
-                    ctx.submit_command(crate::app::mod_list::ModList::OVERWRITE.with((
+
+                    let Some(to_install) = to_install.take() else {
+                      return;
+                    };
+                    ctx.submit_command(ModList::OVERWRITE.with(SingleUse::new((
                       match &conflict {
                         StringOrPath::String(id) => {
                           data.mod_list.mods.get(id).unwrap().path.clone()
                         }
                         StringOrPath::Path(path) => path.clone(),
                       },
-                      to_install.clone(),
+                      to_install,
                       entry.clone(),
-                    )));
+                    ))));
                   }),
               )
               .with_child(

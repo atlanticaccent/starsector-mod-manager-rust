@@ -82,7 +82,7 @@ impl ModList {
   pub const FILTER_RESET: Selector = Selector::new("mod_list.filter.reset");
   pub const FILTER_UPDATE: Selector<(Filters, bool)> = Selector::new("mod_list.filter.update");
   pub const INSERT_MOD: Selector<RawModEntry> = Selector::new("mod_list.mods.insert");
-  pub const OVERWRITE: Selector<(PathBuf, HybridPath, RawModEntry)> =
+  pub const OVERWRITE: Selector<SingleUse<(PathBuf, HybridPath, RawModEntry)>> =
     Selector::new("mod_list.install.overwrite");
   pub const REBUILD: Selector = Selector::new("mod_list.table.rebuild");
   pub const REBUILD_NEXT_PASS: Selector = Selector::new("mod_list.table.rebuild_next_pass");

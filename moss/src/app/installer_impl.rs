@@ -3,7 +3,7 @@ use std::{future::Future, path::PathBuf, sync::Arc};
 use common::ExtEventSinkExt;
 use druid::{ExtEventSink, Selector, SingleUse};
 use installer::{Entry, HybridPath, InstallerDelegate, InstallerExt, Request};
-use types::CloneTx;
+use tokio::sync::oneshot::Sender;
 
 use super::{mod_entry::ModVersionMeta, overlays::Popup};
 use crate::{app::mod_entry::ModEntry, bang};
@@ -13,12 +13,12 @@ pub const DOWNLOAD_STARTED: Selector<(i64, String)> = Selector::new("install.dow
 pub const DOWNLOAD_PROGRESS: Selector<Vec<(i64, String, f64)>> =
   Selector::new("install.download.progress");
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum InstallMessage {
   /// Multiple mods found in single installation source
   FoundMultiple(Vec<PathBuf>, HybridPath),
   /// Check mod already installed
-  CheckConflict(String, CloneTx),
+  CheckConflict(String, Sender<bool>),
   /// Installation succeeded
   Success(Box<ModEntry>),
   /// Unrecoverable install error
@@ -39,7 +39,10 @@ impl Installer {
     &self,
     request: Request<ModEntry, ModVersionMeta>,
   ) -> impl Future<Output = ()> + Send {
-    <Self as InstallerExt>::install(self.clone(), request)
+    let installer = self.clone();
+    async move {
+      <Self as InstallerExt>::install(&installer, request).await;
+    }
   }
 }
 
@@ -92,7 +95,7 @@ impl InstallerDelegate for Installer {
       if ext_ctx
         .submit_command_global(
           INSTALL,
-          SingleUse::new(InstallMessage::CheckConflict(id, CloneTx::new(tx))),
+          SingleUse::new(InstallMessage::CheckConflict(id, tx)),
         )
         .inspect_err(|err| bang!(err))
         .is_err()

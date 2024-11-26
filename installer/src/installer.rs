@@ -20,7 +20,6 @@ use crate::{
   Entry, InstallError, InstallerDelegate,
 };
 
-#[derive(Clone)]
 pub enum Request<T, U = ()> {
   Initial(Vec<HybridPath>, PathBuf),
   Resumed(Box<T>, HybridPath, PathBuf),
@@ -34,7 +33,7 @@ where
   Self: 'static,
 {
   fn install(
-    self,
+    &self,
     request: Request<Self::Entry, Self::EntryUpdate>,
   ) -> impl Future<Output = ()> + Send {
     fn install_impl<'a, INST: InstallerExt>(
@@ -56,9 +55,9 @@ where
               .into_iter()
               .map(|target| installer.handle_path(target, parent_dest.clone()));
 
-            let res = futures_util::future::try_join_all(futures).await;
+            futures_util::future::try_join_all(futures).await?;
 
-            res.map(|_| ())
+            Ok(())
           }
           Request::Resumed(entry, path, existing) => {
             installer.handle_delete(*entry, path, existing).await
@@ -72,7 +71,7 @@ where
     }
 
     async move {
-      let res = install_impl(&self, request).await;
+      let res = install_impl(self, request).await;
 
       if let Err(err) = res {
         self.error_handler(err);
@@ -86,78 +85,77 @@ where
     parent_dest: impl AsRef<Path> + Send + 'static,
   ) -> impl Future<Output = Result<(), InstallerError<Self>>> + Send + 'a {
     async move {
-      let res = try {
-        let parent_dest = parent_dest.as_ref();
-        let path = source.get_path_copy();
-        let file_name = path.file_name().map_or_else(
-          || String::from("unknown"),
-          |f| f.to_string_lossy().to_string(),
-        );
+      let parent_dest = parent_dest.as_ref();
+      let path = source.get_path_copy();
+      let file_name = path.file_name().map_or_else(
+        || String::from("unknown"),
+        |f| f.to_string_lossy().to_string(),
+      );
 
-        let mod_folder = if path.is_file() {
-          let decompress = tokio::task::spawn_blocking(move || Self::decompress(&path)).await??;
-          HybridPath::Temp(Arc::new(decompress), file_name.clone(), None)
-        } else {
-          source
-        };
-
-        let dir = mod_folder.get_path_copy();
-
-        let entry_paths = match &mod_folder {
-          HybridPath::PathBuf(_) | HybridPath::Temp(_, _, None) => {
-            timeout(
-              std::time::Duration::from_millis(500),
-              tokio::task::spawn_blocking(move || ModSearch::new(dir).exhaustive()),
-            )
-            .await??
-          }
-          HybridPath::Temp(_, _, Some(path)) => Ok(vec![path.clone()]),
-        }
-        .map_err(InstallError::ModSearchError)?;
-
-        #[allow(irrefutable_let_patterns)]
-        if entry_paths.len() > 1 {
-          let found = futures_util::future::try_join_all(
-            entry_paths
-              .into_iter()
-              .map(|path| Self::Entry::parse_ext(path)),
-          )
-          .await?;
-
-          self.multiple_handler(mod_folder, found);
-        } else if let Some(path) = entry_paths.first() {
-          let mut entry = Self::Entry::parse_ext(path).await?;
-          if self.check_conflict(&entry).await {
-            // note: this is probably the way wrong way of doing this
-            // instead, just submit the new entry if it doesn't conflict with an existing
-            // path, _then_ detect the conflict that way there's less chance an
-            // existing ID gets missed due to the ID list effectively getting cached when
-            // this function starts
-
-            self.overwrite_handler(entry.id().into(), mod_folder.with_path(path), entry)
-          } else if let target_path = entry.destination_folder(&parent_dest)
-            && target_path.exists()
-            && target_path.is_dir()
-            && !location_is_empty(&target_path)
-          {
-            self.overwrite_handler(target_path.into(), mod_folder.with_path(path), entry)
-          } else {
-            let destination = entry.destination_folder(&parent_dest);
-
-            move_or_copy(path.clone(), destination.clone()).await;
-
-            entry
-              .enrich(destination)
-              .await
-              .map_err(InstallError::EntryEnrichmentError)?;
-            self.completed_handler(entry)
-          }
-        } else {
-          Err(InstallError::ModSearchErrorUnknown)?;
-        }
+      let mod_folder = if path.is_file() {
+        let decompress = tokio::task::spawn_blocking(move || Self::decompress(&path)).await??;
+        drop(source);
+        HybridPath::Temp(Arc::new(decompress), file_name.clone(), None)
+      } else {
+        source
       };
 
-      res
+      let dir = mod_folder.get_path_copy();
+
+      let entry_paths = match &mod_folder {
+        HybridPath::PathBuf(_) | HybridPath::Temp(_, _, None) => {
+          timeout(
+            std::time::Duration::from_millis(500),
+            tokio::task::spawn_blocking(move || ModSearch::new(dir).exhaustive()),
+          )
+          .await??
+        }
+        HybridPath::Temp(_, _, Some(path)) => Ok(vec![path.clone()]),
+      }
+      .map_err(InstallError::ModSearchError)?;
+
+      #[allow(irrefutable_let_patterns)]
+      if entry_paths.len() > 1 {
+        let found = futures_util::future::try_join_all(
+          entry_paths
+            .into_iter()
+            .map(|path| Self::Entry::parse_ext(path)),
+        )
+        .await?;
+
+        self.multiple_handler(mod_folder, found);
+      } else if let Some(path) = entry_paths.first() {
+        let mut entry = Self::Entry::parse_ext(path).await?;
+        if self.check_conflict(&entry).await {
+          // note: this is probably the way wrong way of doing this
+          // instead, just submit the new entry if it doesn't conflict with an existing
+          // path, _then_ detect the conflict that way there's less chance an
+          // existing ID gets missed due to the ID list effectively getting cached when
+          // this function starts
+
+          self.overwrite_handler(entry.id().into(), mod_folder.with_path(path), entry)
+        } else if let target_path = entry.destination_folder(&parent_dest)
+          && target_path.exists()
+          && target_path.is_dir()
+          && !location_is_empty(&target_path)
+        {
+          self.overwrite_handler(target_path.into(), mod_folder.with_path(path), entry)
+        } else {
+          let destination = entry.destination_folder(&parent_dest);
+
+          move_or_copy(path.clone(), destination.clone()).await;
+
+          entry
+            .enrich(destination)
+            .await
+            .map_err(InstallError::EntryEnrichmentError)?;
+          self.completed_handler(entry);
+        }
+      } else {
+        Err(InstallError::ModSearchErrorUnknown)?;
+      }
+
+      Ok(())
     }
   }
 
@@ -197,7 +195,6 @@ where
       let path = file.path().to_path_buf();
       let temp = tokio::task::spawn_blocking(move || Self::decompress(&path)).await??;
 
-      let temp = Arc::new(temp);
       let path = temp.path().to_owned();
       let source = url.clone();
 
@@ -211,7 +208,7 @@ where
 
       let entry = Self::Entry::parse_ext(&path).await?;
 
-      let hybrid = HybridPath::Temp(temp, source, Some(path));
+      let hybrid = HybridPath::Temp(Arc::new(temp), source, Some(path));
       if remote_data.matches(&entry) {
         return self.handle_delete(entry, hybrid, old_path).await;
       }
@@ -222,6 +219,7 @@ where
 
   fn decompress(path: &Path) -> Result<TempDir, InstallerError<Self>> {
     let source = std::fs::File::open(path)?;
+
     let temp_dir = tempdir()?;
     let mime_type = infer::get_from_path(path)?
       .ok_or(InstallError::Mime)?
@@ -229,20 +227,11 @@ where
 
     match mime_type {
       "application/vnd.rar" | "application/x-rar-compressed" => {
-        #[cfg(not(target_env = "musl"))]
         unrar::Archive::new(path.to_string_lossy().to_string())
           .extract_to(temp_dir.path().to_string_lossy().to_string())
           .map_err(|e| InstallError::Unrar(e.to_string()))?
           .process()
           .map_err(|e| InstallError::Unrar(e.to_string()))?;
-        // trust me I tried to de-dupe this and it's buggered
-        #[cfg(target_env = "musl")]
-        compress_tools::uncompress_archive(
-          source,
-          temp_dir.path(),
-          compress_tools::Ownership::Ignore,
-        )
-        .context(CompressTools {})?
       }
       _ => compress_tools::uncompress_archive(
         source,
@@ -258,10 +247,22 @@ where
     &self,
     url: &str,
   ) -> impl Future<Output = Result<tempfile::NamedTempFile, InstallerError<Self>>> + Send {
+    self.download_in(url, Option::<&Path>::None)
+  }
+
+  fn download_in(
+    &self,
+    url: &str,
+    path: Option<impl AsRef<Path> + Send>,
+  ) -> impl Future<Output = Result<tempfile::NamedTempFile, InstallerError<Self>>> + Send {
     static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
 
     async move {
-      let file = tempfile::NamedTempFile::new()?;
+      let file = if let Some(path) = path {
+        tempfile::NamedTempFile::new_in(path)
+      } else {
+        tempfile::NamedTempFile::new()
+      }?;
       let client = reqwest::ClientBuilder::default()
         .redirect(reqwest::redirect::Policy::limited(200))
         .user_agent(APP_USER_AGENT)

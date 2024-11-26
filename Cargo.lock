@@ -6074,6 +6074,7 @@ dependencies = [
  "regex",
  "reqwest",
  "serde",
+ "tempfile",
  "url",
  "wry",
 ]

@@ -5,12 +5,15 @@ use druid::{commands, widget::Controller, Env, Event, EventCtx, Widget};
 use futures_util::FutureExt;
 use itertools::Itertools;
 
-use crate::app::{
-  installer_impl::{InstallMessage, INSTALL},
-  mod_entry::UpdateStatus,
-  mod_list::ModList,
-  settings::{self, Settings, SettingsCommand},
-  App,
+use crate::{
+  app::{
+    installer_impl::{InstallMessage, INSTALL},
+    mod_entry::UpdateStatus,
+    mod_list::ModList,
+    settings::{self, Settings, SettingsCommand},
+    App,
+  },
+  bang,
 };
 
 pub struct AppController;
@@ -103,8 +106,10 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
                 .then(async move |()| drop(source)),
             );
           }
-          InstallMessage::CheckConflict(id, clone_tx) => {
-            clone_tx.send(data.mod_list.mods.contains_key(&id));
+          InstallMessage::CheckConflict(id, tx) => {
+            let _ = tx
+              .send(data.mod_list.mods.contains_key(&id))
+              .inspect_err(|err| bang!(err));
           }
         }
       }

@@ -72,7 +72,7 @@ pub struct App {
   #[data(ignore)]
   runtime: Handle,
   #[data(ignore)]
-  installer: Arc<Installer>,
+  installer: Installer,
   #[data(ignore)]
   widget_id: WidgetId,
   browser: Browser,
@@ -91,7 +91,7 @@ impl App {
   const CONFIRM_DELETE_MOD: Selector<ModEntry> = Selector::new("app.mod_entry.delete");
   const LOG_ERROR: Selector<(String, Arc<dyn AsyncError>)> = Selector::new("app.mod.install.fail");
   const LOG_MESSAGE: Selector<String> = Selector::new("app.mod.install.start");
-  const LOG_OVERWRITE: Selector<(StringOrPath, HybridPath, ModEntry)> =
+  const LOG_OVERWRITE: Selector<SingleUse<(StringOrPath, HybridPath, ModEntry)>> =
     Selector::new("app.mod.install.overwrite");
   const OPEN_FILE: Selector<Option<Vec<PathBuf>>> = Selector::new("app.open.multiple");
   pub const OPEN_WEBVIEW: Selector<Option<String>> = Selector::new("app.webview.open");
@@ -128,7 +128,7 @@ impl App {
       mod_list: mod_list::ModList::new(headings),
       active: None,
       runtime,
-      installer: Arc::new(installer),
+      installer,
       widget_id: WidgetId::reserved(0),
       browser: Default::default(),
       mod_repo: None,

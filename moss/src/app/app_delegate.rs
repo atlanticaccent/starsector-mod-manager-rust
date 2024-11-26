@@ -2,10 +2,9 @@ use druid::{
   keyboard_types::Key, AppDelegate as Delegate, Command, DelegateCtx, Env, Event, Handled,
   KeyEvent, LensExt as _, Target, WindowId,
 };
+use installer::HybridPath;
 use itertools::Itertools;
-use rand::random;
 use remove_dir_all::remove_dir_all;
-use reqwest::Url;
 use updater::check_for_update;
 use webview::{InstallType, PROJECT, WEBVIEW_INSTALL};
 
@@ -28,15 +27,11 @@ pub enum AppCommands {
 
 pub struct AppDelegate {
   pub root_id: Option<WindowId>,
-  // pub installer: Installer,
 }
 
 impl AppDelegate {
-  pub fn new(/* installer: Installer */) -> Self {
-    Self {
-      root_id: None,
-      // installer,
-    }
+  pub fn new() -> Self {
+    Self { root_id: None }
   }
 }
 
@@ -159,79 +154,34 @@ impl Delegate<App> for AppDelegate {
       App::mod_list
         .then(ModList::starsector_version)
         .put(data, res.as_ref().ok().cloned());
-    } else if let Some((conflict, to_install, entry)) = cmd.get(App::LOG_OVERWRITE) {
-      ctx.submit_command(Popup::QUEUE_POPUP.with(Popup::overwrite(
-        conflict.clone(),
-        to_install.clone(),
-        entry.clone(),
-      )));
+    } else if let Some(single_use) = cmd.get(App::LOG_OVERWRITE)
+      && let Some((conflict, to_install, entry)) = single_use.take()
+    {
+      ctx.submit_command(Popup::QUEUE_POPUP.with(Popup::overwrite(conflict, to_install, entry)));
 
       return Handled::Yes;
-    } else if let Some(install) = cmd.get(WEBVIEW_INSTALL) {
-      let install_type = install.clone();
-      let ext_ctx = ctx.get_external_handle();
+    } else if let Some(install) = cmd.get(WEBVIEW_INSTALL)
+      && let Some(install_type) = install.take()
+    {
       let installer = data.installer.clone();
       let install_dir = data.settings.install_dir.clone().unwrap();
 
       data.runtime.spawn(async move {
-        let path = match install_type {
+        let temp_file = match install_type {
           InstallType::Uri(uri) => {
-            let file_name = Url::parse(&uri)
-              .ok()
-              .and_then(|url| {
-                url
-                  .path_segments()
-                  .and_then(std::iter::Iterator::last)
-                  .map(std::string::ToString::to_string)
-              })
-              .unwrap_or_else(|| uri.clone())
-              .to_string();
-            ext_ctx
-              .submit_command(
-                App::LOG_MESSAGE,
-                format!("Installing {}", &file_name),
-                Target::Auto,
-              )
-              .expect("Send install start");
-            let download = installer::InstallerExt::download(installer.as_ref(), &uri)
+            installer::InstallerExt::download_in(&installer, &uri, Some(PROJECT.cache_dir()))
               .await
-              .expect("Download archive");
-            let download_dir = PROJECT.cache_dir().to_path_buf();
-            let mut persist_path = download_dir.join(&file_name);
-            if persist_path.exists() {
-              persist_path = download_dir.join(format!("{}({})", file_name, random::<u8>()));
-            }
-            if let Err(err) = download.persist(&persist_path) {
-              if err.error.kind() == std::io::ErrorKind::CrossesDevices {
-                std::fs::copy(err.file.path(), &persist_path)
-                  .expect("Copy download across devices");
-              } else {
-                panic!("{}", err)
-              }
-            }
-
-            persist_path
+              .expect("Download archive")
           }
-          InstallType::Path(path) => {
-            let file_name = path
-              .file_name()
-              .unwrap_or(path.as_os_str())
-              .to_string_lossy()
-              .to_string();
-            ext_ctx
-              .submit_command(
-                App::LOG_MESSAGE,
-                format!("Installing {}", &file_name),
-                Target::Auto,
-              )
-              .expect("Send install start");
-
-            path
-          }
+          InstallType::Path(path) => path,
         };
 
+        let path = temp_file.path();
         installer
-          .install(installer::Request::Initial(vec![path.into()], install_dir))
+          .install(installer::Request::Initial(
+            vec![HybridPath::PathBuf(path.to_owned())],
+            install_dir,
+          ))
           .await;
       });
 
@@ -303,9 +253,9 @@ impl Delegate<App> for AppDelegate {
     match Some(id) {
       a if a == self.root_id => {
         println!("quitting");
-        if let Some(child) = &data.browser.inner {
-          data.browser.inner = None;
-        }
+
+        drop(data.browser.inner.take());
+
         let _ = std::fs::remove_dir_all(PROJECT.cache_dir());
         #[cfg(not(target_os = "macos"))]
         ctx.submit_command(druid::commands::QUIT_APP);

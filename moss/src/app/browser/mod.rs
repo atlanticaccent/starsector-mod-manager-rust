@@ -1,4 +1,4 @@
-use std::{cell::RefCell, io::Write, ops::Deref, rc::Rc};
+use std::{cell::RefCell, ops::Deref, rc::Rc};
 
 use base64::{engine::general_purpose::STANDARD, Engine};
 use common::{
@@ -10,7 +10,8 @@ use druid::{
   Data, ExtEventSink, ImageBuf, Lens, Selector, SingleUse, Widget, WidgetExt,
 };
 use druid_widget_nursery::{material_icons::Icon, AnyCtx, LaidOutCtx, WidgetExt as _};
-use rand::random;
+use tempfile::NamedTempFile;
+use tokio::io::AsyncWriteExt as _;
 use webview::{
   init_webview_with_handle, InstallType, WebviewEvent, PROJECT, WEBVIEW_EVENT, WEBVIEW_INSTALL,
 };
@@ -265,7 +266,7 @@ impl Browser {
       WebviewEvent::Download(uri) => {
         inner.reload();
         inner.load_in_progress = false;
-        ctx.submit_command(WEBVIEW_INSTALL.with(InstallType::Uri(uri.clone())));
+        ctx.submit_command(WEBVIEW_INSTALL.with(SingleUse::new(InstallType::Uri(uri.clone()))));
       }
       WebviewEvent::CancelDownload => {
         inner.load_in_progress = false;
@@ -323,13 +324,20 @@ impl Browser {
               let data = data.take();
               *mega_file = None;
               let ext_ctx = ctx.get_external_handle();
-              tokio::task::spawn_blocking(move || {
-                let path = PROJECT.cache_dir().join(format!("{}", random::<u16>()));
-                let mut file =
-                  std::fs::File::create(&path).expect("Create temp file for Mega download");
-                file.write_all(&data).expect("Write data");
+              tokio::task::spawn(async move {
+                let (file, path) = NamedTempFile::new_in(PROJECT.cache_dir())
+                  .expect("Create temp file")
+                  .into_parts();
+                let mut file_adapter = tokio::fs::File::from_std(file);
+                file_adapter.write_all(&data).await.expect("Write data");
                 ext_ctx
-                  .submit_command_global(WEBVIEW_INSTALL, InstallType::Path(path))
+                  .submit_command_global(
+                    WEBVIEW_INSTALL,
+                    SingleUse::new(InstallType::Path(NamedTempFile::from_parts(
+                      file_adapter.into_std().await,
+                      path,
+                    ))),
+                  )
                   .expect("Submit install command");
               });
             }

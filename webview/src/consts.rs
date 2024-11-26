@@ -1,7 +1,7 @@
 use std::sync::LazyLock;
 
 use directories::ProjectDirs;
-use druid::Selector;
+use druid::{Selector, SingleUse};
 
 use crate::{InstallType, WebviewEvent};
 
@@ -14,6 +14,6 @@ pub const FRACTAL_MODS_FORUM: &str = "https://fractalsoftworks.com/forum/index.p
 pub const FRACTAL_MODDING_SUBFORUM: &str = "https://fractalsoftworks.com/forum/index.php?board=3.0";
 
 pub const WEBVIEW_EVENT: Selector<WebviewEvent> = Selector::new("webview.event");
-pub const WEBVIEW_INSTALL: Selector<InstallType> = Selector::new("webview.install");
+pub const WEBVIEW_INSTALL: Selector<SingleUse<InstallType>> = Selector::new("webview.install");
 
 pub const WEBVIEW_OFFSET: i16 = 34;

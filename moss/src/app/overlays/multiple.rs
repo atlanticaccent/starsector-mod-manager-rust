@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use common::{
   labels::{bolded, h2_fixed, hoverable_text},
   theme_keys::{GREEN_KEY, ON_GREEN_KEY},
@@ -9,12 +7,11 @@ use common::{
 use druid::{
   im::Vector,
   widget::{Flex, Label, Painter, SizedBox},
-  Data, Key, Lens, SingleUse, Widget, WidgetExt as _,
+  Data, Key, Lens, Selector, SingleUse, Widget, WidgetExt as _,
 };
 use druid_patch::table::{FixedFlexTable, TableColumnWidth, TableRow};
 use druid_widget_nursery::wrap::Wrap;
 use installer::HybridPath;
-use itertools::Itertools;
 
 use super::Popup;
 use crate::{
@@ -26,7 +23,7 @@ use crate::{
   theme::{BLUE_KEY, ON_BLUE_KEY, ON_RED_KEY, RED_KEY},
 };
 
-#[derive(Debug, Clone, Data)]
+#[derive(Clone, Data)]
 pub struct Multiple {
   #[data(eq)]
   pub source: HybridPath,
@@ -36,10 +33,6 @@ pub struct Multiple {
 #[derive(Debug, Clone, Data, Lens)]
 struct MultipleState {
   selected: Vector<bool>,
-  #[data(ignore)]
-  to_install: Vec<PathBuf>,
-  #[data(ignore)]
-  source: HybridPath,
 }
 
 impl Multiple {
@@ -48,6 +41,8 @@ impl Multiple {
   }
 
   pub fn view(&self) -> impl Widget<App> {
+    const DISMISS_SELF: Selector<bool> = Selector::new("found_multiple.install");
+
     let Self { source, found } = self.clone();
     let len = found.len();
 
@@ -127,15 +122,8 @@ impl Multiple {
                   })
                   .fix_height(42.0)
                   .padding((0.0, 2.0))
-                  .on_click({
-                    let source = source.clone();
-                    let installable = found.iter().map(|entry| entry.path.clone()).collect_vec();
-                    move |ctx, _, _| {
-                      ctx.submit_command(Popup::DISMISS);
-                      ctx.submit_command(INSTALL.with(SingleUse::new(
-                        InstallMessage::FoundMultiple(installable.clone(), source.clone()),
-                      )));
-                    }
+                  .on_click(|ctx, _, _| {
+                    ctx.submit_notification(DISMISS_SELF.with(true));
                   }),
               )
               .with_child(
@@ -160,7 +148,9 @@ impl Multiple {
                   })
                   .fix_height(42.0)
                   .padding((0.0, 2.0))
-                  .on_click(dismiss)
+                  .on_click(|ctx, _, _| {
+                    ctx.submit_notification(DISMISS_SELF.with(false));
+                  })
                   .empty_if(|data, _| data.selected.all(false)),
               )
               .with_child(
@@ -192,14 +182,26 @@ impl Multiple {
               .align_right(),
           ),
       )
-      .scope_independent({
-        let source = source.clone();
-        let installable = found.iter().map(|entry| entry.path.clone()).collect_vec();
-        move || MultipleState {
-          selected: Vector::from(vec![false; len]),
-          to_install: installable.clone(),
-          source: source.clone(),
+      .on_notification(DISMISS_SELF, {
+        let multiple = SingleUse::new((source, found));
+        move |ctx, install_all, data| {
+          ctx.submit_command(Popup::DISMISS);
+
+          let Some((source, found)) = multiple.take() else {
+            return;
+          };
+          let targets = found
+            .into_iter()
+            .zip(&data.selected)
+            .filter_map(|(target, selected)| (*install_all || *selected).then_some(target.path))
+            .collect();
+          ctx.submit_command(INSTALL.with(SingleUse::new(InstallMessage::FoundMultiple(
+            targets, source,
+          ))));
         }
+      })
+      .scope_independent(move || MultipleState {
+        selected: Vector::from(vec![false; len]),
       });
 
     Flex::row()
@@ -208,23 +210,6 @@ impl Multiple {
       .with_flex_child(body, 1.0)
       .with_flex_spacer(0.5)
   }
-}
-
-fn dismiss(ctx: &mut druid::EventCtx, data: &mut MultipleState, _env: &druid::Env) {
-  ctx.submit_command(Popup::DISMISS);
-
-  let to_install = std::mem::take(&mut data.to_install);
-  let selected = data
-    .selected
-    .iter()
-    .zip(to_install.into_iter())
-    .filter_map(|(selected, path)| selected.then_some(path))
-    .collect_vec();
-
-  ctx.submit_command(INSTALL.with(SingleUse::new(InstallMessage::FoundMultiple(
-    selected,
-    data.source.clone(),
-  ))));
 }
 
 #[allow(irrefutable_let_patterns)]

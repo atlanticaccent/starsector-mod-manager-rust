@@ -1,10 +1,9 @@
-use std::{cell::OnceCell, path::PathBuf, rc::Rc, str::FromStr};
+use std::{cell::OnceCell, rc::Rc, str::FromStr};
 
 use base64::{engine::general_purpose::STANDARD, Engine};
 use common::ExtEventSinkExt;
 use druid::{ExtEventSink, WindowHandle};
 use mime::Mime;
-use serde::{Deserialize, Serialize};
 use url::Url;
 use wry::{WebContext, WebView, WebViewBuilder};
 
@@ -248,20 +247,9 @@ fn mime_type_is_archive(mime: &Mime) -> bool {
   }
 }
 
-#[derive(Clone)]
 pub enum InstallType {
   Uri(String),
-  Path(PathBuf),
-}
-
-#[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub enum WebviewMessage {
-  Navigation(String),
-  Download(String),
-  Shutdown,
-  BlobFile(PathBuf),
-  Maximize,
-  Minimize,
+  Path(tempfile::NamedTempFile),
 }
 
 #[derive(Debug)]
