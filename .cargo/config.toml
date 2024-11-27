@@ -9,3 +9,4 @@ linker = "rust-lld.exe"
 fast = ["r", "-q", "--manifest-path", "fast/Cargo.toml", "--"]
 feck = ["r", "-q", "--manifest-path", "fast/Cargo.toml", "--", "check"]
 fun = ["r", "-q", "--manifest-path", "fast/Cargo.toml", "--", "run"]
+fbuild = ["r", "-q", "--manifest-path", "fast/Cargo.toml", "--", "build"]
