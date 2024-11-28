@@ -17,34 +17,40 @@ impl WebClient {
   const TIMEOUT: u64 = 75;
 
   pub fn new() -> Self {
-    Self(
-      Self::builder(
-        ExponentialBackoff::builder()
-          .retry_bounds(Duration::from_millis(20), Duration::from_millis(200))
-          .build_with_max_retries(50),
-      )
-      .build(),
-    )
+    Self(Self::builder(Self::default_retry_policy()).build())
   }
 
   pub fn builder(retry_policy: impl RetryPolicy + Send + Sync + 'static) -> ClientBuilder {
-    ClientBuilder::new(
-      reqwest::Client::builder()
-        .brotli(true)
-        .gzip(true)
-        .deflate(true)
-        .timeout(Duration::from_millis(Self::TIMEOUT))
-        .user_agent("StarsectorModManager")
-        .build()
-        .unwrap(),
-    )
-    .with(ExtensionCleaner)
-    .with(RetryTransientMiddleware::new_with_policy(retry_policy))
-    .with(increment_timeout)
+    Self::from_reqwest_builder(Self::default_reqwest_builder(), retry_policy)
   }
 
   pub fn from_builder(builder: ClientBuilder) -> Self {
     Self(builder.build())
+  }
+
+  pub fn from_reqwest_builder(
+    builder: reqwest::ClientBuilder,
+    retry_policy: impl RetryPolicy + Send + Sync + 'static,
+  ) -> ClientBuilder {
+    ClientBuilder::new(builder.build().unwrap())
+      .with(ExtensionCleaner)
+      .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+      .with(increment_timeout)
+  }
+
+  pub fn default_reqwest_builder() -> reqwest::ClientBuilder {
+    reqwest::Client::builder()
+      .timeout(Duration::from_millis(Self::TIMEOUT))
+      .user_agent(concat!("moss/", env!("CARGO_PKG_VERSION")))
+      .use_rustls_tls()
+      .tls_built_in_root_certs(false)
+      .tls_built_in_native_certs(true)
+  }
+
+  pub fn default_retry_policy() -> ExponentialBackoff {
+    ExponentialBackoff::builder()
+      .retry_bounds(Duration::from_millis(20), Duration::from_millis(200))
+      .build_with_max_retries(50)
   }
 
   pub async fn get(&self, url: String) -> Result<String, Error> {

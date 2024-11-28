@@ -17,7 +17,7 @@ base64 = { workspace = true }
 directories = { workspace = true }
 url = "2.5"
 regex = { workspace = true }
-reqwest = { workspace = true, features = ["blocking"] }
+reqwest = { workspace = true }
 mime = "0.3.17"
 mime_guess = { version = "2.0.5", default-features = false }
 tempfile = { workspace = true }

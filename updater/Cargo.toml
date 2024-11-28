@@ -8,12 +8,14 @@ description = "Self-updater for MOSS"
 [dependencies]
 # Internal
 types = { workspace = true }
+web-client = { workspace = true }
 
 # External
 tokio = { workspace = true }
 self_update = { workspace = true }
 derive_more = { workspace = true, features = ["deref"] }
 anyhow = { workspace = true }
+serde_json = { workspace = true }
 
 [target.'cfg(not(windows))'.dependencies]
 cargo-packager-updater = { workspace = true }

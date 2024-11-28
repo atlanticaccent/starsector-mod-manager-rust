@@ -1,12 +1,26 @@
+#![feature(error_reporter)]
+
+use std::sync::LazyLock;
+
+use anyhow::Context;
 use derive_more::derive::{Deref, From};
 use self_update::{
   backends::github,
   cargo_crate_version,
-  update::{Release as ReleaseInternal, ReleaseUpdate},
+  update::{Release as ReleaseInternal, ReleaseAsset, ReleaseUpdate},
   version,
 };
 use tokio::sync::oneshot;
 use types::CloneTx;
+use web_client::WebClient;
+
+const REPO_NAME: LazyLock<&'static str> = LazyLock::new(|| {
+  if CURRENT_VERSION < "0.8.0" {
+    "test"
+  } else {
+    "starsector-mod-manager-rust"
+  }
+});
 
 #[derive(Debug, Clone, From, Deref)]
 #[repr(transparent)]
@@ -43,34 +57,84 @@ const TARGET: &str = if cfg!(target_os = "windows") {
 const CURRENT_VERSION: &str = cargo_crate_version!();
 
 pub fn check_for_update(callback: impl Fn(Status) + Send + Sync + 'static) {
-  tokio::task::spawn_blocking(move || check_for_update_blocking(&callback, &callback));
+  tokio::runtime::Handle::current()
+    .spawn(async move { check_for_update_async(&callback, &callback).await });
 }
 
-pub fn check_for_update_opts(
-  update_callback: impl FnOnce(Status) + Send + 'static,
-  finish_callback: impl FnOnce(Status) + Send + 'static,
-) {
-  tokio::task::spawn_blocking(|| check_for_update_blocking(update_callback, finish_callback));
-}
-
-fn check_for_update_blocking(
+async fn check_for_update_async(
   update_callback: impl FnOnce(Status),
   finish_callback: impl FnOnce(Status),
 ) {
-  let updater = match get_updater() {
-    Ok(updater) => updater,
-    Err(err) => return update_callback(Status::CheckFailed(err.to_string())),
-  };
+  async fn check_for_update_impl() -> anyhow::Result<Option<ReleaseInternal>> {
+    let api_url = format!(
+      "{}/repos/{}/{}/releases/latest",
+      "https://api.github.com", "atlanticaccent", *REPO_NAME,
+    );
+    let resp = WebClient::from_reqwest_builder(
+      WebClient::default_reqwest_builder().danger_accept_invalid_certs(true),
+      WebClient::default_retry_policy(),
+    )
+    .build()
+    .get(&api_url)
+    .send()
+    .await?;
+    if !resp.status().is_success() {
+      anyhow::bail!(
+        "api request failed with status: {:?} - for: {:?}",
+        resp.status(),
+        api_url
+      )
+    }
 
-  let release = match updater.get_latest_release() {
-    Ok(release) => Release::from(release),
-    Err(err) => return update_callback(Status::CheckFailed(err.to_string())),
-  };
+    let release_raw = resp.json::<serde_json::Value>().await?;
+    let tag = release_raw["tag_name"]
+      .as_str()
+      .context("Release missing `tag_name`")?;
+    let date = release_raw["created_at"]
+      .as_str()
+      .context("Release missing `created_at`")?;
+    let name = release_raw["name"].as_str().unwrap_or(tag);
+    let assets = release_raw["assets"]
+      .as_array()
+      .context("No assets found")?;
+    let body = release_raw["body"].as_str().map(String::from);
+    let assets = assets
+      .iter()
+      .map(|asset| {
+        let download_url = asset["url"].as_str().context("Asset missing `url`")?;
+        let name = asset["name"].as_str().context("Asset missing `name`")?;
+        Ok(ReleaseAsset {
+          download_url: download_url.to_owned(),
+          name: name.to_owned(),
+        })
+      })
+      .collect::<anyhow::Result<Vec<ReleaseAsset>>>()?;
 
-  match version::bump_is_greater(CURRENT_VERSION, &release.version) {
-    Ok(true) => println!("Update found"),
-    Ok(false) => return println!("Up to date"),
-    Err(err) => return update_callback(Status::CheckFailed(err.to_string())),
+    let release_internal = ReleaseInternal {
+      name: name.to_owned(),
+      version: tag.trim_start_matches('v').to_owned(),
+      date: date.to_owned(),
+      body,
+      assets,
+    };
+
+    if version::bump_is_greater(CURRENT_VERSION, &release_internal.version)? {
+      println!("Update found");
+      Ok(Some(release_internal))
+    } else {
+      println!("Up to date");
+      Ok(None)
+    }
+  }
+
+  let release = match check_for_update_impl().await {
+    Ok(Some(release_internal)) => Release(release_internal),
+    Ok(None) => return,
+    Err(err) => {
+      let reporter = std::error::Report::new(dbg!(err.root_cause())).pretty(true);
+
+      return update_callback(Status::CheckFailed(dbg!(reporter).to_string()));
+    }
   };
 
   let (tx, rx) = oneshot::channel();
@@ -78,8 +142,8 @@ fn check_for_update_blocking(
 
   // There should only ever be one thread blocked here
   // should wake and return if another ever does
-  if rx.blocking_recv().unwrap_or_default() {
-    let result = if let Err(err) = update(updater, release) {
+  if rx.await.unwrap_or_default() {
+    let result = if let Err(err) = get_updater().and_then(|updater| update(updater, release)) {
       Status::InstallFailed(err.to_string())
     } else {
       Status::Completed
@@ -92,10 +156,7 @@ fn check_for_update_blocking(
 fn get_updater() -> anyhow::Result<Box<dyn ReleaseUpdate>> {
   let updater = github::Update::configure()
     .repo_owner("atlanticaccent")
-    .repo_name({
-      assert!(CURRENT_VERSION != "0.8.0");
-      "test"
-    })
+    .repo_name(&REPO_NAME)
     .current_version(CURRENT_VERSION)
     .target(TARGET)
     .bin_name(TARGET)
