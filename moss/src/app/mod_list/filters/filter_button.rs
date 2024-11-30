@@ -5,6 +5,7 @@ use druid::{
 };
 use druid_widget_nursery::{material_icons::Icon, Stack, StackChildPosition};
 use icons::TUNE;
+use types::ArraySet;
 
 use super::{FilterState, FILTER_POSITION};
 use crate::app::{mod_list::ModList, CLEAR};
@@ -58,7 +59,7 @@ impl FilterButton {
               .height(46.0),
           )
           .padding((0.0, 4.0, 6.0, 0.0))
-          .lens(FilterState::active_filters.compute(std::collections::HashSet::is_empty)),
+          .lens(FilterState::active_filters.compute(ArraySet::is_empty)),
       )
       .with_positioned_child(
         Card::builder()

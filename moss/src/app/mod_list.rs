@@ -30,7 +30,7 @@ use installer::HybridPath;
 use rand::Rng;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use strum_macros::{Display, EnumIter};
+use strum_macros::{Display, EnumCount, EnumIter};
 use sublime_fuzzy::best_match;
 use web_client::WebClient;
 
@@ -556,7 +556,7 @@ impl ModList {
     mods: &FastImMap<String, Rc<ModEntry>>,
     header: &Header,
     search_text: &str,
-    filters: &[&Filters],
+    filters: &[Filters],
   ) -> Vec<String> {
     comemo::evict(20);
 
@@ -568,7 +568,7 @@ impl ModList {
     mods: &FastImMap<String, Rc<ModEntry>>,
     header: &Header,
     search_text: &str,
-    filters: &[&Filters],
+    filters: &[Filters],
   ) -> Vec<String> {
     Self::sorted_vals_inner(mods, header, search_text, filters)
   }
@@ -577,7 +577,7 @@ impl ModList {
     mods: &FastImMap<String, Rc<ModEntry>>,
     header: &Header,
     search_text: &str,
-    filters: &[&Filters],
+    filters: &[Filters],
   ) -> Vec<String> {
     let mut ids: Vec<_> = mods
       .values()
@@ -677,8 +677,13 @@ impl TableData for ModList {
   type Row = ModEntry;
 
   fn keys(&self) -> impl Iterator<Item = String> {
-    let filters: Vec<&Filters> = self.filter_state.active_filters.iter().collect();
-    ModList::sorted_vals(&self.mods, &self.header, &self.search_text, &filters).into_iter()
+    ModList::sorted_vals(
+      &self.mods,
+      &self.header,
+      &self.search_text,
+      self.filter_state.active_filters.as_ref(),
+    )
+    .into_iter()
   }
 
   fn columns(&self) -> impl Iterator<Item = Self::Column> {
@@ -739,7 +744,7 @@ impl From<Vec<String>> for EnabledMods {
   }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Hash, Data, EnumIter, Display, Debug, Default)]
+#[derive(Clone, Copy, Eq, PartialEq, Hash, Data, EnumIter, Display, Debug, Default, EnumCount)]
 pub enum Filters {
   #[default]
   Enabled,

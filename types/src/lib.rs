@@ -1,29 +1,11 @@
-use std::sync::{Arc, Mutex};
+#![feature(
+  maybe_uninit_slice,
+  maybe_uninit_uninit_array_transpose,
+  maybe_uninit_write_slice
+)]
 
-use derive_more::derive::{Deref, From};
-use tokio::sync::oneshot;
+mod array_set;
+mod clone_tx;
 
-#[derive(Debug, Clone, From, Deref)]
-pub struct CloneTx(Arc<Mutex<Option<oneshot::Sender<bool>>>>);
-
-impl CloneTx {
-  pub fn new(tx: oneshot::Sender<bool>) -> Self {
-    Self(Arc::new(Mutex::new(Some(tx))))
-  }
-
-  pub fn send(&self, val: bool) {
-    let Ok(mut guard) = self.lock() else {
-      return;
-    };
-
-    if let Some(sender) = guard.take() {
-      let _ = sender.send(val);
-    }
-  }
-}
-
-impl PartialEq for CloneTx {
-  fn eq(&self, other: &Self) -> bool {
-    Arc::ptr_eq(self, other)
-  }
-}
+pub use array_set::*;
+pub use clone_tx::*;
