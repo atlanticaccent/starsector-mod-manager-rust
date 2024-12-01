@@ -19,6 +19,4 @@ pub struct FilterState {
   pub stack_position: StackChildPosition,
   #[data(eq)]
   pub active_filters: ArraySet<Filters, FILTER_COUNT>,
-  #[data(eq)]
-  pub sorted_ids: Vec<String>,
 }

@@ -4,12 +4,12 @@ use common::{labels::bold_text, widget_ext::WidgetExtEx as _, widgets::card::Car
 use druid::{theme, Widget, WidgetExt};
 use druid_widget_nursery::WidgetExt as _;
 
-use super::toggle_button::ToggleButton;
+use super::action_button::ActionsButton;
 use crate::app::mod_list::{install::install_options::InstallOptions, ModList};
 
-pub struct ToggleOptions;
+pub struct ActionsOptions;
 
-impl ToggleOptions {
+impl ActionsOptions {
   pub fn view() -> impl Widget<ModList> {
     let text = |text| {
       bold_text(
@@ -28,8 +28,8 @@ impl ToggleOptions {
       .with_shadow_length(8.0)
       .with_background(theme::BACKGROUND_DARK)
       .build(
-        ToggleButton::button_styling(
-          ToggleButton::inner(true)
+        ActionsButton::button_styling(
+          ActionsButton::inner(true)
             .with_spacer(4.0)
             .with_child(
               Card::hoverable(
@@ -39,7 +39,7 @@ impl ToggleOptions {
               .link_height_with(&mut width_linker)
               .horizontal()
               .on_click(|_, data: &mut ModList, _| {
-                data.toggle_state.open = false;
+                data.actions_state.open = false;
                 for (_, entry) in data.mods.iter_mut() {
                   let entry = Rc::make_mut(entry);
                   entry.enabled = true;
@@ -53,7 +53,7 @@ impl ToggleOptions {
               )
               .link_height_with(&mut width_linker)
               .on_click(|_, data, _| {
-                data.toggle_state.open = false;
+                data.actions_state.open = false;
                 for (_, entry) in data.mods.iter_mut() {
                   let entry = Rc::make_mut(entry);
                   entry.enabled = false;
@@ -65,13 +65,13 @@ impl ToggleOptions {
         .fix_height(128.0)
         .padding((-8.0, 0.0, -8.0, -4.0)),
       )
-      .empty_if_not(|data: &ModList, _| data.toggle_state.open)
+      .empty_if_not(|data: &ModList, _| data.actions_state.open)
       .on_command(InstallOptions::DISMISS, |ctx, payload, data| {
         let hitbox = ctx
           .size()
           .to_rect()
           .with_origin(ctx.to_window((0.0, 0.0).into()));
-        data.toggle_state.open = hitbox.contains(*payload);
+        data.actions_state.open = hitbox.contains(*payload);
       })
       .fix_width(super::INSTALL_WIDTH)
   }

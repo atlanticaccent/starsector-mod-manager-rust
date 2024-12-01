@@ -92,5 +92,5 @@ icons! {
   _icons::INFO,
   _icons::SHUFFLE,
   _icons::SICK,
-  _icons::THUMB_UP
+  _icons::THUMB_UP,
 }

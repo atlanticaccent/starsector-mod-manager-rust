@@ -43,7 +43,7 @@ use super::{
   App,
 };
 use crate::app::{
-  mod_list::toggle::{toggle_button::ToggleButton, toggle_options::ToggleOptions, ToggleState},
+  mod_list::actions::{action_button::ActionsButton, action_options::ActionsOptions, ActionsState},
   util::LoadBalancer,
 };
 
@@ -52,7 +52,7 @@ pub mod headings;
 pub mod install;
 mod refresh;
 pub mod search;
-mod toggle;
+mod actions;
 
 use self::{
   filters::{
@@ -73,7 +73,7 @@ pub struct ModList {
   pub search_text: String,
   pub starsector_version: Option<GameVersion>,
   install_state: InstallState,
-  toggle_state: ToggleState,
+  actions_state: ActionsState,
   pub filter_state: FilterState,
   pub install_dir_available: bool,
   pub refreshing: bool,
@@ -106,7 +106,7 @@ impl ModList {
       search_text: String::new(),
       starsector_version: None,
       install_state: InstallState::default(),
-      toggle_state: ToggleState::default(),
+      actions_state: ActionsState::default(),
       filter_state: FilterState::default(),
       install_dir_available: false,
       refreshing: false,
@@ -135,8 +135,8 @@ impl ModList {
                   .disabled_if(|data, _| !data.install_dir_available),
               )
               .with_child(
-                ToggleButton::view()
-                  .lens(Self::toggle_state)
+                ActionsButton::view()
+                  .lens(Self::actions_state)
                   .padding((0.0, 5.0))
                   .disabled_if(|data: &ModList, _| data.mods.is_empty()),
               )
@@ -265,7 +265,7 @@ impl ModList {
           .left(Some(52.0)),
       )
       .with_positioned_child(
-        ToggleOptions::view().padding((0.0, 5.0)),
+        ActionsOptions::view().padding((0.0, 5.0)),
         StackChildPosition::default()
           .top(Some(0.0))
           .left(Some(52.0 + CONTROL_WIDTH)),
