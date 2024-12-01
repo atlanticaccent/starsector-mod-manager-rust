@@ -42,13 +42,18 @@ use super::{
   util::{self, SaveError},
   App,
 };
-use crate::app::util::LoadBalancer;
+use crate::app::{
+  mod_list::toggle::{toggle_button::ToggleButton, toggle_options::ToggleOptions, ToggleState},
+  util::LoadBalancer,
+};
 
 pub mod filters;
 pub mod headings;
 pub mod install;
 mod refresh;
 pub mod search;
+mod toggle;
+
 use self::{
   filters::{
     filter_button::FilterButton, filter_options::FilterOptions, FilterState, FILTER_POSITION,
@@ -59,7 +64,7 @@ use self::{
   search::Search,
 };
 
-const CONTROL_WIDTH: f64 = 175.0;
+const CONTROL_WIDTH: f64 = 185.0;
 
 #[derive(Clone, Data, Lens)]
 pub struct ModList {
@@ -68,6 +73,7 @@ pub struct ModList {
   pub search_text: String,
   pub starsector_version: Option<GameVersion>,
   install_state: InstallState,
+  toggle_state: ToggleState,
   pub filter_state: FilterState,
   pub install_dir_available: bool,
   pub refreshing: bool,
@@ -100,6 +106,7 @@ impl ModList {
       search_text: String::new(),
       starsector_version: None,
       install_state: InstallState::default(),
+      toggle_state: ToggleState::default(),
       filter_state: FilterState::default(),
       install_dir_available: false,
       refreshing: false,
@@ -120,13 +127,19 @@ impl ModList {
         Flex::column()
           .with_child(
             Flex::row()
+              .with_child(Refresh::view().padding((0.0, 5.0)))
               .with_child(
                 InstallButton::view()
                   .lens(Self::install_state)
                   .padding((0.0, 5.0))
                   .disabled_if(|data, _| !data.install_dir_available),
               )
-              .with_child(Refresh::view().padding((0.0, 5.0)))
+              .with_child(
+                ToggleButton::view()
+                  .lens(Self::toggle_state)
+                  .padding((0.0, 5.0))
+                  .disabled_if(|data: &ModList, _| data.mods.is_empty()),
+              )
               .with_flex_spacer(1.0)
               .with_child(FilterButton::view().lens(Self::filter_state))
               .with_child(
@@ -247,7 +260,15 @@ impl ModList {
         InstallOptions::view()
           .lens(Self::install_state)
           .padding((0.0, 5.0)),
-        StackChildPosition::default().top(Some(0.0)).left(Some(0.0)),
+        StackChildPosition::default()
+          .top(Some(0.0))
+          .left(Some(52.0)),
+      )
+      .with_positioned_child(
+        ToggleOptions::view().padding((0.0, 5.0)),
+        StackChildPosition::default()
+          .top(Some(0.0))
+          .left(Some(52.0 + CONTROL_WIDTH)),
       )
       .with_positioned_child(
         FilterOptions::view().lens(Self::filter_state),

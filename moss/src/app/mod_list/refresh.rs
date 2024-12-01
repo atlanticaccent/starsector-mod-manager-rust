@@ -1,5 +1,5 @@
-use common::{labels::bold_text, widgets::card::Card};
-use druid::{widget::Flex, Data, Widget, WidgetExt};
+use common::widgets::card::Card;
+use druid::{Data, Widget, WidgetExt};
 use druid_widget_nursery::material_icons::Icon;
 
 use crate::app::{App, REFRESH};
@@ -9,19 +9,11 @@ pub struct Refresh;
 impl Refresh {
   pub fn view<T: Data>() -> impl Widget<T> {
     Card::builder()
-      .with_insets((0.0, 14.0))
-      .hoverable(|_| {
-        Flex::row()
-          .with_child(bold_text(
-            "Refresh",
-            druid::theme::TEXT_SIZE_NORMAL,
-            druid::FontWeight::SEMI_BOLD,
-            druid::theme::TEXT_COLOR,
-          ))
-          .with_child(Icon::new(*REFRESH))
-          .align_horizontal(druid::UnitPoint::CENTER)
-          .fix_width(175.0)
-      })
+      .with_insets((14.0, 14.0))
+      .hoverable(|_| Icon::new(*REFRESH))
+      .fix_size(52.0, 52.0)
+      // .stack_tooltip_custom(Card::new(bolded("Refresh")))
+      // .with_offset((8.0, 8.0))
       .on_click(|ctx, _, _| ctx.submit_command(App::REFRESH))
   }
 }

@@ -1,5 +1,5 @@
 use common::{labels::bold_text, widget_ext::WidgetExtEx as _, widgets::card::Card};
-use druid::{theme, widget::Flex, Point, Selector, Widget, WidgetExt};
+use druid::{theme, widget::Flex, Data, Point, Selector, Widget, WidgetExt};
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
 use icons::{FOLDER, INVENTORY_2};
 
@@ -12,7 +12,7 @@ impl InstallOptions {
   pub const DISMISS: Selector<Point> = Selector::new("install_options.dismiss");
 
   pub fn view() -> impl Widget<InstallState> {
-    let text = |text| {
+    fn text<T: Data>(text: &str) -> impl Widget<T> {
       bold_text(
         text,
         druid::theme::TEXT_SIZE_NORMAL,
@@ -20,7 +20,7 @@ impl InstallOptions {
         druid::theme::TEXT_COLOR,
       )
       .padding((8.0, 0.0))
-    };
+    }
 
     let mut width_linker = None;
     Card::builder()
@@ -59,7 +59,7 @@ impl InstallOptions {
                 (0.0, 10.0),
               )
               .link_height_with(&mut width_linker)
-              .on_click(|ctx, data, _| {
+              .on_click(|ctx, data: &mut InstallState, _| {
                 data.open = false;
                 ctx.submit_command(App::SELECTOR.with(AppCommands::PickFile(false)));
               }),

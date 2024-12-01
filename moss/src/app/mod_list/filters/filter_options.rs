@@ -125,7 +125,7 @@ impl FilterOptions {
           .with_child(
             SizedBox::empty()
               .link_height_with(width_linker)
-              .border(druid::Color::BLACK, 0.5)
+              .border(druid::theme::BORDER_LIGHT, 0.5)
               .padding((0.0, 2.0)),
           )
           .with_child(
@@ -270,7 +270,7 @@ impl FilterOptions {
           .with_child(
             SizedBox::empty()
               .link_height_with(width_linker)
-              .border(druid::Color::BLACK, 0.5)
+              .border(druid::theme::BORDER_LIGHT, 0.5)
               .padding((0.0, 2.0)),
           )
           .with_child(version_filter_option(
@@ -341,7 +341,7 @@ impl FilterOptions {
           .with_child(
             SizedBox::empty()
               .link_height_with(width_linker)
-              .border(druid::Color::BLACK, 0.5)
+              .border(druid::theme::BORDER_LIGHT, 0.5)
               .padding((0.0, 2.0)),
           )
           .with_child(
