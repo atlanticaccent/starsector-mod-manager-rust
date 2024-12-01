@@ -47,12 +47,12 @@ use crate::app::{
   util::LoadBalancer,
 };
 
+mod actions;
 pub mod filters;
 pub mod headings;
 pub mod install;
 mod refresh;
 pub mod search;
-mod actions;
 
 use self::{
   filters::{
@@ -615,9 +615,18 @@ impl ModList {
         } else {
           true
         };
-        let filters = filters.iter().all(|f| f.as_fn()(entry));
 
-        (search && filters).then(|| entry.id.clone())
+        let matches_all = filters
+          .split(Filters::is_version_checker_filter)
+          .flatten()
+          .all(|f| f.as_fn()(entry));
+        let matches_any = filters
+          .split(|filter| !filter.is_version_checker_filter())
+          .flatten()
+          .any(|f| f.as_fn()(entry));
+        let passes_filters = matches_all && (filters.is_empty() || matches_any);
+
+        (search && passes_filters).then(|| entry.id.clone())
       })
       .collect();
 
@@ -785,12 +794,25 @@ pub enum Filters {
 }
 
 impl Filters {
+  fn is_version_checker_filter(&self) -> bool {
+    matches!(
+      self,
+      Self::Unimplemented
+        | Self::Error
+        | Self::Discrepancy
+        | Self::UpToDate
+        | Self::Patch
+        | Self::Minor
+        | Self::Major
+    )
+  }
+
   fn as_fn(self) -> impl FnMut(&ModEntry) -> bool {
     match self {
       Filters::Enabled => |entry: &ModEntry| !entry.enabled,
       Filters::Disabled => |entry: &ModEntry| entry.enabled,
-      Filters::Unimplemented => |entry: &ModEntry| entry.version_checker.is_some(),
-      Filters::Error => |entry: &ModEntry| entry.update_status != Some(UpdateStatus::Error),
+      Filters::Unimplemented => |entry: &ModEntry| entry.version_checker.is_none(),
+      Filters::Error => |entry: &ModEntry| entry.update_status == Some(UpdateStatus::Error),
       Filters::UpToDate => |entry: &ModEntry| entry.update_status == Some(UpdateStatus::UpToDate),
       Filters::Discrepancy => {
         |entry: &ModEntry| matches!(entry.update_status, Some(UpdateStatus::Discrepancy(_)))
