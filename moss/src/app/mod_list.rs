@@ -80,6 +80,7 @@ pub struct ModList {
 }
 
 type RawModMap = FastImMap<String, RawModEntry>;
+pub type ModMap = FastImMap<String, Rc<ModEntry>>;
 
 impl ModList {
   pub const AUTO_UPDATE: Selector<ModEntry> = Selector::new("mod_list.install.auto_update");

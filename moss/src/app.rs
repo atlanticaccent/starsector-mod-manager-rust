@@ -318,7 +318,9 @@ impl App {
               .put(data, Some(UpdateStatus::from((&version_checker, &remote))));
           }
         })
-        .on_notification(ENABLE_DEPENDENCIES, ModDescription::enable_dependencies),
+        .on_notification(ENABLE_DEPENDENCIES, |_, id, data| {
+          ViewModEntry::enable_dependencies(id, data);
+        }),
         1.0,
       )
       .on_command(App::DISABLE, |ctx, (), _| ctx.set_disabled(true))

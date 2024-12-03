@@ -42,6 +42,7 @@ impl ActionsOptions {
                 data.actions_state.open = false;
                 for (_, entry) in data.mods.iter_mut() {
                   let entry = Rc::make_mut(entry);
+                  
                   entry.enabled = true;
                 }
               }),

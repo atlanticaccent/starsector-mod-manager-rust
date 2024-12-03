@@ -20,7 +20,8 @@ use druid::{
   kurbo::Line,
   lens, theme,
   widget::{Button, Checkbox, Either, Flex, Label, Painter, ViewSwitcher},
-  Color, Data, ExtEventSink, KeyOrValue, Lens, RenderContext as _, Selector, Widget, WidgetExt,
+  Color, Data, ExtEventSink, KeyOrValue, Lens, LensExt as _, RenderContext as _, Selector, Widget,
+  WidgetExt,
 };
 use druid_patch::table::{FlexTable, RowData};
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
@@ -36,7 +37,7 @@ use crate::{
   app::{
     app_delegate::AppCommands,
     mod_description::{notify_enabled, ModDescription},
-    mod_list::{headings::Heading, ModList},
+    mod_list::{headings::Heading, ModList, ModMap},
     util::{self, default_true, get_master_version, parse_game_version, Tap},
     App, SharedFromEnv,
   },
@@ -174,6 +175,52 @@ impl<T> ModEntry<T> {
   /// Set the mod entry's path.
   pub fn set_path(&mut self, path: PathBuf) {
     self.path = path;
+  }
+
+  pub fn enable_dependencies(id: &str, data: &mut App) -> bool {
+    let mods = &mut data.mod_list.mods;
+    if let Some(entry) = mods.get(id).cloned() {
+      if entry.dependencies.iter().all(|d| {
+        mods.get(&d.id).is_some_and(|entry| match &d.version {
+          Some(v) => v.major() == entry.version.major(),
+          None => true,
+        })
+      }) {
+        for dep in entry.dependencies.as_ref() {
+          App::mod_list
+            .then(ModList::mods)
+            .index(&dep.id)
+            .then(ModEntry::enabled.in_rc())
+            .put(data, true);
+        }
+
+        return true;
+      } else {
+        App::mod_list
+          .then(ModList::mods)
+          .index(&entry.id)
+          .then(ModEntry::enabled.in_rc())
+          .put(data, false);
+      }
+    }
+
+    false
+  }
+
+  pub fn get_all_dependencies<'a, 'b: 'a>(
+    entry: &'b ModEntry,
+    mods: &'a ModMap,
+  ) -> Option<Vec<&'a Dependency>> {
+    let mut deps = Vec::with_capacity(entry.dependencies.len());
+    for dep in entry.dependencies.iter() {
+      if let Some(found) = mods.get(&dep.id)
+        && (dep.version.as_ref() == Some(&found.version) || dep.version.is_none())
+      {
+        deps.push(dep);
+      }
+    }
+
+    Some(deps)
   }
 }
 

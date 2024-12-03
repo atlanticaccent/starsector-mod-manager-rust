@@ -27,7 +27,6 @@ use crate::{
   app::{
     app_delegate::AppCommands,
     mod_entry::{ModMetadata, UpdateStatus, VersionComplex},
-    mod_list::ModList,
     overlays::Popup,
     util::FnWidgetToMaybe,
     App, ViewModEntry as ModEntry, INFO,
@@ -335,32 +334,6 @@ impl ModDescription {
 
   pub fn empty_builder() -> impl Widget<()> {
     Label::new("No mod selected.")
-  }
-
-  pub fn enable_dependencies(_: &mut druid::EventCtx, id: &String, data: &mut App) {
-    let mods = &mut data.mod_list.mods;
-    if let Some(entry) = mods.get(id).cloned() {
-      if entry.dependencies.iter().all(|d| {
-        mods.get(&d.id).is_some_and(|entry| match &d.version {
-          Some(v) => v.major() == entry.version.major(),
-          None => true,
-        })
-      }) {
-        for dep in entry.dependencies.as_ref() {
-          App::mod_list
-            .then(ModList::mods)
-            .index(&dep.id)
-            .then(ModEntry::enabled.in_rc())
-            .put(data, true);
-        }
-      } else {
-        App::mod_list
-          .then(ModList::mods)
-          .index(&entry.id)
-          .then(ModEntry::enabled.in_rc())
-          .put(data, false);
-      }
-    }
   }
 }
 
