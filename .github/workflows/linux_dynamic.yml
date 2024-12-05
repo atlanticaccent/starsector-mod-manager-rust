@@ -44,14 +44,14 @@ jobs:
           CFLAGS: "-flto=full -O3"
           CXXFLAGS: "-flto=full -O3"
           RUSTFLAGS: "-Zshare-generics=true -Clinker=clang-18 -Clinker-plugin-lto -Clink-arg=-fuse-ld=lld-18"
-        run: cargo build --profile=ci
+        run: cargo build --release
       - name: Test
-        run: cargo test --profile=ci --no-fail-fast --features="leaky-api" -- --nocapture
+        run: cargo test --release --no-fail-fast --features="leaky-api" -- --nocapture
 
       - name: Install cargo-packager
         run: (cargo install cargo-packager || true)
       - name: Run cargo-packager
-        run: cargo packager --profile=ci --formats appimage
+        run: cargo packager --release --formats appimage
 
       - uses: actions/upload-artifact@v4
         with:
