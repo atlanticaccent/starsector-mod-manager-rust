@@ -342,13 +342,13 @@ fn dependencies() -> impl Widget<ModEntry> {
     .with_child(h2_fixed("Dependencies"))
     .with_child(List::new(|| {
       hoverable_text_opts(
-        Some(ModDescription::DEP_TEXT_BG_COLOR),
+        Some(ModDescription::DEP_TEXT_COLOR),
         identity,
         &[druid::text::Attribute::Weight(
           druid::text::FontWeight::SEMI_BOLD,
         )],
         &[druid::text::Attribute::TextColor(druid::KeyOrValue::Key(
-          ModDescription::DEP_TEXT_COLOR,
+          ModDescription::DEP_TEXT_BG_COLOR,
         ))],
         true,
       )
@@ -356,10 +356,16 @@ fn dependencies() -> impl Widget<ModEntry> {
       .background(Painter::new(|ctx, _, env| {
         use druid::RenderContext;
 
+        let hot = ctx.is_hot();
         let size = ctx.size();
-        if ctx.is_hot() {
-          ctx.fill(size.to_rect(), &env.get(ModDescription::DEP_TEXT_BG_COLOR));
-        }
+        ctx.fill(
+          size.to_rect(),
+          &if hot {
+            env.get(ModDescription::DEP_TEXT_COLOR)
+          } else {
+            env.get(ModDescription::DEP_TEXT_BG_COLOR)
+          },
+        );
       }))
       .env_scope(|env, dep: &super::mod_entry::Dependency| {
         let dep_map = env.get(ModDescription::DEP_MAP);
@@ -367,13 +373,13 @@ fn dependencies() -> impl Widget<ModEntry> {
 
         let text_color = status.map_or_else(
           || druid::theme::TEXT_COLOR.into(),
-          UpdateStatus::as_text_colour,
+          KeyOrValue::<Color>::from,
         );
         env.set(ModDescription::DEP_TEXT_COLOR, text_color.resolve(env));
 
         let bg_color = status.map_or_else(
           || druid::theme::BACKGROUND_LIGHT.into(),
-          KeyOrValue::<Color>::from,
+          UpdateStatus::as_text_colour,
         );
         env.set(ModDescription::DEP_TEXT_BG_COLOR, bg_color.resolve(env));
       })

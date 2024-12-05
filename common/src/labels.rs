@@ -166,15 +166,13 @@ pub fn hoverable_text_opts<TXT: Into<ArcStr> + Data, W: Widget<RichText> + 'stat
     })
     .lens(Compute::new(move |text: &TXT| {
       let rich = RichText::new(text.clone().into());
-      let plain = attrs
-        .iter()
-        .fold(rich, |txt, attr| txt.with_attribute(.., attr.clone()));
-      let hovered = hover_attrs
-        .iter()
-        .fold(plain.clone(), |txt, attr| {
-          txt.with_attribute(.., attr.clone())
-        })
-        .with_attribute(.., Attribute::Underline(true));
+      let plain = attrs.iter().fold(
+        rich.with_attribute(.., Attribute::Underline(true)),
+        |txt, attr| txt.with_attribute(.., attr.clone()),
+      );
+      let hovered = hover_attrs.iter().fold(plain.clone(), |txt, attr| {
+        txt.with_attribute(.., attr.clone())
+      });
 
       (Some(plain), Some(hovered))
     }))
