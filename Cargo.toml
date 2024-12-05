@@ -19,7 +19,7 @@ opt-level = 3
 inherits = "release"
 debug = 1
 
-[profile.iter-mac]
+[profile.fast-macos]
 rustflags = [
   "-C",
   "relocation-model=static",
@@ -33,8 +33,8 @@ rustflags = [
 inherits = "dev"
 debug = 0
 
-[profile.iter]
-inherits = "iter-mac"
+[profile.fast]
+inherits = "fast-macos"
 strip = "debuginfo"
 
 [workspace]
