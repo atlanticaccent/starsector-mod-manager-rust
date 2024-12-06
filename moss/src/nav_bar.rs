@@ -9,7 +9,7 @@ use common::{
 };
 use druid::{
   im::Vector,
-  text::RichTextBuilder,
+  text::{Attribute::Underline, RichTextBuilder},
   theme,
   widget::{Container, Either, Flex, Label, Scope, SizedBox},
   Color, Command, Data, Lens, Selector, Widget, WidgetExt as _,
@@ -56,14 +56,29 @@ impl NavBar {
                 .padding((4., 0.)),
             )
             .with_child(
-              hoverable_text_opts(
-                Option::<Color>::None,
-                |w| w.with_text_size(20.),
-                &[],
-                &[],
-                false,
+              Either::new(
+                |data, _| {
+                  data.override_.unwrap_or_default()
+                    || (data.expanded && !data.is_always_open)
+                    || (data.is_always_open && data.has_open_children())
+                },
+                hoverable_text_opts(
+                  Option::<Color>::None,
+                  |w| w.with_text_size(20.),
+                  &[Underline(true)],
+                  &[Underline(true)],
+                  false,
+                )
+                .lens(Compute::new(|data: &Nav| data.label.to_string())),
+                hoverable_text_opts(
+                  Option::<Color>::None,
+                  |w| w.with_text_size(20.),
+                  &[Underline(false)],
+                  &[Underline(true)],
+                  false,
+                )
+                .lens(Compute::new(|data: &Nav| data.label.to_string())),
               )
-              .lens(Compute::new(|data: &Nav| data.label.to_string()))
               .controller(HoverController::default())
               .on_click(|ctx, data, _| {
                 if !data.is_root {
@@ -284,6 +299,27 @@ impl Nav {
     for idx in 0..self.children_count() {
       self.for_child_mut(idx, |child, _| child.set_override(target, override_));
     }
+  }
+
+  fn descendents_iter_ref(&self, mut cb: impl FnMut(&Self, usize) -> bool) {
+    for (idx, child) in self.children.iter().enumerate() {
+      if cb(&child, idx) {
+        return;
+      }
+    }
+  }
+
+  fn has_open_children(&self) -> bool {
+    let mut any = false;
+    self.descendents_iter_ref(|child, _| {
+      if child.expanded || child.override_.unwrap_or_default() {
+        any = true;
+        return true;
+      }
+      false
+    });
+
+    any
   }
 }
 
