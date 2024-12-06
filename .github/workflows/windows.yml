@@ -36,12 +36,12 @@ jobs:
       - name: Setup vcpkg
         run: |
           (cargo install cargo-vcpkg || true)
-          cargo vcpkg --verbose build --manifest-path .\moss\Cargo.toml
+          cargo vcpkg build --manifest-path .\moss\Cargo.toml
 
       - name: Build
         run: cargo build --release
       - name: Test
-        run: cargo test --release --no-fail-fast --features="leaky-api" -- --nocapture
+        run: cargo test --release --features="leaky-api" -- --nocapture
 
       - uses: actions/upload-artifact@v4
         with:

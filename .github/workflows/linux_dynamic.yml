@@ -32,24 +32,24 @@ jobs:
 
       - name: Install Dependencies
         run: sudo apt-get update; sudo apt-get install libarchive-dev libgtk-3-dev webkit2gtk-4.1 libgtksourceview-3.0-dev libayatana-appindicator3-dev
+      - name: Install cargo-packager
+        run: (cargo install cargo-packager || true)
 
       - uses: actions/checkout@v4
 
       - uses: r7kamura/rust-problem-matchers@v1
+      - name: Set build specific env vars
+        run: |
+          echo "CC=${HOMEBREW_PREFIX}/opt/llvm@18/bin/clang" >> "$GITHUB_ENV"
+          echo "CXX=${HOMEBREW_PREFIX}/opt/llvm@18/bin/clang++" >> "$GITHUB_ENV"
+          echo "AR=${HOMEBREW_PREFIX}/opt/llvm@18/bin/llvm-ar" >> "$GITHUB_ENV"
+          echo "CFLAGS=\"-flto=full -O3\"" >> "$GITHUB_ENV"
+          echo "CXXFLAGS=\"-flto=full -O3\"" >> "$GITHUB_ENV"
+          echo "RUSTFLAGS=\"-Zshare-generics=true -Clinker=clang-18 -Clinker-plugin-lto -Clink-arg=-fuse-ld=lld-18\"" >> "$GITHUB_ENV"
       - name: Build
-        env:
-          CC: clang-18
-          CXX: clang++-18
-          AR: llvm-ar-18
-          CFLAGS: "-flto=full -O3"
-          CXXFLAGS: "-flto=full -O3"
-          RUSTFLAGS: "-Zshare-generics=true -Clinker=clang-18 -Clinker-plugin-lto -Clink-arg=-fuse-ld=lld-18"
         run: cargo build --release
       - name: Test
         run: cargo test --release --no-fail-fast --features="leaky-api" -- --nocapture
-
-      - name: Install cargo-packager
-        run: (cargo install cargo-packager || true)
       - name: Run cargo-packager
         run: cargo packager --release --formats appimage
 
