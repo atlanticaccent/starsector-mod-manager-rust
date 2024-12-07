@@ -11,9 +11,7 @@ use std::{
 };
 
 use druid::{
-  widget::Maybe,
-  Color, Data, ExtEventSink, KeyOrValue, Selector, Target, TimerToken,
-  Widget,
+  widget::Maybe, Color, Data, ExtEventSink, KeyOrValue, Selector, Target, TimerToken, Widget,
 };
 use json_comments::StripComments;
 use regex::Regex;

@@ -40,12 +40,12 @@ jobs:
       - uses: r7kamura/rust-problem-matchers@v1
       - name: Set build specific env vars
         run: |
-          echo "CC=${HOMEBREW_PREFIX}/opt/llvm@18/bin/clang" >> "$GITHUB_ENV"
-          echo "CXX=${HOMEBREW_PREFIX}/opt/llvm@18/bin/clang++" >> "$GITHUB_ENV"
-          echo "AR=${HOMEBREW_PREFIX}/opt/llvm@18/bin/llvm-ar" >> "$GITHUB_ENV"
-          echo "CFLAGS=\"-flto=full -O3\"" >> "$GITHUB_ENV"
-          echo "CXXFLAGS=\"-flto=full -O3\"" >> "$GITHUB_ENV"
-          echo "RUSTFLAGS=\"-Zshare-generics=true -Clinker=clang-18 -Clinker-plugin-lto -Clink-arg=-fuse-ld=lld-18\"" >> "$GITHUB_ENV"
+          echo CC=clang-18 >> $GITHUB_ENV
+          echo CXX=clang++-18 >> $GITHUB_ENV
+          echo AR=llvm-ar-18 >> $GITHUB_ENV
+          echo CFLAGS='-flto=full -O3' >> $GITHUB_ENV
+          echo CXXFLAGS='-flto=full -O3' >> $GITHUB_ENV
+          echo RUSTFLAGS="-Zshare-generics=true -Clinker=clang-18 -Clinker-plugin-lto -Clink-arg=-fuse-ld=lld-18" >> $GITHUB_ENV
       - name: Build
         run: cargo build --release
       - name: Test

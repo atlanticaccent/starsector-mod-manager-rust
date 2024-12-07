@@ -37,12 +37,12 @@ jobs:
 
       - name: Set build specific env vars
         run: |
-          echo "CC=${HOMEBREW_PREFIX}/opt/llvm@18/bin/clang" >> "$GITHUB_ENV"
-          echo "CXX=${HOMEBREW_PREFIX}/opt/llvm@18/bin/clang++" >> "$GITHUB_ENV"
-          echo "AR=${HOMEBREW_PREFIX}/opt/llvm@18/bin/llvm-ar" >> "$GITHUB_ENV"
-          echo "CFLAGS=\"-flto=full -O3\"" >> "$GITHUB_ENV"
-          echo "CXXFLAGS=\"-flto=full -O3\"" >> "$GITHUB_ENV"
-          echo "RUSTFLAGS=\"-Zshare-generics=true -Clinker-plugin-lto -Clinker=$PWD/scripts/linker-shim.sh -Clink-arg=-fuse-ld=${HOMEBREW_PREFIX}/opt/llvm@18/bin/ld64.lld\"" >> "$GITHUB_ENV"
+          echo CC=${HOMEBREW_PREFIX}/opt/llvm@18/bin/clang >> $GITHUB_ENV
+          echo CXX=${HOMEBREW_PREFIX}/opt/llvm@18/bin/clang++ >> $GITHUB_ENV
+          echo AR=${HOMEBREW_PREFIX}/opt/llvm@18/bin/llvm-ar >> $GITHUB_ENV
+          echo CFLAGS='-flto=full -O3' >> $GITHUB_ENV
+          echo CXXFLAGS='-flto=full -O3' >> $GITHUB_ENV
+          echo RUSTFLAGS="-Zshare-generics=true -Clinker-plugin-lto -Clinker=$PWD/scripts/linker-shim.sh -Clink-arg=-fuse-ld=${HOMEBREW_PREFIX}/opt/llvm@18/bin/ld64.lld" >> $GITHUB_ENV
       - uses: r7kamura/rust-problem-matchers@v1
       - name: Build
         run: cargo build --release
