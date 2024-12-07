@@ -493,7 +493,7 @@ impl Settings {
       .boxed()
   }
 
-  fn theme_picker_heading<T: Data + AsRef<str>>(
+  fn theme_picker_heading<T: Data + ToString>(
     collapsed: bool,
     padding: impl Into<Insets>,
   ) -> impl Widget<T> {

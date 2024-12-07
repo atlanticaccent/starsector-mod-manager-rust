@@ -1,7 +1,6 @@
 use std::{convert::identity, sync::Arc};
 
 use druid::{
-  lens::{Constant, Map},
   text::{ArcStr, Attribute, RichText},
   theme,
   widget::{ControllerHost, Label, LabelText, LensWrap, Painter, RawLabel},
@@ -57,42 +56,32 @@ pub trait LabelExt<T: Data> {
 
 impl<T: Data> LabelExt<T> for Label<T> {}
 
-fn to_rich_text(
-  text: impl AsRef<str>,
-  size: impl Into<KeyOrValue<f64>>,
-  weight: FontWeight,
-  colour: impl Into<KeyOrValue<Color>>,
-) -> RichText {
-  RichText::new(text.as_ref().into())
-    .with_attribute(0.., Attribute::Weight(weight))
-    .with_attribute(0.., Attribute::FontSize(size.into()))
-    .with_attribute(0.., Attribute::TextColor(colour.into()))
-}
-
 pub fn bold_text<T: Data>(
   text: &str,
   size: impl Into<KeyOrValue<f64>>,
   weight: FontWeight,
   colour: impl Into<KeyOrValue<Color>>,
-) -> impl Widget<T> {
-  RawLabel::new()
+) -> Label<T> {
+  Label::new(text)
+    .with_font(druid::text::FontDescriptor::default().with_weight(weight))
+    .with_text_size(size)
+    .with_text_color(colour)
     .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
-    .lens(Constant(to_rich_text(text, size, weight, colour)))
 }
 
-pub fn h1_fixed<T: Data>(text: &str) -> impl Widget<T> {
+pub fn h1_fixed<T: Data>(text: &str) -> Label<T> {
   bold_text(text, 24., FontWeight::BOLD, theme::TEXT_COLOR)
 }
 
-pub fn h2_fixed<T: Data>(text: &str) -> impl Widget<T> {
+pub fn h2_fixed<T: Data>(text: &str) -> Label<T> {
   bold_text(text, 20., FontWeight::SEMI_BOLD, theme::TEXT_COLOR)
 }
 
-pub fn h3_fixed<T: Data>(text: &str) -> impl Widget<T> {
+pub fn h3_fixed<T: Data>(text: &str) -> Label<T> {
   bold_text(text, 18., FontWeight::MEDIUM, theme::TEXT_COLOR)
 }
 
-pub fn bolded<T: Data>(text: &str) -> impl Widget<T> {
+pub fn bolded<T: Data>(text: &str) -> Label<T> {
   bold_text(
     text,
     theme::TEXT_SIZE_NORMAL,
@@ -101,30 +90,27 @@ pub fn bolded<T: Data>(text: &str) -> impl Widget<T> {
   )
 }
 
-pub fn lensed_bold<T: Data + AsRef<str>>(
+pub fn lensed_bold<T: Data + ToString>(
   size: impl Into<KeyOrValue<f64>>,
   weight: FontWeight,
   colour: impl Into<KeyOrValue<Color>>,
-) -> impl Widget<T> {
-  let size = size.into();
-  let colour = colour.into();
-  RawLabel::new()
+) -> Label<T> {
+  Label::stringify()
+    .with_font(druid::text::FontDescriptor::default().with_weight(weight))
+    .with_text_size(size)
+    .with_text_color(colour)
     .with_line_break_mode(druid::widget::LineBreaking::WordWrap)
-    .lens(Map::new(
-      move |text| to_rich_text(text, size.clone(), weight, colour.clone()),
-      |_, _| {},
-    ))
 }
 
-pub fn h1<T: Data + AsRef<str>>() -> impl Widget<T> {
+pub fn h1<T: Data + ToString>() -> Label<T> {
   lensed_bold(24., FontWeight::BOLD, theme::TEXT_COLOR)
 }
 
-pub fn h2<T: Data + AsRef<str>>() -> impl Widget<T> {
+pub fn h2<T: Data + ToString>() -> Label<T> {
   lensed_bold(20., FontWeight::SEMI_BOLD, theme::TEXT_COLOR)
 }
 
-pub fn h3<T: Data + AsRef<str>>() -> impl Widget<T> {
+pub fn h3<T: Data + ToString>() -> Label<T> {
   lensed_bold(18., FontWeight::MEDIUM, theme::TEXT_COLOR)
 }
 

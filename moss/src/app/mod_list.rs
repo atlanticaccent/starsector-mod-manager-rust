@@ -9,19 +9,23 @@ use std::{
 
 use comemo::memoize;
 use common::{
-  controllers::ExtensibleController, fast_im_map::FastImMap, lenses::LensExtExt,
-  widget_ext::WidgetExtEx as _, widgets::card::Card, ExtEventSinkExt,
+  controllers::ExtensibleController,
+  fast_im_map::FastImMap,
+  lenses::{Compute, LensExtExt},
+  widget_ext::WidgetExtEx as _,
+  widgets::card::Card,
+  ExtEventSinkExt,
 };
 use druid::{
   im::Vector,
-  theme,
-  widget::{Flex, Painter},
+  lens, theme,
+  widget::{Flex, Label, Painter},
   Data, EventCtx, ExtEventSink, Lens, LensExt, Rect, RenderContext, Selector, SingleUse, Widget,
   WidgetExt,
 };
 use druid_patch::table::{
-  ComplexTableColumnWidth, FlexTable, RowData, TableCellVerticalAlignment, TableColumnWidth,
-  TableData,
+  ComplexTableColumnWidth, FixedFlexTable, FlexTable, RowData, TableCellVerticalAlignment,
+  TableColumnWidth, TableData, TableRow,
 };
 use druid_widget_nursery::{
   Stack, StackChildParams, StackChildPosition, WidgetExt as WidgetExtNursery,
@@ -126,6 +130,32 @@ impl ModList {
     Stack::new()
       .with_child(
         Flex::column()
+          .with_flex_child(
+            FixedFlexTable::new()
+              .column_widths(&[
+                TableColumnWidth::Fraction(0.35).into(),
+                TableColumnWidth::Fraction(0.15).into(),
+                TableColumnWidth::Fraction(0.35).into(),
+                TableColumnWidth::Fraction(0.15).into(),
+              ])
+              .with_row(
+                TableRow::new()
+                  .vertical_alignment(TableCellVerticalAlignment::Middle)
+                  .with_child(fixed_bold_text("Installed:").align_left())
+                  .with_child(lensed_bold_text().lens(lens!((usize, usize), 0)).center())
+                  .with_child(fixed_bold_text("Enabled:").align_left())
+                  .with_child(lensed_bold_text().lens(lens!((usize, usize), 1)).center()),
+              )
+              .fix_width(CONTROL_WIDTH * 1.2)
+              .lens(Compute::new(|mod_list: &ModList| {
+                (
+                  mod_list.mods.len(),
+                  mod_list.mods.values().filter(|it| it.enabled).count(),
+                )
+              }))
+              .padding((7.0, 0.0)),
+            druid::widget::FlexParams::new(1.0, druid::widget::CrossAxisAlignment::Start),
+          )
           .with_child(
             Flex::row()
               .with_child(Refresh::view().padding((0.0, 5.0)))
@@ -262,13 +292,13 @@ impl ModList {
           .lens(Self::install_state)
           .padding((0.0, 5.0)),
         StackChildPosition::default()
-          .top(Some(0.0))
+          .top(Some(18.0))
           .left(Some(52.0)),
       )
       .with_positioned_child(
         ActionsOptions::view().padding((0.0, 5.0)),
         StackChildPosition::default()
-          .top(Some(0.0))
+          .top(Some(18.0))
           .left(Some(52.0 + CONTROL_WIDTH)),
       )
       .with_positioned_child(
@@ -279,7 +309,7 @@ impl ModList {
       .with_positioned_child(
         FilterOptions::wide_view().lens(Self::filter_state),
         StackChildPosition::default()
-          .top(Some(54.0))
+          .top(Some(72.0))
           .left(Some(0.0))
           .right(Some(0.0)),
       )
@@ -693,6 +723,25 @@ impl ModList {
     }
     ids
   }
+}
+
+const BOLD_TEXT_STYLE: (druid::Key<f64>, druid::FontWeight, druid::Key<druid::Color>) = (
+  druid::theme::TEXT_SIZE_NORMAL,
+  druid::FontWeight::SEMI_BOLD,
+  druid::theme::DISABLED_TEXT_COLOR,
+);
+
+fn fixed_bold_text<T: Data>(text: &str) -> Label<T> {
+  common::labels::bold_text(
+    text,
+    BOLD_TEXT_STYLE.0,
+    BOLD_TEXT_STYLE.1,
+    BOLD_TEXT_STYLE.2,
+  )
+}
+
+fn lensed_bold_text<T: Data + ToString>() -> Label<T> {
+  common::labels::lensed_bold(BOLD_TEXT_STYLE.0, BOLD_TEXT_STYLE.1, BOLD_TEXT_STYLE.2)
 }
 
 impl<I: AsRef<str>> Index<I> for ModList {

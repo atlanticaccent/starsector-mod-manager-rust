@@ -230,6 +230,7 @@ const fn unwrap(color: &'static str) -> ExtColor {
   PartialEq,
   Eq,
   Default,
+  strum_macros::Display,
   strum_macros::AsRefStr,
   strum_macros::EnumIter,
   Prism,

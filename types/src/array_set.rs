@@ -8,6 +8,7 @@ pub struct ArraySet<T, const CAP: usize> {
 }
 
 impl<T> ArraySet<T, 0> {
+  #[inline(always)]
   pub const fn new<const CAP: usize>() -> ArraySet<T, CAP> {
     ArraySet {
       mem: uninit_array(),
@@ -92,6 +93,7 @@ impl<T: PartialEq, const CAP: usize, const OTHER_CAP: usize> PartialEq<ArraySet<
 }
 
 impl<T, const CAP: usize> Default for ArraySet<T, CAP> {
+  #[inline(always)]
   fn default() -> Self {
     ArraySet::new()
   }
