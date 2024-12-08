@@ -12,11 +12,9 @@
 #![feature(iterator_try_collect)]
 #![feature(iter_next_chunk)]
 #![feature(test)]
-#![feature(const_collections_with_hasher)]
 #![feature(cfg_match)]
 #![feature(trait_alias)]
 #![feature(type_alias_impl_trait)]
-#![feature(is_none_or)]
 // Ignored lints
 #![allow(clippy::new_ret_no_self)]
 #![allow(clippy::module_name_repetitions)]

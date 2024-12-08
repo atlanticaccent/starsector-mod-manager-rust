@@ -1,7 +1,6 @@
 #![feature(trait_alias)]
 #![feature(let_chains)]
 #![feature(type_alias_impl_trait)]
-#![feature(const_collections_with_hasher)]
 
 pub mod controllers;
 pub mod fast_im_map;
