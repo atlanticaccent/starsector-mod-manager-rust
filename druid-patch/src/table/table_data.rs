@@ -121,7 +121,7 @@ impl TableData for [(); 0] {
   fn with_mut(&mut self, _: usize, _: impl FnOnce(&mut ())) {}
 
   fn index(&self, idx: <Self::Row as RowData>::Id) -> &Self::Row {
-    &self[0]
+    unimplemented!()
   }
 }
 

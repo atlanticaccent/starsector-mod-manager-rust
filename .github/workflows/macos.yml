@@ -30,19 +30,20 @@ jobs:
       - name: Install dependencies
         run: |
           brew unlink pkg-config@0.29.2 || true
-          brew install coreutils pkgconfig libarchive llvm@18
+          brew tap atlanticaccent/homebrew-formulae
+          brew install coreutils pkgconfig libarchive llvm@19 atlanticaccent/homebrew-formulae/lld@19.1.5
           echo PKG_CONFIG_PATH=$(brew ls libarchive | grep .pc$ | sed 's|/libarchive.pc||') >> $GITHUB_ENV
       - name: Install cargo-packager
         run: (cargo install cargo-packager || true)
 
       - name: Set build specific env vars
         run: |
-          echo CC=${HOMEBREW_PREFIX}/opt/llvm@18/bin/clang >> $GITHUB_ENV
-          echo CXX=${HOMEBREW_PREFIX}/opt/llvm@18/bin/clang++ >> $GITHUB_ENV
-          echo AR=${HOMEBREW_PREFIX}/opt/llvm@18/bin/llvm-ar >> $GITHUB_ENV
+          echo CC=${HOMEBREW_PREFIX}/opt/llvm@19/bin/clang >> $GITHUB_ENV
+          echo CXX=${HOMEBREW_PREFIX}/opt/llvm@19/bin/clang++ >> $GITHUB_ENV
+          echo AR=${HOMEBREW_PREFIX}/opt/llvm@19/bin/llvm-ar >> $GITHUB_ENV
           echo CFLAGS='-flto=full -O3' >> $GITHUB_ENV
           echo CXXFLAGS='-flto=full -O3' >> $GITHUB_ENV
-          echo RUSTFLAGS="-Zshare-generics=true -Clinker-plugin-lto -Clinker=$PWD/scripts/linker-shim.sh -Clink-arg=-fuse-ld=${HOMEBREW_PREFIX}/opt/llvm@18/bin/ld64.lld" >> $GITHUB_ENV
+          echo RUSTFLAGS="-Zshare-generics=true -Clinker-plugin-lto -Clinker=$PWD/scripts/linker-shim.sh -Clink-arg=-fuse-ld=${HOMEBREW_PREFIX}/Cellar/lld@19.1.5/19.1.5/bin/ld64.lld" >> $GITHUB_ENV
       - uses: r7kamura/rust-problem-matchers@v1
       - name: Build
         run: cargo build --release

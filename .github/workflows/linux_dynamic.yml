@@ -24,11 +24,11 @@ jobs:
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.6
 
-      - name: Install llvm-18
+      - name: Install llvm-19
         run: |
           wget https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
-          sudo ./llvm.sh 18
+          sudo ./llvm.sh 19
 
       - name: Install Dependencies
         run: sudo apt-get update; sudo apt-get install libarchive-dev libgtk-3-dev webkit2gtk-4.1 libgtksourceview-3.0-dev libayatana-appindicator3-dev
@@ -40,12 +40,12 @@ jobs:
       - uses: r7kamura/rust-problem-matchers@v1
       - name: Set build specific env vars
         run: |
-          echo CC=clang-18 >> $GITHUB_ENV
-          echo CXX=clang++-18 >> $GITHUB_ENV
-          echo AR=llvm-ar-18 >> $GITHUB_ENV
+          echo CC=clang-19 >> $GITHUB_ENV
+          echo CXX=clang++-19 >> $GITHUB_ENV
+          echo AR=llvm-ar-19 >> $GITHUB_ENV
           echo CFLAGS='-flto=full -O3' >> $GITHUB_ENV
           echo CXXFLAGS='-flto=full -O3' >> $GITHUB_ENV
-          echo RUSTFLAGS="-Zshare-generics=true -Clinker=clang-18 -Clinker-plugin-lto -Clink-arg=-fuse-ld=lld-18" >> $GITHUB_ENV
+          echo RUSTFLAGS="-Zshare-generics=true -Clinker=clang-19 -Clinker-plugin-lto -Clink-arg=-fuse-ld=lld-19" >> $GITHUB_ENV
       - name: Build
         run: cargo build --release
       - name: Test
