@@ -4,10 +4,12 @@ use std::{
   fmt::Display,
   fs::File,
   hash::Hash,
-  io::{BufRead, BufReader, Read},
+  io::{BufRead, BufReader},
   path::{Path, PathBuf},
+  sync::LazyLock,
 };
 
+use ahash::{AHashMap, AHashSet};
 use chrono::{DateTime, Local, Utc};
 use common::{
   controllers::{next_id, MaxSizeBox, SharedIdHoverState},
@@ -20,13 +22,14 @@ use druid::{
   kurbo::Line,
   lens, theme,
   widget::{Button, Checkbox, Either, Flex, Label, Painter, ViewSwitcher},
-  Color, Data, ExtEventSink, KeyOrValue, Lens, LensExt as _, RenderContext as _, Selector, Widget,
+  Color, Data, ExtEventSink, KeyOrValue, Lens, LensExt, RenderContext as _, Selector, Widget,
   WidgetExt,
 };
 use druid_patch::table::{FlexTable, RowData};
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
 use fake::Dummy;
 use icons::{NEW_RELEASES, REPORT, SICK, THUMB_UP};
+use itertools::Itertools;
 use json_comments::StripComments;
 use serde::{Deserialize, Serialize};
 use serde_aux::prelude::*;
@@ -111,7 +114,7 @@ pub struct Dependency {
 impl Display for Dependency {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     let Dependency { id, name, version } = self;
-    write!(f, "{}", if let Some(name) = name { name } else { id })?;
+    write!(f, "{}", name.as_ref().unwrap_or(id))?;
     if let Some(version) = version {
       write!(f, "@{version}")?;
     }
@@ -178,57 +181,92 @@ impl<T> ModEntry<T> {
   }
 
   pub fn enable_dependencies(id: &str, data: &mut App) -> bool {
-    let mods = &mut data.mod_list.mods;
-    if let Some(entry) = mods.get(id).cloned() {
-      if entry.dependencies.iter().all(|d| {
-        mods.get(&d.id).is_some_and(|entry| match &d.version {
-          Some(v) => v.major() == entry.version.major(),
-          None => true,
-        })
-      }) {
-        for dep in entry.dependencies.as_ref() {
-          App::mod_list
-            .then(ModList::mods)
-            .index(&dep.id)
-            .then(ModEntry::enabled.in_rc())
-            .put(data, true);
-        }
-
-        return true;
-      } else {
-        App::mod_list
-          .then(ModList::mods)
-          .index(&entry.id)
-          .then(ModEntry::enabled.in_rc())
-          .put(data, false);
-      }
+    if !ViewModEntry::enable_all_dependencies(id, &mut data.mod_list.mods) {
+      App::mod_list
+        .then(ModList::mods)
+        .index(id)
+        .then(ModEntry::enabled.in_rc())
+        .put(data, false);
     }
 
     false
   }
 
-  pub fn get_all_dependencies<'a, 'b: 'a>(
-    entry: &'b ModEntry,
-    mods: &'a ModMap,
-  ) -> Option<Vec<&'a Dependency>> {
-    let mut deps = Vec::with_capacity(entry.dependencies.len());
-    for dep in entry.dependencies.iter() {
-      if let Some(found) = mods.get(&dep.id)
-        && (dep.version.as_ref() == Some(&found.version) || dep.version.is_none())
-      {
-        deps.push(dep);
+  pub fn enable_all_dependencies<'a>(id: &str, mods: &mut ModMap) -> bool {
+    // Can't hold immutable references to ids in map (ie: list of found deps) and
+    // mutate entries in map (ie: iterate list of keys to enable entries) at the
+    // same time. So decompose our mutable map reference into (list of &mut
+    // entries) and (map of &key -> unowned indices into list of &mut entries),
+    // breaking ownership cycle.
+    let mut mods: AHashMap<_, _> = mods.iter_mut().map(|(k, v)| (k.as_str(), v)).collect();
+
+    let entry = mods.remove(id).unwrap();
+
+    let mut checked = Vec::with_capacity(entry.dependencies.len() + 1);
+    let mut hashes = AHashSet::with_capacity(checked.capacity());
+    let hash = hashes.hasher().hash_one(&entry.id);
+    hashes.insert(hash);
+    checked.push(entry);
+    let mut deps: Vec<_> = checked.last().unwrap().dependencies.iter().collect();
+    // Assumes initial set of dependencies does not include duplicates
+    loop {
+      let lower_bound = checked.len();
+
+      let found_deps: Result<Vec<_>, _> = deps
+        .into_iter()
+        .map(|dep| {
+          if let Some(found) = mods.remove(dep.id.as_str())
+            && (dep.version.is_none()
+              || dep.version.as_ref().unwrap().major() == found.version.major())
+          {
+            Ok(found)
+          } else {
+            Err(())
+          }
+        })
+        .process_results(|iter| {
+          iter
+            .filter(|found| {
+              let hash = hashes.hasher().hash_one(&found.id);
+              hashes.insert(hash)
+            })
+            .collect()
+        });
+
+      let Ok(found_deps) = found_deps else {
+        return false;
+      };
+
+      for dep in found_deps {
+        let hash = hashes.hasher().hash_one(&dep.id);
+        if hashes.insert(hash) {
+          checked.push(dep);
+        }
+      }
+
+      if checked.len() > lower_bound {
+        deps = checked[lower_bound..]
+          .iter()
+          .map(|entry| entry.dependencies.iter())
+          .flatten()
+          .filter(|dep| {
+            let hash = hashes.hasher().hash_one(&dep.id);
+            !hashes.contains(&hash)
+          })
+          .collect();
+      } else {
+        break;
       }
     }
 
-    Some(deps)
+    true
   }
 }
 
 impl<T: Default> ModEntry<T> {
   pub fn from_file(path: &Path, manager_metadata: ModMetadata) -> Result<Self, ModEntryError> {
     let mod_info_file = std::fs::read_to_string(path.join("mod_info.json"))?;
-    let mut stripped = String::new();
-    StripComments::new(mod_info_file.as_bytes()).read_to_string(&mut stripped)?;
+    let stripped = std::io::read_to_string(StripComments::new(mod_info_file.as_bytes()))?;
     let mut mod_info = json5::from_str::<Self>(&stripped)?;
     mod_info.version_checker = ModEntry::parse_version_checker(path, &mod_info.id);
     mod_info.path = path.to_path_buf();
@@ -243,19 +281,14 @@ impl ModEntry {
   pub const REPLACE: Selector<ModEntry> = Selector::new("MOD_ENTRY_REPLACE");
 
   fn parse_version_checker(path: &Path, id: &str) -> Option<ModVersionMeta> {
-    let mut no_comments = String::new();
-    if let Ok(version_loc_file) = File::open(
-      path
-        .join("data")
-        .join("config")
-        .join("version")
-        .join("version_files.csv"),
-    ) && let Some(Ok(version_filename)) = BufReader::new(version_loc_file).lines().nth(1)
+    static VC_LOCATION_PATH: LazyLock<&'static Path> =
+      LazyLock::new(|| Path::new("data/config/version/version_files.csv"));
+
+    if let Ok(version_loc_file) = File::open(path.join(*VC_LOCATION_PATH))
+      && let Some(Ok(version_filename)) = BufReader::new(version_loc_file).lines().nth(1)
       && let Some(version_filename) = version_filename.split(',').next()
       && let Ok(version_data) = std::fs::read_to_string(path.join(version_filename))
-      && StripComments::new(version_data.as_bytes())
-        .read_to_string(&mut no_comments)
-        .is_ok()
+      && let Ok(no_comments) = std::io::read_to_string(StripComments::new(version_data.as_bytes()))
       && let Ok(normalized) = handwritten_json::normalize(&no_comments)
       && let Ok(mut version) = json5::from_str::<ModVersionMeta>(&normalized)
     {
@@ -298,17 +331,6 @@ impl ModEntry {
         })
         .collect(),
     ))
-  }
-}
-
-impl TryFrom<&Path> for ModEntry {
-  type Error = ModEntryError;
-
-  fn try_from(mod_folder: &Path) -> Result<Self, Self::Error> {
-    let metadata = ModMetadata::default();
-
-    tokio::runtime::Handle::current().block_on(metadata.save(mod_folder))?;
-    ModEntry::from_file(mod_folder, metadata)
   }
 }
 

@@ -790,12 +790,6 @@ pub struct EnabledMods {
 }
 
 impl EnabledMods {
-  pub fn empty() -> Self {
-    Self {
-      enabled_mods: Vec::new(),
-    }
-  }
-
   pub fn save(self, path: &Path) -> Result<(), SaveError> {
     use std::{fs, io::Write};
 
