@@ -130,7 +130,7 @@ impl ModList {
     Stack::new()
       .with_child(
         Flex::column()
-          .with_flex_child(
+          .with_child(
             FixedFlexTable::new()
               .column_widths(&[
                 TableColumnWidth::Fraction(0.35).into(),
@@ -153,8 +153,8 @@ impl ModList {
                   mod_list.mods.values().filter(|it| it.enabled).count(),
                 )
               }))
-              .padding((7.0, 0.0)),
-            druid::widget::FlexParams::new(1.0, druid::widget::CrossAxisAlignment::Start),
+              .padding((7.0, 0.0))
+              .align_left(),
           )
           .with_child(
             Flex::row()
