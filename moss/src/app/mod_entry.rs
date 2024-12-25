@@ -6,10 +6,11 @@ use std::{
   hash::Hash,
   io::{BufRead, BufReader},
   path::{Path, PathBuf},
+  rc::Rc,
   sync::LazyLock,
 };
 
-use ahash::{AHashMap, AHashSet};
+use ahash::AHashMap;
 use chrono::{DateTime, Local, Utc};
 use common::{
   controllers::{next_id, MaxSizeBox, SharedIdHoverState},
@@ -29,7 +30,6 @@ use druid_patch::table::{FlexTable, RowData};
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
 use fake::Dummy;
 use icons::{NEW_RELEASES, REPORT, SICK, THUMB_UP};
-use itertools::Itertools;
 use json_comments::StripComments;
 use serde::{Deserialize, Serialize};
 use serde_aux::prelude::*;
@@ -193,71 +193,59 @@ impl<T> ModEntry<T> {
   }
 
   pub fn enable_all_dependencies<'a>(id: &str, mods: &mut ModMap) -> bool {
-    // Can't hold immutable references to ids in map (ie: list of found deps) and
-    // mutate entries in map (ie: iterate list of keys to enable entries) at the
-    // same time. So decompose our mutable map reference into (list of &mut
-    // entries) and (map of &key -> unowned indices into list of &mut entries),
-    // breaking ownership cycle.
     let mut mods: AHashMap<_, _> = mods.iter_mut().map(|(k, v)| (k.as_str(), v)).collect();
 
     let entry = mods.remove(id).unwrap();
 
-    let mut checked = Vec::with_capacity(entry.dependencies.len() + 1);
-    let mut hashes = AHashSet::with_capacity(checked.capacity());
-    let hash = hashes.hasher().hash_one(&entry.id);
-    hashes.insert(hash);
-    checked.push(entry);
-    let mut deps: Vec<_> = checked.last().unwrap().dependencies.iter().collect();
-    // Assumes initial set of dependencies does not include duplicates
-    loop {
-      let lower_bound = checked.len();
+    let mut checked = Vec::with_capacity(entry.dependencies.len());
+    let mut hashes = AHashMap::with_capacity(entry.dependencies.len());
 
-      let found_deps: Result<Vec<_>, _> = deps
-        .into_iter()
-        .map(|dep| {
-          if let Some(found) = mods.remove(dep.id.as_str())
-            && (dep.version.is_none()
-              || dep.version.as_ref().unwrap().major() == found.version.major())
-          {
-            Ok(found)
-          } else {
-            Err(())
-          }
-        })
-        .process_results(|iter| {
-          iter
-            .filter(|found| {
-              let hash = hashes.hasher().hash_one(&found.id);
-              hashes.insert(hash)
-            })
-            .collect()
-        });
-
-      let Ok(found_deps) = found_deps else {
-        return false;
-      };
-
-      for dep in found_deps {
-        let hash = hashes.hasher().hash_one(&dep.id);
-        if hashes.insert(hash) {
-          checked.push(dep);
-        }
+    fn get_all_dependencies<'a>(
+      mods: &mut AHashMap<&str, &'a mut Rc<ViewModEntry>>,
+      dep: &Dependency,
+      hashes: &mut AHashMap<u64, Option<u64>>,
+      checked: &mut Vec<&'a mut Rc<ViewModEntry>>,
+    ) -> bool {
+      let hash_id = hashes.hasher().hash_one(&dep.id);
+      let hash_val = dep
+        .version
+        .as_ref()
+        .map(|v| hashes.hasher().hash_one(v.major()));
+      if let Err(err) = hashes.try_insert(hash_id, hash_val) {
+        return err.entry.remove() == err.value;
       }
 
-      if checked.len() > lower_bound {
-        deps = checked[lower_bound..]
-          .iter()
-          .map(|entry| entry.dependencies.iter())
-          .flatten()
-          .filter(|dep| {
-            let hash = hashes.hasher().hash_one(&dep.id);
-            !hashes.contains(&hash)
-          })
-          .collect();
+      if let Some(entry) = mods.remove(dep.id.as_str())
+        && dep
+          .version
+          .as_ref()
+          .is_none_or(|v| v.major() == entry.version.major())
+      {
+        for sub_dep in entry.dependencies.iter() {
+          if !get_all_dependencies(mods, sub_dep, hashes, checked) {
+            return false;
+          }
+        }
+
+        checked.push(entry);
+
+        true
       } else {
-        break;
+        false
       }
     }
+
+    for dep in entry.dependencies.iter() {
+      if !get_all_dependencies(&mut mods, dep, &mut hashes, &mut checked) {
+        return false;
+      }
+    }
+
+    for dep in checked {
+      ModEntry::enabled.in_rc().put(dep, true);
+    }
+
+    ModEntry::enabled.in_rc().put(entry, true);
 
     true
   }
@@ -1036,5 +1024,155 @@ impl ModMetadata {
 
   pub fn save_blocking(&self, mod_folder: impl AsRef<Path>) -> std::io::Result<()> {
     tokio::runtime::Handle::current().block_on(self.save(mod_folder))
+  }
+}
+
+#[cfg(test)]
+mod test {
+  use crate::app::{
+    mod_entry::{Dependency, Version, VersionComplex, ViewModEntry},
+    mod_list::ModMap,
+  };
+
+  #[test]
+  fn enable_dependencies_minimal() {
+    // Setup
+    let dep = Dependency {
+      id: "Dep".to_owned(),
+      name: None,
+      version: Some(Version::Complex(VersionComplex {
+        major: 1,
+        minor: 0,
+        patch: 0.to_string(),
+      })),
+    };
+    let dep_entry = ViewModEntry {
+      id: "Dep".to_owned(),
+      version: Version::Complex(VersionComplex {
+        major: 1,
+        minor: 0,
+        patch: 0.to_string(),
+      }),
+      ..Default::default()
+    };
+    let entry = ViewModEntry {
+      id: "Entry".to_owned(),
+      dependencies: vec![dep].into(),
+      ..Default::default()
+    };
+
+    let mut mods = ModMap::from(
+      [
+        ("Dep".to_owned(), dep_entry.into()),
+        ("Entry".to_owned(), entry.into()),
+      ]
+      .as_slice(),
+    );
+
+    // Assert
+    assert!(!mods["Entry"].enabled);
+    assert!(!mods["Dep"].enabled);
+
+    assert!(ViewModEntry::enable_all_dependencies("Entry", &mut mods));
+
+    assert!(mods["Entry"].enabled);
+    assert!(mods["Dep"].enabled);
+  }
+
+  #[test]
+  fn enable_dependencies() {
+    // Setup
+    let sub_dep_entry = ViewModEntry {
+      id: "subdep".to_owned(),
+      version: Version::Complex(VersionComplex {
+        major: 0,
+        minor: 2,
+        patch: "some-RC99".to_owned(),
+      }),
+      ..Default::default()
+    };
+    let dep_entry = ViewModEntry {
+      id: "Dep".to_owned(),
+      version: Version::Complex(VersionComplex {
+        major: 1,
+        minor: 0,
+        patch: 0.to_string(),
+      }),
+      dependencies: vec![Dependency {
+        id: "subdep".to_owned(),
+        name: None,
+        version: Some(Version::Complex(VersionComplex {
+          major: 0,
+          minor: 5,
+          patch: "foo".to_owned(),
+        })),
+      }]
+      .into(),
+      ..Default::default()
+    };
+    let entry = ViewModEntry {
+      id: "Entry".to_owned(),
+      dependencies: vec![Dependency {
+        id: "Dep".to_owned(),
+        name: None,
+        version: Some(Version::Complex(VersionComplex {
+          major: 1,
+          minor: 0,
+          patch: 0.to_string(),
+        })),
+      }]
+      .into(),
+      ..Default::default()
+    };
+
+    let unused_entry_a = ViewModEntry {
+      id: "Unused A".to_owned(),
+      ..Default::default()
+    };
+    let unused_entry_b = ViewModEntry {
+      id: "Unused B".to_owned(),
+      ..Default::default()
+    };
+
+    let mut mods = ModMap::from(
+      [
+        ("Dep".to_owned(), dep_entry.into()),
+        ("Entry".to_owned(), entry.into()),
+        ("subdep".to_owned(), sub_dep_entry.into()),
+        ("Unused A".to_owned(), unused_entry_a.into()),
+        ("Unused B".to_owned(), unused_entry_b.into()),
+      ]
+      .as_slice(),
+    );
+
+    // Assert
+    assert!(mods.values().all(|entry| !entry.enabled));
+
+    assert!(ViewModEntry::enable_all_dependencies("Entry", &mut mods));
+
+    assert!(mods["Entry"].enabled);
+    assert!(mods["Dep"].enabled);
+    assert!(mods["subdep"].enabled);
+    assert!(!mods["Unused A"].enabled);
+    assert!(!mods["Unused B"].enabled);
+  }
+
+  #[test]
+  fn missing_dependency() {
+    let entry = ViewModEntry {
+      id: "entry".to_owned(),
+      dependencies: vec![Dependency {
+        id: "doesn't exist".to_owned(),
+        name: None,
+        version: None,
+      }]
+      .into(),
+      ..Default::default()
+    };
+
+    let mut mods = ModMap::from([("entry".to_owned(), entry.into())].as_slice());
+
+    assert!(!ViewModEntry::enable_all_dependencies("entry", &mut mods));
+    assert!(!mods["entry"].enabled);
   }
 }

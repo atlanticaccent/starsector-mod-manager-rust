@@ -15,6 +15,7 @@
 #![feature(cfg_match)]
 #![feature(trait_alias)]
 #![feature(type_alias_impl_trait)]
+#![feature(map_try_insert)]
 // Ignored lints
 #![allow(clippy::new_ret_no_self)]
 #![allow(clippy::module_name_repetitions)]
