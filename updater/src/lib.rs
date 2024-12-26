@@ -143,7 +143,9 @@ async fn check_for_update_async(
   // There should only ever be one thread blocked here
   // should wake and return if another ever does
   if rx.await.unwrap_or_default() {
-    let result = if let Err(err) = get_updater().and_then(|updater| update(updater, release)) {
+    let result = if let Err(err) =
+      tokio::task::block_in_place(|| get_updater().and_then(|updater| update(updater, release)))
+    {
       Status::InstallFailed(err.to_string())
     } else {
       Status::Completed
