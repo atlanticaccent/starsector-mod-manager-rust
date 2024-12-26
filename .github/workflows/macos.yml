@@ -48,7 +48,7 @@ jobs:
       - name: Build
         run: cargo build --release
       - name: Test
-        run: cargo test --release --features="leaky-api" -- --nocapture
+        run: cargo test --release --features="leaky-api" --all-targets -- --nocapture
 
       - name: Run cargo-packager
         run: cargo packager --release --formats app
