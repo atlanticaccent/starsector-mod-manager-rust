@@ -56,15 +56,13 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
       } else if let Some(()) = cmd.get(App::DUMB_UNIVERSAL_ESCAPE) {
         ctx.set_focus(data.widget_id);
         ctx.resign_focus();
-      } else if let Some(()) = cmd.get(App::SELF_UPDATE) {
       } else if cmd.is(App::RESTART) {
         if process::Command::new(current_exe().unwrap())
           .spawn()
+          .inspect_err(|e| bang!(e))
           .is_ok()
         {
           ctx.submit_command(commands::QUIT_APP);
-        } else {
-          eprintln!("Failed to restart");
         };
       } else if cmd.is(App::ENABLE) {
         ctx.set_disabled(false);
