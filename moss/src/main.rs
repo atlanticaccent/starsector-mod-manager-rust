@@ -45,6 +45,11 @@ pub(crate) mod widgets {
   pub(crate) type RootStack = GenericRootStack<App>;
 }
 
+use mimalloc::MiMalloc;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
 fn main() {
   entrypoint::start();
 }
