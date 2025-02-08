@@ -99,6 +99,7 @@ cargo-packager-updater = { workspace = true }
 mimalloc = { workspace = true }
 
 dhat = { version = "0.3", optional = true }
+uuid = "1.11.0"
 
 [target.'cfg(windows)'.dependencies]
 indoc = { workspace = true }
