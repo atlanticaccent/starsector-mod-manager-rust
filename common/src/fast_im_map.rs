@@ -105,6 +105,16 @@ where
   }
 }
 
+impl<K, V> Extend<(K, V)> for FastImMap<K, V>
+where
+  K: Hash + Eq + Clone,
+  V: Clone,
+{
+  fn extend<T: IntoIterator<Item = (K, V)>>(&mut self, iter: T) {
+    self.0.extend(iter);
+  }
+}
+
 impl<K: Clone + Hash + Eq, V: Clone> PartialEq for FastImMap<K, V>
 where
   druid::im::HashMap<K, V, ahash::RandomState>: PartialEq,
