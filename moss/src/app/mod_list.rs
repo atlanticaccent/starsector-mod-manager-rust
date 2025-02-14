@@ -1,12 +1,15 @@
 use std::{
-  collections::HashMap,
+  cell::Cell,
   hash::Hash,
+  num::NonZero,
   ops::{Deref, Index},
   path::{Path, PathBuf},
   rc::Rc,
   sync::Arc,
 };
 
+use ahash::{HashSet, HashSetExt};
+use anyhow::Context;
 use comemo::memoize;
 use common::{
   controllers::ExtensibleController,
@@ -30,9 +33,9 @@ use druid_patch::table::{
 use druid_widget_nursery::{
   Stack, StackChildParams, StackChildPosition, WidgetExt as WidgetExtNursery,
 };
+use futures_util::{StreamExt, TryStreamExt};
 use installer::HybridPath;
-use rand::Rng;
-use rayon::prelude::*;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumCount, EnumIter};
 use sublime_fuzzy::best_match;
@@ -40,16 +43,15 @@ use web_client::WebClient;
 
 use super::{
   mod_entry::{
-    GameVersion, ModEntry as RawModEntry, ModMetadata, ModVersionMeta, UpdateStatus,
+    version_checker::UpdateStatus, GameVersion, ModEntry as RawModEntry, ModMetadata,
     ViewModEntry as ModEntry,
   },
-  util::{self, SaveError},
+  util::SaveError,
   App,
 };
-use crate::app::{
-  mod_list::actions::{action_button::ActionsButton, action_options::ActionsOptions, ActionsState},
-  util::LoadBalancer,
-};
+use crate::app::{mod_list::actions::{
+  action_button::ActionsButton, action_options::ActionsOptions, ActionsState,
+}, overlays::Popup};
 
 mod actions;
 pub mod filters;
@@ -101,8 +103,9 @@ impl ModList {
   pub const UPDATE_COLUMN_WIDTH: Selector<(usize, f64)> =
     Selector::new("mod_list.column.update_width");
   const UPDATE_TABLE_SORT: Selector = Selector::new("mod_list.table.update_sorting");
-  const UPDATE_VERSION_CHECKER: Selector<HashMap<String, Option<ModVersionMeta>>> =
-    Selector::new("mod_list.mods.update_version_checker");
+  // const UPDATE_VERSION_CHECKER: Selector<
+  //   HashMap<(String, VersionComplex), Option<ModVersionMeta>>,
+  // > = Selector::new("mod_list.mods.update_version_checker");
 
   pub fn new(headings: Vector<Heading>) -> Self {
     Self {
@@ -233,25 +236,8 @@ impl ModList {
                           .on_command(Self::INSERT_MOD, |_, ctx, entry, data| {
                             data
                               .mods
-                              .insert(entry.id.clone(), Rc::new(entry.clone().into()));
+                              .insert(entry.mod_id.clone(), Rc::new(entry.clone().into()));
                             ctx.request_update();
-                            true
-                          })
-                          .on_command(Self::UPDATE_VERSION_CHECKER, |_, _, payload, data| {
-                            for (id, remote_version) in payload {
-                              if let Some(entry) = data.mods.get(id) {
-                                let mut entry = entry.clone();
-                                let entry_ref = Rc::make_mut(&mut entry);
-                                entry_ref.remote_version.clone_from(remote_version);
-                                entry_ref.update_status = Some(UpdateStatus::from((
-                                  entry_ref.version_checker.as_ref().unwrap(),
-                                  &entry_ref.remote_version,
-                                )));
-
-                                data.mods[id] = entry;
-                              }
-                            }
-
                             true
                           })
                           .on_command(App::ENABLE, |_, ctx, _, _| {
@@ -407,7 +393,7 @@ impl ModList {
           .mod_list
           .mods
           .values()
-          .filter_map(|v| v.enabled.then_some(v.id.clone()))
+          .filter_map(|v| v.enabled.then_some(v.mod_id.clone()))
           .collect();
         if let Err(err) = EnabledMods::from(enabled).save(install_dir) {
           eprintln!("{err:?}");
@@ -447,18 +433,8 @@ impl ModList {
     true
   }
 
-  pub fn parse_mod_folder(
-    root_dir: &Path,
-    ext_ctx: &ExtEventSink,
-  ) -> Result<RawModMap, (RawModMap, Vec<Vec<RawModEntry>>)> {
-    type VersionCheckBalancer = LoadBalancer<
-      (String, Option<ModVersionMeta>),
-      HashMap<String, Option<ModVersionMeta>>,
-      HashMap<String, Option<ModVersionMeta>>,
-    >;
-    static BALANCER: VersionCheckBalancer = LoadBalancer::new(ModList::UPDATE_VERSION_CHECKER);
-
-    let handle = tokio::runtime::Handle::current();
+  pub async fn parse_mod_folder_inner(root_dir: &Path) -> anyhow::Result<(RawModMap, Vec<Popup>)> {
+    let client = Arc::new(WebClient::new());
 
     let mod_dir = root_dir.join("mods");
     let enabled_mods_filename = mod_dir.join("enabled_mods.json");
@@ -468,122 +444,90 @@ impl ModList {
       && let Ok(EnabledMods { enabled_mods }) =
         serde_json::from_str::<EnabledMods>(&enabled_mods_text)
     {
-      enabled_mods
+      Arc::new(enabled_mods)
     } else {
-      vec![]
+      Default::default()
     };
 
-    let Ok(dir_iter) = std::fs::read_dir(mod_dir) else {
-      return Ok(FastImMap::default());
-    };
-    let enabled_mods_iter = enabled_mods.par_iter();
+    tokio_stream::wrappers::ReadDirStream::new(tokio::fs::read_dir(mod_dir).await?)
+      .map(|entry| {
+        let enabled_mods = enabled_mods.clone();
+        let client = client.clone();
+        tokio::spawn(async move {
+          let Ok(entry) = entry else {
+            return None;
+          };
 
-    let client = Arc::new(WebClient::new());
-    let barrier = Arc::new(tokio::sync::Semaphore::new(0));
-    let mods = dir_iter
-      .par_bridge()
-      .filter_map(std::result::Result::ok)
-      .filter(|entry| {
-        if let Ok(file_type) = entry.file_type() {
-          file_type.is_dir()
-        } else {
-          false
-        }
-      })
-      .filter_map(
-        |entry| match RawModEntry::from_file(&entry.path(), ModMetadata::default()) {
-          Ok(mut entry) => {
-            entry.set_enabled(
-              enabled_mods_iter
-                .clone()
-                .find_any(|id| entry.id.clone().eq(*id))
-                .is_some(),
-            );
+          if tokio::fs::metadata(entry.path())
+            .await
+            .map(|meta| meta.is_dir())
+            .unwrap_or_default()
+          {
+            match RawModEntry::from_file(&entry.path(), ModMetadata::default()) {
+              Ok(mut entry) => {
+                entry.set_enabled(enabled_mods.contains(&entry.mod_id));
 
-            if let Some(version) = entry.version_checker.as_ref() {
-              let client = client.clone();
-              let remote_url = version.remote_url.clone();
-              let id = version.id.clone();
-              let tx = {
-                let _handle = handle.enter();
-                BALANCER.sender(ext_ctx.clone())
-              };
-              let barrier = barrier.clone();
-              handle.spawn(async move {
-                let remote_version =
-                  util::get_master_version(client.as_ref(), None, remote_url, id.clone()).await;
-                let _ = barrier.acquire().await;
-                let _ = tx.send((id, remote_version));
-              });
-            }
-            if ModMetadata::path(&entry.path).exists() {
-              if let Some(mod_metadata) = handle.block_on(ModMetadata::parse_and_send(
-                entry.id.clone(),
-                entry.path.clone(),
-                None,
-              )) {
-                entry.manager_metadata = mod_metadata;
+                entry.spawn_version_check(&client);
+
+                if ModMetadata::path(&entry.path).exists() {
+                  if let Some(mod_metadata) =
+                    ModMetadata::parse_and_send(entry.mod_id.clone(), entry.path.clone(), None)
+                      .await
+                  {
+                    entry.manager_metadata = mod_metadata;
+                  }
+                }
+                Some(entry)
+              }
+              Err(err) => {
+                eprintln!("Failed to get mod info for mod at: {:?}", entry.path());
+                eprintln!("With err: {err:?}");
+                None
               }
             }
-            Some(entry)
-          }
-          Err(err) => {
-            eprintln!("Failed to get mod info for mod at: {:?}", entry.path());
-            eprintln!("With err: {err:?}");
+          } else {
             None
           }
+        })
+      })
+      .buffer_unordered(
+        std::thread::available_parallelism()
+          .map(NonZero::get)
+          .unwrap_or(8),
+      )
+      .try_fold(
+        (FastImMap::new().inner(), Vec::new()),
+        |(mods, mut dupe_ids), entry| async move {
+          let Some(entry) = entry else {
+            return Ok((mods, dupe_ids));
+          };
+
+          Ok((
+            mods.update_with(entry.mod_id.clone(), entry, |mut old, new| {
+              let dupes = Arc::make_mut(&mut old.duplicates);
+
+              if dupes.is_empty() {
+                dupe_ids.push(Popup::duplicate(old.mod_id.clone()));
+              }
+
+              dupes.push(new);
+
+              old
+            }),
+            dupe_ids,
+          ))
         },
       )
-      .collect::<Vec<_>>();
-
-    let mut bucket_map: HashMap<String, Vec<RawModEntry>> = HashMap::new();
-
-    for entry in mods {
-      if let Some(bucket) = bucket_map.get_mut(&entry.id) {
-        bucket.push(entry);
-      } else {
-        bucket_map.insert(entry.id.clone(), vec![entry]);
-      }
-    }
-
-    let (map, duplicates): (Vec<_>, _) = bucket_map
-      .into_iter()
-      .partition(|(_, bucket)| bucket.len() == 1);
-
-    let mut out = FastImMap::new();
-    *out = map
-      .into_iter()
-      .map(|(id, mut bucket)| (id, bucket.swap_remove(0)))
-      .collect();
-
-    if duplicates.is_empty() {
-      barrier.close();
-
-      Ok(out)
-    } else {
-      let duplicates = duplicates
-        .into_iter()
-        .map(|(_, bucket)| bucket)
-        .inspect(|bucket| {
-          let pick = bucket[rand::thread_rng().gen_range(0..bucket.len())].clone();
-          out.insert(pick.id.clone(), pick);
-        })
-        .collect();
-
-      barrier.close();
-
-      Err((out, duplicates))
-    }
+      .await
+      .map(|(map, dupes)| (map.into(), dupes))
+      .context("Join err")
   }
 
   pub async fn parse_mod_folder_async(root_dir: PathBuf, ext_ctx: ExtEventSink) {
-    let ext_ctx_tmp = ext_ctx.clone();
-    let map =
-      tokio::task::spawn_blocking(move || Self::parse_mod_folder(&root_dir, &ext_ctx_tmp)).await;
+    let map = Self::parse_mod_folder_inner(&root_dir).await;
 
     let (mods, duplicates) = match map {
-      Ok(Ok(mods)) => (mods, None),
-      Ok(Err((mods, duplicates))) => (mods, Some(duplicates)),
+      Ok(res) => res,
       Err(err) => {
         eprintln!("{} | Failed to parse mod folder async: {err}", line!());
         return;
@@ -593,14 +537,8 @@ impl ModList {
     {
       eprintln!("{} | {err}", line!());
     }
-    if let Some(duplicates) = duplicates {
-      let _ = ext_ctx.submit_command_global(
-        super::Popup::DELAYED_POPUP,
-        duplicates
-          .into_iter()
-          .map(|dupes| super::Popup::duplicate(dupes.into()))
-          .collect::<Vec<_>>(),
-      );
+    if !duplicates.is_empty() {
+      let _ = ext_ctx.submit_command_global(super::Popup::DELAYED_POPUP, duplicates);
     }
   }
 
@@ -636,7 +574,7 @@ impl ModList {
       .filter_map(|entry| {
         let search = if let Heading::Score = header.sort_by.0 {
           search_text.is_empty() || {
-            let id_score = best_match(search_text, &entry.id).map(|m| m.score());
+            let id_score = best_match(search_text, &entry.mod_id).map(|m| m.score());
             let name_score = best_match(search_text, &entry.name).map(|m| m.score());
             let author_score = best_match(search_text, entry.author.as_deref().unwrap_or_default())
               .map(|m| m.score());
@@ -657,7 +595,7 @@ impl ModList {
           .any(|f| f.as_fn()(entry));
         let passes_filters = matches_all && (filters.is_empty() || matches_any);
 
-        (search && passes_filters).then(|| entry.id.clone())
+        (search && passes_filters).then(|| entry.mod_id.clone())
       })
       .collect();
 
@@ -668,7 +606,22 @@ impl ModList {
           &entry.$field
         });
       }};
-      ($ids:ident, $e:expr) => {{
+      ($ids:ident, $i:ident $t:ty $e:block) => {{
+        $ids.sort_unstable_by(|id, other| {
+          fn map($i: &ModEntry) -> $t $e
+
+          let entry: &ModEntry = &mods[id];
+          let other: &ModEntry = &mods[other];
+          map(entry).cmp(&map(other))
+        })
+      }};
+      ($ids:ident, key $e:expr) => {{
+        $ids.sort_unstable_by_key(|id| {
+          let entry: &ModEntry = &mods[id];
+          $e(entry)
+        })
+      }};
+      ($ids:ident, cached $e:expr) => {{
         $ids.sort_by_cached_key(|id| {
           let entry: &ModEntry = &mods[id];
           $e(entry)
@@ -682,14 +635,11 @@ impl ModList {
       Heading::Author => sort!(ids, author),
       Heading::GameVersion => sort!(ids, game_version),
       Heading::Enabled => sort!(ids, enabled),
-      Heading::Version => sort!(ids, |entry: &ModEntry| {
-        entry
-          .update_status
-          .clone()
-          .ok_or_else(|| entry.name.clone())
+      Heading::Version => sort!(ids, entry Result<&String, &String> {
+        entry.version_checker.as_ref().map_or_else(|| Ok(&entry.name), |_| Err(&entry.name))
       }),
-      Heading::Score => sort!(ids, |entry: &ModEntry| {
-        let id_score = best_match(search_text, &entry.id).map(|m| m.score());
+      Heading::Score => sort!(ids, cached |entry: &ModEntry| {
+        let id_score = best_match(search_text, &entry.mod_id).map(|m| m.score());
         let name_score = best_match(search_text, &entry.name).map(|m| m.score());
         let author_score =
           best_match(search_text, entry.author.as_deref().unwrap_or_default()).map(|m| m.score());
@@ -699,15 +649,13 @@ impl ModList {
           .max(author_score)
           .ok_or_else(|| entry.name.clone())
       }),
-      Heading::AutoUpdateSupport => sort!(ids, |entry: &ModEntry| {
-        entry
-          .remote_version
-          .clone()
-          .and_then(|r| r.direct_download_url.clone())
-          .ok_or_else(|| entry.name.clone())
+      Heading::AutoUpdateSupport => sort!(ids, entry Result<&UpdateStatus, &String> {
+        entry.get_direct_download_url().and(entry.version_checker.as_ref().map(|vc| &vc.update_status)).ok_or_else(|| &entry.name)
       }),
-      Heading::InstallDate => sort!(ids, |entry: &ModEntry| entry.manager_metadata.install_date),
-      Heading::Type => sort!(ids, |entry: &ModEntry| {
+      Heading::InstallDate => {
+        sort!(ids, key |entry: &ModEntry| entry.manager_metadata.install_date)
+      }
+      Heading::Type => sort!(ids, key |entry: &ModEntry| {
         if entry.total_conversion {
           3
         } else if entry.utility {
@@ -786,7 +734,7 @@ impl TableData for ModList {
 #[derive(Serialize, Deserialize)]
 pub struct EnabledMods {
   #[serde(rename = "enabledMods")]
-  enabled_mods: Vec<String>,
+  enabled_mods: HashSet<String>,
 }
 
 impl EnabledMods {
@@ -807,14 +755,16 @@ impl EnabledMods {
 impl<T> From<Vec<RawModEntry<T>>> for EnabledMods {
   fn from(from: Vec<RawModEntry<T>>) -> Self {
     Self {
-      enabled_mods: from.iter().map(|v| v.id.clone()).collect(),
+      enabled_mods: from.iter().map(|v| v.mod_id.clone()).collect(),
     }
   }
 }
 
 impl From<Vec<String>> for EnabledMods {
   fn from(enabled_mods: Vec<String>) -> Self {
-    Self { enabled_mods }
+    Self {
+      enabled_mods: enabled_mods.into_iter().collect(),
+    }
   }
 }
 
@@ -856,34 +806,40 @@ impl Filters {
       Filters::Enabled => |entry: &ModEntry| !entry.enabled,
       Filters::Disabled => |entry: &ModEntry| entry.enabled,
       Filters::Unimplemented => |entry: &ModEntry| entry.version_checker.is_none(),
-      Filters::Error => |entry: &ModEntry| entry.update_status == Some(UpdateStatus::Error),
-      Filters::UpToDate => |entry: &ModEntry| entry.update_status == Some(UpdateStatus::UpToDate),
-      Filters::Discrepancy => {
-        |entry: &ModEntry| matches!(entry.update_status, Some(UpdateStatus::Discrepancy(_)))
-      }
-      Filters::Patch => {
-        |entry: &ModEntry| matches!(entry.update_status, Some(UpdateStatus::Patch(_)))
-      }
-      Filters::Minor => {
-        |entry: &ModEntry| matches!(entry.update_status, Some(UpdateStatus::Minor(_)))
-      }
-      Filters::Major => {
-        |entry: &ModEntry| matches!(entry.update_status, Some(UpdateStatus::Major(_)))
-      }
-      Filters::AutoUpdateAvailable => |entry: &ModEntry| {
-        entry
-          .remote_version
-          .as_ref()
-          .and_then(|r| r.direct_download_url.as_ref())
-          .is_some()
+      Filters::Error => |entry: &ModEntry| {
+        entry.version_checker.as_ref().map(|vc| &vc.update_status) == Some(&UpdateStatus::Error)
       },
-      Filters::AutoUpdateUnsupported => |entry: &ModEntry| {
-        entry
-          .remote_version
-          .as_ref()
-          .and_then(|r| r.direct_download_url.as_ref())
-          .is_none()
+      Filters::UpToDate => |entry: &ModEntry| {
+        entry.version_checker.as_ref().map(|vc| &vc.update_status) == Some(&UpdateStatus::UpToDate)
       },
+      Filters::Discrepancy => |entry: &ModEntry| {
+        matches!(
+          entry.version_checker.as_ref().map(|vc| &vc.update_status),
+          Some(UpdateStatus::Discrepancy(_))
+        )
+      },
+      Filters::Patch => |entry: &ModEntry| {
+        matches!(
+          entry.version_checker.as_ref().map(|vc| &vc.update_status),
+          Some(UpdateStatus::Patch(_))
+        )
+      },
+      Filters::Minor => |entry: &ModEntry| {
+        matches!(
+          entry.version_checker.as_ref().map(|vc| &vc.update_status),
+          Some(UpdateStatus::Minor(_))
+        )
+      },
+      Filters::Major => |entry: &ModEntry| {
+        matches!(
+          entry.version_checker.as_ref().map(|vc| &vc.update_status),
+          Some(UpdateStatus::Major(_))
+        )
+      },
+      Filters::AutoUpdateAvailable => |entry: &ModEntry| entry.get_direct_download_url().is_some(),
+      Filters::AutoUpdateUnsupported => {
+        |entry: &ModEntry| entry.get_direct_download_url().is_none()
+      }
     }
   }
 }

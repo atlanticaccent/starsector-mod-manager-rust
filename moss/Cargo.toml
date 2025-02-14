@@ -100,6 +100,8 @@ mimalloc = { workspace = true }
 
 dhat = { version = "0.3", optional = true }
 uuid = "1.11.0"
+tokio-stream = { version = "0.1.17", features = ["full"] }
+typewit = "1.11.0"
 
 [target.'cfg(windows)'.dependencies]
 indoc = { workspace = true }

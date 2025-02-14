@@ -19,15 +19,15 @@ use crate::{
 };
 
 #[derive(Clone, Data)]
-pub struct Duplicate(Vector<ModEntry>);
+pub struct Duplicate(String);
 
 impl Duplicate {
-  pub fn new(duplicates: Vector<ModEntry>) -> Self {
+  pub fn new(duplicates: String) -> Self {
     Self(duplicates)
   }
 
   pub fn view(&self) -> impl Widget<App> {
-    let duplicates = self.0.clone();
+    let dupe_id = self.0.clone();
     Card::builder()
       .with_insets(Card::CARD_INSET)
       .with_background(druid::theme::BACKGROUND_LIGHT)
@@ -37,7 +37,7 @@ impl Duplicate {
           .with_child(
             h2_fixed(&format!(
               r#"Multiple mods with ID "{}" installed."#,
-              &duplicates.front().unwrap().id
+              &dupe_id.front().unwrap().mod_id
             ))
             .halign_centre(),
           )
@@ -47,13 +47,13 @@ impl Duplicate {
             let mut table = FlexTable::new()
               .with_column_width(TableColumnWidth::Flex(1.0))
               .with_column_width(TableColumnWidth::Intrinsic);
-            for (idx, dupe) in duplicates.iter().enumerate() {
+            for (idx, dupe) in dupe_id.iter().enumerate() {
               table.add_row(
                 TableRow::new()
                   .with_child(dupe_row(dupe))
                   .with_child(keep_button(
                     dupe.clone(),
-                    duplicates.clone().tap(|v| v.remove(idx)),
+                    dupe_id.clone().tap(|v| v.remove(idx)),
                   )),
               );
             }
@@ -132,6 +132,7 @@ impl Duplicate {
           .scroll()
           .vertical(),
       )
+      .lens(App::mod_list.then(ModList::mods).index(index))
   }
 }
 

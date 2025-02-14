@@ -26,7 +26,7 @@ use itertools::Itertools;
 use crate::{
   app::{
     app_delegate::AppCommands,
-    mod_entry::{ModMetadata, UpdateStatus, VersionComplex},
+    mod_entry::{version_checker::UpdateStatus, ModMetadata, VersionChecker, VersionComplex},
     overlays::Popup,
     util::FnWidgetToMaybe,
     App, ViewModEntry as ModEntry, INFO,
@@ -49,8 +49,8 @@ pub struct ModDescription<T = Rc<ModEntry>> {
 impl ModDescription<String> {
   pub fn from_entry(entry: &ModEntry) -> Self {
     Self {
-      entry: entry.id.clone(),
-      crumbs: vector![(entry.name.clone(), entry.id.clone())],
+      entry: entry.mod_id.clone(),
+      crumbs: vector![(entry.name.clone(), entry.mod_id.clone())],
     }
   }
 }
@@ -88,7 +88,10 @@ impl ModDescription {
         },
         |app, entry| {
           if let Some(desc) = entry {
-            app.mod_list.mods.insert(desc.entry.id.clone(), desc.entry);
+            app
+              .mod_list
+              .mods
+              .insert(desc.entry.mod_id.clone(), desc.entry);
           }
         },
       ))
@@ -128,9 +131,9 @@ impl ModDescription {
           } else {
             Vector::new()
           };
-          crumbs.push_back((notif_entry.name.clone(), notif_entry.id.clone()));
+          crumbs.push_back((notif_entry.name.clone(), notif_entry.mod_id.clone()));
           app.active = Some(ModDescription {
-            entry: notif_entry.id.clone(),
+            entry: notif_entry.mod_id.clone(),
             crumbs,
           });
         }
@@ -263,11 +266,12 @@ impl ModDescription {
                 .with_child(Label::stringify_wrapped())
                 .with_default_spacer()
                 .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+                .lens(VersionChecker::update_status)
             })
-            .lens(ModEntry::update_status.compute(|s| {
+            .lens(ModEntry::version_checker.compute(|s| {
               s.clone().filter(|s| {
                 matches!(
-                  s,
+                  s.update_status,
                   UpdateStatus::Major(_)
                     | UpdateStatus::Minor(_)
                     | UpdateStatus::Patch(_)
@@ -521,19 +525,19 @@ fn entry_controls() -> Flex<ModEntry> {
         .fix_height(42.0)
         .padding((0.0, 2.0))
         .empty_if_not(|data: &ModEntry, _| {
-          data
-            .remote_version
-            .as_ref()
-            .is_some_and(|r| r.direct_download_url.is_some())
-            && data.update_status.as_ref().is_some_and(|s| {
+          data.get_direct_download_url().is_some()
+            && data.version_checker.as_ref().is_some_and(|s| {
               matches!(
-                s,
+                s.update_status,
                 UpdateStatus::Major(_) | UpdateStatus::Minor(_) | UpdateStatus::Patch(_)
               )
             })
         })
         .on_click(|ctx, data, _| {
-          ctx.submit_command(Popup::OPEN_POPUP.with(Popup::remote_update(data)));
+          if let Some(remote_version) = data.version_checker.as_ref().and_then(|vc| vc.get_remote())
+          {
+            ctx.submit_command(Popup::OPEN_POPUP.with(Popup::remote_update(data, &remote_version)));
+          }
         })
         .disabled_if(|data, _| data.view_state.updating),
     )
@@ -570,7 +574,7 @@ fn id() -> Flex<ModEntry> {
       Flex::row()
         .with_spacer(5.0)
         .with_child(h3_fixed("id: "))
-        .with_child(h3().lens(ModEntry::id))
+        .with_child(h3().lens(ModEntry::mod_id))
         .padding((0.0, 4.5, 0.0, 0.0)),
     )
 }
@@ -582,6 +586,6 @@ pub fn notify_enabled(
   _: &druid::Env,
 ) {
   if data.enabled {
-    ctx.submit_notification(ENABLE_DEPENDENCIES.with(data.id.clone()));
+    ctx.submit_notification(ENABLE_DEPENDENCIES.with(data.mod_id.clone()));
   }
 }

@@ -4,14 +4,13 @@ use common::{
   controllers::{HoverController, REMOVE_POINTER},
   fast_im_map::FastImMap,
   labels::bold_text,
-  lenses::LensExtExt as _,
   widget_ext::{WidgetExtEx as _, HOVER_STATE_CHANGE},
   widgets::root_stack::RootStack,
 };
 use druid::{
   im::{HashSet, Vector},
   widget::{Flex, WidgetWrapper, ZStack},
-  Data, Lens, LensExt, Selector, SingleUse, Widget, WidgetExt, WidgetId,
+  Data, Lens, Selector, SingleUse, Widget, WidgetExt, WidgetId,
 };
 use druid_patch::{
   tabs::tab::{InitialTab, Tabs, TabsPolicy, TabsTransition},
@@ -30,10 +29,10 @@ use webview::PROJECT;
 use crate::{
   app::{
     browser::Browser,
-    controllers::{AppController, ModListController},
+    controllers::{AppController, AsyncController, ModListController},
     installer_impl::{AsyncError, Installer},
     mod_description::{ModDescription, ENABLE_DEPENDENCIES},
-    mod_entry::{GameVersion, ModEntry, UpdateStatus, ViewModEntry},
+    mod_entry::{GameVersion, ModEntry, ViewModEntry},
     mod_list::ModList,
     mod_repo::ModRepo,
     overlays::Popup,
@@ -101,7 +100,6 @@ impl App {
     Selector::new("app.mod_list.replace");
   const RESTART: Selector = Selector::new("app.update.restart");
   const SELECTOR: Selector<app_delegate::AppCommands> = Selector::new("app.update.commands");
-  const SELF_UPDATE: Selector<()> = Selector::new("app.update.perform");
   const TOGGLE_NAV_BAR: Selector = Selector::new("app.nav_bar.collapse");
   const OPEN_EXTERNALLY: Selector<String> = Selector::new("app.user_browser.open");
 
@@ -299,25 +297,6 @@ impl App {
               })
           },
         )
-        .on_command(util::MASTER_VERSION_RECEIVED, |_ctx, (id, res), data| {
-          let remote = res.as_ref().ok().cloned();
-          let entry_lens = App::mod_list.then(ModList::mods).deref().index(id);
-
-          if let Some(version_checker) = entry_lens
-            .clone()
-            .then(ModEntry::version_checker.in_rc())
-            .get(data)
-          {
-            entry_lens
-              .clone()
-              .then(ModEntry::remote_version.in_rc())
-              .put(data, remote.clone());
-
-            entry_lens
-              .then(ModEntry::update_status.in_rc())
-              .put(data, Some(UpdateStatus::from((&version_checker, &remote))));
-          }
-        })
         .on_notification(ENABLE_DEPENDENCIES, |_, id, data| {
           ViewModEntry::enable_dependencies(id, data);
         }),
@@ -350,6 +329,10 @@ pub impl<W: Widget<App> + 'static> W {
 
   fn env_as_shared_data(self) -> impl Widget<App> {
     self.env_scope(|env, data| env.set(crate::ENV_STATE, data))
+  }
+
+  fn async_controller(self, runtime: Handle) -> impl Widget<App> {
+    self.controller(AsyncController::new(runtime))
   }
 }
 

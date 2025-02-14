@@ -199,7 +199,7 @@ impl Delegate<App> for AppDelegate {
       }
     } else if let Some(entry) = cmd.get(App::CONFIRM_DELETE_MOD) {
       if remove_dir_all(&entry.path).is_ok() {
-        data.mod_list.mods.remove(&entry.id);
+        data.mod_list.mods.remove(&entry.mod_id);
         data.active = None;
       } else {
         eprintln!("Failed to delete mod");

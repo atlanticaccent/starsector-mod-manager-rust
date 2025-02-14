@@ -3,7 +3,6 @@
 // Nightly features
 #![feature(option_zip)]
 #![feature(result_flattening)]
-#![feature(async_closure)]
 #![feature(hash_set_entry)]
 #![feature(string_remove_matches)]
 #![feature(io_error_more)]
@@ -16,6 +15,10 @@
 #![feature(trait_alias)]
 #![feature(type_alias_impl_trait)]
 #![feature(map_try_insert)]
+#![feature(extract_if)]
+#![feature(linked_list_cursors)]
+#![feature(default_field_values)]
+#![feature(get_many_mut)]
 // Ignored lints
 #![allow(clippy::new_ret_no_self)]
 #![allow(clippy::module_name_repetitions)]

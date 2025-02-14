@@ -7,7 +7,7 @@ use std::{
   io::{BufRead, BufReader},
   path::{Path, PathBuf},
   rc::Rc,
-  sync::LazyLock,
+  sync::{Arc, LazyLock},
 };
 
 use ahash::AHashMap;
@@ -34,14 +34,20 @@ use json_comments::StripComments;
 use serde::{Deserialize, Serialize};
 use serde_aux::prelude::*;
 use tokio::io::AsyncWriteExt;
+use uuid::Uuid;
+
+pub mod version_checker;
+
+pub use version_checker::{ModVersionMeta, UpdateStatus, VersionChecker};
 use web_client::WebClient;
 
 use crate::{
   app::{
     app_delegate::AppCommands,
+    controllers::GLOBAL_ASYNC_CONTROLLER,
     mod_description::{notify_enabled, ModDescription},
     mod_list::{headings::Heading, ModList, ModMap},
-    util::{self, default_true, get_master_version, parse_game_version, Tap},
+    util::{self, default_true, parse_game_version, Tap},
     App, SharedFromEnv,
   },
   nav_bar::{Nav, NavLabel},
@@ -61,7 +67,12 @@ pub type GameVersion = (
 
 #[derive(Debug, Clone, Deserialize, Data, Lens, Default, Dummy)]
 pub struct ModEntry<T = ()> {
-  pub id: String,
+  #[serde(alias = "id")]
+  pub mod_id: String,
+  #[serde(skip)]
+  #[data(eq)]
+  #[dummy(default)]
+  pub internal_id: Uuid,
   pub name: String,
   #[serde(default)]
   pub author: Option<String>,
@@ -76,7 +87,7 @@ pub struct ModEntry<T = ()> {
   pub utility: bool,
   #[data(eq)]
   #[serde(deserialize_with = "ModEntry::deserialize_dependencies", default)]
-  pub dependencies: std::sync::Arc<Vec<Dependency>>,
+  pub dependencies: Arc<Vec<Dependency>>,
   #[serde(
     alias = "totalConversion",
     default,
@@ -86,13 +97,10 @@ pub struct ModEntry<T = ()> {
   #[serde(skip)]
   pub enabled: bool,
   #[serde(skip)]
-  pub version_checker: Option<ModVersionMeta>,
+  #[dummy(default)]
+  pub version_checker: Option<VersionChecker>,
   #[serde(skip)]
-  pub remote_version: Option<ModVersionMeta>,
-  #[serde(skip)]
-  pub update_status: Option<UpdateStatus>,
-  #[serde(skip)]
-  #[data(same_fn = "PartialEq::eq")]
+  #[data(eq)]
   pub path: PathBuf,
   #[serde(skip)]
   #[serde(default = "default_true")]
@@ -102,6 +110,9 @@ pub struct ModEntry<T = ()> {
   #[serde(skip, default)]
   #[data(ignore)]
   pub view_state: T,
+
+  #[serde(skip, default)]
+  pub duplicates: Arc<Vec<ModEntry<T>>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Data, Deserialize, Dummy)]
@@ -157,7 +168,7 @@ pub type ViewModEntry = ModEntry<ViewState>;
 impl<T> ModEntry<T> {
   pub fn fractal_link() -> impl Lens<Self, Option<String>> {
     Self::version_checker.compute(|v| {
-      v.as_ref().map(|v| &v.fractal_id).and_then(|s| {
+      v.as_ref().map(|v| &v.local.fractal_id).and_then(|s| {
         (!s.is_empty()).then(|| format!("{}{}", ModDescription::FRACTAL_URL, s.clone()))
       })
     })
@@ -165,7 +176,7 @@ impl<T> ModEntry<T> {
 
   pub fn nexus_link() -> impl Lens<Self, Option<String>> {
     Self::version_checker.compute(|v| {
-      v.as_ref().map(|v| &v.nexus_id).and_then(|s| {
+      v.as_ref().map(|v| &v.local.nexus_id).and_then(|s| {
         (!s.is_empty()).then(|| format!("{}{}", ModDescription::NEXUS_URL, s.clone()))
       })
     })
@@ -249,6 +260,59 @@ impl<T> ModEntry<T> {
 
     true
   }
+
+  pub fn spawn_version_check(&self, client: &Arc<WebClient>) {
+    if let Some(version_checker) = self.version_checker.as_ref() {
+      let mod_id = self.mod_id.clone();
+      let internal_id = self.internal_id;
+      GLOBAL_ASYNC_CONTROLLER.get_unchecked().add_task_with_check(
+        util::get_master_version(&client, version_checker.local.remote_url.clone()),
+        {
+          let mod_id = mod_id.clone();
+          move |_, _, app, _| {
+            app
+              .mod_list
+              .mods
+              .get(&mod_id)
+              .into_iter()
+              .flat_map(|entry| entry.iter_with_dupes())
+              .any(|entry| entry.internal_id == internal_id)
+          }
+        },
+        move |res, _, app, _| {
+          if let Some(entry) = app.mod_list.mods.get_mut(&mod_id)
+            && let entry = Rc::make_mut(entry)
+            && entry.internal_id == internal_id
+            && let Some(version_checker) = entry.version_checker.as_mut()
+          {
+            version_checker.update_remote(res.ok());
+          }
+        },
+      );
+    }
+  }
+
+  pub fn get_direct_download_url(&self) -> Option<&str> {
+    self
+      .version_checker
+      .as_ref()
+      .and_then(|vc| vc.get_direct_download_url())
+  }
+
+  pub fn iter_with_dupes(&self) -> impl Iterator<Item = &Self> {
+    std::iter::once(self).chain(self.duplicates.iter())
+  }
+
+  pub fn iter_with_dupes_mut(&mut self, mut func: impl FnMut(&mut Self))
+  where
+    T: Clone,
+  {
+    (func)(self);
+    let duplicates = Arc::make_mut(&mut self.duplicates);
+    for dupe in duplicates {
+      (func)(dupe)
+    }
+  }
 }
 
 impl<T: Default> ModEntry<T> {
@@ -256,7 +320,7 @@ impl<T: Default> ModEntry<T> {
     let mod_info_file = std::fs::read_to_string(path.join("mod_info.json"))?;
     let stripped = std::io::read_to_string(StripComments::new(mod_info_file.as_bytes()))?;
     let mut mod_info = json5::from_str::<Self>(&stripped)?;
-    mod_info.version_checker = ModEntry::parse_version_checker(path, &mod_info.id);
+    mod_info.version_checker = ModEntry::parse_version_checker(path, &mod_info.mod_id);
     mod_info.path = path.to_path_buf();
     mod_info.manager_metadata = manager_metadata;
     Ok(mod_info)
@@ -267,8 +331,9 @@ impl ModEntry {
   pub const ASK_DELETE_MOD: Selector<ModEntry> = Selector::new("mod_entry.delete");
   pub const AUTO_UPDATE: Selector<ModEntry> = Selector::new("mod_list.update.auto");
   pub const REPLACE: Selector<ModEntry> = Selector::new("MOD_ENTRY_REPLACE");
+  pub const VERSION_CHECK_COMPLETE: Selector = Selector::new("mod_entry.version_check.complete");
 
-  fn parse_version_checker(path: &Path, id: &str) -> Option<ModVersionMeta> {
+  fn parse_version_checker(path: &Path, id: &str) -> Option<VersionChecker> {
     static VC_LOCATION_PATH: LazyLock<&'static Path> =
       LazyLock::new(|| Path::new("data/config/version/version_files.csv"));
 
@@ -281,7 +346,7 @@ impl ModEntry {
       && let Ok(mut version) = json5::from_str::<ModVersionMeta>(&normalized)
     {
       version.id = id.to_string();
-      Some(version)
+      Some(VersionChecker::new(version))
     } else {
       None
     }
@@ -296,9 +361,7 @@ impl ModEntry {
     Ok(parse_game_version(&buf))
   }
 
-  fn deserialize_dependencies<'de, D>(
-    deserializer: D,
-  ) -> Result<std::sync::Arc<Vec<Dependency>>, D::Error>
+  fn deserialize_dependencies<'de, D>(deserializer: D) -> Result<Arc<Vec<Dependency>>, D::Error>
   where
     D: serde::Deserializer<'de>,
   {
@@ -311,7 +374,7 @@ impl ModEntry {
 
     let dependencies = Vec::<RawDependency>::deserialize(deserializer)?;
 
-    Ok(std::sync::Arc::new(
+    Ok(Arc::new(
       dependencies
         .into_iter()
         .filter_map(|RawDependency { id, name, version }| {
@@ -326,9 +389,10 @@ impl installer::Entry for ModEntry {
   type Id = String;
   type ParseError = ModEntryError;
   type EnrichmentError = ModEntryError;
+  type Context = Arc<WebClient>;
 
   fn id(&self) -> Self::Id {
-    self.id.clone()
+    self.mod_id.clone()
   }
 
   fn destination_folder(&self, parent: &Path) -> PathBuf {
@@ -342,21 +406,11 @@ impl installer::Entry for ModEntry {
     ModEntry::from_file(path, metadata)
   }
 
-  async fn enrich(&mut self, path: PathBuf) -> Result<(), ModEntryError> {
+  async fn enrich(&mut self, context: &Self::Context, path: PathBuf) -> Result<(), ModEntryError> {
     self.manager_metadata.save(&path).await?;
 
     self.set_path(path);
-    if let Some(version_checker) = self.version_checker.as_ref() {
-      let client = WebClient::new();
-      self.remote_version = get_master_version(
-        &client,
-        None,
-        version_checker.remote_url.clone(),
-        version_checker.id.clone(),
-      )
-      .await;
-      self.update_status = Some(UpdateStatus::from((version_checker, &self.remote_version)));
-    }
+    self.spawn_version_check(context);
 
     Ok(())
   }
@@ -380,7 +434,7 @@ impl ViewModEntry {
         header @ (Heading::ID | Heading::Name | Heading::Author) => {
           let label = Label::wrapped_func(|text: &String, _| text.to_string());
           match header {
-            Heading::ID => label.lens(ViewModEntry::id).padding(5.).expand_width(),
+            Heading::ID => label.lens(ViewModEntry::mod_id).padding(5.).expand_width(),
             Heading::Name => label.lens(ViewModEntry::name).padding(5.).expand_width(),
             Heading::Author => label
               .lens(
@@ -402,26 +456,20 @@ impl ViewModEntry {
         .boxed(),
         Heading::Version => ViewModEntry::version_cell(),
         Heading::AutoUpdateSupport => Either::new(
-          |entry: &ViewModEntry, _| {
-            entry
-              .remote_version
-              .as_ref()
-              .and_then(|r| r.direct_download_url.as_ref())
-              .is_some()
-          },
+          |entry: &ViewModEntry, _| entry.get_direct_download_url().is_some(),
           Either::new(
             |entry: &ViewModEntry, _| {
               entry
-                .update_status
+                .version_checker
                 .as_ref()
-                .is_some_and(|status| status != &UpdateStatus::Error)
+                .is_some_and(|vc| vc.update_status != UpdateStatus::Error)
             },
             Either::new(
               |entry: &ViewModEntry, _| {
-                entry.update_status.as_ref().is_some_and(|status| {
+                entry.version_checker.as_ref().is_some_and(|vc| {
                   !matches!(
-                    status,
-                    &UpdateStatus::UpToDate | &UpdateStatus::Discrepancy(_)
+                    vc.update_status,
+                    UpdateStatus::UpToDate | UpdateStatus::Discrepancy(_)
                   )
                 })
               },
@@ -558,10 +606,10 @@ impl ViewModEntry {
       ),
       Label::dynamic(|data: &(Option<UpdateStatus>, Version), _| data.1.to_string()),
     )
-    .lens(
-      lens::Identity
-        .compute(|entry: &ViewModEntry| (entry.update_status.clone(), entry.version.clone())),
-    )
+    .lens((
+      ViewModEntry::version_checker.compute(|vc| vc.as_ref().map(|vc| vc.update_status.clone())),
+      ViewModEntry::version,
+    ))
     .padding(5.)
     .expand_width()
     .boxed()
@@ -604,7 +652,7 @@ impl ViewModEntry {
 
 impl<T> Hash for ModEntry<T> {
   fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-    self.id.hash(state);
+    self.mod_id.hash(state);
     self.name.hash(state);
     self.author.hash(state);
     self.version.hash(state);
@@ -612,8 +660,6 @@ impl<T> Hash for ModEntry<T> {
     self.game_version.hash(state);
     self.enabled.hash(state);
     self.version_checker.hash(state);
-    self.remote_version.hash(state);
-    self.update_status.hash(state);
     self.path.hash(state);
     self.manager_metadata.hash(state);
   }
@@ -621,7 +667,7 @@ impl<T> Hash for ModEntry<T> {
 
 impl<T> PartialEq for ModEntry<T> {
   fn eq(&self, other: &Self) -> bool {
-    self.id == other.id
+    self.mod_id == other.mod_id
       && self.name == other.name
       && self.author == other.author
       && self.version == other.version
@@ -629,8 +675,6 @@ impl<T> PartialEq for ModEntry<T> {
       && self.game_version == other.game_version
       && self.enabled == other.enabled
       && self.version_checker == other.version_checker
-      && self.remote_version == other.remote_version
-      && self.update_status == other.update_status
       && self.path == other.path
       && self.display == other.display
       && self.manager_metadata == other.manager_metadata
@@ -642,7 +686,8 @@ impl<T> Eq for ModEntry<T> {}
 impl From<ModEntry> for ViewModEntry {
   fn from(
     ModEntry {
-      id,
+      mod_id,
+      internal_id,
       name,
       author,
       version,
@@ -653,16 +698,16 @@ impl From<ModEntry> for ViewModEntry {
       total_conversion,
       enabled,
       version_checker,
-      remote_version,
-      update_status,
       path,
       display,
       manager_metadata,
       view_state: (),
+      duplicates,
     }: ModEntry,
   ) -> Self {
     ViewModEntry {
-      id,
+      mod_id,
+      internal_id,
       name,
       author,
       version,
@@ -673,26 +718,25 @@ impl From<ModEntry> for ViewModEntry {
       total_conversion,
       enabled,
       version_checker,
-      remote_version,
-      update_status,
       path,
       display,
       manager_metadata,
       view_state: ViewState::new(),
+      duplicates: Arc::new(
+        Arc::unwrap_or_clone(duplicates)
+          .into_iter()
+          .map(|dup| dup.into())
+          .collect(),
+      ),
     }
-  }
-}
-
-impl<'a> From<&'a ModEntry> for ViewModEntry {
-  fn from(value: &'a ModEntry) -> Self {
-    value.clone().into()
   }
 }
 
 impl From<ViewModEntry> for ModEntry {
   fn from(
     ViewModEntry {
-      id,
+      mod_id,
+      internal_id,
       name,
       author,
       version,
@@ -703,16 +747,16 @@ impl From<ViewModEntry> for ModEntry {
       total_conversion,
       enabled,
       version_checker,
-      remote_version,
-      update_status,
       path,
       display,
       manager_metadata,
       view_state: _,
+      duplicates,
     }: ViewModEntry,
   ) -> Self {
     ModEntry {
-      id,
+      mod_id,
+      internal_id,
       name,
       author,
       version,
@@ -723,12 +767,16 @@ impl From<ViewModEntry> for ModEntry {
       total_conversion,
       enabled,
       version_checker,
-      remote_version,
-      update_status,
       path,
       display,
       manager_metadata,
       view_state: (),
+      duplicates: Arc::new(
+        Arc::unwrap_or_clone(duplicates)
+          .into_iter()
+          .map(|dup| dup.into())
+          .collect(),
+      ),
     }
   }
 }
@@ -744,7 +792,7 @@ impl RowData for ViewModEntry {
   type Id = String;
 
   fn id(&self) -> String {
-    self.id.clone()
+    self.mod_id.clone()
   }
 
   fn cell(&self, column: &Self::Column) -> Box<dyn Widget<ViewModEntry>> {
@@ -800,58 +848,8 @@ pub enum ModEntryError {
   JsonError(#[from] json5::Error),
   #[error("I/O error")]
   IoError(#[from] std::io::Error),
-}
-
-#[allow(clippy::derived_hash_with_manual_eq)]
-#[derive(Debug, Clone, Deserialize, Eq, Data, Lens, Hash, Dummy)]
-pub struct ModVersionMeta {
-  #[serde(alias = "masterVersionFile")]
-  pub remote_url: String,
-  #[serde(alias = "directDownloadURL")]
-  #[serde(default)]
-  pub direct_download_url: Option<String>,
-  #[serde(alias = "modName")]
-  pub id: String,
-  #[serde(alias = "modThreadId")]
-  #[serde(deserialize_with = "deserialize_string_from_number")]
-  #[serde(default)]
-  pub fractal_id: String,
-  #[serde(alias = "modNexusId")]
-  #[serde(deserialize_with = "deserialize_string_from_number")]
-  #[serde(default)]
-  pub nexus_id: String,
-  #[serde(alias = "modVersion")]
-  pub version: VersionComplex,
-}
-
-impl installer::EntryUpdate for ModVersionMeta {
-  type Entry = ModEntry;
-
-  fn url(&self) -> String {
-    self.direct_download_url.clone().unwrap()
-  }
-
-  fn matches(&self, entry: &ModEntry) -> bool {
-    entry.version_checker.as_ref().unwrap().version == self.version
-  }
-}
-
-impl PartialEq for ModVersionMeta {
-  fn eq(&self, other: &Self) -> bool {
-    self.id == other.id && self.version == other.version
-  }
-}
-
-impl PartialOrd for ModVersionMeta {
-  fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-    Some(self.version.cmp(&other.version))
-  }
-}
-
-impl Ord for ModVersionMeta {
-  fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-    self.partial_cmp(other).unwrap()
-  }
+  #[error("VC error: {0}")]
+  VersionCheckError(Arc<anyhow::Error>),
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, PartialOrd, Ord, Data, Lens, Hash, Dummy)]
@@ -881,16 +879,6 @@ impl Display for VersionComplex {
       write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
     }
   }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Data, Hash, Dummy)]
-pub enum UpdateStatus {
-  Error,
-  UpToDate,
-  Discrepancy(VersionComplex),
-  Patch(VersionComplex),
-  Minor(VersionComplex),
-  Major(VersionComplex),
 }
 
 impl Display for UpdateStatus {
@@ -1047,7 +1035,7 @@ mod test {
       })),
     };
     let dep_entry = ViewModEntry {
-      id: "Dep".to_owned(),
+      mod_id: "Dep".to_owned(),
       version: Version::Complex(VersionComplex {
         major: 1,
         minor: 0,
@@ -1056,18 +1044,16 @@ mod test {
       ..Default::default()
     };
     let entry = ViewModEntry {
-      id: "Entry".to_owned(),
+      mod_id: "Entry".to_owned(),
       dependencies: vec![dep].into(),
       ..Default::default()
     };
 
-    let mut mods = ModMap::from(
-      [
-        ("Dep".to_owned(), dep_entry.into()),
-        ("Entry".to_owned(), entry.into()),
-      ]
-      .as_slice(),
-    );
+    let mut mods = ModMap::new();
+    mods.extend([
+      ("Dep".to_owned(), dep_entry.into()),
+      ("Entry".to_owned(), entry.into()),
+    ]);
 
     // Assert
     assert!(!mods["Entry"].enabled);
@@ -1083,7 +1069,7 @@ mod test {
   fn enable_dependencies() {
     // Setup
     let sub_dep_entry = ViewModEntry {
-      id: "subdep".to_owned(),
+      mod_id: "subdep".to_owned(),
       version: Version::Complex(VersionComplex {
         major: 0,
         minor: 2,
@@ -1092,7 +1078,7 @@ mod test {
       ..Default::default()
     };
     let dep_entry = ViewModEntry {
-      id: "Dep".to_owned(),
+      mod_id: "Dep".to_owned(),
       version: Version::Complex(VersionComplex {
         major: 1,
         minor: 0,
@@ -1111,7 +1097,7 @@ mod test {
       ..Default::default()
     };
     let entry = ViewModEntry {
-      id: "Entry".to_owned(),
+      mod_id: "Entry".to_owned(),
       dependencies: vec![Dependency {
         id: "Dep".to_owned(),
         name: None,
@@ -1126,24 +1112,22 @@ mod test {
     };
 
     let unused_entry_a = ViewModEntry {
-      id: "Unused A".to_owned(),
+      mod_id: "Unused A".to_owned(),
       ..Default::default()
     };
     let unused_entry_b = ViewModEntry {
-      id: "Unused B".to_owned(),
+      mod_id: "Unused B".to_owned(),
       ..Default::default()
     };
 
-    let mut mods = ModMap::from(
-      [
-        ("Dep".to_owned(), dep_entry.into()),
-        ("Entry".to_owned(), entry.into()),
-        ("subdep".to_owned(), sub_dep_entry.into()),
-        ("Unused A".to_owned(), unused_entry_a.into()),
-        ("Unused B".to_owned(), unused_entry_b.into()),
-      ]
-      .as_slice(),
-    );
+    let mut mods = ModMap::new();
+    mods.extend([
+      ("Dep".to_owned(), dep_entry.into()),
+      ("Entry".to_owned(), entry.into()),
+      ("subdep".to_owned(), sub_dep_entry.into()),
+      ("Unused A".to_owned(), unused_entry_a.into()),
+      ("Unused B".to_owned(), unused_entry_b.into()),
+    ]);
 
     // Assert
     assert!(mods.values().all(|entry| !entry.enabled));
@@ -1160,7 +1144,7 @@ mod test {
   #[test]
   fn missing_dependency() {
     let entry = ViewModEntry {
-      id: "entry".to_owned(),
+      mod_id: "entry".to_owned(),
       dependencies: vec![Dependency {
         id: "doesn't exist".to_owned(),
         name: None,
@@ -1170,7 +1154,8 @@ mod test {
       ..Default::default()
     };
 
-    let mut mods = ModMap::from([("entry".to_owned(), entry.into())].as_slice());
+    let mut mods = ModMap::new();
+    mods.extend([("entry".to_owned(), entry.into())]);
 
     assert!(!ViewModEntry::enable_all_dependencies("entry", &mut mods));
     assert!(!mods["entry"].enabled);

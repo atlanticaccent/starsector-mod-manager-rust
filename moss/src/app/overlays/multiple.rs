@@ -226,7 +226,7 @@ fn row<T: Data>(entry: &ModEntry) -> impl Widget<T> {
     .with_row(
       TableRow::new()
         .with_child(bolded("ID:").align_right())
-        .with_child(Label::new(entry.id.clone())),
+        .with_child(Label::new(entry.mod_id.clone())),
     )
     .with_row(
       TableRow::new()

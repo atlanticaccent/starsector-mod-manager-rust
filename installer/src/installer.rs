@@ -26,6 +26,8 @@ pub enum Request<T, U = ()> {
   Download { remote_data: U, old_path: PathBuf },
 }
 
+pub struct EnrichedEntry<T: Entry>(pub T);
+
 type InstallerError<T> = InstallError<<T as InstallerDelegate>::Entry>;
 
 pub trait InstallerExt: InstallerDelegate
@@ -146,10 +148,10 @@ where
           move_or_copy(path.clone(), destination.clone()).await;
 
           entry
-            .enrich(destination)
+            .enrich(self.context(), destination)
             .await
             .map_err(InstallError::EntryEnrichmentError)?;
-          self.completed_handler(entry);
+          self.completed_handler(EnrichedEntry(entry));
         }
       } else {
         Err(InstallError::ModSearchErrorUnknown)?;
@@ -174,11 +176,11 @@ where
 
       move_or_copy(origin, old_path.clone()).await;
       entry
-        .enrich(old_path)
+        .enrich(self.context(), old_path)
         .await
         .map_err(InstallError::EntryEnrichmentError)?;
 
-      self.completed_handler(entry);
+      self.completed_handler(EnrichedEntry(entry));
 
       Ok(())
     }

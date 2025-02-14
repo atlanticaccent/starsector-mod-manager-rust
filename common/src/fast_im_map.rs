@@ -84,14 +84,11 @@ impl<K: Clone + Hash + Eq, V: Clone> From<FastImMap<K, V>>
   }
 }
 
-impl<K: Clone + Hash + Eq + PartialEq + Eq, V: Clone, O: Into<druid::im::HashMap<K, V>>> From<O>
-  for FastImMap<K, V>
+impl<K: Clone + Hash + Eq + PartialEq + Eq, V: Clone>
+  From<druid::im::HashMap<K, V, ahash::RandomState>> for FastImMap<K, V>
 {
-  fn from(other: O) -> Self {
-    let mut new = Self::new();
-    new.extend(other.into().iter().map(|(k, v)| (k.clone(), v.clone())));
-
-    new
+  fn from(other: druid::im::HashMap<K, V, ahash::RandomState>) -> Self {
+    Self(other)
   }
 }
 

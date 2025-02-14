@@ -2,6 +2,7 @@ use std::{
   any::Any,
   collections::HashMap,
   fmt::Debug,
+  future::Future,
   hash::Hash,
   io::Read,
   marker::PhantomData,
@@ -16,9 +17,12 @@ use druid::{
 use json_comments::StripComments;
 use regex::Regex;
 use tokio::{select, sync::mpsc};
+use typewit::TypeNe;
 use web_client::WebClient;
 
-use crate::app::mod_entry::{GameVersion, ModEntry, ModVersionMeta};
+use crate::app::mod_entry::{
+  version_checker::AsyncModVersionMetaRes, GameVersion, ModEntry, ModVersionMeta,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {
@@ -30,12 +34,14 @@ pub enum LoadError {
   ZipError(#[from] zip::result::ZipError),
   #[error("IO error")]
   IoError(#[from] std::io::Error),
-  #[error("Serialization error")]
-  SerializationError(#[from] serde_json::Error),
+  #[error("Serde error")]
+  SerdeError(#[from] serde_json::Error),
   #[error("Join error")]
   JoinError(#[from] tokio::task::JoinError),
   #[error("Parsing error: {0}")]
-  ParserError(anyhow::Error),
+  ParsingError(anyhow::Error),
+  #[error("Other error: {0}")]
+  Other(#[from] anyhow::Error),
 }
 
 #[derive(Debug, Clone)]
@@ -67,48 +73,26 @@ pub fn get_quoted_version(
   }
 }
 
-pub const MASTER_VERSION_RECEIVED: Selector<(String, Result<ModVersionMeta, anyhow::Error>)> =
-  Selector::new("remote_version_received");
-
-pub async fn get_master_version(
-  client: &WebClient,
-  ext_sink: Option<ExtEventSink>,
+pub fn get_master_version(
+  client: &Arc<WebClient>,
   remote_url: String,
-  id: String,
-) -> Option<ModVersionMeta> {
-  let request = async |client: &WebClient| {
-    let res = client.get(remote_url).await;
+) -> impl Future<Output = AsyncModVersionMetaRes> {
+  let client = Arc::clone(client);
 
-    match res {
-      Err(err) => (id, Err(err.into())),
-      Ok(remote) => {
-        let mut stripped = String::new();
-        if StripComments::new(remote.as_bytes())
-          .read_to_string(&mut stripped)
-          .is_ok()
-          && let Ok(normalized) = handwritten_json::normalize(&stripped)
-          && let Ok(remote) = json5::from_str::<ModVersionMeta>(&normalized)
-        {
-          (id, Ok(remote))
-        } else {
-          (id, Err(anyhow::anyhow!("Parse error. Payload:\n{remote}")))
-        }
-      }
+  async move {
+    let remote = client
+      .get(remote_url)
+      .await
+      .map_err(|e| anyhow::anyhow!(e))?;
+
+    if let Ok(stripped) = std::io::read_to_string(StripComments::new(remote.as_bytes()))
+      && let Ok(normalized) = handwritten_json::normalize(&stripped)
+      && let Ok(remote) = json5::from_str::<ModVersionMeta>(&normalized)
+    {
+      Ok(remote)
+    } else {
+      Err(Arc::new(anyhow::anyhow!("Parse error. Payload:\n{remote}")))
     }
-  };
-
-  if let Some(ext_sink) = ext_sink {
-    let client = client.clone();
-    tokio::spawn(async move {
-      let payload = request(&client).await;
-
-      if let Err(err) = ext_sink.submit_command(MASTER_VERSION_RECEIVED, payload, Target::Auto) {
-        eprintln!("Failed to submit remote version data {err}");
-      }
-    });
-    None
-  } else {
-    request(client).await.1.ok()
   }
 }
 
@@ -145,7 +129,7 @@ pub async fn get_starsector_version(ext_ctx: ExtEventSink, install_dir: PathBuf)
     version_class.read_to_end(&mut buf)?;
 
     let (_, class_file) =
-      class_parser(&buf).map_err(|err| LoadError::ParserError(err.to_owned().into()))?;
+      class_parser(&buf).map_err(|err| LoadError::ParsingError(err.to_owned().into()))?;
 
     let version_string = class_file
       .fields
@@ -166,7 +150,7 @@ pub async fn get_starsector_version(ext_ctx: ExtEventSink, install_dir: PathBuf)
           None
         }
       })
-      .ok_or(LoadError::ParserError(anyhow::anyhow!("")));
+      .ok_or(LoadError::ParsingError(anyhow::anyhow!("")));
 
     version_string
   })
@@ -622,5 +606,71 @@ macro_rules! d_eprintln {
 pub impl<T: Data, W: Widget<T> + 'static, F: Fn() -> W + 'static> F {
   fn or_maybe_empty(self) -> Maybe<T> {
     Maybe::or_empty(self)
+  }
+}
+
+mod sealed {
+  pub trait Sealed {}
+
+  impl<T: Iterator> Sealed for T {}
+}
+
+trait Get<Idx>: IntoIterator + Deref
+where
+  Self::Target: std::ops::Index<Idx>,
+  <Self::Target as std::ops::Index<Idx>>::Output: 'a,
+  Self: IntoIterator<Item = &'a <Self::Target as std::ops::Index<Idx>>::Output>,
+  <Self as IntoIterator>::IntoIter: ExactSizeIterator,
+{
+  fn get(&self, idx: Idx) -> Option<&<Self::Target as std::ops::Index<Idx>>::Output>;
+}
+
+impl<'a, T: std::ops::Index<usize>> Get<'a, usize> for &'a T
+where
+  Self: Deref<Target = T>,
+  <Self::Target as std::ops::Index<usize>>::Output: 'a,
+  Self: IntoIterator<Item = &'a <Self::Target as std::ops::Index<usize>>::Output>,
+  <Self as IntoIterator>::IntoIter: ExactSizeIterator,
+{
+  fn get(&self, idx: usize) -> Option<&T::Output> {
+    if idx < self.into_iter().len() {
+      Some(&self[idx])
+    } else {
+      None
+    }
+  }
+}
+
+// trait GetMut<Idx>: std::ops::IndexMut<Idx> + Get<Idx>
+// where
+//   for<'a> &'a Self: IntoIterator<Item = &'a Self::Output>,
+//   for<'a> <&'a Self as IntoIterator>::IntoIter: ExactSizeIterator,
+// {
+//   fn get_mut(&mut self, idx: Idx) -> Option<&mut Self::Output>;
+// }
+
+// impl<T: std::ops::IndexMut<usize> + Get<usize>> GetMut<usize> for T
+// where
+//   for<'a> &'a T: IntoIterator<Item = &'a Self::Output>,
+//   for<'a> <&'a T as IntoIterator>::IntoIter: ExactSizeIterator,
+// {
+//   fn get_mut(&mut self, idx: usize) -> Option<&mut Self::Output> {
+//     if idx < self.into_iter().len() {
+//       Some(&mut self[idx])
+//     } else {
+//       None
+//     }
+//   }
+// }
+
+#[cfg(test)]
+mod test {
+  use crate::app::util::Get;
+
+  #[test]
+  fn get_blanket_impl() {
+    let arr = [0, 1, 2, 3];
+
+    <&[i32] as Get<usize>>::get(&arr, 0);
   }
 }

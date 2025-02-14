@@ -28,7 +28,12 @@ use overwrite::Overwrite;
 use remote_update::RemoteUpdate;
 use select_install::SelectInstall;
 
-use crate::app::{mod_entry::ModEntry, overlays::self_update::StatusPopup, util::DataTimer, App};
+use crate::app::{
+  mod_entry::{version_checker::ModVersionMeta, ModEntry},
+  overlays::self_update::StatusPopup,
+  util::DataTimer,
+  App,
+};
 
 #[derive(Clone, Data)]
 pub enum Popup {
@@ -134,7 +139,7 @@ impl Popup {
     Popup::Ovewrite(Overwrite::new(conflict, to_install, entry))
   }
 
-  pub fn duplicate(duplicates: Vector<ModEntry>) -> Popup {
+  pub fn duplicate(duplicate: String) -> Popup {
     Popup::Duplicate(Duplicate::new(duplicates))
   }
 
@@ -142,12 +147,12 @@ impl Popup {
     Popup::FoundMultiple(Multiple::new(source, found.into()))
   }
 
-  pub fn remote_update<T>(mod_entry: &ModEntry<T>) -> Popup {
+  pub fn remote_update<T>(mod_entry: &ModEntry<T>, remote_version: &ModVersionMeta) -> Popup {
     Popup::RemoteUpdate(RemoteUpdate::new(
-      mod_entry.id.clone(),
+      mod_entry.mod_id.clone(),
       mod_entry.name.clone(),
       mod_entry.version.clone(),
-      mod_entry.remote_version.clone().unwrap(),
+      remote_version.clone(),
     ))
   }
 

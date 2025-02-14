@@ -4,7 +4,12 @@ use tokio::runtime::Builder;
 use webview::PROJECT;
 
 use crate::{
-  app::{app_delegate::AppDelegate, installer_impl::Installer, App, AppViewExt},
+  app::{
+    app_delegate::AppDelegate,
+    controllers::{AsyncCoordinatorImpl, GLOBAL_ASYNC_CONTROLLER},
+    installer_impl::Installer,
+    App, AppViewExt,
+  },
   theme::save_original_env,
 };
 
@@ -23,17 +28,31 @@ pub fn start() {
 
   let _guard = runtime.enter();
 
-  let main_window = WindowDesc::new(App::view().overlay().theme_wrapper().env_as_shared_data())
-    .title(concatcp!(
-      "MOSS | Mod Organizer for StarSector v",
-      env!("CARGO_PKG_VERSION")
-    ))
-    .window_size((1280., 1024.));
+  let main_window = WindowDesc::new(
+    App::view()
+      .overlay()
+      .theme_wrapper()
+      .env_as_shared_data()
+      .async_controller(runtime.handle().clone()),
+  )
+  .title(concatcp!(
+    "MOSS | Mod Organizer for StarSector v",
+    env!("CARGO_PKG_VERSION")
+  ))
+  .window_size((1280., 1024.));
 
   // start the application
   let launcher = AppLauncher::with_window(main_window).configure_env(configure_env);
 
   let ext_ctx = launcher.get_external_handle();
+
+  assert!(GLOBAL_ASYNC_CONTROLLER
+    .set(AsyncCoordinatorImpl::new(
+      runtime.handle().clone(),
+      ext_ctx.clone()
+    ))
+    .is_ok());
+
   let installer = Installer::new(ext_ctx);
 
   // create the initial app state
@@ -46,7 +65,7 @@ pub fn start() {
   }
 
   launcher
-    .delegate(AppDelegate::new(/* installer */))
+    .delegate(AppDelegate::new())
     .launch(initial_state)
     .expect("Failed to launch application");
 }

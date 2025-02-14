@@ -2,8 +2,9 @@ use std::{future::Future, path::PathBuf, sync::Arc};
 
 use common::ExtEventSinkExt;
 use druid::{ExtEventSink, Selector, SingleUse};
-use installer::{Entry, HybridPath, InstallerDelegate, InstallerExt, Request};
+use installer::{EnrichedEntry, Entry, HybridPath, InstallerDelegate, InstallerExt, Request};
 use tokio::sync::oneshot::Sender;
+use web_client::WebClient;
 
 use super::{mod_entry::ModVersionMeta, overlays::Popup};
 use crate::{app::mod_entry::ModEntry, bang};
@@ -27,12 +28,16 @@ pub enum InstallMessage {
 
 #[derive(Clone)]
 pub struct Installer {
-  ext_ctx: ExtEventSink,
+  pub ext_ctx: ExtEventSink,
+  pub client: Arc<WebClient>,
 }
 
 impl Installer {
   pub fn new(ext_ctx: ExtEventSink) -> Self {
-    Self { ext_ctx }
+    Self {
+      ext_ctx,
+      client: Arc::new(WebClient::new()),
+    }
   }
 
   pub fn install(
@@ -49,8 +54,13 @@ impl Installer {
 pub trait AsyncError = std::error::Error + Send + Sync + 'static;
 
 impl InstallerDelegate for Installer {
+  type Context = Arc<WebClient>;
   type Entry = ModEntry;
   type EntryUpdate = ModVersionMeta;
+
+  fn context(&self) -> &Self::Context {
+    &self.client
+  }
 
   fn error_handler<E: AsyncError>(&self, error: E) {
     let _ = self
@@ -76,7 +86,7 @@ impl InstallerDelegate for Installer {
       .inspect_err(|err| bang!(err));
   }
 
-  fn completed_handler(&self, entry: ModEntry) {
+  fn completed_handler(&self, EnrichedEntry(entry): EnrichedEntry<ModEntry>) {
     let _ = self
       .ext_ctx
       .submit_command_global(

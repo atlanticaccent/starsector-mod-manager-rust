@@ -7,5 +7,5 @@ pub(crate) mod installer;
 mod traits;
 
 pub use error::InstallError;
-pub use installer::{HybridPath, Request, StringOrPath};
+pub use installer::{EnrichedEntry, HybridPath, Request, StringOrPath};
 pub use traits::{Entry, EntryUpdate, InstallerDelegate, InstallerExt};

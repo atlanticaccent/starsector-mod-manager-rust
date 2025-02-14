@@ -27,7 +27,7 @@ pub enum InstallError<ENT: Entry> {
   #[error("Failed to join task/thread: {0:?}")]
   Join(#[from] tokio::task::JoinError),
   #[error("Multiple errors")]
-  MultipleErrors(Vec<InstallError<ENT>>),
+  MultipleErrors(Vec<Self>),
   #[error(transparent)]
   Generic(#[from] anyhow::Error),
 }

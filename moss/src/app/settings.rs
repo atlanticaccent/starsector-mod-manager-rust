@@ -37,7 +37,11 @@ use super::{
   App,
 };
 use crate::{
-  app::{updater::get_update_status_handler, PROJECT},
+  app::{
+    settings::version_tag::{VersionTag, SETTINGS_VERSION_TAG},
+    updater::get_update_status_handler,
+    PROJECT,
+  },
   nav_bar::Nav,
   theme::{Theme, Themes, GREEN_KEY, ON_GREEN_KEY},
   widgets::RootStack,
@@ -47,8 +51,12 @@ mod theme_editor;
 
 pub use theme_editor::*;
 
-#[derive(Clone, Data, Lens, Serialize, Deserialize, Default, Debug)]
+const SETTINGS_VERSION: u8 = 0;
+
+#[derive(Clone, Data, Lens, Serialize, Deserialize, Debug)]
 pub struct Settings {
+  version: VersionTag,
+
   #[serde(skip)]
   pub dirty: bool,
   #[data(eq)]
@@ -83,6 +91,48 @@ pub struct Settings {
   pub jre_23: bool,
 }
 
+mod version_tag {
+  use druid::Data;
+  use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+  use super::SETTINGS_VERSION;
+
+  pub(super) const SETTINGS_VERSION_TAG: VersionTag = VersionTag(Some(SETTINGS_VERSION));
+
+  #[derive(Debug, Clone, Data)]
+  pub(super) struct VersionTag(Option<u8>);
+
+  impl Serialize for VersionTag {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+      S: Serializer,
+    {
+      Some(SETTINGS_VERSION).serialize(serializer)
+    }
+  }
+
+  #[derive(thiserror::Error, Debug)]
+  pub(crate) enum TagError {
+    #[error("Incompatible config version: {0} | Current: {SETTINGS_VERSION}")]
+    Incompatible(u8),
+  }
+
+  impl<'de> Deserialize<'de> for VersionTag {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+      D: Deserializer<'de>,
+    {
+      let version = <Option<u8>>::deserialize(deserializer)?.unwrap_or(0);
+
+      if version == SETTINGS_VERSION {
+        Ok(Self(Some(version)))
+      } else {
+        Err(serde::de::Error::custom(TagError::Incompatible(version)))
+      }
+    }
+  }
+}
+
 fn default_headers() -> Vector<Heading> {
   Header::TITLES.to_vec().into()
 }
@@ -92,11 +142,24 @@ impl Settings {
 
   pub fn new() -> Self {
     Self {
+      version: SETTINGS_VERSION_TAG,
       hide_webview_on_conflict: true,
       open_forum_link_in_webview: true,
       show_duplicate_warnings: true,
       headings: default_headers(),
-      ..Default::default()
+      dirty: Default::default(),
+      install_dir: Default::default(),
+      install_dir_buf: Default::default(),
+      last_browsed: Default::default(),
+      git_warn: Default::default(),
+      experimental_launch: Default::default(),
+      experimental_resolution: Default::default(),
+      show_discrepancies: Default::default(),
+      theme: Default::default(),
+      vmparams: Default::default(),
+      vmparams_linked: Default::default(),
+      custom_theme: Default::default(),
+      jre_23: Default::default(),
     }
   }
 
@@ -576,8 +639,7 @@ impl Settings {
       fs::File::open(Settings::path(false)).map_err(|_| LoadError::NoSuchFile)?;
 
     let mut config_string = String::new();
-    config_file
-      .read_to_string(&mut config_string)?;
+    config_file.read_to_string(&mut config_string)?;
 
     serde_json::from_str::<Settings>(&config_string)
       .map_err(Into::into)

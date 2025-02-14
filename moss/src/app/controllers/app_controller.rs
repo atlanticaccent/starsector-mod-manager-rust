@@ -8,7 +8,7 @@ use itertools::Itertools;
 use crate::{
   app::{
     installer_impl::{InstallMessage, INSTALL},
-    mod_entry::UpdateStatus,
+    mod_entry::ModEntry,
     mod_list::ModList,
     settings::{self, Settings, SettingsCommand},
     App,
@@ -72,15 +72,8 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
         match payload {
           InstallMessage::Success(entry) => {
             let mut entry = entry.clone();
-            if let Some(existing) = data.mod_list.mods.get(&entry.id) {
+            if let Some(existing) = data.mod_list.mods.get(&entry.mod_id) {
               entry.enabled = existing.enabled;
-              if let Some(remote_version_checker) = existing.remote_version.clone() {
-                entry.remote_version = Some(remote_version_checker.clone());
-                entry.update_status = Some(UpdateStatus::from((
-                  entry.version_checker.as_ref().unwrap(),
-                  &Some(remote_version_checker),
-                )));
-              }
             }
             ctx.submit_command(ModList::INSERT_MOD.with(*entry));
             ctx.request_update();
@@ -110,6 +103,8 @@ impl<W: Widget<App>> Controller<App, W> for AppController {
               .inspect_err(|err| bang!(err));
           }
         }
+      } else if let Some(()) = cmd.get(ModEntry::VERSION_CHECK_COMPLETE) {
+        ctx.request_update();
       }
     } else if let Event::MouseDown(_) = event {
       if ctx.is_disabled() {

@@ -53,7 +53,7 @@ impl Overwrite {
             StringOrPath::Path(path) => format!(
               "Found a folder at the path {} when trying to install {}.",
               path.to_string_lossy(),
-              entry.id
+              entry.mod_id
             ),
           }))
           .with_child(Label::new("This action is permanent and cannot be undone."))

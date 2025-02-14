@@ -121,14 +121,14 @@ impl<T: Clone, const CAP: usize> Clone for ArraySet<T, CAP> {
 impl<T, const CAP: usize> AsRef<[T]> for ArraySet<T, CAP> {
   #[inline(always)]
   fn as_ref(&self) -> &[T] {
-    unsafe { MaybeUninit::slice_assume_init_ref(&self.mem[0..self.len]) }
+    unsafe { self.mem[0..self.len].assume_init_ref() }
   }
 }
 
 impl<T, const CAP: usize> AsMut<[T]> for ArraySet<T, CAP> {
   #[inline(always)]
   fn as_mut(&mut self) -> &mut [T] {
-    unsafe { MaybeUninit::slice_assume_init_mut(&mut self.mem[0..self.len]) }
+    unsafe { self.mem[0..self.len].assume_init_mut() }
   }
 }
 
@@ -193,7 +193,7 @@ impl<T: Clone + PartialEq, const CAP: usize> TryFrom<&[T]> for ArraySet<T, CAP> 
 
     let mut new = Self::default();
     new.len = value.len();
-    MaybeUninit::clone_from_slice(&mut new.mem, value);
+    new.mem.write_clone_of_slice(value);
 
     Ok(new)
   }
