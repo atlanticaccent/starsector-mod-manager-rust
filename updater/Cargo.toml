@@ -11,7 +11,7 @@ types = { workspace = true }
 web-client = { workspace = true }
 
 # External
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
 self_update = { workspace = true }
 derive_more = { workspace = true, features = ["deref"] }
 anyhow = { workspace = true }

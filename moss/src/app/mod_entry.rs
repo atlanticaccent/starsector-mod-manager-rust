@@ -1,6 +1,6 @@
 use core::fmt;
 use std::{
-  borrow::{Borrow, Cow},
+  borrow::Cow,
   fmt::Display,
   fs::File,
   hash::Hash,
@@ -23,8 +23,7 @@ use druid::{
   kurbo::Line,
   lens, theme,
   widget::{Button, Checkbox, Either, Flex, Label, Painter, ViewSwitcher},
-  Color, Data, ExtEventSink, KeyOrValue, Lens, LensExt, RenderContext as _, Selector, Widget,
-  WidgetExt,
+  Data, ExtEventSink, Lens, LensExt, RenderContext as _, Selector, Widget, WidgetExt,
 };
 use druid_patch::table::{FlexTable, RowData};
 use druid_widget_nursery::{material_icons::Icon, WidgetExt as _};
@@ -36,9 +35,13 @@ use serde_aux::prelude::*;
 use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
-pub mod version_checker;
+mod dependency;
+mod version_checker;
 
-pub use version_checker::{ModVersionMeta, UpdateStatus, VersionChecker};
+pub use dependency::Dependency;
+pub(crate) use version_checker::{
+  AsyncModVersionMetaRes, ModVersionMeta, UpdateStatus, VersionChecker,
+};
 use web_client::WebClient;
 
 use crate::{
@@ -51,10 +54,6 @@ use crate::{
     App, SharedFromEnv,
   },
   nav_bar::{Nav, NavLabel},
-  theme::{
-    BLUE_KEY, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ON_RED_KEY, ON_YELLOW_KEY,
-    ORANGE_KEY, RED_KEY, YELLOW_KEY,
-  },
   ENV_STATE,
 };
 
@@ -87,7 +86,7 @@ pub struct ModEntry<T = ()> {
   pub utility: bool,
   #[data(eq)]
   #[serde(deserialize_with = "ModEntry::deserialize_dependencies", default)]
-  pub dependencies: Arc<Vec<Dependency>>,
+  pub dependencies: Arc<Vec<dependency::Dependency>>,
   #[serde(
     alias = "totalConversion",
     default,
@@ -113,25 +112,6 @@ pub struct ModEntry<T = ()> {
 
   #[serde(skip, default)]
   pub duplicates: Arc<Vec<ModEntry<T>>>,
-}
-
-#[derive(Debug, Clone, PartialEq, Data, Deserialize, Dummy)]
-pub struct Dependency {
-  pub id: String,
-  pub name: Option<String>,
-  pub version: Option<Version>,
-}
-
-impl Display for Dependency {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    let Dependency { id, name, version } = self;
-    write!(f, "{}", name.as_ref().unwrap_or(id))?;
-    if let Some(version) = version {
-      write!(f, "@{version}")?;
-    }
-
-    Ok(())
-  }
 }
 
 #[derive(Clone, Data, Lens)]
@@ -213,7 +193,7 @@ impl<T> ModEntry<T> {
 
     fn get_all_dependencies<'a>(
       mods: &mut AHashMap<&str, &'a mut Rc<ViewModEntry>>,
-      dep: &Dependency,
+      dep: &dependency::Dependency,
       hashes: &mut AHashMap<u64, Option<u64>>,
       checked: &mut Vec<&'a mut Rc<ViewModEntry>>,
     ) -> bool {
@@ -361,7 +341,9 @@ impl ModEntry {
     Ok(parse_game_version(&buf))
   }
 
-  fn deserialize_dependencies<'de, D>(deserializer: D) -> Result<Arc<Vec<Dependency>>, D::Error>
+  fn deserialize_dependencies<'de, D>(
+    deserializer: D,
+  ) -> Result<Arc<Vec<dependency::Dependency>>, D::Error>
   where
     D: serde::Deserializer<'de>,
   {
@@ -378,7 +360,7 @@ impl ModEntry {
       dependencies
         .into_iter()
         .filter_map(|RawDependency { id, name, version }| {
-          id.map(|id| Dependency { id, name, version })
+          id.map(|id| dependency::Dependency { id, name, version })
         })
         .collect(),
     ))
@@ -881,76 +863,6 @@ impl Display for VersionComplex {
   }
 }
 
-impl Display for UpdateStatus {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-    match self {
-      UpdateStatus::Major(remote) => write!(f, "Major update available: {remote}"),
-      UpdateStatus::Minor(remote) => write!(f, "Minor update available: {remote}"),
-      UpdateStatus::Patch(remote) => write!(f, "Patch available: {remote}"),
-      UpdateStatus::UpToDate => write!(f, "Up to date"),
-      UpdateStatus::Error => write!(f, "Error"),
-      UpdateStatus::Discrepancy(_) => write!(f, "Discrepancy"),
-    }
-  }
-}
-
-impl<VL: Borrow<VersionComplex>, VR: Borrow<VersionComplex>> From<(VL, Option<VR>)>
-  for UpdateStatus
-{
-  fn from((local, remote): (VL, Option<VR>)) -> Self {
-    if let Some(remote) = remote {
-      let local = local.borrow();
-      let remote = remote.borrow().clone();
-
-      if remote == *local {
-        UpdateStatus::UpToDate
-      } else if remote < *local {
-        UpdateStatus::Discrepancy(remote)
-      } else if remote.major - local.major > 0 {
-        UpdateStatus::Major(remote)
-      } else if remote.minor - local.minor > 0 {
-        UpdateStatus::Minor(remote)
-      } else {
-        UpdateStatus::Patch(remote)
-      }
-    } else {
-      UpdateStatus::Error
-    }
-  }
-}
-
-impl From<(&ModVersionMeta, &Option<ModVersionMeta>)> for UpdateStatus {
-  fn from((local, remote): (&ModVersionMeta, &Option<ModVersionMeta>)) -> Self {
-    (&local.version, remote.as_ref().map(|r| &r.version)).into()
-  }
-}
-
-impl From<&UpdateStatus> for KeyOrValue<Color> {
-  fn from(status: &UpdateStatus) -> Self {
-    match status {
-      UpdateStatus::Major(_) => ORANGE_KEY.into(),
-      UpdateStatus::Minor(_) => YELLOW_KEY.into(),
-      UpdateStatus::Patch(_) => BLUE_KEY.into(),
-      UpdateStatus::Discrepancy(_) => Color::from_hex_str("#810181").unwrap().into(),
-      UpdateStatus::Error => RED_KEY.into(),
-      UpdateStatus::UpToDate => GREEN_KEY.into(),
-    }
-  }
-}
-
-impl UpdateStatus {
-  pub fn as_text_colour(&self) -> KeyOrValue<Color> {
-    match self {
-      UpdateStatus::Major(_) => ON_ORANGE_KEY.into(),
-      UpdateStatus::Minor(_) => ON_YELLOW_KEY.into(),
-      UpdateStatus::Patch(_) => ON_BLUE_KEY.into(),
-      UpdateStatus::Discrepancy(_) => Color::from_hex_str("#ffd6f7").unwrap().into(),
-      UpdateStatus::Error => ON_RED_KEY.into(),
-      UpdateStatus::UpToDate => ON_GREEN_KEY.into(),
-    }
-  }
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Data, Lens, Default, Hash, Dummy)]
 pub struct ModMetadata {
   #[data(same_fn = "PartialEq::eq")]
@@ -1012,152 +924,5 @@ impl ModMetadata {
 
   pub fn save_blocking(&self, mod_folder: impl AsRef<Path>) -> std::io::Result<()> {
     tokio::runtime::Handle::current().block_on(self.save(mod_folder))
-  }
-}
-
-#[cfg(test)]
-mod test {
-  use crate::app::{
-    mod_entry::{Dependency, Version, VersionComplex, ViewModEntry},
-    mod_list::ModMap,
-  };
-
-  #[test]
-  fn enable_dependencies_minimal() {
-    // Setup
-    let dep = Dependency {
-      id: "Dep".to_owned(),
-      name: None,
-      version: Some(Version::Complex(VersionComplex {
-        major: 1,
-        minor: 0,
-        patch: 0.to_string(),
-      })),
-    };
-    let dep_entry = ViewModEntry {
-      mod_id: "Dep".to_owned(),
-      version: Version::Complex(VersionComplex {
-        major: 1,
-        minor: 0,
-        patch: 0.to_string(),
-      }),
-      ..Default::default()
-    };
-    let entry = ViewModEntry {
-      mod_id: "Entry".to_owned(),
-      dependencies: vec![dep].into(),
-      ..Default::default()
-    };
-
-    let mut mods = ModMap::new();
-    mods.extend([
-      ("Dep".to_owned(), dep_entry.into()),
-      ("Entry".to_owned(), entry.into()),
-    ]);
-
-    // Assert
-    assert!(!mods["Entry"].enabled);
-    assert!(!mods["Dep"].enabled);
-
-    assert!(ViewModEntry::enable_all_dependencies("Entry", &mut mods));
-
-    assert!(mods["Entry"].enabled);
-    assert!(mods["Dep"].enabled);
-  }
-
-  #[test]
-  fn enable_dependencies() {
-    // Setup
-    let sub_dep_entry = ViewModEntry {
-      mod_id: "subdep".to_owned(),
-      version: Version::Complex(VersionComplex {
-        major: 0,
-        minor: 2,
-        patch: "some-RC99".to_owned(),
-      }),
-      ..Default::default()
-    };
-    let dep_entry = ViewModEntry {
-      mod_id: "Dep".to_owned(),
-      version: Version::Complex(VersionComplex {
-        major: 1,
-        minor: 0,
-        patch: 0.to_string(),
-      }),
-      dependencies: vec![Dependency {
-        id: "subdep".to_owned(),
-        name: None,
-        version: Some(Version::Complex(VersionComplex {
-          major: 0,
-          minor: 5,
-          patch: "foo".to_owned(),
-        })),
-      }]
-      .into(),
-      ..Default::default()
-    };
-    let entry = ViewModEntry {
-      mod_id: "Entry".to_owned(),
-      dependencies: vec![Dependency {
-        id: "Dep".to_owned(),
-        name: None,
-        version: Some(Version::Complex(VersionComplex {
-          major: 1,
-          minor: 0,
-          patch: 0.to_string(),
-        })),
-      }]
-      .into(),
-      ..Default::default()
-    };
-
-    let unused_entry_a = ViewModEntry {
-      mod_id: "Unused A".to_owned(),
-      ..Default::default()
-    };
-    let unused_entry_b = ViewModEntry {
-      mod_id: "Unused B".to_owned(),
-      ..Default::default()
-    };
-
-    let mut mods = ModMap::new();
-    mods.extend([
-      ("Dep".to_owned(), dep_entry.into()),
-      ("Entry".to_owned(), entry.into()),
-      ("subdep".to_owned(), sub_dep_entry.into()),
-      ("Unused A".to_owned(), unused_entry_a.into()),
-      ("Unused B".to_owned(), unused_entry_b.into()),
-    ]);
-
-    // Assert
-    assert!(mods.values().all(|entry| !entry.enabled));
-
-    assert!(ViewModEntry::enable_all_dependencies("Entry", &mut mods));
-
-    assert!(mods["Entry"].enabled);
-    assert!(mods["Dep"].enabled);
-    assert!(mods["subdep"].enabled);
-    assert!(!mods["Unused A"].enabled);
-    assert!(!mods["Unused B"].enabled);
-  }
-
-  #[test]
-  fn missing_dependency() {
-    let entry = ViewModEntry {
-      mod_id: "entry".to_owned(),
-      dependencies: vec![Dependency {
-        id: "doesn't exist".to_owned(),
-        name: None,
-        version: None,
-      }]
-      .into(),
-      ..Default::default()
-    };
-
-    let mut mods = ModMap::new();
-    mods.extend([("entry".to_owned(), entry.into())]);
-
-    assert!(!ViewModEntry::enable_all_dependencies("entry", &mut mods));
-    assert!(!mods["entry"].enabled);
   }
 }

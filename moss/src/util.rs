@@ -17,12 +17,9 @@ use druid::{
 use json_comments::StripComments;
 use regex::Regex;
 use tokio::{select, sync::mpsc};
-use typewit::TypeNe;
 use web_client::WebClient;
 
-use crate::app::mod_entry::{
-  version_checker::AsyncModVersionMetaRes, GameVersion, ModEntry, ModVersionMeta,
-};
+use crate::app::mod_entry::{AsyncModVersionMetaRes, GameVersion, ModEntry, ModVersionMeta};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {
@@ -609,29 +606,18 @@ pub impl<T: Data, W: Widget<T> + 'static, F: Fn() -> W + 'static> F {
   }
 }
 
-mod sealed {
-  pub trait Sealed {}
+trait Get<Idx> {
+  type Output: ?Sized;
 
-  impl<T: Iterator> Sealed for T {}
+  fn get(&self, idx: Idx) -> Option<&Self::Output>;
 }
 
-trait Get<Idx>: IntoIterator + Deref
+impl<T: std::ops::Index<usize>> Get<usize> for T
 where
-  Self::Target: std::ops::Index<Idx>,
-  <Self::Target as std::ops::Index<Idx>>::Output: 'a,
-  Self: IntoIterator<Item = &'a <Self::Target as std::ops::Index<Idx>>::Output>,
-  <Self as IntoIterator>::IntoIter: ExactSizeIterator,
+  for<'a> &'a Self: IntoIterator<IntoIter: ExactSizeIterator>,
 {
-  fn get(&self, idx: Idx) -> Option<&<Self::Target as std::ops::Index<Idx>>::Output>;
-}
+  type Output = T::Output;
 
-impl<'a, T: std::ops::Index<usize>> Get<'a, usize> for &'a T
-where
-  Self: Deref<Target = T>,
-  <Self::Target as std::ops::Index<usize>>::Output: 'a,
-  Self: IntoIterator<Item = &'a <Self::Target as std::ops::Index<usize>>::Output>,
-  <Self as IntoIterator>::IntoIter: ExactSizeIterator,
-{
   fn get(&self, idx: usize) -> Option<&T::Output> {
     if idx < self.into_iter().len() {
       Some(&self[idx])
@@ -641,36 +627,42 @@ where
   }
 }
 
-// trait GetMut<Idx>: std::ops::IndexMut<Idx> + Get<Idx>
-// where
-//   for<'a> &'a Self: IntoIterator<Item = &'a Self::Output>,
-//   for<'a> <&'a Self as IntoIterator>::IntoIter: ExactSizeIterator,
-// {
-//   fn get_mut(&mut self, idx: Idx) -> Option<&mut Self::Output>;
-// }
+trait GetMut<Idx>: Get<Idx> {
+  fn get_mut(&mut self, idx: Idx) -> Option<&mut Self::Output>;
+}
 
-// impl<T: std::ops::IndexMut<usize> + Get<usize>> GetMut<usize> for T
-// where
-//   for<'a> &'a T: IntoIterator<Item = &'a Self::Output>,
-//   for<'a> <&'a T as IntoIterator>::IntoIter: ExactSizeIterator,
-// {
-//   fn get_mut(&mut self, idx: usize) -> Option<&mut Self::Output> {
-//     if idx < self.into_iter().len() {
-//       Some(&mut self[idx])
-//     } else {
-//       None
-//     }
-//   }
-// }
+impl<T: std::ops::IndexMut<usize> + Get<usize, Output = <T as std::ops::Index<usize>>::Output>>
+  GetMut<usize> for T
+where
+  for<'a> &'a Self: IntoIterator<IntoIter: ExactSizeIterator>,
+{
+  fn get_mut(&mut self, idx: usize) -> Option<&mut Self::Output> {
+    if idx < self.into_iter().len() {
+      Some(&mut self[idx])
+    } else {
+      None
+    }
+  }
+}
 
 #[cfg(test)]
 mod test {
-  use crate::app::util::Get;
+  use crate::app::util::GetMut;
+
+  macro_rules! get_mut_list {
+    ($($e:expr),+) => {
+      vec![
+        $(Box::new($e) as Box<dyn GetMut<usize, Output = i32>>),+
+      ]
+    };
+  }
 
   #[test]
-  fn get_blanket_impl() {
-    let arr = [0, 1, 2, 3];
+  fn get_mut_blanket_impl() {
+    let list = get_mut_list![[0, 1, 2, 3], vec![0]];
 
-    <&[i32] as Get<usize>>::get(&arr, 0);
+    for ele in list {
+      ele.get(0);
+    }
   }
 }

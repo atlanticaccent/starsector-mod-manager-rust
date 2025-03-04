@@ -17,7 +17,7 @@ itertools = { workspace = true }
 remove_dir_all = { workspace = true }
 reqwest = { workspace = true }
 tempfile = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["fs"] }
 unrar = { workspace = true }
 compress-tools = { workspace = true }
 infer = { workspace = true }

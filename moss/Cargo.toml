@@ -40,7 +40,7 @@ tokio = { workspace = true, features = [
   "process",
   "macros",
 ] }
-tokio-util = { workspace = true, features = ["rt"] }
+tokio-util = { workspace = true, features = ["rt", "io", "io-util"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 json5 = { workspace = true }
@@ -101,7 +101,7 @@ mimalloc = { workspace = true }
 dhat = { version = "0.3", optional = true }
 uuid = "1.11.0"
 tokio-stream = { version = "0.1.17", features = ["full"] }
-typewit = "1.11.0"
+ref-cast = "1.0"
 
 [target.'cfg(windows)'.dependencies]
 indoc = { workspace = true }

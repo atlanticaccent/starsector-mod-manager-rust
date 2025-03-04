@@ -29,7 +29,7 @@ use remote_update::RemoteUpdate;
 use select_install::SelectInstall;
 
 use crate::app::{
-  mod_entry::{version_checker::ModVersionMeta, ModEntry},
+  mod_entry::{ModVersionMeta, ModEntry},
   overlays::self_update::StatusPopup,
   util::DataTimer,
   App,
@@ -140,7 +140,7 @@ impl Popup {
   }
 
   pub fn duplicate(duplicate: String) -> Popup {
-    Popup::Duplicate(Duplicate::new(duplicates))
+    Popup::Duplicate(Duplicate::new(duplicate))
   }
 
   pub fn found_multiple(source: HybridPath, found: Vec<ModEntry>) -> Popup {

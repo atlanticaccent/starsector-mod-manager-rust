@@ -1,5 +1,4 @@
 use std::{
-  cell::Cell,
   hash::Hash,
   num::NonZero,
   ops::{Deref, Index},
@@ -8,7 +7,7 @@ use std::{
   sync::Arc,
 };
 
-use ahash::{HashSet, HashSetExt};
+use ahash::HashSet;
 use anyhow::Context;
 use comemo::memoize;
 use common::{
@@ -35,7 +34,6 @@ use druid_widget_nursery::{
 };
 use futures_util::{StreamExt, TryStreamExt};
 use installer::HybridPath;
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumCount, EnumIter};
 use sublime_fuzzy::best_match;
@@ -43,15 +41,15 @@ use web_client::WebClient;
 
 use super::{
   mod_entry::{
-    version_checker::UpdateStatus, GameVersion, ModEntry as RawModEntry, ModMetadata,
-    ViewModEntry as ModEntry,
+    GameVersion, ModEntry as RawModEntry, ModMetadata, UpdateStatus, ViewModEntry as ModEntry,
   },
   util::SaveError,
   App,
 };
-use crate::app::{mod_list::actions::{
-  action_button::ActionsButton, action_options::ActionsOptions, ActionsState,
-}, overlays::Popup};
+use crate::app::{
+  mod_list::actions::{action_button::ActionsButton, action_options::ActionsOptions, ActionsState},
+  overlays::Popup,
+};
 
 mod actions;
 pub mod filters;

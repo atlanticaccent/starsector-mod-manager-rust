@@ -1,6 +1,10 @@
-use std::{hash::Hash, sync::Arc};
+use std::{borrow::Borrow, fmt::Display, hash::Hash, sync::Arc};
 
-use druid::{Data, Lens};
+use common::theme_keys::{
+  BLUE_KEY, GREEN_KEY, ON_BLUE_KEY, ON_GREEN_KEY, ON_ORANGE_KEY, ON_RED_KEY, ON_YELLOW_KEY,
+  ORANGE_KEY, RED_KEY, YELLOW_KEY,
+};
+use druid::{Color, Data, KeyOrValue, Lens};
 use fake::Dummy;
 use serde::Deserialize;
 use serde_aux::prelude::deserialize_string_from_number;
@@ -58,6 +62,76 @@ pub enum UpdateStatus {
   Patch(VersionComplex),
   Minor(VersionComplex),
   Major(VersionComplex),
+}
+
+impl Display for UpdateStatus {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+    match self {
+      UpdateStatus::Major(remote) => write!(f, "Major update available: {remote}"),
+      UpdateStatus::Minor(remote) => write!(f, "Minor update available: {remote}"),
+      UpdateStatus::Patch(remote) => write!(f, "Patch available: {remote}"),
+      UpdateStatus::UpToDate => write!(f, "Up to date"),
+      UpdateStatus::Error => write!(f, "Error"),
+      UpdateStatus::Discrepancy(_) => write!(f, "Discrepancy"),
+    }
+  }
+}
+
+impl<VL: Borrow<VersionComplex>, VR: Borrow<VersionComplex>> From<(VL, Option<VR>)>
+  for UpdateStatus
+{
+  fn from((local, remote): (VL, Option<VR>)) -> Self {
+    if let Some(remote) = remote {
+      let local = local.borrow();
+      let remote = remote.borrow().clone();
+
+      if remote == *local {
+        UpdateStatus::UpToDate
+      } else if remote < *local {
+        UpdateStatus::Discrepancy(remote)
+      } else if remote.major - local.major > 0 {
+        UpdateStatus::Major(remote)
+      } else if remote.minor - local.minor > 0 {
+        UpdateStatus::Minor(remote)
+      } else {
+        UpdateStatus::Patch(remote)
+      }
+    } else {
+      UpdateStatus::Error
+    }
+  }
+}
+
+impl From<(&ModVersionMeta, &Option<ModVersionMeta>)> for UpdateStatus {
+  fn from((local, remote): (&ModVersionMeta, &Option<ModVersionMeta>)) -> Self {
+    (&local.version, remote.as_ref().map(|r| &r.version)).into()
+  }
+}
+
+impl From<&UpdateStatus> for KeyOrValue<Color> {
+  fn from(status: &UpdateStatus) -> Self {
+    match status {
+      UpdateStatus::Major(_) => ORANGE_KEY.into(),
+      UpdateStatus::Minor(_) => YELLOW_KEY.into(),
+      UpdateStatus::Patch(_) => BLUE_KEY.into(),
+      UpdateStatus::Discrepancy(_) => Color::from_hex_str("#810181").unwrap().into(),
+      UpdateStatus::Error => RED_KEY.into(),
+      UpdateStatus::UpToDate => GREEN_KEY.into(),
+    }
+  }
+}
+
+impl UpdateStatus {
+  pub fn as_text_colour(&self) -> KeyOrValue<Color> {
+    match self {
+      UpdateStatus::Major(_) => ON_ORANGE_KEY.into(),
+      UpdateStatus::Minor(_) => ON_YELLOW_KEY.into(),
+      UpdateStatus::Patch(_) => ON_BLUE_KEY.into(),
+      UpdateStatus::Discrepancy(_) => Color::from_hex_str("#ffd6f7").unwrap().into(),
+      UpdateStatus::Error => ON_RED_KEY.into(),
+      UpdateStatus::UpToDate => ON_GREEN_KEY.into(),
+    }
+  }
 }
 
 #[allow(clippy::derived_hash_with_manual_eq)]

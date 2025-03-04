@@ -14,7 +14,7 @@ use druid::{
 
 pub trait RowData: Data {
   type Id: Hash + Eq + Clone + Debug;
-  type Column: Hash + Eq + Debug;
+  type Column: Hash + Eq + Clone + Debug;
 
   fn id(&self) -> Self::Id;
 

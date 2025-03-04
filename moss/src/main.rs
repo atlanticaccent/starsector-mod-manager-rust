@@ -19,6 +19,7 @@
 #![feature(linked_list_cursors)]
 #![feature(default_field_values)]
 #![feature(get_many_mut)]
+#![feature(impl_trait_in_fn_trait_return)]
 // Ignored lints
 #![allow(clippy::new_ret_no_self)]
 #![allow(clippy::module_name_repetitions)]

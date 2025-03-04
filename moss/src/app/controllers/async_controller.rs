@@ -1,13 +1,13 @@
 use std::{collections::LinkedList, future::Future, sync::OnceLock, time::Duration};
 
-use common::ExtEventSinkExt;
+use common::{EventExt, ExtEventSinkExt};
 use druid::{
   widget::Controller, Env, Event, EventCtx, ExtEventSink, Selector, SingleUse, TimerToken, Widget,
 };
 use strum_macros::EnumDiscriminants;
 use tokio::{runtime::Handle, sync::oneshot};
 
-use crate::{app::App, bang, match_command};
+use crate::{app::App, bang};
 
 pub static GLOBAL_ASYNC_CONTROLLER: AsyncCoordinator = AsyncCoordinator::new();
 
@@ -44,6 +44,7 @@ pub struct AsyncCoordinatorImpl {
   ext_ctx: ExtEventSink,
 }
 
+#[allow(dead_code)]
 impl AsyncCoordinatorImpl {
   const NEW_TASK: Selector<SingleUse<Box<dyn FutureHandle + Send + Sync>>> =
     Selector::new("async_controller.task.new");
@@ -159,16 +160,12 @@ impl<W: Widget<App>> Controller<App, W> for AsyncController {
         self.update_deadline(ctx);
       }
     }
-    if let Event::Command(cmd) = event {
-      match_command!(cmd, () => {
-        AsyncCoordinatorImpl::NEW_TASK(task) => {
-          let task = task.take().unwrap();
-          self.handles.push_back(task);
-          if self.deadline.is_none() {
-            self.update_deadline(ctx);
-          }
-        }
-      })
+    if let Some(task) = event.get_cmd(AsyncCoordinatorImpl::NEW_TASK) {
+      let task = task.take().unwrap();
+      self.handles.push_back(task);
+      if self.deadline.is_none() {
+        self.update_deadline(ctx);
+      }
     }
   }
 }
@@ -179,6 +176,7 @@ struct TypedFutureHandle<T, FP, FR> {
   result_handler: FR,
 }
 
+#[allow(dead_code)]
 impl<T, FR> TypedFutureHandle<T, Option<fn(&T, &mut EventCtx, &App, &Env) -> bool>, FR> {
   pub fn new(rx: oneshot::Receiver<T>, result_handler: FR) -> Self {
     Self {
@@ -196,20 +194,34 @@ impl<
   > FutureHandle for TypedFutureHandle<T, Option<FP>, FR>
 {
   fn progress(&mut self, ctx: &mut EventCtx, data: &App, env: &Env) -> Status {
-    if let TypedStatus::Pending(ref mut rx) = &mut self.status {
-      match rx.try_recv() {
+    self.status = match std::mem::replace(&mut self.status, TypedStatus::Failed) {
+      TypedStatus::Pending(mut rx) => match rx.try_recv() {
         Ok(res) => {
-          if let Some(progress_handler) = &self.progress_handler {
-            if !(progress_handler)(&res, ctx, data, env) {
-              self.status = TypedStatus::Blocked(res)
-            }
+          if let Some(false) = self
+            .progress_handler
+            .as_ref()
+            .map(|f| (f)(&res, ctx, data, env))
+          {
+            TypedStatus::Blocked(res)
           } else {
-            self.status = TypedStatus::Complete(res);
+            TypedStatus::Complete(res)
           }
         }
-        Err(oneshot::error::TryRecvError::Closed) => self.status = TypedStatus::Failed,
-        Err(oneshot::error::TryRecvError::Empty) => {}
+        Err(oneshot::error::TryRecvError::Closed) => TypedStatus::Failed,
+        Err(oneshot::error::TryRecvError::Empty) => TypedStatus::Pending(rx),
+      },
+      TypedStatus::Blocked(res) => {
+        if let None | Some(true) = self
+          .progress_handler
+          .as_ref()
+          .map(|f| (f)(&res, ctx, data, env))
+        {
+          TypedStatus::Complete(res)
+        } else {
+          TypedStatus::Blocked(res)
+        }
       }
+      rem => rem,
     };
 
     (&self.status).into()
