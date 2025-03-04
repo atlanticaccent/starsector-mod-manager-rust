@@ -26,6 +26,8 @@ jobs:
         uses: mozilla-actions/sccache-action@v0.0.6
 
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Install dependencies
         run: |

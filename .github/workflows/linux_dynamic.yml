@@ -36,6 +36,8 @@ jobs:
         run: (cargo install cargo-packager || true)
 
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - uses: r7kamura/rust-problem-matchers@v1
       - name: Set build specific env vars
