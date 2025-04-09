@@ -1,5 +1,6 @@
 use proc_macro::TokenStream;
 
+mod apply_fork;
 mod icon;
 mod invert;
 mod widget;
@@ -16,6 +17,11 @@ pub fn icon(item: TokenStream) -> TokenStream {
 
 #[allow(non_snake_case)]
 #[proc_macro_attribute]
-pub fn OptionSpec(_: TokenStream, item: TokenStream) -> TokenStream {
-  invert::Invert(item)
+pub fn OptionSpec(attr: TokenStream, item: TokenStream) -> TokenStream {
+  invert::Invert(attr, item)
+}
+
+#[proc_macro_attribute]
+pub fn apply_fork(args: TokenStream, input: TokenStream) -> TokenStream {
+  apply_fork::apply(args, input)
 }

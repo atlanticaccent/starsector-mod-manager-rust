@@ -4,6 +4,7 @@ use common::{EventExt, ExtEventSinkExt};
 use druid::{
   widget::Controller, Env, Event, EventCtx, ExtEventSink, Selector, SingleUse, TimerToken, Widget,
 };
+use druid_widget_nursery::CommandCtx;
 use strum_macros::EnumDiscriminants;
 use tokio::{runtime::Handle, sync::oneshot};
 
@@ -58,7 +59,7 @@ impl AsyncCoordinatorImpl {
     task: impl Future<Output = T> + Send + 'static,
     handler: impl FnOnce(T, &mut EventCtx, &mut App, &Env) + Send + Sync + 'static,
   ) {
-    self.add_task_with_optional_check(
+    self.add_task_opts(
       task,
       Option::<fn(&T, &mut EventCtx, &App, &Env) -> bool>::None,
       handler,
@@ -71,10 +72,10 @@ impl AsyncCoordinatorImpl {
     progress_handler: impl Fn(&T, &mut EventCtx, &App, &Env) -> bool + Send + Sync + 'static,
     result_handler: impl FnOnce(T, &mut EventCtx, &mut App, &Env) + Send + Sync + 'static,
   ) {
-    self.add_task_with_optional_check(task, Some(progress_handler), result_handler);
+    self.add_task_opts(task, Some(progress_handler), result_handler);
   }
 
-  pub fn add_task_with_optional_check<T: Send + Sync + 'static>(
+  pub fn add_task_opts<T: Send + Sync + 'static>(
     &self,
     task: impl Future<Output = T> + Send + 'static,
     progress_handler: Option<
@@ -117,13 +118,13 @@ impl AsyncController {
     }
   }
 
-  fn update_deadline(&mut self, ctx: &mut EventCtx) {
+  fn update_deadline(&mut self, ctx: &mut impl CommandCtx) {
     self.deadline = Some(ctx.request_timer(std::time::Duration::from_millis(50)))
   }
 }
 
 impl<W: Widget<App>> Controller<App, W> for AsyncController {
-  fn event(&mut self, _: &mut W, ctx: &mut EventCtx, event: &Event, app: &mut App, env: &Env) {
+  fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, app: &mut App, env: &Env) {
     if let Event::Timer(token) = event
       && let Some(requested) = self.deadline.as_ref()
       && token == requested
@@ -142,7 +143,9 @@ impl<W: Widget<App>> Controller<App, W> for AsyncController {
               handles.remove_current();
               bang!("Task channel closed")
             }
-            Status::Pending | Status::Blocked => {}
+            Status::Pending | Status::Blocked => {
+              handles.move_next();
+            }
           }
 
           tokio::task::yield_now().await
@@ -167,6 +170,23 @@ impl<W: Widget<App>> Controller<App, W> for AsyncController {
         self.update_deadline(ctx);
       }
     }
+
+    child.event(ctx, event, app, env);
+  }
+
+  fn update(
+    &mut self,
+    child: &mut W,
+    ctx: &mut druid::UpdateCtx,
+    old_data: &App,
+    data: &App,
+    env: &Env,
+  ) {
+    if self.deadline.is_none() {
+      self.update_deadline(ctx);
+    }
+
+    child.update(ctx, old_data, data, env);
   }
 }
 

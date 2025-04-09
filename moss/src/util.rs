@@ -463,6 +463,13 @@ pub impl<T> T {
     self
   }
 
+  fn tap_if<U>(mut self, fi: impl FnOnce(&Self) -> bool, func: impl FnOnce(&mut Self) -> U) -> Self {
+    if fi(&self) {
+      func(&mut self);
+    }
+    self
+  }
+
   fn pipe<U>(self, func: impl FnOnce(Self) -> U) -> U
   where
     Self: Sized,
@@ -506,7 +513,7 @@ impl From<TimerToken> for DataTimer {
 
 #[macro_export]
 macro_rules! match_command {
-  ($val:expr, $default:expr => {$($($selector:ident)::* $(($bind:ident))? => $body:expr),+ $(,)? }) => {
+  ($val:expr, $default:expr => {$($($selector:ident)::* $(($bind:ident))? => $body:expr),+ }) => {
     match $val {
       val => match () {
         $(
@@ -522,12 +529,14 @@ macro_rules! match_command {
       }
     }
   };
-  ($val:expr, $default:expr => {$($($($selector:ident)::*, )+ => $body:expr),+ $(,)? }) => {
+  ($val:expr, $default:expr => {$($($($selector:ident)::* $(($bind:ident))? ),+ => $body:expr),+ }) => {
     match $val {
       val => match () {
         $(
           $(
             () if val.is($($selector)::*) => {
+              let _selector = $($selector)::*;
+              $(let $bind = val.get_unchecked(_selector);)?
               $body
             }
           )+

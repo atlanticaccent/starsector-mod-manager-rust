@@ -156,7 +156,7 @@ impl Browser {
                     Popup::OPEN_POPUP,
                     Popup::QUEUE_POPUP,
                     Popup::OPEN_NEXT,
-                    Popup::DELAYED_POPUP, => {
+                    Popup::DELAYED_POPUP => {
                       data.force_hidden = true;
                       data.set_visible(false);
                     }

@@ -26,6 +26,7 @@ use icons::{
   ADD_CIRCLE, ADD_CIRCLE_OUTLINE, ARROW_LEFT, ARROW_RIGHT, CHEVRON_LEFT, CHEVRON_RIGHT, CLOSE,
   REFRESH,
 };
+use macros::apply_fork;
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use updater::check_for_update;
@@ -33,28 +34,33 @@ use updater::check_for_update;
 use super::{
   mod_list::headings::{Header, Heading},
   tools::vmparams::VMParams,
-  util::{default_true, LoadError, SaveError, Tap},
+  util::{LoadError, SaveError, Tap},
   App,
 };
 use crate::{
-  app::{
-    settings::version_tag::{VersionTag, SETTINGS_VERSION_TAG},
-    updater::get_update_status_handler,
-    PROJECT,
-  },
+  app::{updater::get_update_status_handler, PROJECT},
   nav_bar::Nav,
   theme::{Theme, Themes, GREEN_KEY, ON_GREEN_KEY},
   widgets::RootStack,
 };
 
 mod theme_editor;
+mod version_tag;
 
 pub use theme_editor::*;
+use version_tag::*;
 
-const SETTINGS_VERSION: u8 = 0;
+const SETTINGS_VERSION: u8 = 1;
 
-#[derive(Clone, Data, Lens, Serialize, Deserialize, Debug)]
+type Truthy = bool;
+
+#[apply_fork(
+  _ => #[serde(default)],
+  !Truthy => #[serde(default = "truthy")],
+)]
+#[derive(Clone, Data, Lens, Serialize, Deserialize, Debug, Default)]
 pub struct Settings {
+  #[serde_with(skip_apply)]
   version: VersionTag,
 
   #[serde(skip)]
@@ -66,71 +72,28 @@ pub struct Settings {
   #[data(eq)]
   pub last_browsed: Option<PathBuf>,
   pub git_warn: bool,
-  #[serde(default = "default_true")]
-  pub experimental_launch: bool,
+  pub experimental_launch: Truthy,
   pub experimental_resolution: Option<(u32, u32)>,
-  #[serde(default = "default_true")]
-  pub hide_webview_on_conflict: bool,
-  #[serde(default = "default_true")]
-  pub open_forum_link_in_webview: bool,
+  pub hide_webview_on_conflict: Truthy,
+  pub open_forum_link_in_webview: Truthy,
+  #[serde_with(skip_apply)]
   #[serde(default = "default_headers")]
   pub headings: Vector<Heading>,
   #[serde(alias = "show_auto_update_for_discrepancy")]
   pub show_discrepancies: bool,
-  #[serde(default)]
   pub theme: Themes,
   #[serde(skip)]
   pub(crate) vmparams: Option<VMParams>,
   pub vmparams_linked: bool,
 
-  #[serde(default = "default_true")]
-  pub show_duplicate_warnings: bool,
-  #[serde(default)]
+  pub show_duplicate_warnings: Truthy,
   pub custom_theme: Theme,
-  #[serde(default)]
   pub jre_23: bool,
+  pub archive_duplicates: Truthy,
 }
 
-mod version_tag {
-  use druid::Data;
-  use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-  use super::SETTINGS_VERSION;
-
-  pub(super) const SETTINGS_VERSION_TAG: VersionTag = VersionTag(Some(SETTINGS_VERSION));
-
-  #[derive(Debug, Clone, Data)]
-  pub(super) struct VersionTag(Option<u8>);
-
-  impl Serialize for VersionTag {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-      S: Serializer,
-    {
-      Some(SETTINGS_VERSION).serialize(serializer)
-    }
-  }
-
-  #[derive(thiserror::Error, Debug)]
-  pub(crate) enum TagError {
-    #[error("Incompatible config version: {0} | Current: {SETTINGS_VERSION}")]
-    Incompatible(u8),
-  }
-
-  impl<'de> Deserialize<'de> for VersionTag {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-      D: Deserializer<'de>,
-    {
-      let version = <Option<u8>>::deserialize(deserializer)?.unwrap_or(0);
-
-      if version == SETTINGS_VERSION {
-        Ok(Self(Some(version)))
-      } else {
-        Err(serde::de::Error::custom(TagError::Incompatible(version)))
-      }
-    }
-  }
+fn truthy() -> bool {
+  true
 }
 
 fn default_headers() -> Vector<Heading> {
@@ -142,24 +105,8 @@ impl Settings {
 
   pub fn new() -> Self {
     Self {
-      version: SETTINGS_VERSION_TAG,
-      hide_webview_on_conflict: true,
-      open_forum_link_in_webview: true,
-      show_duplicate_warnings: true,
       headings: default_headers(),
-      dirty: Default::default(),
-      install_dir: Default::default(),
-      install_dir_buf: Default::default(),
-      last_browsed: Default::default(),
-      git_warn: Default::default(),
-      experimental_launch: Default::default(),
-      experimental_resolution: Default::default(),
-      show_discrepancies: Default::default(),
-      theme: Default::default(),
-      vmparams: Default::default(),
-      vmparams_linked: Default::default(),
-      custom_theme: Default::default(),
-      jre_23: Default::default(),
+      ..Default::default()
     }
   }
 
@@ -242,6 +189,23 @@ impl Settings {
           .lens(Settings::show_duplicate_warnings),
         )
         .with_default_spacer()
+        .with_child(
+          Flex::column()
+            .with_child(h2_fixed("Back up duplicates before deleting them:"))
+            .with_child(
+              Checkbox::from_label(Label::wrapped(
+                "Discarded duplicates will be backed up as zip archives in a \".moss_backups\" \
+                 folder in the game's \"mods\" folder.",
+              ))
+              .lens(Settings::archive_duplicates),
+            )
+            .with_default_spacer()
+            .cross_axis_alignment(druid::widget::CrossAxisAlignment::Start)
+            .main_axis_alignment(druid::widget::MainAxisAlignment::Start)
+            .must_fill_main_axis(true)
+            .empty_if(|data, _| !data.show_duplicate_warnings)
+            .padding((42., 0., 0., 0.)),
+        )
         .with_child(h2_fixed("Edit columns:"))
         .with_child(Self::headings_editor())
         .with_default_spacer()
@@ -739,5 +703,64 @@ impl ValidationDelegate for InstallDirDelegate {
     if let TextBoxEvent::Invalid(_) = event {
       ctx.submit_command(Selector::new("druid.builtin.textbox-cancel-editing"));
     }
+  }
+}
+
+#[cfg(test)]
+mod test {
+
+  use crate::app::settings::{Settings, SETTINGS_VERSION, SETTINGS_VERSION_TAG};
+
+  fn parse(input: &str) -> serde_json::Result<Settings> {
+    serde_json::from_str(input)
+  }
+
+  #[test]
+  fn parse_empty_fails() {
+    let err = parse("{}").unwrap_err();
+
+    assert!(
+      err.to_string().starts_with(&format!(
+        "Incompatible config version: 0 | Current: {SETTINGS_VERSION}"
+      )),
+      "{err:?}"
+    )
+  }
+
+  #[test]
+  fn parse_old_fails() {
+    let json = r#"{
+      "version": 0
+    }"#;
+
+    assert!(parse(json).unwrap_err().to_string().starts_with(&format!(
+      "Incompatible config version: 0 | Current: {SETTINGS_VERSION}"
+    )))
+  }
+
+  #[test]
+  fn parse_current_passes() {
+    let json = format!(
+      r#"{{
+      "version": {SETTINGS_VERSION}
+    }}"#
+    );
+
+    assert_eq!(parse(&json).unwrap().version, SETTINGS_VERSION_TAG)
+  }
+
+  #[test]
+  fn parse_future_fails() {
+    let json = format!(
+      r#"{{
+      "version": {}
+    }}"#,
+      SETTINGS_VERSION + 1
+    );
+
+    assert!(parse(&json).unwrap_err().to_string().starts_with(&format!(
+      "Incompatible config version: {} | Current: {SETTINGS_VERSION}",
+      SETTINGS_VERSION + 1
+    )))
   }
 }

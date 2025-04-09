@@ -10,5 +10,6 @@ pub mod table;
 pub mod tabs;
 pub mod tooltip;
 pub mod tree;
+pub mod switch;
 
 pub use tabs::tabs_policy;

@@ -29,7 +29,7 @@ use remote_update::RemoteUpdate;
 use select_install::SelectInstall;
 
 use crate::app::{
-  mod_entry::{ModVersionMeta, ModEntry},
+  mod_entry::{ModEntry, ModVersionMeta},
   overlays::self_update::StatusPopup,
   util::DataTimer,
   App,
@@ -101,13 +101,6 @@ impl Popup {
             })
         },
       )
-      .on_change(|_, old, data: &mut App, _| {
-        if !old.settings.show_duplicate_warnings && !data.settings.show_duplicate_warnings {
-          data
-            .popups
-            .retain(|popup| !matches!(popup, Popup::Duplicate(_)));
-        }
-      })
   }
 
   pub fn view() -> impl Widget<App> {

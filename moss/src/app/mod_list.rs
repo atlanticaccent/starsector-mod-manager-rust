@@ -7,7 +7,7 @@ use std::{
   sync::Arc,
 };
 
-use ahash::HashSet;
+use ahash::{AHashSet, HashSet};
 use anyhow::Context;
 use comemo::memoize;
 use common::{
@@ -46,9 +46,8 @@ use super::{
   util::SaveError,
   App,
 };
-use crate::app::{
-  mod_list::actions::{action_button::ActionsButton, action_options::ActionsOptions, ActionsState},
-  overlays::Popup,
+use crate::app::mod_list::actions::{
+  action_button::ActionsButton, action_options::ActionsOptions, ActionsState,
 };
 
 mod actions;
@@ -310,7 +309,6 @@ impl ModList {
         data.refreshing = true;
       })
       .on_command(App::REPLACE_MODS, Self::replace_mods_command_handler)
-      .on_added(|_, ctx, _, _| ctx.submit_command(App::REFRESH))
   }
 
   fn replace_mods_command_handler(
@@ -322,6 +320,7 @@ impl ModList {
     data.replace_mods(payload.take().unwrap());
 
     Self::update_sorting(ctx, &(), data);
+    ctx.request_update();
     ctx.children_changed();
   }
 
@@ -431,7 +430,9 @@ impl ModList {
     true
   }
 
-  pub async fn parse_mod_folder_inner(root_dir: &Path) -> anyhow::Result<(RawModMap, Vec<Popup>)> {
+  pub async fn parse_mod_folder_inner(
+    root_dir: &Path,
+  ) -> anyhow::Result<(RawModMap, AHashSet<String>)> {
     let client = Arc::new(WebClient::new());
 
     let mod_dir = root_dir.join("mods");
@@ -494,7 +495,7 @@ impl ModList {
           .unwrap_or(8),
       )
       .try_fold(
-        (FastImMap::new().inner(), Vec::new()),
+        (FastImMap::new().inner(), AHashSet::new()),
         |(mods, mut dupe_ids), entry| async move {
           let Some(entry) = entry else {
             return Ok((mods, dupe_ids));
@@ -504,9 +505,7 @@ impl ModList {
             mods.update_with(entry.mod_id.clone(), entry, |mut old, new| {
               let dupes = Arc::make_mut(&mut old.duplicates);
 
-              if dupes.is_empty() {
-                dupe_ids.push(Popup::duplicate(old.mod_id.clone()));
-              }
+              dupe_ids.insert(old.mod_id.clone());
 
               dupes.push(new);
 
@@ -535,8 +534,9 @@ impl ModList {
     {
       eprintln!("{} | {err}", line!());
     }
-    if !duplicates.is_empty() {
-      let _ = ext_ctx.submit_command_global(super::Popup::DELAYED_POPUP, duplicates);
+    for dupe in duplicates {
+      let _ =
+        ext_ctx.submit_command_global(super::Popup::QUEUE_POPUP, super::Popup::duplicate(dupe));
     }
   }
 

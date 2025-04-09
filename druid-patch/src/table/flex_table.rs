@@ -796,7 +796,9 @@ impl<T: TableData> Widget<T> for FlexTable<T> {
           let row_rect = row_size.to_rect().with_origin((0.0, row_starts[row_num]));
           ctx.with_save(|ctx| {
             ctx.clip(row_rect);
-            row_painter.paint(ctx, data, &env);
+            ctx.with_child_ctx(row_rect, |ctx| {
+              row_painter.paint(ctx, data, &env);
+            });
           });
         }
       }

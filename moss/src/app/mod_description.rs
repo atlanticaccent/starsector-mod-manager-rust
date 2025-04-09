@@ -26,7 +26,7 @@ use itertools::Itertools;
 use crate::{
   app::{
     app_delegate::AppCommands,
-    mod_entry::{UpdateStatus, ModMetadata, VersionChecker, VersionComplex},
+    mod_entry::{ModMetadata, UpdateStatus, VersionChecker, VersionComplex},
     overlays::Popup,
     util::FnWidgetToMaybe,
     App, ViewModEntry as ModEntry, INFO,

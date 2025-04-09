@@ -68,7 +68,7 @@ pub type GameVersion = (
 pub struct ModEntry<T = ()> {
   #[serde(alias = "id")]
   pub mod_id: String,
-  #[serde(skip)]
+  #[serde(skip, default = "Uuid::new_v4")]
   #[data(eq)]
   #[dummy(default)]
   pub internal_id: Uuid,
@@ -291,6 +291,44 @@ impl<T> ModEntry<T> {
     let duplicates = Arc::make_mut(&mut self.duplicates);
     for dupe in duplicates {
       (func)(dupe)
+    }
+  }
+
+  pub fn guarded_dupe_iter(self: &Rc<Self>) -> impl Iterator<Item = DuplicateGuard<T>> {
+    let this = Rc::clone(&self);
+    let mut idx = None;
+    std::iter::from_fn(move || {
+      let this = Rc::clone(&this);
+
+      let idx = if let Some(index) = idx {
+        if index >= this.duplicates.len() {
+          return None;
+        }
+        idx.replace(index + 1)
+      } else {
+        idx.replace(0)
+      };
+
+      Some(DuplicateGuard(this, idx))
+    })
+  }
+
+  pub fn num_duplicates(&self) -> usize {
+    self.duplicates.len() + 1
+  }
+}
+
+#[derive(Debug, Clone, Data)]
+pub struct DuplicateGuard<T = ()>(Rc<ModEntry<T>>, Option<usize>);
+
+impl<T> std::ops::Deref for DuplicateGuard<T> {
+  type Target = ModEntry<T>;
+
+  fn deref(&self) -> &Self::Target {
+    if let Some(idx) = self.1 {
+      &self.0.duplicates[idx]
+    } else {
+      &self.0
     }
   }
 }

@@ -20,6 +20,7 @@
 #![feature(default_field_values)]
 #![feature(get_many_mut)]
 #![feature(impl_trait_in_fn_trait_return)]
+#![feature(assert_matches)]
 // Ignored lints
 #![allow(clippy::new_ret_no_self)]
 #![allow(clippy::module_name_repetitions)]

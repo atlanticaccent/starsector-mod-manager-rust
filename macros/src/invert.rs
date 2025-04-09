@@ -2,10 +2,17 @@ use std::collections::VecDeque;
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{parse_macro_input, Data, DeriveInput, Ident, ImplGenerics, TypeGenerics, WhereClause};
+use syn::{
+  parse::Parser, parse_macro_input, punctuated::Punctuated, Data, DeriveInput, Ident, ImplGenerics,
+  Path, Token, TypeGenerics, WhereClause,
+};
 
 #[allow(non_snake_case)]
-pub(crate) fn Invert(item: TokenStream) -> TokenStream {
+pub(crate) fn Invert(attr: TokenStream, item: TokenStream) -> TokenStream {
+  let args = Punctuated::<Path, Token![,]>::parse_terminated
+    .parse(attr)
+    .unwrap();
+
   let derive_input: DeriveInput = parse_macro_input!(item);
 
   let DeriveInput {
@@ -56,7 +63,11 @@ pub(crate) fn Invert(item: TokenStream) -> TokenStream {
 
       let lens_mod_tokens = generate_lens(&lens_mod, &lens, ident, &name);
 
+      let args: Vec<_> = args.iter().cloned().collect();
+
       quote! {
+        #(use #args;)*
+
         #(#attrs)*
         pub struct #name #type_generics #where_clause {
           #(#option_attrs)*

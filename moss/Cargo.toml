@@ -63,6 +63,7 @@ remove_dir_all = { workspace = true }
 sublime_fuzzy = { workspace = true }
 classfile-parser = { workspace = true }
 zip = { workspace = true }
+zip-extensions = { workspace = true }
 regex = { workspace = true }
 strum = { workspace = true }
 strum_macros = { workspace = true }
@@ -94,14 +95,17 @@ reqwest-middleware = { workspace = true }
 reqwest-retry = { workspace = true }
 http = { workspace = true }
 async-trait = { workspace = true }
-derive_more = { workspace = true, features = ["from", "into"] }
+derive_more = { workspace = true, features = ["from", "into", "deref_mut", "not"] }
 cargo-packager-updater = { workspace = true }
 mimalloc = { workspace = true }
 
 dhat = { version = "0.3", optional = true }
-uuid = "1.11.0"
+uuid = { version = "1.11.0", features = ["v4"] }
 tokio-stream = { version = "0.1.17", features = ["full"] }
 ref-cast = "1.0"
+frunk_core="0.4.3"
+frunk = "0.4.3"
+serde_with = "3.12.0"
 
 [target.'cfg(windows)'.dependencies]
 indoc = { workspace = true }
