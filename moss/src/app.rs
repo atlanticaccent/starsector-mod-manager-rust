@@ -224,8 +224,9 @@ impl App {
             NavLabel::Performance,
             Tools::view()
               .lens(Tools::settings_sync())
-              .on_change(Settings::save_on_change)
-              .lens(App::settings),
+              .on_change(|ctx, old, new, env| {
+                Settings::save_on_change(ctx, &old.settings, &mut new.settings, env)
+              }),
           ),
           InitialTab::new(NavLabel::Starmodder, ModRepo::wrapper()),
           InitialTab::new(NavLabel::WebBrowser, Browser::view().lens(App::browser)),

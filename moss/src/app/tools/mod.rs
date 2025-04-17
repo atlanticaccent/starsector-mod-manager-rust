@@ -14,7 +14,7 @@ use druid_widget_nursery::{FutureWidget, WidgetExt as _};
 use macros::OptionSpec;
 
 use self::{jre::Swapper, vmparams::VMParams};
-use super::settings::Settings;
+use crate::app::{mod_entry::GameVersion, App};
 
 pub mod jre;
 pub mod vmparams;
@@ -27,10 +27,11 @@ pub struct Tools {
   pub(crate) vmparams: Option<VMParams>,
   vmparams_linked: bool,
   jre_23: bool,
+  game_version: Option<GameVersion>,
 }
 
 impl Tools {
-  pub fn settings_sync() -> impl Lens<Settings, Tools> {
+  pub fn settings_sync() -> impl Lens<App, Tools> {
     druid::lens::Map::new(|settings| settings.into(), assign_settings)
   }
 
@@ -39,7 +40,14 @@ impl Tools {
       .must_fill_main_axis(true)
       .with_child(Self::vmparams_wrapped())
       .with_default_spacer()
-      .with_child(Self::jre_swapper())
+      .with_child(Self::jre_swapper().empty_if_not(|data, _| {
+        data
+          .game_version
+          .as_ref()
+          .is_some_and(|(major, minor, ..)| {
+            major.as_deref() == Some("0") && minor.as_deref() == Some("97")
+          })
+      }))
   }
 
   fn vmparams_wrapped() -> impl Widget<Self> {
@@ -111,29 +119,31 @@ impl Tools {
   }
 }
 
-impl<'a> From<&'a Settings> for Tools {
-  fn from(settings: &'a Settings) -> Self {
+impl<'a> From<&'a App> for Tools {
+  fn from(app: &'a App) -> Self {
     Self {
-      install_dir: settings.install_dir.clone(),
-      vmparams: settings.vmparams.clone(),
-      vmparams_linked: settings.vmparams_linked,
-      jre_23: settings.jre_23,
+      install_dir: app.settings.install_dir.clone(),
+      vmparams: app.settings.vmparams.clone(),
+      vmparams_linked: app.settings.vmparams_linked,
+      jre_23: app.settings.jre_23,
+      game_version: app.mod_list.starsector_version.clone(),
     }
   }
 }
 
 fn assign_settings(
-  settings: &mut Settings,
+  app: &mut App,
   Tools {
     install_dir: _,
     vmparams,
     vmparams_linked,
     jre_23,
+    game_version: _,
   }: Tools,
 ) {
-  settings.vmparams = vmparams;
-  settings.vmparams_linked = vmparams_linked;
-  settings.jre_23 = jre_23;
+  app.settings.vmparams = vmparams;
+  app.settings.vmparams_linked = vmparams_linked;
+  app.settings.jre_23 = jre_23;
 }
 
 pub fn tool_card() -> CardBuilder {
