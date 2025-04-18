@@ -6,7 +6,10 @@ use druid::{
 };
 use druid_widget_nursery::CommandCtx;
 use strum_macros::EnumDiscriminants;
-use tokio::{runtime::Handle, sync::oneshot};
+use tokio::{
+  runtime::Handle,
+  sync::oneshot,
+};
 
 use crate::{app::App, bang};
 
@@ -161,6 +164,8 @@ impl<W: Widget<App>> Controller<App, W> for AsyncController {
 
       if !self.handles.is_empty() {
         self.update_deadline(ctx);
+      } else {
+        self.deadline = None;
       }
     }
     if let Some(task) = event.get_cmd(AsyncCoordinatorImpl::NEW_TASK) {
