@@ -50,7 +50,7 @@ members = [
   "installer",
   "druid-wrapper",
   "types",
-  "winnow_json",
+  "parsers",
 ]
 resolver = "2"
 
