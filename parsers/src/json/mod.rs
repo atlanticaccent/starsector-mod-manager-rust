@@ -1,13 +1,15 @@
-mod parser_dispatch;
+mod deser;
+mod error;
+mod parser;
+mod traits;
+mod types;
 
-use std::collections::HashMap;
+pub use deser::from_str;
+pub use parser::JsonParser;
+pub use traits::CommentDefinition;
 
-#[derive(Debug, PartialEq, Clone)]
-pub(crate) enum JsonValue {
-  Null,
-  Boolean(bool),
-  Str(String),
-  Num(f64),
-  Array(Vec<JsonValue>),
-  Object(HashMap<String, JsonValue>),
+mod sealed {
+  pub(super) trait Sealed {}
+
+  impl<const S: usize, const L: usize, T> Sealed for super::JsonParser<S, L, T> {}
 }

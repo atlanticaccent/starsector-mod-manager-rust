@@ -463,7 +463,11 @@ pub impl<T> T {
     self
   }
 
-  fn tap_if<U>(mut self, fi: impl FnOnce(&Self) -> bool, func: impl FnOnce(&mut Self) -> U) -> Self {
+  fn tap_if<U>(
+    mut self,
+    fi: impl FnOnce(&Self) -> bool,
+    func: impl FnOnce(&mut Self) -> U,
+  ) -> Self {
     if fi(&self) {
       func(&mut self);
     }
@@ -653,6 +657,8 @@ where
     }
   }
 }
+
+struct Foo;
 
 #[cfg(test)]
 mod test {
