@@ -1,0 +1,15 @@
+[package]
+name = "web-client"
+version = "0.1.0"
+authors = ["ikl"]
+edition = "2021"
+description = "HTTP client with retries for MOSS"
+
+[dependencies]
+futures-util = { workspace = true }
+http = { workspace = true }
+reqwest = { workspace = true }
+reqwest-middleware = { workspace = true }
+reqwest-retry = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }

@@ -1,0 +1,14 @@
+[package]
+name = "icons"
+version = "0.1.0"
+authors = ["ikl"]
+edition = "2021"
+description = "Icons for building MOSS"
+
+[dependencies]
+# Internal
+macros = { workspace = true }
+
+# External
+druid = { workspace = true }
+druid-widget-nursery = { workspace = true }

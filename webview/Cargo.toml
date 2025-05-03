@@ -1,0 +1,26 @@
+[package]
+name = "webview"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Internal
+common = { workspace = true }
+
+# External
+druid = { workspace = true }
+wry = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+base64 = { workspace = true }
+directories = { workspace = true }
+url = "2.5"
+regex = { workspace = true }
+reqwest = { workspace = true }
+mime = "0.3.17"
+mime_guess = { version = "2.0.5", default-features = false }
+tempfile = { workspace = true }
+
+[target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))'.dependencies]
+gtk = { version = "0.18.1" }

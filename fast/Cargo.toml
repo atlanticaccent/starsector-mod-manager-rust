@@ -1,0 +1,10 @@
+[package]
+name = "fast"
+version = "0.0.0"
+edition = "2021"
+
+[[bin]]
+name = "fast"
+path = "main.rs"
+
+[workspace]

@@ -5,7 +5,7 @@ on:
     branches:
       - release
     tags:
-      - '*'
+      - "*"
   pull_request:
     branches:
       - release
@@ -16,46 +16,53 @@ jobs:
   build:
     name: Rust project
     runs-on: macos-latest
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
+      MACOSX_DEPLOYMENT_TARGET: "10.10"
+      CARGO_INCREMENTAL: 0
     steps:
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.6
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
       - name: Install dependencies
         run: |
-          brew install coreutils
-          brew install pkgconfig
-          brew install libarchive
+          brew unlink pkg-config@0.29.2 || true
+          brew tap atlanticaccent/homebrew-formulae
+          brew install coreutils pkgconfig libarchive llvm@19 atlanticaccent/homebrew-formulae/lld@19.1.5
           echo PKG_CONFIG_PATH=$(brew ls libarchive | grep .pc$ | sed 's|/libarchive.pc||') >> $GITHUB_ENV
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-      - name: Check cache
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install cargo-packager
+        run: (cargo install cargo-packager || true)
+
+      - name: Set build specific env vars
+        run: |
+          echo CC=${HOMEBREW_PREFIX}/opt/llvm@19/bin/clang >> $GITHUB_ENV
+          echo CXX=${HOMEBREW_PREFIX}/opt/llvm@19/bin/clang++ >> $GITHUB_ENV
+          echo AR=${HOMEBREW_PREFIX}/opt/llvm@19/bin/llvm-ar >> $GITHUB_ENV
+          echo CFLAGS='-flto=full -O3' >> $GITHUB_ENV
+          echo CXXFLAGS='-flto=full -O3' >> $GITHUB_ENV
+          echo RUSTFLAGS="-Zshare-generics=true -Clinker-plugin-lto -Clinker=$PWD/scripts/linker-shim.sh -Clink-arg=-fuse-ld=${HOMEBREW_PREFIX}/Cellar/lld@19.1.5/19.1.5/bin/ld64.lld" >> $GITHUB_ENV
+      - uses: r7kamura/rust-problem-matchers@v1
+      - name: Build
+        run: cargo build --release
       - name: Test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --release --all --all-features --no-fail-fast -- --nocapture
-      - name: Install cargo-bundle
-        run: (cargo install cargo-bundle || true)
-      - name: Emit target macOS version env variable
-        run: echo MACOSX_DEPLOYMENT_TARGET=10.10 >> $GITHUB_ENV
-      - name: Run cargo-bundle
-        run: cargo bundle --release
-      - name: Run make_portable.sh
-        run: ./scripts/make_portable.sh target/release/bundle/osx/Starsector\ Mod\ Manager.app/Contents/MacOS/starsector_mod_manager ../Resources
-        shell: bash
-      - name: Move app bundle
-        run: mv target/release/bundle/osx/Starsector\ Mod\ Manager.app target/release/Starsector\ Mod\ Manager.app
-      - uses: actions/upload-artifact@v2
+        run: cargo test --release --features="leaky-api" --all-targets -- --nocapture
+
+      - name: Run cargo-packager
+        run: cargo packager --release --formats app
+
+      - name: Run bundle-dylibs.sh
+        run: ./scripts/bundle-dylibs.sh target/release/moss.app
+      - name: Re-sign libs
+        run: codesign --force -s - target/release/moss.app/Contents/Frameworks/*
+
+      - uses: actions/upload-artifact@v4
         with:
           name: macos
           path: |
-            target/release/starsector_mod_manager
-            target/release/Starsector Mod Manager.app
+            target/release/moss
+            target/release/moss.app

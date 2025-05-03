@@ -1,5 +1,10 @@
-/target
+**/target
 .vscode/
 _src/
 config.json
 /docs/ignore
+rustc-ice-*
+.DS_Store
+**/**/Starsector*
+**/**/starsector*
+dhat.json

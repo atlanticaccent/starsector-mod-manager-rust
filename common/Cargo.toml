@@ -1,0 +1,17 @@
+[package]
+name = "common"
+version = "0.1.0"
+authors = ["ikl"]
+edition = "2021"
+description = "Common UI components for MOSS"
+
+[dependencies]
+# Internal
+macros = { workspace = true }
+druid-patch = { workspace = true }
+
+# External
+druid = { workspace = true }
+druid-widget-nursery = { workspace = true }
+extend = { workspace = true }
+ahash = { workspace = true }

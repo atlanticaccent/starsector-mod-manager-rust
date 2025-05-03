@@ -7,52 +7,38 @@ jobs:
   build:
     name: Rust project
     runs-on: windows-latest
+    env:
+      VCPKG_DEFAULT_TRIPLET: x64-windows-static
+      VCPKG_ROOT: 'C:\vcpkg'
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
+      CARGO_INCREMENTAL: 0
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.6
 
-      - name: Cache vcpkg installed
-        uses: actions/cache@v1.0.3
+      - uses: actions/checkout@v4
         with:
-          path: $VCPKG_ROOT/installed
-          key: windows-vcpkg-cache
-        env:
-          VCPKG_ROOT: 'C:\vcpkg'
-      - name: Cache vcpkg downloads
-        uses: actions/cache@v1.0.3
-        with:
-          path: $VCPKG_ROOT/downloads
-          key: windows-vcpkg-cache
-        env:
-          VCPKG_ROOT: 'C:\vcpkg'
+          submodules: recursive
 
-      - name: Install dependencies Windows
-        run: vcpkg integrate install; vcpkg install libarchive:x64-windows-static
-        env:
-          VCPKG_ROOT: 'C:\vcpkg'
+      - name: Setup vcpkg cache
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: b322364f06308bdd24823f9d8f03fe0cc86fd46f
 
-      - name: Check cache
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
+      - name: Setup vcpkg
+        run: |
+          (cargo install cargo-vcpkg || true)
+          cargo vcpkg build --manifest-path .\moss\Cargo.toml
+
+      - name: Build
+        env:
+          CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: true
+        run: cargo build --release
       - name: Test
-        uses: actions-rs/cargo@v1
-        timeout-minutes: 10
-        with:
-          command: test
-          args: --release --no-fail-fast -- --nocapture
-      - uses: actions/upload-artifact@v2
+        run: cargo test --release --features="leaky-api" -- --nocapture
+
+      - uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: target/release/starsector_mod_manager.exe
+          path: target/release/moss.exe

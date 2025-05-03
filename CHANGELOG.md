@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.8.0
+
+- Complete visual overhaul
+- JRE swapper now supports Mikohime's Java 23/24!
+  - Only supports Windows and Linux, as it's still just Mikohime and that doesn't support macOS
+- Multiple themes!
+  - Custom themes!
+- The web browser is now completely integrated *and embedded* into the app, meaning it won't open in a new window anymore
+- Mods with missing or outdated dependencies cannot be enabled and will tell you which dependencies they're missing/are outdated
+- Other changes I've forgotten
+- Lots of fixed bugs!
+- New and exciting bugs!
+
+## 0.7.x
+
+- Oops forgot to update this
+- Anything mentioned below as not being supported on another platform should now be available on all platforms
+
 ## 0.6.0
 
 - Complete rewrite of application in Druid.

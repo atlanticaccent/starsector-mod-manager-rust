@@ -1,0 +1,9 @@
+[package]
+name = "types"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { workspace = true, features = ["sync"] }
+derive_more = { workspace = true, features = ["deref", "from"] }
+typenum = { version = "1.17", features = ["const-generics"] }
